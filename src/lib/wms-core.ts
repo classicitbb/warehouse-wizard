@@ -1016,7 +1016,7 @@ export async function getInventoryDetail(balanceId: string) {
 
 export async function getPutawayTasks(userId?: string) {
   let query = db("putaway_tasks")
-    .select("*, pallets(*), locations: suggested_location_id(*)")
+    .select("*, pallets(*, products(*), inventory_lots: inventory_lot_id(*)), locations: suggested_location_id(*)")
     .order("created_at", { ascending: false });
 
   if (userId) {
@@ -1026,6 +1026,63 @@ export async function getPutawayTasks(userId?: string) {
   const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
+}
+
+export async function sendBackToReceiving(taskId: string, reason: string) {
+  const { data: task, error: taskError } = await db("putaway_tasks")
+    .select("*, pallets(*)")
+    .eq("id", taskId)
+    .single();
+  if (taskError) throw taskError;
+
+  const pallet = task.pallets as any;
+  if (!pallet) throw new Error("Putaway task has no linked pallet.");
+
+  await Promise.all([
+    db("pallets")
+      .update({ status: "receiving", current_location_id: null, is_stored: false, available_quantity: 0 })
+      .eq("id", pallet.id),
+    db("inventory_balances")
+      .update({ status: "receiving", location_id: null, zone_id: null, available_quantity: 0 })
+      .eq("pallet_id", pallet.id),
+    db("putaway_tasks")
+      .update({ status: "cancelled", notes: reason || "Returned to receiving by operator" })
+      .eq("id", taskId),
+  ]);
+
+  await (supabase.rpc as any)("log_audit_event", {
+    in_event_type: "putaway_returned_to_receiving",
+    in_entity_table: "putaway_tasks",
+    in_entity_id: taskId,
+    in_pallet_id: pallet.id,
+    in_warehouse_id: task.warehouse_id,
+    in_metadata: { reason: reason || "Returned to receiving by operator" },
+  });
+}
+
+export async function flagPutawayException(taskId: string, reason: string) {
+  if (!reason.trim()) throw new Error("A reason is required to flag an exception.");
+
+  const { data: task, error: taskError } = await db("putaway_tasks")
+    .select("*, pallets(*)")
+    .eq("id", taskId)
+    .single();
+  if (taskError) throw taskError;
+
+  const pallet = task.pallets as any;
+
+  await db("putaway_tasks")
+    .update({ status: "exception", notes: reason })
+    .eq("id", taskId);
+
+  await (supabase.rpc as any)("log_audit_event", {
+    in_event_type: "putaway_exception",
+    in_entity_table: "putaway_tasks",
+    in_entity_id: taskId,
+    in_pallet_id: pallet?.id,
+    in_warehouse_id: task.warehouse_id,
+    in_metadata: { reason },
+  });
 }
 
 export async function confirmPutaway(taskId: string, scannedPalletBarcode: string, scannedLocationCode: string) {
@@ -1189,7 +1246,7 @@ export async function createPickListFlow(input: z.infer<typeof pickListSchema>) 
 
 export async function listPickLists() {
   const { data, error } = await db("pick_lists")
-    .select("*, pick_tasks(*)")
+    .select("*, pick_tasks(*, pallets(pallet_barcode, products(*)))")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -1415,8 +1472,58 @@ export async function receiveTransfer(transferId: string) {
   await db("transfers").update({ status: "completed", received_at: new Date().toISOString() }).eq("id", transferId);
 }
 
+export async function cancelTransfer(transferId: string, reason: string) {
+  const { data: transfer, error: transferError } = await db("transfers").select("*").eq("id", transferId).single();
+  if (transferError) throw transferError;
+  if (transfer.status === "completed") throw new Error("Cannot cancel a completed transfer.");
+
+  const { data: lines, error: linesError } = await db("transfer_lines").select("*").eq("transfer_id", transferId);
+  if (linesError) throw linesError;
+
+  for (const line of lines ?? []) {
+    if (!line.pallet_id) continue;
+    // Return the pallet to receiving so it gets a fresh putaway task
+    await Promise.all([
+      db("pallets")
+        .update({ status: "receiving", current_location_id: null, is_stored: false, available_quantity: 0 })
+        .eq("id", line.pallet_id),
+      db("inventory_balances")
+        .update({ status: "receiving", location_id: null, zone_id: null, available_quantity: 0 })
+        .eq("pallet_id", line.pallet_id),
+    ]);
+  }
+
+  await db("transfers")
+    .update({ status: "cancelled", notes: reason })
+    .eq("id", transferId);
+
+  await (supabase.rpc as any)("log_audit_event", {
+    in_event_type: "transfer_cancelled",
+    in_entity_table: "transfers",
+    in_entity_id: transferId,
+    in_warehouse_id: transfer.source_warehouse_id,
+    in_metadata: { reason, transfer_number: transfer.transfer_number },
+  });
+}
+
+export async function flagCountLineException(lineId: string, reason: string) {
+  if (!reason.trim()) throw new Error("A reason is required to flag a count exception.");
+  await db("cycle_count_lines")
+    .update({ status: "exception", notes: reason } as any)
+    .eq("id", lineId);
+
+  await (supabase.rpc as any)("log_audit_event", {
+    in_event_type: "count_line_exception",
+    in_entity_table: "cycle_count_lines",
+    in_entity_id: lineId,
+    in_metadata: { reason },
+  });
+}
+
 export async function listTransfers() {
-  const { data, error } = await db("transfers").select("*, transfer_lines(*)").order("created_at", { ascending: false });
+  const { data, error } = await db("transfers")
+    .select("*, transfer_lines(*, pallets(pallet_barcode, products(*)))")
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
@@ -1460,7 +1567,9 @@ export async function createCycleCountFlow(input: z.infer<typeof cycleCountSchem
 }
 
 export async function listCycleCounts() {
-  const { data, error } = await db("cycle_counts").select("*, cycle_count_lines(*)").order("created_at", { ascending: false });
+  const { data, error } = await db("cycle_counts")
+    .select("*, cycle_count_lines(*, products(*), locations(code, aisle, bay, level))")
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }

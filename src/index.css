@@ -76,3 +76,85 @@
     font-family: 'IBM Plex Mono', monospace;
   }
 }
+
+/* ── Print styles ─────────────────────────────────────────── */
+@media print {
+  /* Hide everything by default */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show only elements marked for printing */
+  .print-label {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: system-ui, sans-serif;
+    padding: 16mm;
+  }
+
+  /* Ensure QR SVG renders at full contrast */
+  .print-label svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Label text */
+  .print-label-code {
+    margin-top: 8px;
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+
+  .print-label-type {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #555;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .print-label-sub {
+    font-size: 9pt;
+    color: #666;
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  /* A4 zone label — full page */
+  .print-zone-label {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 210mm;
+    min-height: 297mm;
+    background: #fff !important;
+    color: #000 !important;
+    padding: 20mm;
+    page-break-after: always;
+  }
+
+  .print-zone-label svg {
+    width: 160mm;
+    height: 160mm;
+  }
+
+  /* Suppress dialog chrome and navigation */
+  [role="dialog"],
+  nav,
+  header,
+  aside,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+}

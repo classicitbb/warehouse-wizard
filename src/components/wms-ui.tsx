@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BarChart3, Bot, Boxes, Building2, Camera, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, FileDown, Forklift, HelpCircle, Home, LayoutDashboard, Loader2, LogOut, MapPinned, Menu, Package, PanelLeftClose, PanelLeftOpen, Plus, Printer, QrCode, RadioTower, RotateCcw, Search, Settings, ShieldCheck, Tags, Truck, Upload, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, Bot, Boxes, Building2, Camera, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, FileDown, Forklift, HelpCircle, Home, LayoutDashboard, Loader2, LogOut, MapPinned, Menu, Package, PackageX, PanelLeftClose, PanelLeftOpen, Plus, Printer, QrCode, RadioTower, RotateCcw, Search, Settings, ShieldCheck, Tags, ThumbsDown, Truck, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -16,6 +17,10 @@ import {
   type ResourceDefinition,
   changePalletStatus,
   confirmPutaway,
+  sendBackToReceiving,
+  flagPutawayException,
+  cancelTransfer,
+  flagCountLineException,
   createCycleCountFlow,
   createPickListFlow,
   createReceiptFlow,
@@ -64,6 +69,7 @@ import {
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
 import { HelpSidebar } from "@/components/help-sidebar";
+import { ZoneLabelPage } from "@/components/zone-label-page";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -453,13 +459,25 @@ export function ResourcePage({
                       {resource.fields.map((field) => (
                         <TableCell key={field.name}>{String((row as Record<string, unknown>)[field.name] ?? "—")}</TableCell>
                       ))}
-                      {["warehouses", "zones"].includes(resource.table) ? (
+                      {["warehouses", "zones", "locations"].includes(resource.table) ? (
                         <TableCell>
-                          <BarcodePrintDialog
-                            labelType={resource.table === "warehouses" ? "warehouse" : "zone"}
-                            code={String((row as Record<string, unknown>).code ?? "")}
-                            title={String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).code ?? resource.singular)}
-                          />
+                          <div className="flex items-center gap-1">
+                            <BarcodePrintDialog
+                              labelType={resource.table === "warehouses" ? "warehouse" : resource.table === "zones" ? "zone" : "location"}
+                              code={String((row as Record<string, unknown>).code ?? "")}
+                              title={String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).code ?? resource.singular)}
+                            />
+                            {resource.table === "zones" && (
+                              <ZoneLabelPage
+                                code={String((row as Record<string, unknown>).code ?? "")}
+                                name={String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).code ?? "")}
+                                temperatureClass={String((row as Record<string, unknown>).temperature_class ?? "ambient")}
+                                isStaging={Boolean((row as Record<string, unknown>).is_staging)}
+                                isDispatch={Boolean((row as Record<string, unknown>).is_dispatch)}
+                                isQuarantine={Boolean((row as Record<string, unknown>).is_quarantine)}
+                              />
+                            )}
+                          </div>
                         </TableCell>
                       ) : null}
                       {resource.supportsHide ? (
@@ -642,6 +660,9 @@ function LocationWizardDialog() {
 }
 
 function BarcodePrintDialog({ labelType, code, title }: { labelType: "warehouse" | "zone" | "location"; code: string; title: string }) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   const zpl = [
     "^XA",
     "^CI28",
@@ -656,6 +677,25 @@ function BarcodePrintDialog({ labelType, code, title }: { labelType: "warehouse"
     "^XZ",
   ].join("\n");
 
+  function handlePrint() {
+    if (!printRef.current) return;
+    const printWindow = window.open("", "_blank", "width=420,height=480");
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Label — ${title}</title><style>
+      @page { margin: 12mm; }
+      body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #fff; }
+      .label { text-align: center; border: 1px solid #ccc; padding: 16px; border-radius: 8px; display: inline-block; }
+      .label-type { font-size: 11px; text-transform: uppercase; color: #888; margin-top: 8px; letter-spacing: 0.08em; }
+      .label-code { font-size: 18px; font-weight: 700; margin-top: 4px; letter-spacing: 0.04em; }
+      .label-sub { font-size: 11px; color: #666; margin-top: 2px; }
+    </style></head><body><div class="label">${printRef.current.innerHTML}
+      <p class="label-type">${labelType}</p>
+      <p class="label-code">${title}</p>
+      <p class="label-sub">${code}</p>
+    </div><script>window.onload=()=>{window.print();window.close();}</script></body></html>`);
+    printWindow.document.close();
+  }
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -667,37 +707,45 @@ function BarcodePrintDialog({ labelType, code, title }: { labelType: "warehouse"
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>QR-style scan label with human-readable code.</DialogDescription>
+          <DialogDescription>Scan label with human-readable code.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
-          <div className="mx-auto grid h-44 w-44 grid-cols-7 gap-1 rounded-md border border-border bg-white p-3" aria-label={`${labelType} QR preview`}>
-            {Array.from({ length: 49 }).map((_, index) => (
-              <span
-                key={index}
-                className={cn("rounded-[1px]", (index + code.length + code.charCodeAt(index % code.length)) % 3 === 0 ? "bg-black" : "bg-white")}
-              />
-            ))}
+          <div ref={printRef} className="mx-auto rounded-md border border-border bg-white p-4">
+            <QRCodeSVG value={code} size={160} bgColor="#ffffff" fgColor="#000000" level="M" />
           </div>
           <div className="rounded-md border border-border p-3 text-center">
             <p className="text-xs uppercase text-muted-foreground">{labelType}</p>
             <p className="break-all text-xl font-semibold">{code}</p>
           </div>
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={() => window.print()}>
-              <Printer data-icon="inline-start" />
-              Print label
-            </Button>
-            <Button
-              className="flex-1"
-              variant="outline"
-              onClick={async () => {
-                await navigator.clipboard?.writeText(zpl);
-                toast.success("ZPL copied");
-              }}
-            >
-              Copy ZPL
-            </Button>
-          </div>
+          <Button className="w-full" onClick={handlePrint}>
+            <Printer data-icon="inline-start" />
+            Print label
+          </Button>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline text-left"
+            onClick={() => setShowAdvanced((v) => !v)}
+          >
+            {showAdvanced ? "Hide" : "Show"} advanced (ZPL payload)
+          </button>
+          {showAdvanced && (
+            <div className="rounded-lg border border-border bg-background p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-muted-foreground">ZPL payload</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    await navigator.clipboard?.writeText(zpl);
+                    toast.success("ZPL copied");
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+              <pre className="max-h-36 overflow-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground">{zpl}</pre>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -958,6 +1006,7 @@ export function ReceivingPage() {
     },
   });
   const [manualBarcode, setManualBarcode] = useState("");
+  const [showZplAdvanced, setShowZplAdvanced] = useState(false);
   const receivedQuantity = form.watch("quantity");
   const zplPreview = useMemo(
     () =>
@@ -1030,8 +1079,8 @@ export function ReceivingPage() {
 
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle>Scan & Zebra Print</CardTitle>
-          <CardDescription>ZPL-first label output with a browser print fallback for office workstations.</CardDescription>
+          <CardTitle>Scan & Print Pallet Label</CardTitle>
+          <CardDescription>Enter or scan a barcode to preview and print a pallet label.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="rounded-xl border border-dashed border-border bg-secondary/30 p-4">
@@ -1047,27 +1096,38 @@ export function ReceivingPage() {
               Print
             </Button>
           </div>
-          {zplPreview ? (
-            <div className="rounded-lg border border-border bg-background p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">ZPL payload</p>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    await navigator.clipboard?.writeText(zplPreview);
-                    toast.success("ZPL copied for printer queue");
-                  }}
-                >
-                  Copy ZPL
-                </Button>
-              </div>
-              <pre className="max-h-44 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{zplPreview}</pre>
-            </div>
-          ) : null}
           <p className="text-xs text-muted-foreground">
-            Each receipt creates a pallet label record, inventory balance, queued putaway task, and queue-ready Zebra label payload.
+            Each receipt creates a pallet label record, inventory balance, and a queued putaway task.
           </p>
+          {zplPreview ? (
+            <>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline-offset-2 hover:underline text-left"
+                onClick={() => setShowZplAdvanced((v) => !v)}
+              >
+                {showZplAdvanced ? "Hide" : "Show"} advanced (ZPL payload)
+              </button>
+              {showZplAdvanced && (
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-muted-foreground">ZPL payload</p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={async () => {
+                        await navigator.clipboard?.writeText(zplPreview);
+                        toast.success("ZPL copied");
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground">{zplPreview}</pre>
+                </div>
+              )}
+            </>
+          ) : null}
         </CardContent>
       </Card>
     </div>
@@ -1143,86 +1203,303 @@ function SelectField({
 
 export function PutawayTasksPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data = [], isLoading } = useQuery({
     queryKey: ["putaway-tasks", user?.id],
     queryFn: () => getPutawayTasks(user?.id),
   });
-  const [scanState, setScanState] = useState<Record<string, { pallet: string; location: string }>>({});
 
-  const mutation = useMutation({
+  // Per-task scan inputs
+  const [scanState, setScanState] = useState<Record<string, { pallet: string; location: string }>>({});
+  // Per-task return-to-receiving dialog state
+  const [returnState, setReturnState] = useState<Record<string, { open: boolean; reason: string }>>({});
+  // Per-task exception dialog state
+  const [exceptionState, setExceptionState] = useState<Record<string, { open: boolean; reason: string }>>({});
+
+  const invalidate = async () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
+    queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+    queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+  ]);
+
+  const confirmMutation = useMutation({
     mutationFn: async ({ taskId, pallet, location }: { taskId: string; pallet: string; location: string }) =>
       confirmPutaway(taskId, pallet, location),
     onSuccess: async () => {
-      toast.success("Putaway confirmed");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-      ]);
+      toast.success("✅ Putaway confirmed — stock is now available");
+      await invalidate();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Putaway failed"),
   });
 
+  const returnMutation = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) =>
+      sendBackToReceiving(taskId, reason),
+    onSuccess: async (_data, { taskId }) => {
+      setReturnState((s) => ({ ...s, [taskId]: { open: false, reason: "" } }));
+      toast("Pallet returned to Receiving", {
+        description: "The pallet is queued for re-inspection or re-labelling.",
+        action: { label: "Go to Receiving", onClick: () => navigate("/receiving") },
+        duration: 8000,
+      });
+      await invalidate();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Return failed"),
+  });
+
+  const exceptionMutation = useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) =>
+      flagPutawayException(taskId, reason),
+    onSuccess: async (_data, { taskId }) => {
+      setExceptionState((s) => ({ ...s, [taskId]: { open: false, reason: "" } }));
+      toast.warning("⚠️ Task flagged as exception — a manager will review it");
+      await invalidate();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Flag failed"),
+  });
+
+  const active = (data as any[]).filter((t: any) => !["completed", "cancelled"].includes(t.status));
+  const done = (data as any[]).filter((t: any) => ["completed", "cancelled"].includes(t.status));
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-semibold">Putaway Tasks</h2>
-        <p className="text-sm text-muted-foreground">Scan pallet barcode, scan location barcode, and confirm storage.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Putaway Tasks</h2>
+          <p className="text-sm text-muted-foreground">
+            Scan the pallet barcode on the physical pallet, scan the target location barcode, then confirm.
+          </p>
+        </div>
+        {active.length > 0 && (
+          <Badge variant="secondary" className="shrink-0 text-sm">
+            {active.length} open
+          </Badge>
+        )}
       </div>
+
+      {/* Solo-operator tip */}
+      {active.length > 2 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <strong>{active.length} tasks open.</strong> If you're working alone, complete putaway in received order so
+            no pallets are left blocking the dock or staging zone.
+          </span>
+        </div>
+      )}
+
       <div className="grid gap-4">
         {isLoading ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading putaway tasks…</CardContent></Card>
-        ) : data.length === 0 ? (
-          <Card><CardContent className="p-6 text-sm text-muted-foreground">No putaway tasks ready.</CardContent></Card>
+        ) : active.length === 0 && !isLoading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+              <Forklift className="h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium">No putaway tasks ready</p>
+              <p className="text-xs text-muted-foreground">Tasks appear here after stock is received. Go to Receiving to create one.</p>
+              <Button variant="outline" size="sm" onClick={() => navigate("/receiving")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Go to Receiving
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
-          data.map((task: any) => {
+          active.map((task: any) => {
+            const pallet = task.pallets as any;
+            const product = pallet?.products as any;
+            const lot = pallet?.inventory_lots as any;
+            const suggestedLocation = task.locations as any;
             const localState = scanState[task.id] ?? { pallet: "", location: "" };
+            const ret = returnState[task.id] ?? { open: false, reason: "" };
+            const exc = exceptionState[task.id] ?? { open: false, reason: "" };
+            const isCoolChain = product?.temperature_requirement === "cool" || product?.temperature_requirement === "frozen";
+
             return (
-              <Card key={task.id}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between gap-4">
-                    <span>{task.task_number}</span>
-                    <Badge>{task.status}</Badge>
+              <Card key={task.id} className={isCoolChain ? "border-blue-300 dark:border-blue-700" : undefined}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-sm text-muted-foreground">{task.task_number}</span>
+                    <div className="flex gap-2">
+                      {isCoolChain && (
+                        <Badge variant="outline" className="border-blue-400 text-blue-600 dark:text-blue-400">
+                          🧊 {product?.temperature_requirement}
+                        </Badge>
+                      )}
+                      <Badge variant={task.status === "exception" ? "destructive" : "secondary"}>
+                        {task.status}
+                      </Badge>
+                    </div>
                   </CardTitle>
-                  <CardDescription>
-                    Suggested location: {(task.locations as any)?.code ?? "Request alternative"}
+
+                  {/* Product identity — the core confirmation row */}
+                  {product ? (
+                    <div className="mt-1 rounded-md bg-secondary/40 px-3 py-2">
+                      <p className="text-base font-semibold leading-tight">{product.name}</p>
+                      <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                        <span><span className="text-muted-foreground">Qty: </span><strong>{formatNumber(pallet?.quantity)}</strong></span>
+                        {lot?.lot_number && <span><span className="text-muted-foreground">Lot: </span>{lot.lot_number}</span>}
+                        {lot?.batch_number && <span><span className="text-muted-foreground">Batch: </span>{lot.batch_number}</span>}
+                        {lot?.expiry_date && <span><span className="text-muted-foreground">Expiry: </span>{formatDate(lot.expiry_date)}</span>}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Pallet barcode — big and scannable */}
+                  <div className="mt-2 rounded-md border border-dashed border-border bg-background px-3 py-2 text-center">
+                    <p className="text-xs uppercase text-muted-foreground">Pallet barcode — scan this</p>
+                    <p className="mt-0.5 font-mono text-lg font-bold tracking-widest">{pallet?.pallet_barcode ?? "—"}</p>
+                  </div>
+
+                  <CardDescription className="mt-2">
+                    {suggestedLocation
+                      ? <>Suggested location: <strong>{suggestedLocation.code}</strong> · {suggestedLocation.temperature_class} · {suggestedLocation.location_type}</>
+                      : <span className="text-amber-600 dark:text-amber-400">⚠ No suggested location — scan any valid location barcode or flag an exception.</span>
+                    }
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                  <Input
-                    className="min-w-0"
-                    placeholder="Scan pallet barcode"
-                    value={localState.pallet}
-                    onChange={(event) =>
-                      setScanState((current) => ({
-                        ...current,
-                        [task.id]: { ...localState, pallet: event.target.value },
-                      }))
-                    }
-                  />
-                  <Input
-                    className="min-w-0"
-                    placeholder="Scan location barcode"
-                    value={localState.location}
-                    onChange={(event) =>
-                      setScanState((current) => ({
-                        ...current,
-                        [task.id]: { ...localState, location: event.target.value },
-                      }))
-                    }
-                  />
-                  <Button
-                    className="w-full lg:w-auto"
-                    disabled={mutation.isPending}
-                    onClick={() => mutation.mutate({ taskId: task.id, pallet: localState.pallet, location: localState.location })}
-                  >
-                    Confirm
-                  </Button>
+
+                <CardContent className="flex flex-col gap-3">
+                  {/* Scan + confirm row */}
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <Input
+                      className="min-w-0"
+                      placeholder="Scan pallet barcode"
+                      value={localState.pallet}
+                      onChange={(e) => setScanState((s) => ({ ...s, [task.id]: { ...localState, pallet: e.target.value } }))}
+                    />
+                    <Input
+                      className="min-w-0"
+                      placeholder="Scan location barcode"
+                      value={localState.location}
+                      onChange={(e) => setScanState((s) => ({ ...s, [task.id]: { ...localState, location: e.target.value } }))}
+                    />
+                    <Button
+                      className="w-full sm:w-auto"
+                      disabled={confirmMutation.isPending || !localState.pallet || !localState.location}
+                      onClick={() => confirmMutation.mutate({ taskId: task.id, pallet: localState.pallet, location: localState.location })}
+                    >
+                      {confirmMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Confirm"}
+                    </Button>
+                  </div>
+
+                  {/* Secondary actions */}
+                  <div className="flex flex-wrap gap-2 border-t border-border pt-2">
+                    {/* Send back to receiving */}
+                    {!ret.open && !exc.open && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-950/30"
+                          onClick={() => setReturnState((s) => ({ ...s, [task.id]: { open: true, reason: "" } }))}
+                        >
+                          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                          Send back to Receiving
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive border-destructive/40 hover:bg-destructive/5"
+                          onClick={() => setExceptionState((s) => ({ ...s, [task.id]: { open: true, reason: "" } }))}
+                        >
+                          <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+                          Flag exception
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Return-to-receiving inline panel */}
+                    {ret.open && (
+                      <div className="w-full rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3 flex flex-col gap-2">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                          <RotateCcw className="inline mr-1.5 h-3.5 w-3.5" />
+                          Return this pallet to Receiving
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          The pallet will be reset to "receiving" status. A new putaway task can be raised after re-inspection.
+                        </p>
+                        <Input
+                          placeholder="Reason (e.g. wrong pallet, damaged, can't find location)"
+                          value={ret.reason}
+                          onChange={(e) => setReturnState((s) => ({ ...s, [task.id]: { ...ret, reason: e.target.value } }))}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-400"
+                            disabled={returnMutation.isPending}
+                            onClick={() => returnMutation.mutate({ taskId: task.id, reason: ret.reason })}
+                          >
+                            {returnMutation.isPending ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : "Confirm return"}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setReturnState((s) => ({ ...s, [task.id]: { open: false, reason: "" } }))}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Exception inline panel */}
+                    {exc.open && (
+                      <div className="w-full rounded-md border border-destructive/30 bg-destructive/5 p-3 flex flex-col gap-2">
+                        <p className="text-sm font-medium text-destructive">
+                          <AlertTriangle className="inline mr-1.5 h-3.5 w-3.5" />
+                          Flag as exception
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Describe the issue. A manager or supervisor will review and reassign. The pallet stays in its current status.
+                        </p>
+                        <Input
+                          placeholder="Reason (e.g. location full, temp mismatch, pallet damaged)"
+                          value={exc.reason}
+                          onChange={(e) => setExceptionState((s) => ({ ...s, [task.id]: { ...exc, reason: e.target.value } }))}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={exceptionMutation.isPending || !exc.reason.trim()}
+                            onClick={() => exceptionMutation.mutate({ taskId: task.id, reason: exc.reason })}
+                          >
+                            {exceptionMutation.isPending ? <Loader2 className="animate-spin h-3.5 w-3.5" /> : "Flag exception"}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setExceptionState((s) => ({ ...s, [task.id]: { open: false, reason: "" } }))}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
           })
+        )}
+
+        {/* Completed / cancelled summary */}
+        {done.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-muted-foreground select-none list-none flex items-center gap-1 hover:text-foreground">
+              <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+              {done.length} completed / cancelled task{done.length !== 1 ? "s" : ""}
+            </summary>
+            <div className="mt-2 grid gap-2">
+              {done.map((task: any) => {
+                const pallet = task.pallets as any;
+                const product = pallet?.products as any;
+                return (
+                  <div key={task.id} className="rounded-md border border-border px-3 py-2 text-sm flex items-center justify-between gap-3 opacity-60">
+                    <span className="font-mono text-xs">{task.task_number}</span>
+                    <span className="text-xs truncate">{product?.name ?? "—"} · {formatNumber(pallet?.quantity)}</span>
+                    <Badge variant="outline" className="shrink-0">{task.status}</Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         )}
       </div>
     </div>
@@ -1350,7 +1627,15 @@ export function InventorySearchPage() {
   );
 }
 
+function statusBadgeVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "completed") return "default";
+  if (status === "exception" || status === "cancelled") return "destructive";
+  if (status === "in_progress" || status === "queued") return "secondary";
+  return "outline";
+}
+
 export function PickListsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: options } = useQuery({ queryKey: ["options"], queryFn: () => fetchOptions() });
   const { data: pickLists = [] } = useQuery({ queryKey: ["pick-lists"], queryFn: listPickLists });
@@ -1362,7 +1647,10 @@ export function PickListsPage() {
   const mutation = useMutation({
     mutationFn: async (values: z.infer<typeof pickListSchema>) => createPickListFlow(values),
     onSuccess: async () => {
-      toast.success("Pick list released");
+      toast.success("Pick list released", {
+        action: { label: "View lists", onClick: () => navigate("/pick-lists") },
+        duration: 6000,
+      });
       form.reset({ lines: [{ product_id: "", quantity: 1 }] });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
@@ -1373,6 +1661,8 @@ export function PickListsPage() {
   });
 
   const lines = form.watch("lines");
+  const active = (pickLists as any[]).filter((pl) => !["completed", "cancelled"].includes(pl.status));
+  const done = (pickLists as any[]).filter((pl) => ["completed", "cancelled"].includes(pl.status));
 
   return (
     <Tabs className="flex flex-col gap-6" defaultValue="lists">
@@ -1385,25 +1675,102 @@ export function PickListsPage() {
         <TabsTrigger value="create">Create Pick List</TabsTrigger>
       </TabsList>
       <TabsContent value="lists" className="grid gap-4">
-        {pickLists.map((pickList: any) => (
-          <Card key={pickList.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between gap-4">
-                <span>{pickList.pick_list_number}</span>
-                <Badge>{pickList.status}</Badge>
-              </CardTitle>
-              <CardDescription>{pickList.notes || "Released outbound work"}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted-foreground">
-                {(pickList.pick_tasks as any[] | undefined)?.length ?? 0} tasks
-              </div>
-              <Button asChild className="w-full sm:w-auto" variant="outline">
-                <Link to={`/pick-lists/${pickList.id}`}>Execute</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        {active.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <ClipboardList className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            <p className="font-medium">No active pick lists</p>
+            <p className="mt-1 text-sm text-muted-foreground">Release a pick list from the Create tab, or go to Receiving to check inbound stock.</p>
+            <Button className="mt-4" variant="outline" asChild>
+              <Link to="/receiving">Go to Receiving</Link>
+            </Button>
+          </div>
+        )}
+        {active.map((pickList: any) => {
+          const tasks: any[] = pickList.pick_tasks ?? [];
+          const exceptionCount = tasks.filter((t) => t.status === "exception").length;
+          const completedCount = tasks.filter((t) => t.status === "completed").length;
+          return (
+            <Card key={pickList.id} className={exceptionCount > 0 ? "border-destructive/60" : ""}>
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="font-mono text-base">{pickList.pick_list_number}</span>
+                  <div className="flex items-center gap-2">
+                    {exceptionCount > 0 && (
+                      <Badge variant="destructive">
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        {exceptionCount} short
+                      </Badge>
+                    )}
+                    <Badge variant={statusBadgeVariant(pickList.status)}>{pickList.status}</Badge>
+                  </div>
+                </CardTitle>
+                <CardDescription>
+                  {pickList.notes || "Released outbound work"} · {completedCount}/{tasks.length} tasks done
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {tasks.map((task: any) => {
+                  const product = task.pallets?.products as any;
+                  return (
+                    <div
+                      key={task.id}
+                      className={`flex flex-wrap items-center gap-3 rounded-md border px-3 py-2 text-sm ${task.status === "exception" ? "border-destructive/50 bg-destructive/5" : "border-border"}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{product?.name ?? "—"}</p>
+                        {product?.sku && <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>}
+                        {task.pallets?.pallet_barcode && (
+                          <p className="font-mono text-xs text-muted-foreground">Pallet: {task.pallets.pallet_barcode}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-semibold">Qty {formatNumber(task.quantity)}</span>
+                        <Badge variant={statusBadgeVariant(task.status)} className="text-xs">{task.status}</Badge>
+                      </div>
+                      {task.short_reason && (
+                        <p className="w-full text-xs text-destructive">Short: {task.short_reason}</p>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/pick-lists/${pickList.id}`}>Execute picks</Link>
+                  </Button>
+                  {exceptionCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toast.warning("Short pick detected — check inventory levels or reassign stock from another location.", {
+                        action: { label: "Inventory", onClick: () => navigate("/inventory-search") },
+                        duration: 8000,
+                      })}
+                    >
+                      <AlertTriangle className="mr-1 h-3 w-3" />
+                      Resolve shortage
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+        {done.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+              <span className="group-open:hidden">▶ Show {done.length} completed / cancelled</span>
+              <span className="hidden group-open:inline">▼ Hide completed / cancelled</span>
+            </summary>
+            <div className="mt-2 grid gap-2">
+              {done.map((pl: any) => (
+                <div key={pl.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm opacity-60">
+                  <span className="font-mono text-xs">{pl.pick_list_number}</span>
+                  <Badge variant={statusBadgeVariant(pl.status)} className="text-xs">{pl.status}</Badge>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </TabsContent>
       <TabsContent value="create">
         <Card>
@@ -1456,6 +1823,7 @@ export function PickListsPage() {
                   </CardContent>
                 </Card>
                 <Button className="w-full lg:col-span-2" type="submit" disabled={mutation.isPending}>
+                  {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Release pick list
                 </Button>
               </form>
@@ -1468,10 +1836,13 @@ export function PickListsPage() {
 }
 
 export function TransfersPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: options } = useQuery({ queryKey: ["options"], queryFn: () => fetchOptions() });
   const { data: transfers = [] } = useQuery({ queryKey: ["transfers"], queryFn: listTransfers });
   const [signoffCodes, setSignoffCodes] = useState<Record<string, string>>({});
+  // Per-transfer cancel panel state
+  const [cancelState, setCancelState] = useState<Record<string, { open: boolean; reason: string }>>({});
   const form = useForm<z.infer<typeof transferSchema>>({
     resolver: zodResolver(transferSchema),
   });
@@ -1483,12 +1854,13 @@ export function TransfersPage() {
       form.reset();
       await queryClient.invalidateQueries({ queryKey: ["transfers"] });
     },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Create transfer failed"),
   });
 
   const dispatchMutation = useMutation({
     mutationFn: async (transferId: string) => dispatchTransfer(transferId, signoffCodes[transferId] ?? ""),
     onSuccess: async () => {
-      toast.success("Driver departure signed off and transfer dispatched");
+      toast.success("Driver departure signed off — transfer dispatched");
       await queryClient.invalidateQueries({ queryKey: ["transfers"] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Transfer dispatch failed"),
@@ -1497,16 +1869,41 @@ export function TransfersPage() {
   const receiveMutation = useMutation({
     mutationFn: async (transferId: string) => receiveTransfer(transferId),
     onSuccess: async () => {
-      toast.success("Transfer received into destination");
+      toast.success("Transfer received — putaway task created", {
+        action: { label: "Go to Putaway", onClick: () => navigate("/putaway-tasks") },
+        duration: 8000,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["transfers"] }),
+        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+      ]);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Transfer receive failed"),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async ({ transferId, reason }: { transferId: string; reason: string }) =>
+      cancelTransfer(transferId, reason),
+    onSuccess: async (_data, variables) => {
+      setCancelState((s) => ({ ...s, [variables.transferId]: { open: false, reason: "" } }));
+      toast.warning("Transfer cancelled — stock returned to receiving", {
+        action: { label: "Go to Receiving", onClick: () => navigate("/receiving") },
+        duration: 8000,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["transfers"] }),
         queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
       ]);
     },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Cancel failed"),
   });
 
+  const active = (transfers as any[]).filter((t) => !["completed", "cancelled"].includes(t.status));
+  const done = (transfers as any[]).filter((t) => ["completed", "cancelled"].includes(t.status));
+
   return (
-    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Create Transfer</CardTitle>
@@ -1535,45 +1932,152 @@ export function TransfersPage() {
                   </FormItem>
                 )}
               />
-              <Button className="w-full sm:w-auto" type="submit" disabled={createMutation.isPending}>Create transfer</Button>
+              <Button className="w-full sm:w-auto" type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Create transfer
+              </Button>
             </form>
           </Form>
         </CardContent>
       </Card>
-      <div className="grid min-w-0 gap-4">
-        {transfers.map((transfer: any) => (
-          <Card key={transfer.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between gap-4">
-                <span className="min-w-0 break-all">{transfer.transfer_number}</span>
-                <Badge>{transfer.status}</Badge>
-              </CardTitle>
-              <CardDescription>
-                {transfer.notes || "Pallet transfer"}
-                {transfer.dispatch_signed_off_at ? ` · departed ${formatDate(transfer.dispatch_signed_off_at)}` : ""}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-                <div>
-                  <label className="text-sm font-medium" htmlFor={`signoff-${transfer.id}`}>Driver departure code</label>
-                  <Input
-                    id={`signoff-${transfer.id}`}
-                    className="mt-1"
-                    placeholder="Scan badge or enter user code"
-                    value={signoffCodes[transfer.id] ?? ""}
-                    onChange={(event) => setSignoffCodes((current) => ({ ...current, [transfer.id]: event.target.value }))}
-                  />
+
+      <div className="grid min-w-0 content-start gap-4">
+        {active.length === 0 && done.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <Truck className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            <p className="font-medium">No transfers yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">Create a transfer to move pallets between warehouses or zones.</p>
+          </div>
+        )}
+        {active.map((transfer: any) => {
+          const lines: any[] = transfer.transfer_lines ?? [];
+          const cs = cancelState[transfer.id] ?? { open: false, reason: "" };
+          const codeEntered = !!(signoffCodes[transfer.id] ?? "").trim();
+          return (
+            <Card key={transfer.id} className={transfer.status === "exception" ? "border-destructive/60" : ""}>
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="min-w-0 font-mono text-base break-all">{transfer.transfer_number}</span>
+                  <Badge variant={statusBadgeVariant(transfer.status)}>{transfer.status}</Badge>
+                </CardTitle>
+                <CardDescription>
+                  {transfer.notes || "Pallet transfer"}
+                  {transfer.dispatch_signed_off_at ? ` · departed ${formatDate(transfer.dispatch_signed_off_at)}` : ""}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {/* Pallet / product summary */}
+                {lines.map((line: any) => {
+                  const product = line.pallets?.products as any;
+                  return (
+                    <div key={line.id} className="flex items-center gap-3 rounded-md border border-border bg-secondary/20 px-3 py-2 text-sm">
+                      <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{product?.name ?? "—"}</p>
+                        {product?.sku && <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>}
+                        {line.pallets?.pallet_barcode && (
+                          <p className="font-mono text-xs text-muted-foreground">Pallet: {line.pallets.pallet_barcode}</p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold">Qty {formatNumber(line.quantity)}</span>
+                    </div>
+                  );
+                })}
+
+                {/* Dispatch sign-off */}
+                {transfer.status !== "completed" && transfer.status !== "cancelled" && (
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+                    <div>
+                      <label className="text-sm font-medium" htmlFor={`signoff-${transfer.id}`}>Driver departure code</label>
+                      <Input
+                        id={`signoff-${transfer.id}`}
+                        className="mt-1"
+                        placeholder="Scan badge or enter user code"
+                        value={signoffCodes[transfer.id] ?? ""}
+                        onChange={(event) => setSignoffCodes((current) => ({ ...current, [transfer.id]: event.target.value }))}
+                      />
+                    </div>
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant="outline"
+                      onClick={() => dispatchMutation.mutate(transfer.id)}
+                      disabled={!codeEntered || transfer.status === "in_progress"}
+                      title={!codeEntered ? "Enter driver code first" : undefined}
+                    >
+                      Dispatch
+                    </Button>
+                    <Button
+                      className="w-full sm:w-auto"
+                      onClick={() => receiveMutation.mutate(transfer.id)}
+                      disabled={transfer.status === "queued"}
+                      title={transfer.status === "queued" ? "Dispatch before receiving" : undefined}
+                    >
+                      Receive
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Departure requires the signed-in driver/admin/manager to scan their badge or enter their user code.</p>
+
+                {/* Cancel / reroute panel */}
+                {!["completed", "cancelled"].includes(transfer.status) && !cs.open && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-fit text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setCancelState((s) => ({ ...s, [transfer.id]: { open: true, reason: "" } }))}
+                  >
+                    <PackageX className="mr-1 h-3.5 w-3.5" />
+                    Cancel transfer
+                  </Button>
+                )}
+                {cs.open && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 grid gap-2">
+                    <p className="text-sm font-medium text-destructive">Cancel this transfer?</p>
+                    <p className="text-xs text-muted-foreground">Stock will be returned to Receiving and a new putaway task created.</p>
+                    <Input
+                      placeholder="Reason for cancellation (required)"
+                      value={cs.reason}
+                      onChange={(e) => setCancelState((s) => ({ ...s, [transfer.id]: { ...cs, reason: e.target.value } }))}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!cs.reason.trim() || cancelMutation.isPending}
+                        onClick={() => cancelMutation.mutate({ transferId: transfer.id, reason: cs.reason })}
+                      >
+                        Confirm cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setCancelState((s) => ({ ...s, [transfer.id]: { open: false, reason: "" } }))}
+                      >
+                        Keep transfer
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+        {done.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+              <span className="group-open:hidden">▶ Show {done.length} completed / cancelled</span>
+              <span className="hidden group-open:inline">▼ Hide completed / cancelled</span>
+            </summary>
+            <div className="mt-2 grid gap-2">
+              {done.map((t: any) => (
+                <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm opacity-60">
+                  <span className="font-mono text-xs">{t.transfer_number}</span>
+                  <Badge variant={statusBadgeVariant(t.status)} className="text-xs">{t.status}</Badge>
                 </div>
-                <Button className="w-full sm:w-auto" variant="outline" onClick={() => dispatchMutation.mutate(transfer.id)} disabled={transfer.status === "completed"}>
-                  Dispatch
-                </Button>
-                <Button className="w-full sm:w-auto" onClick={() => receiveMutation.mutate(transfer.id)}>Receive</Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Departure requires the signed-in driver/admin/manager to scan their badge or enter their user code before stock can leave.</p>
-            </CardContent>
-          </Card>
-        ))}
+              ))}
+            </div>
+          </details>
+        )}
       </div>
     </div>
   );
@@ -1583,30 +2087,51 @@ export function CycleCountsPage() {
   const queryClient = useQueryClient();
   const { data: options } = useQuery({ queryKey: ["options"], queryFn: () => fetchOptions() });
   const { data: counts = [] } = useQuery({ queryKey: ["cycle-counts"], queryFn: listCycleCounts });
+  // Per-line "can't count" exception state
+  const [exState, setExState] = useState<Record<string, { open: boolean; reason: string }>>({});
+
   const form = useForm<z.infer<typeof cycleCountSchema>>({
     resolver: zodResolver(cycleCountSchema),
-    defaultValues: {
-      scope: "spot",
-      variance_threshold_percent: 5,
-    },
+    defaultValues: { scope: "spot", variance_threshold_percent: 5 },
   });
+
   const createMutation = useMutation({
     mutationFn: async (values: z.infer<typeof cycleCountSchema>) => createCycleCountFlow(values),
     onSuccess: async () => {
       toast.success("Count sheet generated");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-  });
-  const submitMutation = useMutation({
-    mutationFn: async ({ lineId, quantity }: { lineId: string; quantity: number }) => submitCycleCountLine(lineId, quantity),
-    onSuccess: async () => {
-      toast.success("Count line submitted");
-      await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
-    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Count creation failed"),
   });
 
+  const submitMutation = useMutation({
+    mutationFn: async ({ lineId, quantity }: { lineId: string; quantity: number }) =>
+      submitCycleCountLine(lineId, quantity),
+    onSuccess: async (_data, variables) => {
+      // Re-fetch to show variance badge immediately
+      await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
+      toast.success(`Count submitted for line`);
+      void variables;
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Submit failed"),
+  });
+
+  const exceptionMutation = useMutation({
+    mutationFn: async ({ lineId, reason }: { lineId: string; reason: string }) =>
+      flagCountLineException(lineId, reason),
+    onSuccess: async (_data, variables) => {
+      setExState((s) => ({ ...s, [variables.lineId]: { open: false, reason: "" } }));
+      toast.warning("Count line flagged as exception — supervisor review required");
+      await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Flag failed"),
+  });
+
+  const active = (counts as any[]).filter((c) => !["completed", "cancelled"].includes(c.status));
+  const done = (counts as any[]).filter((c) => ["completed", "cancelled"].includes(c.status));
+
   return (
-    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Create Count</CardTitle>
@@ -1626,35 +2151,162 @@ export function CycleCountsPage() {
               <SelectField form={form} name="location_id" label="Location" options={(options?.locations ?? []).map((location) => ({ label: location.code, value: location.id }))} />
               <SelectField form={form} name="product_id" label="Product" options={(options?.products ?? []).map((product) => ({ label: product.sku, value: product.id }))} />
               <TextField form={form} name="variance_threshold_percent" label="Variance threshold %" type="number" />
-              <Button className="w-full sm:w-auto" type="submit">Generate count</Button>
+              <Button className="w-full sm:w-auto" type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Generate count
+              </Button>
             </form>
           </Form>
         </CardContent>
       </Card>
-      <div className="grid min-w-0 gap-4">
-        {counts.map((count: any) => (
-          <Card key={count.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between gap-4">
-                <span className="min-w-0 break-all">{count.count_number}</span>
-                <Badge>{count.status}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              {((count.cycle_count_lines as any[] | undefined) ?? []).map((line: any) => (
-                <div key={line.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="min-w-0 flex-1 text-sm text-muted-foreground">Expected {formatNumber(line.expected_quantity)}</span>
-                  <Input
-                    className="w-full sm:w-28"
-                    defaultValue={line.counted_quantity}
-                    type="number"
-                    onBlur={(event) => submitMutation.mutate({ lineId: line.id, quantity: Number(event.target.value) })}
-                  />
+
+      <div className="grid min-w-0 content-start gap-4">
+        {active.length === 0 && done.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <ClipboardCheck className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            <p className="font-medium">No active counts</p>
+            <p className="mt-1 text-sm text-muted-foreground">Generate a count sheet from the form to start a cycle count.</p>
+          </div>
+        )}
+        {active.map((count: any) => {
+          const lines: any[] = count.cycle_count_lines ?? [];
+          const threshold = count.variance_threshold_percent ?? 5;
+          const exceptionLines = lines.filter((l) => l.status === "exception").length;
+          return (
+            <Card key={count.id} className={exceptionLines > 0 ? "border-amber-500/60" : ""}>
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="min-w-0 font-mono text-base break-all">{count.count_number}</span>
+                  <div className="flex items-center gap-2">
+                    {exceptionLines > 0 && (
+                      <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        {exceptionLines} flagged
+                      </Badge>
+                    )}
+                    <Badge variant={statusBadgeVariant(count.status)}>{count.status}</Badge>
+                  </div>
+                </CardTitle>
+                <CardDescription>
+                  Scope: {count.scope} · Threshold: ±{threshold}% · {lines.filter((l) => l.status === "completed").length}/{lines.length} lines done
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {lines.map((line: any) => {
+                  const product = line.products as any;
+                  const loc = line.locations as any;
+                  const counted = line.counted_quantity ?? line.expected_quantity;
+                  const variance = line.variance_quantity ?? 0;
+                  const varPct = line.variance_percent ?? 0;
+                  const overThreshold = Math.abs(varPct) > threshold && line.status === "completed";
+                  const es = exState[line.id] ?? { open: false, reason: "" };
+                  const isException = line.status === "exception";
+
+                  return (
+                    <div
+                      key={line.id}
+                      className={`rounded-md border px-3 py-2 grid gap-2 text-sm ${isException ? "border-amber-500/50 bg-amber-50 dark:bg-amber-950/20" : overThreshold ? "border-destructive/40 bg-destructive/5" : "border-border"}`}
+                    >
+                      {/* Product + location header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          {product?.name && <p className="font-medium truncate">{product.name}</p>}
+                          {product?.sku && <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>}
+                          {loc?.code && <p className="text-xs text-muted-foreground">Location: {loc.code}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {overThreshold && (
+                            <Badge variant="destructive" className="text-xs">
+                              {variance > 0 ? "+" : ""}{variance} ({varPct.toFixed(1)}%)
+                            </Badge>
+                          )}
+                          <Badge variant={statusBadgeVariant(line.status)} className="text-xs">{line.status}</Badge>
+                        </div>
+                      </div>
+
+                      {/* Count input */}
+                      {!isException && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground shrink-0">Expected {formatNumber(line.expected_quantity)}</span>
+                          <Input
+                            className="w-28"
+                            defaultValue={counted}
+                            type="number"
+                            onBlur={(e) => {
+                              const val = Number(e.target.value);
+                              if (!isNaN(val)) submitMutation.mutate({ lineId: line.id, quantity: val });
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            title="Flag as unable to count"
+                            onClick={() => setExState((s) => ({ ...s, [line.id]: { open: true, reason: "" } }))}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                      {isException && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="inline mr-1 h-3 w-3" />
+                          {(line as any).notes ?? "Flagged — supervisor review required"}
+                        </p>
+                      )}
+
+                      {/* Exception panel */}
+                      {es.open && (
+                        <div className="rounded border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 p-2 grid gap-2">
+                          <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Why can't this line be counted?</p>
+                          <Input
+                            placeholder="e.g. Location blocked, pallet damaged, goods in use"
+                            value={es.reason}
+                            onChange={(e) => setExState((s) => ({ ...s, [line.id]: { ...es, reason: e.target.value } }))}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-500 text-amber-700"
+                              disabled={!es.reason.trim() || exceptionMutation.isPending}
+                              onClick={() => exceptionMutation.mutate({ lineId: line.id, reason: es.reason })}
+                            >
+                              Flag exception
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExState((s) => ({ ...s, [line.id]: { open: false, reason: "" } }))}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          );
+        })}
+        {done.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+              <span className="group-open:hidden">▶ Show {done.length} completed / cancelled</span>
+              <span className="hidden group-open:inline">▼ Hide completed / cancelled</span>
+            </summary>
+            <div className="mt-2 grid gap-2">
+              {done.map((c: any) => (
+                <div key={c.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm opacity-60">
+                  <span className="font-mono text-xs">{c.count_number}</span>
+                  <Badge variant={statusBadgeVariant(c.status)} className="text-xs">{c.status}</Badge>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          </details>
+        )}
       </div>
     </div>
   );
