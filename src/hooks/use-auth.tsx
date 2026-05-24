@@ -123,7 +123,6 @@ async function fetchProfileBundle(userId: string) {
       .from("user_roles")
       .select("role_id, roles!inner(code)")
       .eq("user_id", userId)
-      .eq("is_hidden", false),
   ]);
 
   const roles = (roleRows ?? [])

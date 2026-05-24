@@ -190,6 +190,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_hidden: boolean
           name: string
           require_expiry: boolean
           updated_at: string
@@ -203,6 +204,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_hidden?: boolean
           name: string
           require_expiry?: boolean
           updated_at?: string
@@ -216,6 +218,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_hidden?: boolean
           name?: string
           require_expiry?: boolean
           updated_at?: string
@@ -848,6 +851,7 @@ export type Database = {
           created_by: string | null
           depth: number | null
           id: string
+          is_hidden: boolean
           layout_height: number | null
           layout_width: number | null
           layout_x: number | null
@@ -879,6 +883,7 @@ export type Database = {
           created_by?: string | null
           depth?: number | null
           id?: string
+          is_hidden?: boolean
           layout_height?: number | null
           layout_width?: number | null
           layout_x?: number | null
@@ -910,6 +915,7 @@ export type Database = {
           created_by?: string | null
           depth?: number | null
           id?: string
+          is_hidden?: boolean
           layout_height?: number | null
           layout_width?: number | null
           layout_x?: number | null
@@ -1608,6 +1614,7 @@ export type Database = {
           height: number | null
           id: string
           is_default: boolean
+          is_hidden: boolean
           length: number | null
           package_type: string | null
           product_id: string
@@ -1624,6 +1631,7 @@ export type Database = {
           height?: number | null
           id?: string
           is_default?: boolean
+          is_hidden?: boolean
           length?: number | null
           package_type?: string | null
           product_id: string
@@ -1640,6 +1648,7 @@ export type Database = {
           height?: number | null
           id?: string
           is_default?: boolean
+          is_hidden?: boolean
           length?: number | null
           package_type?: string | null
           product_id?: string
@@ -1671,6 +1680,7 @@ export type Database = {
           expiry_tracked: boolean
           height: number | null
           id: string
+          is_hidden: boolean
           length: number | null
           lot_tracked: boolean
           max_stack_height: number | null
@@ -1695,6 +1705,7 @@ export type Database = {
           expiry_tracked?: boolean
           height?: number | null
           id?: string
+          is_hidden?: boolean
           length?: number | null
           lot_tracked?: boolean
           max_stack_height?: number | null
@@ -1719,6 +1730,7 @@ export type Database = {
           expiry_tracked?: boolean
           height?: number | null
           id?: string
+          is_hidden?: boolean
           length?: number | null
           lot_tracked?: boolean
           max_stack_height?: number | null
@@ -2600,6 +2612,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_hidden: boolean
           role_id: string
           user_id: string
           warehouse_id: string | null
@@ -2607,6 +2620,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_hidden?: boolean
           role_id: string
           user_id: string
           warehouse_id?: string | null
@@ -2614,6 +2628,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_hidden?: boolean
           role_id?: string
           user_id?: string
           warehouse_id?: string | null
@@ -2640,6 +2655,7 @@ export type Database = {
           created_by: string | null
           has_cool_zone: boolean
           id: string
+          is_hidden: boolean
           name: string
           updated_at: string
         }
@@ -2654,6 +2670,7 @@ export type Database = {
           created_by?: string | null
           has_cool_zone?: boolean
           id?: string
+          is_hidden?: boolean
           name: string
           updated_at?: string
         }
@@ -2668,6 +2685,7 @@ export type Database = {
           created_by?: string | null
           has_cool_zone?: boolean
           id?: string
+          is_hidden?: boolean
           name?: string
           updated_at?: string
         }
@@ -2716,6 +2734,7 @@ export type Database = {
           created_by: string | null
           id: string
           is_dispatch: boolean
+          is_hidden: boolean
           is_quarantine: boolean
           is_staging: boolean
           name: string
@@ -2731,6 +2750,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_dispatch?: boolean
+          is_hidden?: boolean
           is_quarantine?: boolean
           is_staging?: boolean
           name: string
@@ -2746,6 +2766,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_dispatch?: boolean
+          is_hidden?: boolean
           is_quarantine?: boolean
           is_staging?: boolean
           name?: string

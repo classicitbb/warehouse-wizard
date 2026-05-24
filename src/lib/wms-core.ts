@@ -604,6 +604,30 @@ export async function updateProfileDetails(input: ProfileUpdateInput) {
   });
 }
 
+export type AdminInviteUserInput = {
+  email: string;
+  full_name: string;
+  password: string;
+  role_code?: string;
+  warehouse_id?: string;
+};
+
+export async function adminInviteUser(input: AdminInviteUserInput): Promise<string> {
+  const { data, error } = await (supabase.rpc as any)("admin_invite_user", {
+    in_email: input.email.toLowerCase().trim(),
+    in_full_name: input.full_name.trim(),
+    in_password: input.password,
+    in_role_code: input.role_code ?? null,
+    in_warehouse_id: input.warehouse_id ?? null,
+  });
+  if (error) throw error;
+  await logUserActivity("user_invited", "profiles", data, {
+    email: input.email,
+    role: input.role_code ?? null,
+  });
+  return data as string;
+}
+
 export async function setUserRoleVisibility(userRoleId: string, hidden: boolean, reason?: string) {
   const { error } = await (supabase.from as any)("user_roles")
     .update({
@@ -1397,11 +1421,10 @@ export async function dispatchTransfer(transferId: string, driverSignoffCode: st
 
   const { data: roleRows, error: roleError } = await db("user_roles")
     .select("roles!inner(code)")
-    .eq("user_id", actorId)
-    .eq("is_hidden", false);
+    .eq("user_id", actorId);
   if (roleError) throw roleError;
   const allowedToSign = (roleRows ?? []).some((row: { roles?: { code?: string } }) =>
-    ["dispatch_driver", "warehouse_manager", "admin"].includes(row.roles?.code),
+    row.roles?.code ? ["dispatch_driver", "warehouse_manager", "admin"].includes(row.roles.code) : false,
   );
   if (!allowedToSign) {
     throw new Error("Only dispatch drivers, managers, or admins can sign off transfer departure.");

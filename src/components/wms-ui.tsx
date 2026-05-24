@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
@@ -12,9 +11,11 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   NAVIGATION,
   ROLE_LABELS,
+  type AdminInviteUserInput,
   type AppRoute,
   type FieldDefinition,
   type ResourceDefinition,
+  adminInviteUser,
   changePalletStatus,
   confirmPutaway,
   sendBackToReceiving,
@@ -278,7 +279,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const items = NAVIGATION.filter((item) => item.roles.some((role) => roles.includes(role)));
   const displayName = profile?.full_name?.trim() || user?.email || "Warehouse User";
-  const userMeta = user?.email || roles.map((role) => ROLE_LABELS[role]).join(" • ");
+  const primaryRole = roles[0] ? ROLE_LABELS[roles[0]] : "User";
   const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -287,36 +288,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .join("") || "WU";
 
   const navigation = (
-    <div className={cn("flex h-full flex-col gap-3 overflow-hidden bg-card/60 p-3 backdrop-blur", sidebarCollapsed && "items-center")}>
-      <Button
-        className="hidden h-11 w-11 shrink-0 lg:inline-flex"
-        size="icon"
-        variant="outline"
-        onClick={() => setSidebarCollapsed((current) => !current)}
-        aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
-      >
-        {sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-      </Button>
-      <nav className="flex-1 overflow-y-auto pr-1">
-        <div className="flex flex-col gap-1.5">
+    <div className={cn(
+      "flex h-full flex-col overflow-hidden bg-sidebar",
+      sidebarCollapsed ? "items-center px-2 py-3" : "px-3 py-3"
+    )}>
+      {/* Logo area */}
+      <div className={cn(
+        "mb-4 flex items-center gap-3 px-2",
+        sidebarCollapsed && "justify-center px-0"
+      )}>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <Warehouse className="h-4 w-4" />
+        </div>
+        {!sidebarCollapsed && (
+          <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
+        )}
+        <Button
+          className="ml-auto hidden h-7 w-7 shrink-0 lg:inline-flex"
+          size="icon"
+          variant="ghost"
+          onClick={() => setSidebarCollapsed((c) => !c)}
+          aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-0.5">
           {items.map((item) => {
             const Icon = navIcons[item.to] ?? LayoutDashboard;
+            const isActive = pathname === item.to;
             const link = (
               <NavLink
                 key={item.to}
-                className={({ isActive }) =>
+                className={({ isActive: navActive }) =>
                   cn(
-                    "flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-                    sidebarCollapsed && "h-12 w-12 justify-center px-0",
-                    isActive || pathname === item.to
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    "group flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100",
+                    sidebarCollapsed && "h-9 w-9 justify-center p-0",
+                    navActive || isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                   )
                 }
                 to={item.to}
                 aria-label={item.label}
               >
-                <Icon className="h-5 w-5 shrink-0" />
+                <Icon className="h-4 w-4 shrink-0" />
                 {sidebarCollapsed ? null : <span className="truncate">{item.label}</span>}
               </NavLink>
             );
@@ -330,6 +348,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
+
+      {/* User profile at bottom */}
+      {!sidebarCollapsed && (
+        <div className="mt-3 rounded-lg border border-border bg-card/50 p-2.5">
+          <div className="flex items-center gap-2.5">
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium leading-tight">{displayName}</p>
+              <p className="truncate text-xs text-muted-foreground">{primaryRole}</p>
+            </div>
+            <Button
+              className="h-7 w-7 shrink-0 text-muted-foreground"
+              size="icon"
+              variant="ghost"
+              onClick={() => void signOut()}
+              title="Sign out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -337,37 +379,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="h-screen overflow-hidden bg-background">
       <div
         className={cn(
-          "grid h-full w-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)]",
-          sidebarCollapsed && "lg:grid-cols-[76px_minmax(0,1fr)]",
+          "grid h-full w-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-rows-1",
+          "lg:grid-cols-[240px_minmax(0,1fr)]",
+          sidebarCollapsed && "lg:grid-cols-[56px_minmax(0,1fr)]",
         )}
       >
-        <header className="col-span-full flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur lg:px-6">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold sm:text-xl">{appTitle}</h1>
-            <p className="text-xs text-muted-foreground sm:text-sm">Scan-first warehouse control, role-gated and audit-backed.</p>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <HelpSidebar pathname={pathname} />
-            <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card/80 px-3 py-2 shadow-sm">
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
-              </Avatar>
-              <div className="hidden min-w-0 sm:block">
-                <p className="truncate text-sm font-medium">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">{userMeta}</p>
-              </div>
-              <Button className="h-10 shrink-0" variant="outline" onClick={() => void signOut()}>
-                <LogOut data-icon="inline-start" />
-                <span className="hidden sm:inline">Sign out</span>
-              </Button>
+        {/* Mobile header */}
+        <header className="col-span-full flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Warehouse className="h-4 w-4" />
             </div>
+            <span className="text-sm font-semibold">{appTitle}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <HelpSidebar pathname={pathname} />
             <Sheet>
               <SheetTrigger asChild>
-                <Button className="h-11 w-11 lg:hidden" size="icon" variant="outline">
-                  <Menu />
+                <Button className="h-9 w-9" size="icon" variant="outline">
+                  <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[18rem] p-0">
+              <SheetContent side="left" className="w-[240px] p-0">
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
@@ -376,9 +409,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Sheet>
           </div>
         </header>
+
         <aside className="hidden h-full overflow-hidden border-r border-border lg:block">{navigation}</aside>
+
         <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-5 lg:px-6">{children}</div>
+          {/* Desktop top bar */}
+          <div className="hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:flex">
+            <div className="min-w-0">
+              <p className="truncate text-xs text-muted-foreground">
+                {items.find((item) => item.to === pathname)?.label ?? "Warehouse Wizard Enterprise WMS"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <HelpSidebar pathname={pathname} />
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm">
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
+                </Avatar>
+                <span className="hidden truncate text-xs font-medium sm:block">{displayName}</span>
+                <Button className="h-7 shrink-0 text-xs" variant="ghost" size="sm" onClick={() => void signOut()}>
+                  <LogOut className="mr-1 h-3 w-3" />
+                  Sign out
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6">{children}</div>
         </main>
       </div>
     </div>
@@ -789,6 +845,7 @@ function shouldRestrictToDefaultWarehouse(roles: string[]) {
 
 export function DashboardPage() {
   const [mode, setMode] = useState<DashboardMode>("floor");
+  const [cards, setCards] = useState<DashboardCardConfig[]>(loadLayout);
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: getDashboardMetrics,
@@ -796,41 +853,67 @@ export function DashboardPage() {
   const { data: reports } = useQuery({ queryKey: ["reports", "enterprise-dashboard"], queryFn: getReportData });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, reports), [metrics, reports]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setCards((prev) => {
+        const oldIdx = prev.findIndex((c) => c.id === active.id);
+        const newIdx = prev.findIndex((c) => c.id === over.id);
+        const next = arrayMove(prev, oldIdx, newIdx);
+        saveLayout(next);
+        return next;
+      });
+    }
+  }, []);
+
+  const handleResize = useCallback((id: string) => {
+    setCards((prev) => {
+      const next = prev.map((c) => {
+        if (c.id !== id) return c;
+        const nextSize: DashboardCardSize = c.size === "sm" ? "lg" : "sm";
+        return { ...c, size: nextSize };
+      });
+      saveLayout(next);
+      return next;
+    });
+  }, []);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Enterprise Command Center</h2>
-          <p className="text-sm text-muted-foreground">Role-based starting points, dock handoff, lean alerts, and AI-assisted warehouse monitoring.</p>
+          <h2 className="text-2xl font-bold tracking-tight">Command Center</h2>
+          <p className="text-sm text-muted-foreground">Live warehouse metrics. Drag cards to reorder, hover to resize.</p>
         </div>
         <Tabs value={mode} onValueChange={(value) => setMode(value as DashboardMode)}>
           <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit">
-            <TabsTrigger value="floor"><Forklift data-icon="inline-start" /> Floor</TabsTrigger>
-            <TabsTrigger value="dock"><Truck data-icon="inline-start" /> Dock</TabsTrigger>
-            <TabsTrigger value="office"><BarChart3 data-icon="inline-start" /> Office</TabsTrigger>
+            <TabsTrigger value="floor" className="gap-1.5"><Forklift className="h-3.5 w-3.5" /> Floor</TabsTrigger>
+            <TabsTrigger value="dock" className="gap-1.5"><Truck className="h-3.5 w-3.5" /> Dock</TabsTrigger>
+            <TabsTrigger value="office" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" /> Office</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Total pallets", metrics?.totalPallets ?? 0],
-          ["Available pallets", metrics?.availablePallets ?? 0],
-          ["Open putaway", metrics?.openPutawayTasks ?? 0],
-          ["Open pick lists", metrics?.openPickLists ?? 0],
-          ["Hold stock", metrics?.holdStock ?? 0],
-          ["Quarantine stock", metrics?.quarantineStock ?? 0],
-          ["Open receipts", metrics?.openReceipts ?? 0],
-          ["Cool occupancy", metrics?.coolZoneOccupancy ?? 0],
-        ].map(([label, value]) => (
-          <Card key={label} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardDescription>{label}</CardDescription>
-              <CardTitle className="text-3xl">{isLoading ? "…" : formatNumber(Number(value))}</CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={cards.map((c) => c.id)} strategy={rectSortingStrategy}>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {cards.map((card) => (
+              <SortableMetricCard
+                key={card.id}
+                card={card}
+                value={metrics?.[card.metricKey] ?? 0}
+                isLoading={isLoading}
+                onResize={handleResize}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {mode === "floor" ? <WarehouseFloorMode snapshot={snapshot} /> : null}
       {mode === "dock" ? <DockHandoffBoard loads={snapshot.dockLoads} recommendations={snapshot.recommendations} /> : null}
@@ -2499,6 +2582,152 @@ export function ReportsPage() {
   );
 }
 
+const inviteUserSchema = z.object({
+  email: z.string().email("Valid email required"),
+  full_name: z.string().min(2, "Name required"),
+  password: z.string().min(8, "Min 8 characters"),
+  role_code: z.string().optional(),
+  warehouse_id: z.string().optional(),
+});
+
+function AddUserDialog({
+  roles,
+  warehouses,
+  onSuccess,
+}: {
+  roles: Array<{ id: string; code: string; name: string }>;
+  warehouses: WarehouseOption[];
+  onSuccess: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const form = useForm<z.infer<typeof inviteUserSchema>>({
+    resolver: zodResolver(inviteUserSchema),
+    defaultValues: { email: "", full_name: "", password: "", role_code: "", warehouse_id: "" },
+  });
+
+  const mutation = useMutation({
+    mutationFn: (values: z.infer<typeof inviteUserSchema>) =>
+      adminInviteUser({
+        email: values.email,
+        full_name: values.full_name,
+        password: values.password,
+        role_code: values.role_code || undefined,
+        warehouse_id: values.warehouse_id || undefined,
+      } as AdminInviteUserInput),
+    onSuccess: () => {
+      toast.success("User created and approved");
+      form.reset();
+      setOpen(false);
+      onSuccess();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to create user"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Add User
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add New User</DialogTitle>
+          <DialogDescription>Create a new warehouse user. They will be pre-approved and can sign in immediately.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form className="grid gap-4" onSubmit={form.handleSubmit((v) => mutation.mutate(v))}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl><Input {...field} placeholder="Jane Smith" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl><Input {...field} type="email" placeholder="jane@example.com" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Temporary Password</FormLabel>
+                  <FormControl><Input {...field} type="password" placeholder="Min 8 characters" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="role_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role (optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">No role assigned</SelectItem>
+                        {roles.map((role) => (
+                          <SelectItem key={role.code} value={role.code}>{role.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="warehouse_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Warehouse (optional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="All warehouses" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">All warehouses</SelectItem>
+                        {warehouses.map((wh) => (
+                          <SelectItem key={wh.id} value={wh.id}>{wh.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <Button type="submit" disabled={mutation.isPending} className="w-full">
+              {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+              Create User
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function UsersRolesPage() {
   const queryClient = useQueryClient();
   const [includeHidden, setIncludeHidden] = useState(false);
@@ -2506,20 +2735,32 @@ export function UsersRolesPage() {
   const { data: activities = [] } = useQuery({ queryKey: ["user-activities"], queryFn: () => listUserActivities() });
   const [selectedProfile, setSelectedProfile] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
+  const [activeTab, setActiveTab] = useState("users");
+
+  const invalidateOptions = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["options"] }),
+      queryClient.invalidateQueries({ queryKey: ["user-activities"] }),
+    ]);
+  }, [queryClient]);
 
   const assignMutation = useMutation({
     mutationFn: async () => upsertRecord("user_roles", { user_id: selectedProfile, role_id: selectedRole }),
     onSuccess: async () => {
       toast.success("Role assigned");
-      await queryClient.invalidateQueries({ queryKey: ["options"] });
+      setSelectedProfile("");
+      setSelectedRole("");
+      await invalidateOptions();
     },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to assign role"),
   });
 
   const visibilityMutation = useMutation({
-    mutationFn: async ({ userRoleId, hidden }: { userRoleId: string; hidden: boolean }) => setUserRoleVisibility(userRoleId, hidden, hidden ? "Access hidden from user management" : undefined),
+    mutationFn: async ({ userRoleId, hidden }: { userRoleId: string; hidden: boolean }) =>
+      setUserRoleVisibility(userRoleId, hidden, hidden ? "Access hidden from user management" : undefined),
     onSuccess: async (_, variables) => {
       toast.success(variables.hidden ? "Role assignment hidden" : "Role assignment restored");
-      await queryClient.invalidateQueries({ queryKey: ["options"] });
+      await invalidateOptions();
     },
   });
 
@@ -2527,141 +2768,206 @@ export function UsersRolesPage() {
     mutationFn: async ({ profileId, active }: { profileId: string; active: boolean }) => setProfileActive(profileId, active),
     onSuccess: async (_, variables) => {
       toast.success(variables.active ? "Profile enabled" : "Profile disabled");
-      await queryClient.invalidateQueries({ queryKey: ["options"] });
+      await invalidateOptions();
     },
   });
 
   const profileEditMutation = useMutation({
     mutationFn: updateProfileDetails,
     onSuccess: async () => {
-      toast.success("User profile updated");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["options"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-activities"] }),
-      ]);
+      toast.success("User updated");
+      await invalidateOptions();
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Profile update failed"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Update failed"),
   });
 
+  const profiles = (options?.profiles ?? []) as ProfileRow[];
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Assign Roles</CardTitle>
-          <CardDescription>Supabase Auth users appear automatically in profiles after first sign-in.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <Select value={selectedProfile} onValueChange={setSelectedProfile}>
-            <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
-            <SelectContent>
-              {(options?.profiles ?? []).map((profile) => (
-                <SelectItem key={profile.id} value={profile.id}>{profile.full_name ?? profile.email ?? profile.id}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedRole} onValueChange={setSelectedRole}>
-            <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
-            <SelectContent>
-              {(options?.roles ?? []).map((role) => (
-                <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button disabled={!selectedProfile || !selectedRole} onClick={() => assignMutation.mutate()}>
-            Assign role
-          </Button>
-          <Button variant="outline" onClick={() => setIncludeHidden((current) => !current)}>
-            {includeHidden ? "Hide archived access" : "Show archived access"}
-          </Button>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Editable users</CardTitle>
-          <CardDescription>Admins approve users, assign operational roles, issue user codes, and badge identifiers.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {((options?.profiles ?? []) as ProfileRow[]).map((profile) => (
-            <UserProfileEditor
-              key={profile.id}
-              profile={profile}
-              warehouses={options?.warehouses ?? []}
-              onSave={(values) => profileEditMutation.mutate(values)}
-            />
-          ))}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Current access</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {(options?.userRoles ?? []).map((userRole: any) => (
-            <div key={userRole.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-3">
-              <div className="min-w-0">
-                <p className="font-medium">{options?.profiles.find((profile) => profile.id === userRole.user_id)?.full_name ?? userRole.user_id}</p>
-                <p className="text-xs text-muted-foreground">{options?.profiles.find((profile) => profile.id === userRole.user_id)?.email ?? ""}</p>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">User Management</h2>
+          <p className="text-sm text-muted-foreground">Manage warehouse users, roles, and access permissions.</p>
+        </div>
+        <AddUserDialog
+          roles={(options?.roles ?? []) as Array<{ id: string; code: string; name: string }>}
+          warehouses={(options?.warehouses ?? []) as WarehouseOption[]}
+          onSuccess={invalidateOptions}
+        />
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="users" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            Users ({profiles.length})
+          </TabsTrigger>
+          <TabsTrigger value="roles" className="gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Access
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" />
+            Activity
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="mt-4">
+          <div className="flex items-center justify-between gap-3 pb-3">
+            <p className="text-sm text-muted-foreground">{profiles.length} user{profiles.length !== 1 ? "s" : ""}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIncludeHidden((c) => !c)}
+              className="text-xs"
+            >
+              {includeHidden ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+              {includeHidden ? "Hide inactive" : "Show inactive"}
+            </Button>
+          </div>
+          <div className="grid gap-3">
+            {profiles.map((profile) => (
+              <UserProfileRow
+                key={profile.id}
+                profile={profile}
+                warehouses={(options?.warehouses ?? []) as WarehouseOption[]}
+                userRoles={(options?.userRoles ?? []).filter((ur: any) => ur.user_id === profile.id)}
+                onSave={(values) => profileEditMutation.mutate(values)}
+                onToggleActive={() =>
+                  profileMutation.mutate({ profileId: profile.id, active: !(profile.active ?? true) })
+                }
+              />
+            ))}
+            {profiles.length === 0 && (
+              <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+                No users found. Use "Add User" to create the first one.
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={userRole.is_hidden ? "secondary" : "default"}>
-                  {(userRole.roles as { name?: string; code?: string } | null)?.name ?? (userRole.roles as { code?: string } | null)?.code ?? "Role"}
-                </Badge>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="roles" className="mt-4">
+          <div className="grid gap-6 xl:grid-cols-[1fr_1.5fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Assign Role</CardTitle>
+                <CardDescription>Add a role to an existing user account.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                <Select value={selectedProfile} onValueChange={setSelectedProfile}>
+                  <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>
+                    {profiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.full_name ?? profile.email ?? profile.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                  <SelectContent>
+                    {(options?.roles ?? []).map((role: any) => (
+                      <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => visibilityMutation.mutate({ userRoleId: userRole.id, hidden: !userRole.is_hidden })}
+                  disabled={!selectedProfile || !selectedRole || assignMutation.isPending}
+                  onClick={() => assignMutation.mutate()}
+                  className="w-full"
                 >
-                  {userRole.is_hidden ? "Restore access" : "Hide access"}
+                  {assignMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Assign role
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    profileMutation.mutate({
-                      profileId: userRole.user_id,
-                      active: !(options?.profiles.find((profile) => profile.id === userRole.user_id)?.active ?? true),
-                    })
-                  }
-                >
-                  {(options?.profiles.find((profile) => profile.id === userRole.user_id)?.active ?? true) ? "Disable profile" : "Enable profile"}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>User activities</CardTitle>
-          <CardDescription>Profile, sign-in, and role changes are recorded for management review.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {(activities as UserActivityRow[]).map((activity) => (
-            <div key={activity.id} className="rounded-lg border border-border px-3 py-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium">{activity.event_type}</span>
-                <span className="text-xs text-muted-foreground">{formatDate(activity.created_at)}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {activity.profiles?.full_name ?? activity.actor_user_id ?? "System"} · {activity.entity_table}
-              </p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Current Access</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {(options?.userRoles ?? []).map((userRole: any) => {
+                  const profile = profiles.find((p) => p.id === userRole.user_id);
+                  return (
+                    <div key={userRole.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarFallback className="bg-muted text-xs">
+                            {(profile?.full_name ?? "?").slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{profile?.full_name ?? userRole.user_id}</p>
+                          <p className="truncate text-xs text-muted-foreground">{profile?.email ?? ""}</p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge variant={userRole.is_hidden ? "secondary" : "default"} className="text-xs">
+                          {(userRole.roles as { name?: string } | null)?.name ?? "Role"}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => visibilityMutation.mutate({ userRoleId: userRole.id, hidden: !userRole.is_hidden })}
+                        >
+                          {userRole.is_hidden ? "Restore" : "Revoke"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recent Activity</CardTitle>
+              <CardDescription>Sign-ins, profile changes, and role assignments.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {(activities as UserActivityRow[]).length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">No recent activity.</p>
+              )}
+              {(activities as UserActivityRow[]).map((activity) => (
+                <div key={activity.id} className="flex items-start justify-between gap-4 rounded-lg border border-border px-3 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium capitalize">{activity.event_type.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {activity.profiles?.full_name ?? activity.actor_user_id ?? "System"} · {activity.entity_table}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{formatDate(activity.created_at)}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-function UserProfileEditor({
+function UserProfileRow({
   profile,
   warehouses,
+  userRoles,
   onSave,
+  onToggleActive,
 }: {
   profile: ProfileRow;
   warehouses: WarehouseOption[];
+  userRoles: any[];
   onSave: (values: Parameters<typeof updateProfileDetails>[0]) => void;
+  onToggleActive: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [values, setValues] = useState({
     full_name: profile.full_name ?? "",
     phone: profile.phone ?? "",
@@ -2672,72 +2978,141 @@ function UserProfileEditor({
     badge_code: profile.badge_code ?? "",
   });
 
+  const initials = (profile.full_name ?? profile.email ?? "?")
+    .split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+
+  const roleNames = userRoles
+    .filter((ur) => !ur.is_hidden)
+    .map((ur) => (ur.roles as { name?: string } | null)?.name ?? "")
+    .filter(Boolean);
+
   return (
-    <Dialog>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-3">
-        <div className="min-w-0">
-          <p className="font-medium">{profile.full_name ?? profile.email ?? profile.id}</p>
-          <p className="text-xs text-muted-foreground">{profile.email} · {profile.user_code ?? "no code"}</p>
+    <div className={cn(
+      "rounded-xl border border-border bg-card transition-colors",
+      !profile.active && "opacity-60"
+    )}>
+      <div className="flex items-center gap-3 p-4">
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarFallback className={cn(
+            "text-sm font-semibold",
+            profile.approved ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+          )}>
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-medium">{profile.full_name ?? profile.email ?? profile.id}</p>
+            <Badge
+              variant={profile.approved ? "default" : "secondary"}
+              className="text-xs"
+            >
+              {profile.approved ? "Approved" : "Pending"}
+            </Badge>
+            {!profile.active && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{profile.email}</span>
+            {profile.user_code && <span>· {profile.user_code}</span>}
+            {roleNames.length > 0 && (
+              <span className="flex items-center gap-1">
+                ·
+                {roleNames.map((name) => (
+                  <Badge key={name} variant="outline" className="text-xs px-1.5 py-0">{name}</Badge>
+                ))}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={profile.approved ? "default" : "secondary"}>{profile.approved ? "Approved" : "Pending"}</Badge>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">Edit</Button>
-          </DialogTrigger>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs"
+            onClick={onToggleActive}
+          >
+            {profile.active ? "Disable" : "Enable"}
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="h-8 text-xs">Edit</Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit User</DialogTitle>
+                <DialogDescription>Update operational access, codes, and approval status.</DialogDescription>
+              </DialogHeader>
+              <ScrollArea className="max-h-[70vh] pr-4">
+                <div className="grid gap-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                      <label className="text-sm font-medium">Full name</label>
+                      <Input value={values.full_name} onChange={(e) => setValues((v) => ({ ...v, full_name: e.target.value }))} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <label className="text-sm font-medium">Phone</label>
+                      <Input value={values.phone} onChange={(e) => setValues((v) => ({ ...v, phone: e.target.value }))} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <label className="text-sm font-medium">User code</label>
+                      <Input value={values.user_code} placeholder="e.g. OPR02" onChange={(e) => setValues((v) => ({ ...v, user_code: e.target.value }))} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <label className="text-sm font-medium">Badge code</label>
+                      <Input value={values.badge_code} placeholder="e.g. BADGE-OPR02" onChange={(e) => setValues((v) => ({ ...v, badge_code: e.target.value }))} />
+                    </div>
+                    <div className="grid gap-1.5 sm:col-span-2">
+                      <label className="text-sm font-medium">Default warehouse</label>
+                      <Select
+                        value={values.default_warehouse_id || "none"}
+                        onValueChange={(val) => setValues((v) => ({ ...v, default_warehouse_id: val === "none" ? "" : val }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="No default" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No default warehouse</SelectItem>
+                          {warehouses.map((wh) => <SelectItem key={wh.id} value={wh.id}>{wh.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent">
+                      <Checkbox
+                        checked={values.active}
+                        onCheckedChange={(c) => setValues((v) => ({ ...v, active: Boolean(c) }))}
+                      />
+                      <div>
+                        <p className="font-medium">Active</p>
+                        <p className="text-xs text-muted-foreground">Can sign in</p>
+                      </div>
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent">
+                      <Checkbox
+                        checked={values.approved}
+                        onCheckedChange={(c) => setValues((v) => ({ ...v, approved: Boolean(c) }))}
+                      />
+                      <div>
+                        <p className="font-medium">Approved</p>
+                        <p className="text-xs text-muted-foreground">Admin confirmed</p>
+                      </div>
+                    </label>
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      onSave({ profileId: profile.id, ...values });
+                      setOpen(false);
+                    }}
+                  >
+                    Save changes
+                  </Button>
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
-      <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Edit user</DialogTitle>
-          <DialogDescription>Identity is controlled by Supabase Auth; operational access is controlled here by admins.</DialogDescription>
-        </DialogHeader>
-        <ScrollArea className="max-h-[70vh] pr-4">
-          <div className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Full name</label>
-                <Input value={values.full_name} onChange={(event) => setValues((current) => ({ ...current, full_name: event.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Phone</label>
-                <Input value={values.phone} onChange={(event) => setValues((current) => ({ ...current, phone: event.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">User code</label>
-                <Input value={values.user_code} onChange={(event) => setValues((current) => ({ ...current, user_code: event.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Badge code</label>
-                <Input value={values.badge_code} onChange={(event) => setValues((current) => ({ ...current, badge_code: event.target.value }))} />
-              </div>
-              <div className="grid gap-2 sm:col-span-2">
-                <label className="text-sm font-medium">Default warehouse</label>
-                <Select value={values.default_warehouse_id || "none"} onValueChange={(value) => setValues((current) => ({ ...current, default_warehouse_id: value === "none" ? "" : value }))}>
-                  <SelectTrigger><SelectValue placeholder="Select default warehouse" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No default warehouse</SelectItem>
-                    {warehouses.map((warehouse) => (
-                      <SelectItem key={warehouse.id} value={warehouse.id}>{warehouse.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                <Checkbox checked={values.active} onCheckedChange={(checked) => setValues((current) => ({ ...current, active: Boolean(checked) }))} />
-                Active
-              </label>
-              <label className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                <Checkbox checked={values.approved} onCheckedChange={(checked) => setValues((current) => ({ ...current, approved: Boolean(checked) }))} />
-                Approved
-              </label>
-            </div>
-            <Button onClick={() => onSave({ profileId: profile.id, ...values })}>Save user</Button>
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }
 
