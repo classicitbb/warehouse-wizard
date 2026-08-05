@@ -318,7 +318,7 @@ function WarehouseBayBrowserDialog({
                                 disabled={isFull}
                                 onClick={() => { onSelectBay(bay.bayCode); onClose(); }}
                                 className={cn(
-                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                                   isFull
                                     ? "cursor-not-allowed border-muted bg-muted/40 opacity-60"
                                     : "border-border bg-card hover:bg-secondary/60",
@@ -432,7 +432,7 @@ function BayOccupancyGrid({
                   disabled={!available}
                   onClick={() => onSelect(cell.locationCode)}
                   className={cn(
-                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                     selected
                       ? "animate-pulse border-cyan-400 bg-cyan-50 text-cyan-950 ring-2 ring-cyan-400 dark:bg-cyan-950/50 dark:text-cyan-50"
                       : available
@@ -930,7 +930,7 @@ export function PutawayTasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="shrink-0 rounded-lg border border-border bg-background/95 p-4 shadow-sm backdrop-blur sm:flex sm:items-end sm:justify-between sm:gap-3">
+      <div className="shrink-0 rounded-lg border border-border bg-background/95 p-4 shadow-xs backdrop-blur sm:flex sm:items-end sm:justify-between sm:gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Put-Away Tasks</h2>
           <p className="text-sm text-muted-foreground">Scan pallet barcode, then location barcode, and confirm.</p>

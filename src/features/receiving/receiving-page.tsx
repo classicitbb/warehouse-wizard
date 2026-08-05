@@ -333,7 +333,7 @@ function ShipmentExpiryPicker({
             caption_label: "text-base font-semibold sm:text-sm",
             head_cell: "w-11 rounded-md text-sm font-medium text-muted-foreground sm:w-9 sm:text-[0.8rem]",
             cell: "h-11 w-11 p-0 text-center text-base sm:h-9 sm:w-9 sm:text-sm",
-            day: "inline-flex h-11 w-11 items-center justify-center rounded-md p-0 text-base font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-selected:opacity-100 sm:h-9 sm:w-9 sm:text-sm",
+            day: "inline-flex h-11 w-11 items-center justify-center rounded-md p-0 text-base font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring aria-selected:opacity-100 sm:h-9 sm:w-9 sm:text-sm",
             day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
             day_today: "bg-accent text-accent-foreground ring-1 ring-primary/50",
           }}
@@ -1459,7 +1459,7 @@ export function ReceivingPage() {
                               ["manual", "Manage outside WMS"],
                               ["special", "Create special pallet"],
                             ].map(([value, label]) => (
-                              <label key={value} className="flex items-center gap-2 rounded-md border border-red-600 bg-red-500 px-3 py-2 text-black shadow-sm">
+                              <label key={value} className="flex items-center gap-2 rounded-md border border-red-600 bg-red-500 px-3 py-2 text-black shadow-xs">
                                 <input type="radio" name={`remainder-${line.id}`} checked={line.remainder_action === value} onChange={() => updateLine(line.id, { remainder_action: value as ReceivingShipmentLineState["remainder_action"] })} />
                                 {label}
                               </label>

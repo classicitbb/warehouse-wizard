@@ -371,7 +371,7 @@ export function InventorySearchPage() {
         <CardContent className="flex min-h-0 min-w-0 flex-1 p-0">
           <TableFrame className="h-full min-w-0 flex-1">
             <Table className="min-w-[72rem] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
-              <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
+              <TableHeader className="sticky top-0 z-20 bg-card shadow-xs">
                 <TableRow>
                   <TableHead>SKU</TableHead>
                   <TableHead>Pallet</TableHead>
