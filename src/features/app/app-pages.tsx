@@ -1695,7 +1695,7 @@ function PickBayGrid({
                   disabled={!canSelect}
                   onClick={() => onSelectAssigned(cell.locationCode)}
                   className={[
-                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                     isAssigned
                       ? "animate-pulse border-yellow-300 bg-yellow-100 text-yellow-950 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-950/50 dark:text-yellow-50"
                       : "cursor-not-allowed border-muted bg-muted text-muted-foreground opacity-70",
