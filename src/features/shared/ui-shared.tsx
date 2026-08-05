@@ -4033,7 +4033,7 @@ export function printDraftLabels(
       packaging: packaging?.name ?? packaging?.unit_name ?? packaging?.unit_of_measure,
       draftSequence: draft.draft_sequence,
       draftCount: draft.draft_count,
-      temperatureClass: product?.temperature_requirement,
+      temperatureClass: product?.temperature_requirement ?? undefined,
     };
   });
   const win = window.open("", "_blank", "width=900,height=1100");
