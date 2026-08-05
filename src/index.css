@@ -1,0 +1,330 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+/*
+ * THEME LOCK — single source of truth for app theme.
+ * The current Warehouse Wizard / Command Center theme (image-5 baseline) is
+ * the approved design. There are no alternate stylesheets in this project:
+ * tokens live here, primitives consume them via tailwind.config.ts, and the
+ * frozen UI files in AGENTS.md render them. Do not add another global CSS
+ * file or reintroduce previous theme variants.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 215 28% 19%;
+    --foreground: 210 20% 90%;
+
+    --card: 215 25% 12%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 215 25% 12%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 174 62% 47%;
+    --primary-foreground: 215 28% 9%;
+
+    --secondary: 215 20% 18%;
+    --secondary-foreground: 210 15% 75%;
+
+    --muted: 215 18% 16%;
+    --muted-foreground: 215 12% 50%;
+
+    --accent: 38 92% 55%;
+    --accent-foreground: 215 28% 9%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 215 18% 32%;
+    --input: 215 18% 26%;
+    --ring: 174 62% 47%;
+
+    --radius: 0.5rem;
+
+    --success: 152 60% 45%;
+    --success-foreground: 215 28% 9%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 215 28% 9%;
+    --info: 200 80% 55%;
+    --info-foreground: 215 28% 9%;
+
+    --sidebar-background: 217 71% 38%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 217 71% 30%;
+    --sidebar-accent: 217 65% 30%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 55% 28%;
+    --sidebar-ring: 210 40% 98%;
+
+    /* sidebar utility alias */
+    --sidebar: var(--sidebar-background);
+  }
+}
+
+@layer utilities {
+  @keyframes themed-loader-spin {
+    0% {
+      color: hsl(var(--primary));
+      transform: rotate(0deg) scale(1);
+      filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.35));
+    }
+
+    50% {
+      color: hsl(var(--accent));
+      transform: rotate(180deg) scale(1.08);
+      filter: drop-shadow(0 0 10px hsl(var(--accent) / 0.4));
+    }
+
+    100% {
+      color: hsl(var(--primary));
+      transform: rotate(360deg) scale(1);
+      filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.35));
+    }
+  }
+
+  .animate-themed-loader {
+    animation: themed-loader-spin 1.05s linear infinite;
+  }
+
+  @keyframes scan-prompt-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1px hsl(var(--accent) / 0.45), 0 0 14px hsl(var(--accent) / 0.28);
+      border-color: hsl(var(--accent) / 0.55);
+    }
+
+    50% {
+      box-shadow: 0 0 0 3px hsl(var(--accent) / 0.78), 0 0 26px hsl(var(--accent) / 0.52);
+      border-color: hsl(var(--accent));
+    }
+  }
+
+  @keyframes scan-prompt-camera-pulse {
+    0%,
+    100% {
+      color: hsl(var(--accent));
+      filter: drop-shadow(0 0 5px hsl(var(--accent) / 0.45));
+    }
+
+    50% {
+      color: hsl(var(--accent-foreground));
+      background-color: hsl(var(--accent));
+      border-color: hsl(var(--accent));
+      filter: drop-shadow(0 0 13px hsl(var(--accent) / 0.8));
+    }
+  }
+
+  .scan-prompt-halo {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .scan-prompt-halo::before {
+    content: "";
+    position: absolute;
+    inset: -0.45rem;
+    z-index: -1;
+    border-radius: calc(var(--radius) + 0.55rem);
+    background:
+      radial-gradient(
+        circle at 50% 50%,
+        hsl(var(--accent) / 0.4),
+        hsl(var(--primary) / 0.28) 48%,
+        hsl(var(--accent) / 0) 72%
+      );
+    filter: blur(0.35rem);
+    opacity: 0.9;
+  }
+
+  .scan-prompt-input {
+    animation: scan-prompt-pulse 1.05s ease-in-out infinite;
+  }
+
+  .scan-prompt-camera {
+    animation: scan-prompt-camera-pulse 0.95s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scan-prompt-halo::before,
+    .scan-prompt-input,
+    .scan-prompt-camera {
+      animation: none;
+    }
+
+    .scan-prompt-halo::before {
+      opacity: 0.85;
+    }
+
+    .scan-prompt-input {
+      box-shadow: 0 0 0 2px hsl(var(--accent) / 0.75), 0 0 18px hsl(var(--accent) / 0.35);
+      border-color: hsl(var(--accent));
+    }
+
+    .scan-prompt-camera {
+      color: hsl(var(--accent));
+      box-shadow: 0 0 0 2px hsl(var(--accent) / 0.55), 0 0 16px hsl(var(--accent) / 0.35);
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'IBM Plex Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  code, .font-mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+@layer base {
+  /* Themed scrollbars — match app design tokens */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted));
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--primary) / 0.5);
+    border-radius: 9999px;
+    border: 2px solid hsl(var(--muted));
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--primary) / 0.8);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: hsl(var(--muted));
+  }
+}
+
+/* ── Help Center light mode ──────────────────────────────── */
+.help-center-light {
+  --background: 210 20% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 174 62% 47%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 38 92% 55%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 174 62% 47%;
+}
+
+/* ── Print styles ─────────────────────────────────────────── */
+@media print {
+  /* Hide everything by default */
+  body > * {
+    display: none !important;
+  }
+
+  /* Small label (BarcodePrintDialog popup) */
+  .print-label {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: system-ui, sans-serif;
+    padding: 16mm;
+  }
+
+  .print-label svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .print-label-code {
+    margin-top: 8px;
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+
+  .print-label-type {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #555;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .print-label-sub {
+    font-size: 9pt;
+    color: #666;
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  /* A4 full-page zone label */
+  .print-zone-label {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 210mm;
+    min-height: 297mm;
+    background: #fff !important;
+    color: #000 !important;
+    padding: 20mm;
+    page-break-after: always;
+  }
+
+  .print-zone-label svg {
+    width: 160mm;
+    height: 160mm;
+  }
+
+  /* Suppress app chrome */
+  [role="dialog"],
+  nav,
+  header,
+  aside,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+}

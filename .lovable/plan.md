@@ -1,32 +1,61 @@
-# Fix the 403 that fires on desktop sign-in
+# Warehouse-scoped task lists + non-disruptive refresh
 
-## What's actually happening
+## 1. Filter Put-Away tasks and Pick Lists by the active warehouse
 
-The preview is loading fine — the app is running and reporting a real runtime error from the login flow.
+Today `getPutawayTasks()` and the pick-list query return tasks for every warehouse, so picking a specific warehouse in the switcher does not narrow the active queues. The "All warehouses" sentinel (developer/admin) should keep showing everything; any other selection should hide tasks from other warehouses.
 
-Confirmed by reading the code:
+**Changes**
+- `src/features/putaway/putaway-core.ts` — extend `getPutawayTasks(userId?, warehouseId?: string | null)`. When `warehouseId` is a non-null string, add `.eq("warehouse_id", warehouseId)`. When it is `null` (All) or `undefined` (legacy callers), no warehouse filter is applied.
+- `src/features/putaway/putaway-page.tsx` — read `profile?.default_warehouse_id` and pass it into `getPutawayTasks`. Include the value in the `queryKey` (`["putaway-tasks", userId, warehouseId]`) so switching warehouses refetches.
+- `src/features/picking/picking-core.ts` — add an optional `warehouseId` arg to the pick-list fetcher and `.eq("warehouse_id", …)` when set.
+- `src/features/picking/picking-page.tsx` — pass `profile?.default_warehouse_id` into the pick-list query and include it in the query key.
+- Update `src/test/putaway-page.test.tsx` mocks so the new signature stays satisfied.
 
-- `src/features/app/app-pages.tsx:825` — after a successful password sign-in, the login mutation always calls `refreshUserDeviceTrust(getOrCreateDeviceId())`.
-- `src/features/admin/admin-core.ts:272-280` — that function invokes the `trust-device` edge function and passes `isDesktop: isDesktopClient()`.
-- `supabase/functions/trust-device/index.ts:47-48` — the function deliberately rejects desktop callers: `return json({ error: 'Trusted device shortcut is unavailable' }, 403)`.
+The active-doc badge counts in the sidebar already aggregate across warehouses; leave those alone so admins/developers still see global totals.
 
-So on any desktop browser the app calls an endpoint that is designed to refuse it, the thrown error aborts the rest of the sign-in mutation (`recordUserSignIn` never runs), and the user gets a red error toast.
+## 2. Keep the bay selector scoped to the receiving warehouse
 
-Elsewhere the app already knows this: the badge/trusted-device shortcut is gated behind `!isDesktopClient()` in three places (lines 760, 764, 904). Only this one call site is missing the guard.
+The Put-Away bay browser is already invoked with `warehouseId={task.warehouse_id}` (the warehouse the pallet was received in), so the dialog itself is correct even when "All warehouses" is active. Verify nothing else passes the active-warehouse instead:
 
-## The fix
+- Audit `src/features/putaway/putaway-page.tsx` and confirm every `<WarehouseBayBrowserDialog …>` and `getWarehouseBayOccupancy(...)` call uses the **task's** `warehouse_id`, never `profile?.default_warehouse_id`. Fix any stray usage.
+- Same audit for pick-task bay/location pickers in `src/features/picking/picking-page.tsx`.
 
-1. **Guard the call** — in `refreshUserDeviceTrust` (`admin-core.ts`), return early when `isDesktopClient()` is true. Desktop clients never get the trusted-device shortcut, so there is nothing to register.
+No schema or RPC change needed.
 
-2. **Make it non-fatal** — device-trust registration is a convenience, not part of authentication. Wrap the call at the login site so a failure is logged but never blocks sign-in or the `recordUserSignIn` audit entry that follows it.
+## 3. Non-disruptive background refresh
 
-3. **Leave the edge function alone** — the 403 is intentional policy, not a bug. The client should stop calling it, rather than the server being loosened.
+Two mechanisms currently cause "hard refresh" feel:
+
+- `src/hooks/use-background-sync.ts` calls `queryClient.invalidateQueries()` (all queries) when the tab returns after 2 min hidden. That can re-render an in-progress put-away/pick screen, dropping local form state and scan focus.
+- `src/main.tsx` registers the PWA service worker with auto-reload behaviors that, in some flows, can navigate the page.
+
+**Changes**
+- Introduce a tiny module `src/lib/active-work.ts` exporting:
+  ```ts
+  let active = 0;
+  export function beginActiveWork(): () => void { active++; return () => { active = Math.max(0, active-1); }; }
+  export function isActiveWorkInProgress() { return active > 0; }
+  ```
+- `use-background-sync.ts` — when returning to foreground:
+  - Always flush the offline queue (unchanged).
+  - If `isActiveWorkInProgress()` is true, **skip** the blanket `invalidateQueries` and instead only invalidate safe, read-only keys (`["putaway-tasks"]`, `["pick-lists"]`, `["warehouse-bay-occupancy"]`, `["options"]`) using `{ refetchType: "none" }` so background data stays fresh on next access but no in-flight screen re-mounts.
+  - If no active work, keep today's behavior.
+- Mark active work from the screens that own scan/confirm flow:
+  - `putaway-page.tsx` — call `beginActiveWork()` when a pallet has been scanned and a task is selected; release it on confirm/cancel/back to scan prompt.
+  - `picking-page.tsx` — call `beginActiveWork()` when a pick task is in progress (location scanned or quantity entered); release on confirm/skip/cancel.
+  - `receiving-page.tsx` — call it while the New Shipment / Print Draft dialog is open.
+- `src/main.tsx` PWA hook — when `onNeedRefresh` fires and `isActiveWorkInProgress()`, defer `updateSW(true)` until `visibilitychange → hidden` **and** active work is zero (current code already waits for hidden; add the active-work guard). Same for the preview-mode SW cleanup reload: skip the `window.location.reload()` if active work is in progress; reschedule on the next idle visibility change.
+
+This keeps data fresh in the background while guaranteeing that an operator mid-task is never bounced.
 
 ## Verification
 
-- Sign in on desktop and confirm: no error toast, session established, sign-in recorded.
-- Confirm the mobile/badge path is untouched — it goes through `badge-login`, not this call.
+- `bunx tsc --noEmit`
+- `bunx vitest run src/test/putaway-page.test.tsx src/test/pick-tasks.test.ts`
+- Manual: set a specific warehouse → confirm only its put-away tasks and pick lists appear; switch to "All warehouses" (admin) → both warehouses show. Open bay selector from a task created in WH-A while "All" is active → only WH-A bays load.
+- Manual: start a put-away (scan pallet, open bay selector), background the tab for >2 min, return → the in-progress dialog is still open with the same task and scan focus; no flicker, no data loss.
 
-## Scope
+## Out of scope
 
-Two small edits in existing client code. No UI, schema, or edge-function changes.
+- No visual redesign, no schema changes.
+- Sidebar active-doc count behavior is unchanged.

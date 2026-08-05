@@ -1,7 +1,0 @@
-{"functions": [
-  {"name": "auth-email-hook", "classification": "webhook receiver", "signal": "verifyWebhookRequest from @lovable.dev/webhooks-js; Supabase Auth email hook", "outcome": "left"},
-  {"name": "badge-login", "classification": "internal-only", "signal": "called from src/features/app/app-pages.tsx (pre-auth badge/PIN login); uses service role + auth admin", "outcome": "left"},
-  {"name": "invite-user", "classification": "internal-only", "signal": "called from src/features/admin/admin-core.ts; uses auth admin APIs", "outcome": "left"},
-  {"name": "process-email-queue", "classification": "cron target", "signal": "scheduled via pg_cron in supabase/migrations/20260511041728_email_infra.sql", "outcome": "left"},
-  {"name": "trust-device", "classification": "internal-only", "signal": "called from src/features/admin/admin-core.ts; device-trust shortcut", "outcome": "left"}
-]}

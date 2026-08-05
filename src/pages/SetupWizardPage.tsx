@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "@/lib/router-compat";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Circle, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -50,7 +50,7 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
       className={cn(
         "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "border-primary bg-primary text-primary-foreground shadow-xs"
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
           : done
             ? "border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400"
             : "border-border bg-muted/40 text-muted-foreground",

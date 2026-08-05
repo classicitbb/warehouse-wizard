@@ -294,7 +294,7 @@ export function PalletLabelPage(props: PalletLabelPageProps) {
         {/* Preview */}
         <div className="max-h-[68vh] overflow-auto rounded-lg bg-muted/30 p-3">
           <div
-            className="mx-auto flex aspect-[2/3] w-full max-w-[380px] flex-col gap-3 rounded-lg border-[4px] bg-white p-4 text-black shadow-xs"
+            className="mx-auto flex aspect-[2/3] w-full max-w-[380px] flex-col gap-3 rounded-lg border-[4px] bg-white p-4 text-black shadow-sm"
             style={{ borderColor: accentColor, fontFamily: "system-ui, sans-serif" }}
           >
             <div className="h-1.5 w-full rounded-full" style={{ background: accentColor }} />

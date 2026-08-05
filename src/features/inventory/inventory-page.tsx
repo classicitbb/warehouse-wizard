@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "@/lib/router-compat";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -371,7 +371,7 @@ export function InventorySearchPage() {
         <CardContent className="flex min-h-0 min-w-0 flex-1 p-0">
           <TableFrame className="h-full min-w-0 flex-1">
             <Table className="min-w-[72rem] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
-              <TableHeader className="sticky top-0 z-20 bg-card shadow-xs">
+              <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
                 <TableRow>
                   <TableHead>SKU</TableHead>
                   <TableHead>Pallet</TableHead>

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "@/lib/router-compat";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -425,7 +425,7 @@ function SortableDashboardTile({
       >
         {children}
         {editMode ? (
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-background/80 p-0.5 shadow-xs backdrop-blur">
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-background/80 p-0.5 shadow-sm backdrop-blur">
             <button
               type="button"
               onClick={() => onHide(tile.id)}
@@ -480,7 +480,7 @@ function SortableMetricCard({
           <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Link to={dashboardMetricLink(card.metricKey)} className="block rounded-sm transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <Link to={dashboardMetricLink(card.metricKey)} className="block rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <div className="text-3xl font-bold">
               {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : formatNumber(value)}
             </div>
@@ -550,7 +550,7 @@ function PalletDialCard({
       <CardContent className="flex h-full items-center gap-4 p-4 pr-20">
         <Link
           to={route}
-          className="grid h-24 w-24 shrink-0 place-items-center rounded-full transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="grid h-24 w-24 shrink-0 place-items-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           aria-label={`${label} ${percentage}%`}
           title={`Open source: ${label}`}
         >
@@ -567,7 +567,7 @@ function PalletDialCard({
         </Link>
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-          <Link to={route} className="block rounded-sm transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <Link to={route} className="block rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <p className="text-3xl font-bold tracking-tight">{isLoading ? "..." : formatNumber(value)}</p>
           </Link>
           <p className="truncate text-xs text-muted-foreground">{caption}</p>
@@ -1190,7 +1190,7 @@ function ProfileMenu({ initials, displayName, onSignOut }: { initials: string; d
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
@@ -1405,13 +1405,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const link = (
               <NavLink
                 key={item.to}
-                className={cn(
-                  "group flex min-h-[3.375rem] items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
-                  sidebarCollapsed && "h-[3.375rem] w-11 justify-center p-0",
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-xs"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
+                className={({ isActive: navActive }) =>
+                  cn(
+                    "group flex min-h-[3.375rem] items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
+                    sidebarCollapsed && "h-[3.375rem] w-11 justify-center p-0",
+                    navActive || isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )
+                }
                 to={item.to}
                 aria-label={item.label}
                 onMouseEnter={() => prefetchRouteData(item.to)}
@@ -2783,7 +2785,7 @@ export function LocationWizardDialog({
     [resolvedDefaultWarehouseId, resolvedDefaultZoneId],
   );
 
-  const form = useForm<z.input<typeof locationWizardSchema>, any, z.output<typeof locationWizardSchema>>({
+  const form = useForm<LocationWizardValues>({
     resolver: zodResolver(locationWizardSchema),
     defaultValues: buildDefaults(),
   });
@@ -3525,7 +3527,7 @@ export function WarehouseFloorMode({
                     <CardHeader className="p-4 pb-2 pr-20">
                       <CardTitle className="flex items-center justify-between gap-4">
                         <span>{queue.label}</span>
-                        <Link to={queue.route} className="shrink-0 rounded-sm text-3xl transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                        <Link to={queue.route} className="shrink-0 rounded-sm text-3xl transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                           {formatNumber(queue.count)}
                         </Link>
                       </CardTitle>
@@ -3609,7 +3611,7 @@ function WarehouseIntelligenceCard({ snapshot }: { snapshot: EnterpriseDashboard
       </CardHeader>
       <CardContent className="grid gap-2">
         {snapshot.leanMetrics.map((metric) => (
-          <Link key={metric.label} to={metric.route} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 transition hover:bg-secondary/40 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <Link key={metric.label} to={metric.route} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 transition hover:bg-secondary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <div className="min-w-0">
               <p className="truncate text-xs font-medium">{metric.label}</p>
               <p className="text-xs text-muted-foreground">Target: {metric.target}</p>
@@ -3680,7 +3682,7 @@ export function DockHandoffBoard({
                     <CardHeader className="pr-20">
                       <CardTitle className="flex items-center justify-between gap-2 capitalize">
                         <span>{status}</span>
-                        <Link to="/pick-lists" className="rounded-sm text-2xl transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                        <Link to="/pick-lists" className="rounded-sm text-2xl transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                           {formatNumber(laneLoads.length)}
                         </Link>
                       </CardTitle>
@@ -3788,7 +3790,7 @@ export function OfficeMonitoringMode({
                     <CardHeader className="pr-20">
                       <CardDescription>{widget.label}</CardDescription>
                       <CardTitle className="text-4xl">
-                        <Link to={widget.route} className="rounded-sm transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                        <Link to={widget.route} className="rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                           {widget.value}
                         </Link>
                       </CardTitle>
@@ -3844,7 +3846,7 @@ export function WarehouseBrainPanel({ recommendations }: { recommendations: Ware
       </CardHeader>
       <CardContent className="grid gap-3">
         {recommendations.map((recommendation) => (
-          <Link key={recommendation.id} to={recommendation.route} className={cn("block rounded-lg border border-border p-3 transition hover:bg-secondary/50 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2", recommendation.severity === "critical" ? "bg-destructive/10" : recommendation.severity === "warning" ? "bg-warning/10" : "bg-secondary/30")}>
+          <Link key={recommendation.id} to={recommendation.route} className={cn("block rounded-lg border border-border p-3 transition hover:bg-secondary/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", recommendation.severity === "critical" ? "bg-destructive/10" : recommendation.severity === "warning" ? "bg-warning/10" : "bg-secondary/30")}>
             <div className="flex items-center justify-between gap-3">
               <p className="font-medium">{recommendation.title}</p>
               <Badge variant={recommendation.severity === "critical" ? "destructive" : "secondary"}>{recommendation.severity}</Badge>
@@ -4033,7 +4035,7 @@ export function printDraftLabels(
       packaging: packaging?.name ?? packaging?.unit_name ?? packaging?.unit_of_measure,
       draftSequence: draft.draft_sequence,
       draftCount: draft.draft_count,
-      temperatureClass: product?.temperature_requirement ?? undefined,
+      temperatureClass: product?.temperature_requirement,
     };
   });
   const win = window.open("", "_blank", "width=900,height=1100");
@@ -5150,7 +5152,7 @@ export function WarehouseBayBrowserDialog({
                                 disabled={isFull}
                                 onClick={() => { onSelectBay(bay.bayCode); onClose(); }}
                                 className={cn(
-                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                                   isFull
                                     ? "cursor-not-allowed border-muted bg-muted/40 opacity-60"
                                     : "border-border bg-card hover:bg-secondary/60",
@@ -5264,7 +5266,7 @@ export function BayOccupancyGrid({
                   disabled={!available}
                   onClick={() => onSelect(cell.locationCode)}
                   className={cn(
-                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                     selected
                       ? "animate-pulse border-cyan-400 bg-cyan-50 text-cyan-950 ring-2 ring-cyan-400 dark:bg-cyan-950/50 dark:text-cyan-50"
                       : available

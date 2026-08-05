@@ -1,7 +1,0 @@
-{
-  "versionCode": 0,
-  "versionName": "0.0.0-unpublished",
-  "apkUrl": "downloads/warehouse-wizard-latest.apk",
-  "publishedAt": null,
-  "_comment": "Placeholder — overwritten by android-build-deploy.yml on every successful build. If you see version 0.0.0 on the live page, the CI workflow hasn't run successfully yet."
-}

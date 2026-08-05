@@ -375,7 +375,7 @@ function BaySheetPreview({ items, size }: { items: LabelSheetItem[]; size: BayLa
     const isCompact = size === "label-2x4";
     return (
       <div
-        className="relative mx-auto overflow-hidden rounded border border-dashed border-gray-400 bg-white text-black shadow-xs"
+        className="relative mx-auto overflow-hidden rounded border border-dashed border-gray-400 bg-white text-black shadow-sm"
         style={{
           width: isCompact ? 160 : 220,
           aspectRatio: size === "label-4x4" ? "1/1" : isCompact ? "1/2" : "2/3",
@@ -415,7 +415,7 @@ function BaySheetPreview({ items, size }: { items: LabelSheetItem[]; size: BayLa
 
   return (
     <div className="space-y-2">
-      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-xs"
+      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-sm"
         style={{ aspectRatio: "1/1.414", maxWidth: 340, fontFamily: "system-ui, sans-serif", padding: "2%" }}>
         <div className="grid h-full gap-[1.5%]"
           style={{ gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr 1fr" }}>
@@ -455,7 +455,7 @@ function LabelSheetPreview({ items, kind }: { items: LabelSheetItem[]; kind: Lab
 
   return (
     <div className="space-y-2">
-      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-xs"
+      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-sm"
         style={{ aspectRatio: "1/1.414", maxWidth: 340, fontFamily: "system-ui, sans-serif", padding: "2%" }}>
         <div className="grid h-full gap-[0.8%]"
           style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
