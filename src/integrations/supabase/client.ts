@@ -12,7 +12,7 @@ if (!isSupabaseConfigured && import.meta.env.DEV) {
 
 export const supabase = createClient<Database>(SUPABASE_URL ?? 'https://example.supabase.co', SUPABASE_PUBLISHABLE_KEY ?? 'public-anon-key', {
   auth: {
-    storage: localStorage,
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
     persistSession: true,
     autoRefreshToken: true,
   }

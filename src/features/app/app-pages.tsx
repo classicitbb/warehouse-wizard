@@ -1,29 +1,23 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { RouteErrorBoundary } from "@/components/error-boundary";
-import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate, useParams } from "@/lib/router-compat";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, ArrowLeft, Camera, CheckCircle2, Eye, EyeOff, HelpCircle, Keyboard, Loader2, LogOut, Mail, RefreshCw, ScanLine, Sparkles, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Analytics } from "@vercel/analytics/react";
 import { QRCodeSVG } from "qrcode.react";
 
-import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { FeatureFlagContext, useFeatureFlagState } from "@/hooks/use-feature-flags";
 import { enqueueOfflineWork, isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
-import { createAppQueryClient } from "@/lib/query-client";
 
 import { buildBayOccupancyGrid, confirmPickTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
 import { cn } from "@/lib/utils";
 
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -36,12 +30,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { HelpSidebar } from "@/components/help-sidebar";
 import { HintButton } from "@/components/hint-button";
-import NotFound from "./pages/NotFound";
-
-const queryClient = createAppQueryClient();
 
 /** Full-page loading spinner shown while lazy chunks are fetched. */
-function PageSpinner() {
+export function PageSpinner() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background">
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Loading…" />
@@ -49,26 +40,26 @@ function PageSpinner() {
   );
 }
 
-const DashboardPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.DashboardPage })));
-const AppShell = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.AppShell })));
-const InventorySearchPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.InventorySearchPage })));
-const PickListsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PickListsPage })));
-const PutawayTasksPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PutawayTasksPage })));
-const ReceivingPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReceivingPage })));
-const ReportsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReportsPage })));
-const ResourcePage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ResourcePage })));
-const SettingsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.SettingsPage })));
-const StatusPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.StatusPage })));
-const SystemLogPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.SystemLogPage })));
-const EmailLogPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.EmailLogPage })));
-const TransfersPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.TransfersPage })));
-const UsersRolesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.UsersRolesPage })));
-const CycleCountsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.CycleCountsPage })));
-const LocationMovesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.LocationMovesPage })));
-const PalletLabelPage = lazy(() => import("@/components/pallet-label-page").then((mod) => ({ default: mod.PalletLabelPage })));
-const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
-const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
-const ProtectedShell = lazy(() =>
+export const DashboardPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.DashboardPage })));
+export const AppShell = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.AppShell })));
+export const InventorySearchPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.InventorySearchPage })));
+export const PickListsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PickListsPage })));
+export const PutawayTasksPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PutawayTasksPage })));
+export const ReceivingPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReceivingPage })));
+export const ReportsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReportsPage })));
+export const ResourcePage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ResourcePage })));
+export const SettingsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.SettingsPage })));
+export const StatusPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.StatusPage })));
+export const SystemLogPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.SystemLogPage })));
+export const EmailLogPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.EmailLogPage })));
+export const TransfersPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.TransfersPage })));
+export const UsersRolesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.UsersRolesPage })));
+export const CycleCountsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.CycleCountsPage })));
+export const LocationMovesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.LocationMovesPage })));
+export const PalletLabelPage = lazy(() => import("@/components/pallet-label-page").then((mod) => ({ default: mod.PalletLabelPage })));
+export const HelpCenterPage = lazy(() => import("@/pages/HelpCenter"));
+export const SetupWizardPage = lazy(() => import("@/pages/SetupWizardPage"));
+export const ProtectedShell = lazy(() =>
   import("@/components/wms-ui").then((mod) => ({
     default: function ProtectedShellComponent({ children }: { children: ReactNode }) {
       return (
@@ -587,7 +578,7 @@ type PickExecutionData = {
   pickTasks: any[];
 };
 
-function RequireAuth({
+export function RequireAuth({
   allowedRoles,
 }: {
   allowedRoles?: Array<"admin" | "warehouse_manager" | "inventory_clerk" | "warehouse_operator" | "dispatch_driver">;
@@ -761,7 +752,7 @@ function PendingAccessShell() {
   );
 }
 
-function LoginPage() {
+export function LoginPage() {
   const auth = useAuth();
   const [mode, setMode] = useState<"login" | "reset" | "update">(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("reset") === "1" ? "update" : "login",
@@ -1238,7 +1229,7 @@ function LoginPage() {
   );
 }
 
-function InventoryDetailPage() {
+export function InventoryDetailPage() {
   const { balanceId = "" } = useParams();
   const navigate = useNavigate();
   const { data, isLoading } = useQuery<InventoryDetailData>({
@@ -1411,7 +1402,7 @@ function InventoryDetailPage() {
 
 const PICK_OPEN_STATUSES = new Set(["queued", "assigned", "in_progress"]);
 
-function PickExecutionPage() {
+export function PickExecutionPage() {
   const { pickListId = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -2060,75 +2051,17 @@ function PickTaskCard({
   );
 }
 
-function HomeRedirect() {
+export function HomeRedirect() {
   const { session } = useAuth();
   return <Navigate to={session ? "/dashboard" : "/login"} replace />;
 }
 
-function ProtectedLayout() {
-  return (
-    <ProtectedShell>
-      <Outlet />
-    </ProtectedShell>
-  );
-}
-
-function FeatureFlagProvider({ children }: { children: ReactNode }) {
+export function FeatureFlagProvider({ children }: { children: ReactNode }) {
   const value = useFeatureFlagState();
   return <FeatureFlagContext.Provider value={value}>{children}</FeatureFlagContext.Provider>;
 }
 
-function ResourceRoutes() {
-  const resources = useMemo(
-    () => ({
-      clients: RESOURCE_DEFINITIONS.clients,
-      warehouses: RESOURCE_DEFINITIONS.warehouses,
-      zones: RESOURCE_DEFINITIONS.zones,
-      locations: RESOURCE_DEFINITIONS.locations,
-      products: RESOURCE_DEFINITIONS.products,
-      packagingProfiles: RESOURCE_DEFINITIONS.packagingProfiles,
-    }),
-    [],
-  );
-
-  return (
-    <Routes>
-      <Route path="/" element={<HomeRedirect />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<RequireAuth />}>
-        <Route element={<ProtectedLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/clients" element={<ResourcePage resource={resources.clients as any} />} />
-          <Route path="/warehouses" element={<ResourcePage resource={resources.warehouses as any} />} />
-          <Route path="/zones" element={<ResourcePage resource={resources.zones as any} />} />
-          <Route path="/locations" element={<ResourcePage resource={resources.locations as any} />} />
-          <Route path="/products" element={<ResourcePage resource={resources.products as any} />} />
-          <Route path="/packaging-profiles" element={<ResourcePage resource={resources.packagingProfiles as any} />} />
-          <Route path="/receiving" element={<ReceivingPage />} />
-          <Route path="/putaway-tasks" element={<PutawayTasksPage />} />
-          <Route path="/inventory-search" element={<InventorySearchPage />} />
-          <Route path="/pick-lists" element={<PickListsPage />} />
-          <Route path="/transfers" element={<TransfersPage />} />
-          <Route path="/location-moves" element={<LocationMovesPage />} />
-          <Route path="/cycle-counts" element={<CycleCountsPage />} />
-          <Route path="/status" element={<StatusPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/users" element={<UsersRolesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/system-log" element={<SystemLogPage />} />
-          <Route path="/email-log" element={<EmailLogPage />} />
-          <Route path="/help" element={<HelpCenterPage />} />
-          <Route path="/setup-wizard" element={<SetupWizardPage />} />
-        </Route>
-        <Route path="/inventory/:balanceId" element={<InventoryDetailPage />} />
-        <Route path="/pick-lists/:pickListId" element={<PickExecutionPage />} />
-      </Route>
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-}
-
-function RuntimeModeBadge() {
+export function RuntimeModeBadge() {
   const hostname = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
   const isLocal =
     hostname === "localhost" ||
@@ -2148,26 +2081,3 @@ function RuntimeModeBadge() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <FeatureFlagProvider>
-        <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <RouteErrorBoundary>
-              <Suspense fallback={<PageSpinner />}>
-                <ResourceRoutes />
-              </Suspense>
-            </RouteErrorBoundary>
-          </BrowserRouter>
-          <RuntimeModeBadge />
-          <Analytics />
-        </AuthProvider>
-      </FeatureFlagProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
