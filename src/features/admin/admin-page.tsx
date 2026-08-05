@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "@/lib/router-compat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -218,7 +218,7 @@ function AddUserDialog({
   onSuccess: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const form = useForm<z.infer<typeof inviteUserSchema>>({
+  const form = useForm<z.input<typeof inviteUserSchema>, any, z.output<typeof inviteUserSchema>>({
     resolver: zodResolver(inviteUserSchema),
     defaultValues: { email: "", full_name: "", password: "", role_code: "", warehouse_id: "" },
   });

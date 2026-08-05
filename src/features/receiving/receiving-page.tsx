@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type KeyboardEventHandler, type SetStateAction } from "react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "@/lib/router-compat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -866,8 +866,7 @@ export function ReceivingPage() {
       event.preventDefault();
       if (field === "total") { productRefs.current[lineId]?.open(); return; }
       if (field === "perPallet") { focusShipmentField(lineId, "total"); return; }
-      if (field === "count") { focusShipmentField(lineId, "perPallet"); return; }
-      if (field === "expiry") { focusShipmentField(lineId, "count"); }
+      if (field === "count") { focusShipmentField(lineId, "perPallet"); }
     }
   }
 

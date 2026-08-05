@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "@/lib/router-compat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -204,7 +204,7 @@ export function CycleCountsPage() {
   // Per-line "can't count" exception state
   const [exState, setExState] = useState<Record<string, { open: boolean; reason: string }>>({});
 
-  const form = useForm<z.infer<typeof cycleCountSchema>>({
+  const form = useForm<z.input<typeof cycleCountSchema>, any, z.output<typeof cycleCountSchema>>({
     resolver: zodResolver(cycleCountSchema),
     defaultValues: { scope: "spot", variance_threshold_percent: 5 },
   });
