@@ -2060,7 +2060,12 @@ export function FeatureFlagProvider({ children }: { children: ReactNode }) {
 }
 
 export function RuntimeModeBadge() {
-  const hostname = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
+  // Read the hostname after hydration so server and client render the same
+  // initial tree (SSR always renders nothing; the badge appears post-mount).
+  const [hostname, setHostname] = useState("");
+  useEffect(() => {
+    setHostname(window.location.hostname.toLowerCase());
+  }, []);
   const isLocal =
     hostname === "localhost" ||
     hostname === "127.0.0.1" ||
