@@ -1,7 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-
-import { useAuth } from "@/hooks/use-auth";
-import { loadMobileToolbarPreferences, saveMobileToolbarPreferences } from "@/lib/mobile-toolbar-preferences";
+import { createContext, useCallback, useContext, useState } from "react";
 
 export type ModuleKey =
   | "receiving"
@@ -72,8 +69,7 @@ export { MODULE_LABELS };
 
 const STORAGE_KEY = "wms.modules.v1";
 const TOOLBAR_STORAGE_KEY = "wms.mobile-toolbar.v1";
-export const MAX_TOOLBAR_MODULES = 7;
-const DEFAULT_TOOLBAR_MODULES: ModuleKey[] = ["receiving", "putaway", "inventory", "pick-lists", "location-moves"];
+const DEFAULT_TOOLBAR_MODULES: ModuleKey[] = ["receiving", "putaway", "inventory", "pick-lists"];
 
 function loadFlags(): Record<ModuleKey, boolean> {
   try {
@@ -89,28 +85,21 @@ function saveFlags(flags: Record<ModuleKey, boolean>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(flags));
 }
 
-function sanitizeToolbarModules(value: unknown): ModuleKey[] {
-  if (!Array.isArray(value)) return [...DEFAULT_TOOLBAR_MODULES];
-  return Array.from(new Set(value.filter((key): key is ModuleKey => typeof key === "string" && key in STARTER_MODULES)))
-    .slice(0, MAX_TOOLBAR_MODULES);
-}
-
-function toolbarStorageKey(userId?: string) {
-  return userId ? `${TOOLBAR_STORAGE_KEY}.${userId}` : TOOLBAR_STORAGE_KEY;
-}
-
-function loadToolbarModules(userId?: string): ModuleKey[] {
+function loadToolbarModules(): ModuleKey[] {
   try {
-    const raw = localStorage.getItem(toolbarStorageKey(userId));
-    if (raw) return sanitizeToolbarModules(JSON.parse(raw));
+    const raw = localStorage.getItem(TOOLBAR_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as ModuleKey[];
+      if (Array.isArray(parsed)) return parsed.filter((key) => key in STARTER_MODULES).slice(0, 4);
+    }
   } catch {
     // ignore
   }
   return [...DEFAULT_TOOLBAR_MODULES];
 }
 
-function saveToolbarModules(keys: ModuleKey[], userId?: string) {
-  localStorage.setItem(toolbarStorageKey(userId), JSON.stringify(keys.slice(0, MAX_TOOLBAR_MODULES)));
+function saveToolbarModules(keys: ModuleKey[]) {
+  localStorage.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(keys.slice(0, 4)));
 }
 
 type FeatureFlagContextValue = {
@@ -126,33 +115,8 @@ type FeatureFlagContextValue = {
 export const FeatureFlagContext = createContext<FeatureFlagContextValue | null>(null);
 
 export function useFeatureFlagState(): FeatureFlagContextValue {
-  const { user } = useAuth();
   const [flags, setFlags] = useState<Record<ModuleKey, boolean>>(loadFlags);
   const [toolbarModules, setToolbarModules] = useState<ModuleKey[]>(loadToolbarModules);
-
-  useEffect(() => {
-    if (!user) {
-      setToolbarModules([...DEFAULT_TOOLBAR_MODULES]);
-      return;
-    }
-
-    let cancelled = false;
-    void loadMobileToolbarPreferences(user.id)
-      .then((saved) => {
-        if (cancelled) return;
-        const next = saved === undefined ? loadToolbarModules(user.id) : sanitizeToolbarModules(saved);
-        setToolbarModules(next);
-        saveToolbarModules(next, user.id);
-      })
-      .catch((error) => {
-        console.error("[FeatureFlags] mobile toolbar preferences unavailable:", error);
-        if (!cancelled) setToolbarModules(loadToolbarModules(user.id));
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   const isEnabled = useCallback((key: ModuleKey) => flags[key] ?? true, [flags]);
   const isToolbarModule = useCallback((key: ModuleKey) => toolbarModules.includes(key), [toolbarModules]);
@@ -163,34 +127,24 @@ export function useFeatureFlagState(): FeatureFlagContextValue {
       saveFlags(next);
       return next;
     });
-    if (!enabled) {
-      setToolbarModules((prev) => {
-        const next = prev.filter((item) => item !== key);
-        saveToolbarModules(next, user?.id);
-        if (user) void saveMobileToolbarPreferences(user.id, next).catch((error) => console.error("[FeatureFlags] could not save mobile toolbar preferences:", error));
-        return next;
-      });
-    }
-  }, [user]);
+  }, []);
 
   const setToolbarModule = useCallback((key: ModuleKey, pinned: boolean) => {
     setToolbarModules((prev) => {
       const without = prev.filter((item) => item !== key);
-      const next = pinned ? [...without, key].slice(0, MAX_TOOLBAR_MODULES) : without;
-      saveToolbarModules(next, user?.id);
-      if (user) void saveMobileToolbarPreferences(user.id, next).catch((error) => console.error("[FeatureFlags] could not save mobile toolbar preferences:", error));
+      const next = pinned ? [...without, key].slice(0, 4) : without;
+      saveToolbarModules(next);
       return next;
     });
-  }, [user]);
+  }, []);
 
   const resetToStarter = useCallback(() => {
     const defaults = { ...STARTER_MODULES };
     setFlags(defaults);
     saveFlags(defaults);
     setToolbarModules([...DEFAULT_TOOLBAR_MODULES]);
-    saveToolbarModules(DEFAULT_TOOLBAR_MODULES, user?.id);
-    if (user) void saveMobileToolbarPreferences(user.id, DEFAULT_TOOLBAR_MODULES).catch((error) => console.error("[FeatureFlags] could not save mobile toolbar preferences:", error));
-  }, [user]);
+    saveToolbarModules(DEFAULT_TOOLBAR_MODULES);
+  }, []);
 
   return { flags, toolbarModules, isToolbarModule, isEnabled, setModule, setToolbarModule, resetToStarter };
 }

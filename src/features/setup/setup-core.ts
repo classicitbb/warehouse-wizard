@@ -2,7 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   db,
   formatSupabaseError,
-  fetchAllRows,
   type WarehouseSetupPayload,
   type WarehouseSetupWarehouse,
   type WarehouseSetupZone,
@@ -52,21 +51,14 @@ export function createBlankLocationTemplate(
 }
 
 export async function loadExistingSetupPayload(): Promise<WarehouseSetupPayload> {
-  const [whR, zoneR, locData] = await Promise.all([
+  const [whR, zoneR, locR] = await Promise.all([
     db("warehouses").select("code, name, city, country").order("code"),
     db("zones").select("code, name, temperature_class, is_staging, is_dispatch, is_quarantine, sort_order, warehouses:warehouse_id(code)").order("sort_order"),
-    // Page through with .range() — an unbounded select truncates to
-    // PostgREST's default 1000-row cap, which would silently drop location
-    // templates (and undercount capacity) for warehouses with more rows.
-    fetchAllRows((from, to) =>
-      db("locations")
-        .select("id, location_type, temperature_class, max_pallets, depth, position, mixed_sku_allowed, mixed_lot_allowed, status, aisle, bay, level, warehouses:warehouse_id(code), zones:zone_id(code, temperature_class)")
-        .order("id", { ascending: true })
-        .range(from, to),
-    ),
+    db("locations").select("location_type, temperature_class, max_pallets, depth, position, mixed_sku_allowed, mixed_lot_allowed, status, aisle, bay, level, warehouses:warehouse_id(code), zones:zone_id(code, temperature_class)"),
   ]);
   if (whR.error) throw whR.error;
   if (zoneR.error) throw zoneR.error;
+  if (locR.error) throw locR.error;
 
   const warehouses: WarehouseSetupWarehouse[] = (whR.data ?? []).map((w: any) => ({
     code: w.code,
@@ -97,7 +89,7 @@ export async function loadExistingSetupPayload(): Promise<WarehouseSetupPayload>
 
   // Derive one template per (warehouse, zone, location_type) using aggregate counts.
   const groups = new Map<string, WarehouseLocationTemplate & { _aisles: Set<string>; _bays: Set<string>; _levels: Set<string>; _positions: Set<string> }>();
-  for (const l of (locData ?? []) as any[]) {
+  for (const l of (locR.data ?? []) as any[]) {
     const wCode = l.warehouses?.code ?? "";
     const zCode = l.zones?.code ?? "";
     if (!wCode || !zCode) continue;
@@ -506,10 +498,7 @@ export function buildBayOccupancyGrid(cells: BayOccupancyCell[]): BayOccupancyGr
     BAY_LEVEL_LIMIT,
     Math.max(1, ...visibleCells.map((item) => item.level)),
   );
-  const maxPosition = Math.min(
-    BAY_POSITION_LIMIT,
-    Math.max(1, ...visibleCells.map((item) => item.position)),
-  );
+  const maxPosition = BAY_POSITION_LIMIT;
   const cellsBySlot = new Map<string, BayOccupancyCell>();
   for (const item of visibleCells) {
     cellsBySlot.set(`${item.level}:${item.position}`, item.cell);

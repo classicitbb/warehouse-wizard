@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type RefObject, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Camera, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type ContainerScannerSuccessSample } from "@/lib/container-scanner-learning";
-import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
+import { getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
 import { cn } from "@/lib/utils";
 
 export type ScanValidationResult = {
@@ -42,11 +42,6 @@ interface BarcodeScanButtonProps {
   onScanTelemetry?: (event: ScanTelemetryEvent) => void;
   onOpenChange?: (open: boolean) => void;
   autoOpenSignal?: number;
-  footerAction?: {
-    label: string;
-    icon?: ReactNode;
-    onClick: () => void;
-  };
   /** After scan is accepted, simulate Enter keydown on this input to advance focus. */
   inputRef?: RefObject<HTMLInputElement | null>;
 }
@@ -56,19 +51,15 @@ type PendingScan = {
   value: string;
   message?: string;
   region?: NormalizedScanRegion;
-  source: "barcode" | "text" | "ocr";
 };
 
-type DetectionPoint = { x: number; y: number };
-type DetectionBounds = { x: number; y: number; width: number; height: number };
-type DetectedBarcode = { rawValue: string; boundingBox?: DetectionBounds; cornerPoints?: DetectionPoint[] };
+type DetectedBarcode = { rawValue: string };
 type BarcodeDetectorLike = { detect: (source: HTMLVideoElement) => Promise<DetectedBarcode[]> };
 type BarcodeDetectorConstructor = {
   new(options?: { formats?: string[] }): BarcodeDetectorLike;
   getSupportedFormats?: () => Promise<string[]>;
 };
-type DetectedTextBlock = { rawValue?: string; text?: string; boundingBox?: DetectionBounds; cornerPoints?: DetectionPoint[] };
-type TextDetectorLike = { detect: (source: HTMLVideoElement) => Promise<DetectedTextBlock[]> };
+type TextDetectorLike = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string; text?: string }>> };
 type TextDetectorConstructor = { new(): TextDetectorLike };
 
 const BARCODE_FORMATS = [
@@ -79,8 +70,6 @@ const BARCODE_FORMATS = [
 
 const OCR_SCAN_INTERVAL_MS = 1800;
 const CONTAINER_RETRY_NOTICE_MS = 5000;
-const BARCODE_PREVIEW_DELAY_MS = 450;
-const TEXT_PREVIEW_DELAY_MS = 1500;
 
 function getScanCandidate(raw: string, validateScan?: (raw: string) => ScanValidationResult) {
   if (!validateScan) return { valid: true, value: raw, raw };
@@ -92,48 +81,6 @@ function getScanCandidate(raw: string, validateScan?: (raw: string) => ScanValid
     raw,
     message: result.message,
   };
-}
-
-function getDetectedRegion(
-  detection: { boundingBox?: DetectionBounds; cornerPoints?: DetectionPoint[] },
-  video: HTMLVideoElement,
-): NormalizedScanRegion | null {
-  const frameWidth = video.videoWidth || video.clientWidth || 0;
-  const frameHeight = video.videoHeight || video.clientHeight || 0;
-  if (frameWidth <= 0 || frameHeight <= 0) return null;
-
-  const points = detection.cornerPoints?.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)) ?? [];
-  if (points.length > 0) {
-    const xs = points.map((point) => point.x);
-    const ys = points.map((point) => point.y);
-    const left = Math.min(...xs);
-    const right = Math.max(...xs);
-    const top = Math.min(...ys);
-    const bottom = Math.max(...ys);
-    if (right > left && bottom > top) {
-      return clampRegion({
-        name: "detected-code",
-        x: left / frameWidth,
-        y: top / frameHeight,
-        width: (right - left) / frameWidth,
-        height: (bottom - top) / frameHeight,
-        source: "fallback",
-        faceDetected: false,
-      });
-    }
-  }
-
-  const bounds = detection.boundingBox;
-  if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
-  return clampRegion({
-    name: "detected-code",
-    x: bounds.x / frameWidth,
-    y: bounds.y / frameHeight,
-    width: bounds.width / frameWidth,
-    height: bounds.height / frameHeight,
-    source: "fallback",
-    faceDetected: false,
-  });
 }
 
 async function recognizeTextFromVideo(video: HTMLVideoElement, region?: NormalizedScanRegion) {
@@ -176,7 +123,6 @@ export function BarcodeScanButton({
   onScanTelemetry,
   onOpenChange,
   autoOpenSignal,
-  footerAction,
   inputRef,
 }: BarcodeScanButtonProps) {
   const [open, setOpen] = useState(false);
@@ -267,14 +213,11 @@ export function BarcodeScanButton({
       return false;
     }
 
-    if (region) setActiveScanRegion(region);
-
     const pending = {
       raw: rawValue,
       value: candidate.value,
       message: scanMode === "containerNumber" ? "Verify true" : candidate.message,
       region,
-      source,
     };
     if (requireConfirm) {
       pendingScanRef.current = pending;
@@ -284,23 +227,20 @@ export function BarcodeScanButton({
       return true;
     }
 
-    pendingScanRef.current = pending;
-    setPendingScan(pending);
-    setScanMessage(
-      scanMode === "containerNumber"
-        ? "Verify true"
-        : source === "barcode"
-          ? candidate.message ?? "Code found. Insert will continue automatically."
-          : candidate.message ?? "Text recognized. Insert will continue automatically.",
-    );
-    stopStream();
-    if (acceptTimerRef.current != null) clearTimeout(acceptTimerRef.current);
-    acceptTimerRef.current = setTimeout(() => {
-      acceptTimerRef.current = null;
-      if (pendingScanRef.current?.value === pending.value) {
-        acceptScan(pending.value);
-      }
-    }, source === "barcode" ? BARCODE_PREVIEW_DELAY_MS : TEXT_PREVIEW_DELAY_MS);
+    if (source === "text" || source === "ocr") {
+      pendingScanRef.current = pending;
+      setPendingScan(pending);
+      setScanMessage(scanMode === "containerNumber" ? "Verify true" : candidate.message ?? "Text recognized. Insert will continue automatically.");
+      if (acceptTimerRef.current != null) clearTimeout(acceptTimerRef.current);
+      acceptTimerRef.current = setTimeout(() => {
+        if (pendingScanRef.current?.value === pending.value) {
+          acceptScan(pending.value);
+        }
+      }, 1500);
+      return true;
+    }
+
+    acceptScan(candidate.value);
     return true;
   }, [acceptScan, requireConfirm, scanMode, stopStream, validateScan]);
 
@@ -462,19 +402,15 @@ export function BarcodeScanButton({
               : [];
             if (codes.length > 0) {
               if (cancelled) return;
-              const detectedCode = codes[0];
-              const detectedRegion = getDetectedRegion(detectedCode, videoRef.current);
-              if (handleScanValue(detectedCode.rawValue, "barcode", detectedRegion ?? undefined)) return;
+              if (handleScanValue(codes[0].rawValue, "barcode")) return;
             }
 
             const now = Date.now();
             if (textDetectorRef.current && now - lastTextScanRef.current > 750) {
               lastTextScanRef.current = now;
               const detectedText = await textDetectorRef.current.detect(videoRef.current);
-              const detectedBlock = detectedText.find((item) => Boolean((item.rawValue ?? item.text ?? "").trim()));
               const ocrValue = detectedText.map((item) => item.rawValue ?? item.text ?? "").filter(Boolean).join(" ");
-              const detectedRegion = detectedBlock ? getDetectedRegion(detectedBlock, videoRef.current) : null;
-              if (ocrValue && !cancelled && handleScanValue(ocrValue, "text", detectedRegion ?? undefined)) return;
+              if (ocrValue && !cancelled && handleScanValue(ocrValue, "text")) return;
             } else if (containerMode && supportsOcrFallback && !ocrBusyRef.current && now - lastTextScanRef.current > OCR_SCAN_INTERVAL_MS) {
               lastTextScanRef.current = now;
               ocrBusyRef.current = true;
@@ -527,7 +463,7 @@ export function BarcodeScanButton({
     };
   }, [enableTextRecognition, handleScanValue, open, runContainerOcrPass, scanMode, stopStream]);
 
-  const activeRegionStyle = activeScanRegion
+  const activeRegionStyle = activeScanRegion && scanMode === "containerNumber"
     ? {
       left: `${activeScanRegion.x * 100}%`,
       top: `${activeScanRegion.y * 100}%`,
@@ -581,23 +517,21 @@ export function BarcodeScanButton({
                 "pointer-events-none absolute inset-0",
                 !activeRegionStyle && "flex items-center justify-center",
               )}>
-                <div className={cn("relative transition-all duration-200 ease-out", !activeRegionStyle && "h-36 w-64")} style={activeRegionStyle}>
+                <div className={cn("relative", !activeRegionStyle && "h-36 w-64")} style={activeRegionStyle}>
                   <div className={cn(
-                    "absolute inset-0 rounded border border-white/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] transition-all duration-200 ease-out",
+                    "absolute inset-0 rounded shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]",
                     pendingScan && "shadow-[0_0_0_9999px_rgba(22,163,74,0.25)]",
                   )} />
-                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
-                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
-                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
-                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
+                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white", pendingScan && "border-green-400")} />
+                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white", pendingScan && "border-green-400")} />
+                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white", pendingScan && "border-green-400")} />
+                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white", pendingScan && "border-green-400")} />
                 </div>
               </div>
               {pendingScan && (
                 <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 bg-black/75 px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-green-300">
-                      {scanMode === "containerNumber" ? "Verify true" : pendingScan.source === "barcode" ? "Code found" : "Text recognized"}
-                    </p>
+                    <p className="text-xs font-medium text-green-300">{scanMode === "containerNumber" ? "Verify true" : "Valid text recognized"}</p>
                     <p className="break-all font-mono text-sm font-semibold text-white">{pendingScan.value}</p>
                   </div>
                   <Button
@@ -624,20 +558,6 @@ export function BarcodeScanButton({
           <p className={cn("text-center text-xs", scanMessage && !pendingScan ? "text-amber-500" : "text-muted-foreground")}>
             {detected ? "Loading..." : scanMessage ?? statusText ?? (enableTextRecognition ? "Point your camera at a QR code, barcode, or container number" : "Point your camera at a barcode or QR code")}
           </p>
-          {footerAction ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-center"
-              onClick={() => {
-                updateOpen(false);
-                footerAction.onClick();
-              }}
-            >
-              {footerAction.icon}
-              {footerAction.label}
-            </Button>
-          ) : null}
         </DialogContent>
       </Dialog>
     </>

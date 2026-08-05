@@ -4,37 +4,30 @@ import {
   hasVisibleInventoryQuantity,
   DB_RETIRED_INVENTORY_STATUS_FILTER,
   getDashboardMetricKeysForModules,
-  fetchAllRows,
   type DashboardMetrics,
   type DashboardTaskRow,
   type DashboardMetricKey,
 } from "@/features/shared/core-types";
 
-const OPEN_CYCLE_COUNT_STATUSES = ["draft", "frozen", "counting", "review", "approved"];
-
 export async function getDashboardMetrics(warehouseId?: string | null, enabledModules?: Partial<Record<string, boolean>>) {
   const dashboardMetricKeys = getDashboardMetricKeysForModules(enabledModules);
 
-  const [balances, locationRows, receipts, putawayTasks, pickLists, moveTasks, transfers, cycleCounts, stagingLoads, replenishments, audits] = await Promise.all([
+  const [balances, locations, receipts, putawayTasks, pickLists, moveTasks, transfers, cycleCounts, stagingLoads, replenishments, audits] = await Promise.all([
     db("inventory_balances").select("id, warehouse_id, status, zone_id, pallet_id, created_at, received_at, expiry_date"),
-    // Page through with .range() — an unbounded select truncates to
-    // PostgREST's default 1000-row cap, which would understate total pallet
-    // capacity for warehouses with more locations than that.
-    fetchAllRows((from, to) =>
-      db("locations").select("id, warehouse_id, max_pallets").order("id", { ascending: true }).range(from, to),
-    ),
+    db("locations").select("warehouse_id, max_pallets"),
     db("receipts").select("id, receipt_number, reference_number, warehouse_id, status, created_at").in("status", ["draft", "queued", "assigned", "in_progress"]),
     db("putaway_tasks").select("id, task_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),
     db("pick_lists").select("id, pick_list_number, warehouse_id, status, created_at").in("status", ["draft", "queued", "assigned", "in_progress", "exception"]),
     db("move_tasks").select("id, task_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),
     db("transfers").select("id, transfer_number, source_warehouse_id, destination_warehouse_id, status, created_at").in("status", ["draft", "queued", "assigned", "in_progress", "exception"]),
-    db("cycle_counts").select("id, count_number, warehouse_id, status, created_at").in("status", OPEN_CYCLE_COUNT_STATUSES),
+    db("cycle_counts").select("id, count_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),
     db("staging_loads").select("id, route_code, status, created_at, pick_lists(warehouse_id)").in("status", ["ready", "called", "loading", "blocked"]),
     db("replenishment_tasks").select("id, task_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),
     db("audit_events").select("id, warehouse_id").order("created_at", { ascending: false }).limit(50),
   ]);
 
   if (balances.error) throw balances.error;
+  if (locations.error) throw locations.error;
   if (receipts.error) throw receipts.error;
   if (putawayTasks.error) throw putawayTasks.error;
   if (pickLists.error) throw pickLists.error;
@@ -50,6 +43,7 @@ export async function getDashboardMetrics(warehouseId?: string | null, enabledMo
   const liveAllBalanceRows = allBalanceRows.filter((row: any) => !isRetiredInventoryStatus(row.status));
   const liveBalanceRows = balanceRows.filter((row: any) => !isRetiredInventoryStatus(row.status));
   const coolRows = liveBalanceRows.filter((row: any) => row.zone_id);
+  const locationRows = locations.data ?? [];
   const totalPalletCapacity = locationRows.reduce((sum: number, row: any) => sum + Number(row.max_pallets ?? 0), 0);
   const warehouseRows = warehouseId ? liveBalanceRows : [];
   const warehousePalletCapacity = warehouseId

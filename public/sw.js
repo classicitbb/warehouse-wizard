@@ -1,70 +1,32 @@
-/**
- * Warehouse Wizard — minimal app-shell service worker.
- *
- * Scope: satisfies TWA/PWA installability requirements (registered SW with a
- * fetch handler) and gives the Android wrapper an offline fallback shell.
- * Deliberately does NOT cache API calls, auth routes, or anything under
- * /api — this is a live operations app and stale data is worse than no
- * offline support.
- */
+// Replaces the old Workbox SW so returning users stop receiving cached SPA assets.
+// Cache Storage is origin-scoped; only delete Workbox caches for this scope.
 
-const CACHE_VERSION = "ww-shell-v1";
-const SHELL_ASSETS = ["/", "/manifest.json", "/favicon.png", "/logo.png"];
+function isWorkboxCacheForThisRegistration(name) {
+  const hasWorkboxBucket = /(^|-)precache-v\d+-|(^|-)runtime-|(^|-)googleAnalytics-/.test(name);
+  return hasWorkboxBucket && name.endsWith(self.registration.scope);
+}
 
-// Never cache these path prefixes, even opportunistically.
-const NEVER_CACHE_PREFIXES = ["/api", "/auth", "/functions", "/rest", "/realtime"];
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_VERSION)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+self.addEventListener("install", () => {
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      // activate fires once: any reject above unregister() would strand the SW
+      // registered forever, so unregister() lives in finally.
+      try {
+        const cacheNames = await caches.keys();
+        const workboxCacheNames = cacheNames.filter(isWorkboxCacheForThisRegistration);
+        await Promise.allSettled(workboxCacheNames.map((name) => caches.delete(name)));
+        await self.clients.claim();
+        const windowClients = await self.clients.matchAll({ type: "window" });
+        await Promise.allSettled(
+          windowClients.map((client) => client.navigate(client.url)),
+        );
+      } finally {
+        await self.registration.unregister();
+      }
+    })(),
   );
-});
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-  if (NEVER_CACHE_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return;
-
-  // Network-first for navigations, so the app always gets the latest build
-  // when online; falls back to the cached shell when offline.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(() => caches.match("/"))
-    );
-    return;
-  }
-
-  // Cache-first for static shell assets, revalidated in the background.
-  if (SHELL_ASSETS.includes(url.pathname)) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        const network = fetch(request)
-          .then((response) => {
-            caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone()));
-            return response;
-          })
-          .catch(() => cached);
-        return cached || network;
-      })
-    );
-  }
 });

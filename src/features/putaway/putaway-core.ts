@@ -8,7 +8,6 @@ import {
   formatSupabaseError,
 } from "@/features/shared/core-types";
 import { normalizeRackLocationCode } from "@/features/setup/setup-core";
-import { assertNotFrozen } from "@/features/cycle-counts/freeze-core";
 
 export async function getPutawayTasks(userId?: string, warehouseId?: string | null) {
   let query = db("putaway_tasks")
@@ -63,7 +62,6 @@ export async function confirmPutaway(
     .maybeSingle();
   if (locationError) throw locationError;
   if (!location) throw new Error(`Location not found: ${scannedLocationCode}`);
-  await assertNotFrozen(location.id, { palletId: pallet.id });
 
   const { data: product, error: productError } = await db("products")
     .select("*")
@@ -150,86 +148,6 @@ export async function confirmPutaway(
     location.code,
     aiLocation.zones?.name ?? aiLocation.zone_name ?? null,
   ).catch((err) => console.error("[ai-assist] placement record failed:", err));
-}
-
-export type PutawayReconnectValidationResult =
-  | { status: "ok" }
-  | { status: "reselect"; summary: string }
-  | { status: "reset-task"; summary: string };
-
-export async function revalidatePutawayTaskPosition(input: {
-  taskId: string;
-  scannedPalletBarcode?: string;
-  scannedLocationCode?: string;
-}): Promise<PutawayReconnectValidationResult> {
-  const { data: task, error: taskError } = await db("putaway_tasks")
-    .select("*, pallets(*), locations: suggested_location_id(*), products: pallets(product_id)")
-    .eq("id", input.taskId)
-    .maybeSingle();
-
-  if (taskError) throw taskError;
-  if (!task || !["queued", "assigned", "in_progress", "exception"].includes(task.status)) {
-    return {
-      status: "reset-task",
-      summary: "While you were offline: this Put-Away task was already completed or closed. Refresh the queue and rescan the pallet if it still needs work.",
-    };
-  }
-
-  const pallet = task.pallets as any;
-  if (!pallet) {
-    return {
-      status: "reset-task",
-      summary: "While you were offline: the pallet linked to this Put-Away task is no longer available. Refresh the queue and confirm the pallet's true location.",
-    };
-  }
-
-  if (input.scannedPalletBarcode && pallet.pallet_barcode !== input.scannedPalletBarcode) {
-    return {
-      status: "reset-task",
-      summary: `While you were offline: pallet ${input.scannedPalletBarcode} no longer matches this Put-Away task. Refresh the queue and confirm the pallet's true location.`,
-    };
-  }
-
-  if (!["receiving", "hold", "quarantine"].includes(pallet.status)) {
-    return {
-      status: "reset-task",
-      summary: `While you were offline: pallet ${pallet.pallet_barcode ?? "for this task"} is no longer waiting for Put-Away (status: ${pallet.status}). Refresh the queue before continuing.`,
-    };
-  }
-
-  const normalizedLocationCode = normalizeRackLocationCode(input.scannedLocationCode ?? "");
-  if (!normalizedLocationCode) {
-    return { status: "ok" };
-  }
-
-  const { data: location, error: locationError } = await db("locations")
-    .select("*")
-    .eq("code", normalizedLocationCode)
-    .maybeSingle();
-  if (locationError) throw locationError;
-  if (!location) {
-    return {
-      status: "reselect",
-      summary: `While you were offline: location ${normalizedLocationCode} is no longer available. Scan a different bin before confirming Put-Away.`,
-    };
-  }
-
-  if (location.status !== "active") {
-    return {
-      status: "reselect",
-      summary: `While you were offline: location ${location.code} became ${location.status}. Scan a different bin before confirming Put-Away.`,
-    };
-  }
-
-  const occupiedCount = await getStoredPalletCount(location.id);
-  if (occupiedCount >= Number(location.max_pallets ?? 0)) {
-    return {
-      status: "reselect",
-      summary: `While you were offline: bin ${location.code} was filled by another operator. Your target is no longer available.`,
-    };
-  }
-
-  return { status: "ok" };
 }
 
 export async function getPutawayTaskHistory(userId?: string) {

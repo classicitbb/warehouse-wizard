@@ -2,10 +2,8 @@ import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 
 const NotFound = () => {
-  const { toPath } = useTenantPath();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -15,7 +13,7 @@ const NotFound = () => {
         </CardHeader>
         <CardContent>
           <Button asChild>
-            <Link to={toPath("/dashboard")}>Go to dashboard</Link>
+            <Link to="/dashboard">Go to dashboard</Link>
           </Button>
         </CardContent>
       </Card>

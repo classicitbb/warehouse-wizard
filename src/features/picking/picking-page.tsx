@@ -28,7 +28,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
@@ -204,7 +203,6 @@ import {
 
 export function PickListsPage() {
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { profile } = useAuth();
   const [pickSearch, setPickSearch] = useState("");
@@ -441,6 +439,7 @@ export function PickListsPage() {
               Release outbound work and execute scan-confirmed picks.
             </HintButton>
           </div>
+          <p className="hidden text-sm text-muted-foreground sm:block">Release outbound work and execute scan-confirmed picks.</p>
         </div>
         <div className="flex min-w-0 gap-2 sm:min-w-80">
           <div className="relative min-w-0 flex-1">
@@ -470,7 +469,7 @@ export function PickListsPage() {
             <p className="font-medium">No active pick lists</p>
             <p className="mt-1 text-sm text-muted-foreground">Release a pick list from the Create tab, or go to Receiving to check inbound stock.</p>
             <Button className="mt-4" variant="outline" asChild>
-              <Link to={toPath("/receiving")}>Go to Receiving</Link>
+              <Link to="/receiving">Go to Receiving</Link>
             </Button>
           </div>
         )}
@@ -525,7 +524,7 @@ export function PickListsPage() {
                 <div className="flex flex-wrap gap-2 px-6 py-3 sm:px-0 sm:py-0 sm:pt-1">
                   <Button asChild variant="outline" size="sm">
                     <Link
-                      to={toPath(`/pick-lists/${pickList.id}`)}
+                      to={`/pick-lists/${pickList.id}`}
                       onMouseEnter={() => prefetchPickExecution(pickList.id)}
                       onFocus={() => prefetchPickExecution(pickList.id)}
                     >
@@ -537,7 +536,7 @@ export function PickListsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => toast.warning("Short pick detected — check inventory levels or reassign stock from another location.", {
-                        action: { label: "Inventory", onClick: () => navigate(toPath("/inventory-search")) },
+                        action: { label: "Inventory", onClick: () => navigate("/inventory-search") },
                         duration: 8000,
                       })}
                     >

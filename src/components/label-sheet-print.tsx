@@ -39,9 +39,12 @@ export type LabelSheetItem = {
 };
 
 type LabelSheetKind = "location" | "zone";
+type BayLabelSize = "a4-6up" | "label-4x6" | "label-4x4" | "label-2x4";
 type LocationLabelSize = "a4-16up" | "label-99x38" | "label-4x2";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const TEAL = "#0f766e";
 
 const TEMP_COLOURS: Record<string, string> = {
   ambient: "#1a1a2e",
@@ -65,7 +68,12 @@ const TYPE_LABELS: Record<string, string> = {
   returns: "Returns",
 };
 
-const BAY_LABEL_HINT = "152.4 × 101.6 mm landscape · Zebra ZD420 / Rollo / Dymo 4XL label printer";
+const BAY_LABEL_SIZES: Array<{ value: BayLabelSize; label: string; hint: string }> = [
+  { value: "a4-6up",    label: "A4 Sheet — 6-up",  hint: "Avery 99×93 mm · 6 labels/sheet · Standard laser/inkjet printer" },
+  { value: "label-4x6", label: "4 × 6 in Label",    hint: "101.6 × 152.4 mm · Zebra ZD420 / Rollo / Dymo 4XL label printer" },
+  { value: "label-4x4", label: "4 × 4 in Label",    hint: "101.6 × 101.6 mm · Square racking / pallet label" },
+  { value: "label-2x4", label: "2 × 4 in Label",    hint: "50.8 × 101.6 mm · Compact rack / shelf label" },
+];
 
 const LOCATION_LABEL_SIZES: Array<{ value: LocationLabelSize; label: string; hint: string }> = [
   { value: "a4-16up",     label: "A4 Sheet — 16-up", hint: "Avery 99×38 mm · 16 labels/sheet · Standard laser/inkjet printer" },
@@ -85,14 +93,7 @@ function escapeHtml(value: unknown) {
 }
 
 function renderQrSvg(value: string) {
-  return renderToStaticMarkup(<QRCodeSVG value={value} size={512} level="H" />);
-}
-
-function rackLabelFromZoneCode(code: string) {
-  const normalized = String(code ?? "").trim();
-  const segments = normalized.split("-").filter(Boolean);
-  const zoneCode = segments[segments.length - 1] || normalized;
-  return `Rack ${zoneCode}`;
+  return renderToStaticMarkup(<QRCodeSVG value={value} size={256} level="M" />);
 }
 
 function locationPrintCode(item: LabelSheetItem) {
@@ -114,36 +115,49 @@ function locationLine(item: LabelSheetItem) {
 const BASE_CSS = `* { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #fff; font-family: system-ui, -apple-system, sans-serif; color: #000; }`;
 
-// ─── Code label renderer ──────────────────────────────────────────────────────
+// Corner L-shaped cut marks
+const CUT_CSS = `
+  .cut { position: absolute; width: 5mm; height: 5mm; }
+  .cut-tl { top: 1mm; left: 1mm; border-top: 0.5px solid #999; border-left: 0.5px solid #999; }
+  .cut-tr { top: 1mm; right: 1mm; border-top: 0.5px solid #999; border-right: 0.5px solid #999; }
+  .cut-bl { bottom: 1mm; left: 1mm; border-bottom: 0.5px solid #999; border-left: 0.5px solid #999; }
+  .cut-br { bottom: 1mm; right: 1mm; border-bottom: 0.5px solid #999; border-right: 0.5px solid #999; }`;
+
+const CUT_HTML = `<div class="cut cut-tl"></div><div class="cut cut-tr"></div><div class="cut cut-bl"></div><div class="cut cut-br"></div>`;
+
+// ─── Bay label renderer ───────────────────────────────────────────────────────
+// Design: left teal bar · "BAY CODE" eyebrow · large code · Aisle/Bay line · rack/warehouse subtitle · QR
 
 function bayLabelBodyHtml(item: LabelSheetItem) {
+  const parts = locationLine(item);
   const qr = renderQrSvg(item.code);
-  const { prefix, number } = bayLabelParts(item.code);
   return `
-    <div class="bay-label">
-      <div class="bay-title">
-        <span>${escapeHtml(prefix)}</span>
-        ${number ? `<span>-</span><span class="bay-title-number">${escapeHtml(number)}</span>` : ""}
-      </div>
-      <div class="bay-qr">
-        ${qr}
+    <div class="bay-wrap">
+      <div class="bay-bar"></div>
+      <div class="bay-body">
+        <div class="bay-text">
+          <div class="bay-eyebrow">Bay Code</div>
+          <div class="bay-code">${escapeHtml(item.code)}</div>
+          ${parts        ? `<div class="bay-title">${escapeHtml(parts)}</div>` : ""}
+          ${item.subtitle ? `<div class="bay-sub">${escapeHtml(item.subtitle)}</div>` : ""}
+        </div>
+        <div class="bay-qr">${qr}</div>
       </div>
     </div>`;
 }
 
-function bayLabelParts(code: string) {
-  const [prefix, ...parts] = String(code ?? "").split("-");
-  return { prefix, number: parts.join("-") };
-}
-
-function codeLabelBodyHtml(item: LabelSheetItem) {
-  const qr = renderQrSvg(item.code);
-  const label = rackLabelFromZoneCode(item.code);
+function bayLabelCss(codeSize: string, qrSize: string, teal = TEAL) {
   return `
-    <div class="code-label">
-      <div class="code-qr">${qr}</div>
-      <div class="code-text">${escapeHtml(label)}</div>
-    </div>`;
+    .bay-wrap { width: 100%; height: 100%; display: flex; }
+    .bay-bar  { width: 3mm; flex-shrink: 0; background: ${teal}; }
+    .bay-body { flex: 1; display: flex; flex-direction: column; padding: 4mm; gap: 2.5mm; min-height: 0; }
+    .bay-text { display: flex; flex-direction: column; gap: 1.5mm; }
+    .bay-eyebrow { font-size: 8pt; font-weight: 800; text-transform: uppercase; color: ${teal}; letter-spacing: 0.08em; }
+    .bay-code { font-size: ${codeSize}; font-weight: 900; line-height: 1.05; word-break: break-word; color: #000; }
+    .bay-title { font-size: 11pt; font-weight: 700; color: #000; }
+    .bay-sub  { font-size: 8.5pt; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .bay-qr   { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+    .bay-qr svg { width: ${qrSize}; height: ${qrSize}; max-width: 100%; max-height: 100%; }`;
 }
 
 // ─── Location label renderer ──────────────────────────────────────────────────
@@ -186,23 +200,32 @@ const LOC_CSS = `
 // ─── Zone label renderer ──────────────────────────────────────────────────────
 
 function zoneLabelHtml(item: LabelSheetItem) {
-  return codeLabelBodyHtml(item);
+  const accent = accentFor(item);
+  const temp   = TEMP_LABELS[String(item.temperatureClass ?? "ambient")] ?? "Ambient";
+  const qr     = renderQrSvg(item.code);
+  return `
+    <div class="zone">
+      <div class="zone-meta" style="border-color:${accent}">
+        <div class="zone-eyebrow">Zone Aisle Code</div>
+        <div class="zone-code">${escapeHtml(item.code)}</div>
+        ${item.title    ? `<div class="zone-title">${escapeHtml(item.title)}</div>`    : ""}
+        ${item.subtitle ? `<div class="zone-sub">${escapeHtml(item.subtitle)}</div>` : ""}
+        <span class="zone-temp" style="background:${accent}">${escapeHtml(temp)}</span>
+      </div>
+      <div class="zone-qr">${qr}</div>
+    </div>`;
 }
 
-const CODE_LABEL_CSS = `
-  .code-label { width: 100%; height: 100%; display: grid; grid-template-rows: 1fr auto; align-items: center; justify-items: center; gap: 0.08in; padding: 5px; overflow: hidden; text-align: center; }
-  .code-qr { position: relative; width: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
-  .code-qr svg { width: min(3.86in, 100%); height: min(3.86in, 100%); }
-  .code-text { width: 100%; font-family: 'Arial Black', system-ui, sans-serif; font-size: 34pt; font-weight: 900; line-height: 1; overflow-wrap: anywhere; }
-  .qr-code-overlay { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 2px solid #000; background: #fff; padding: 2px 7px; font-family: 'Arial Black', system-ui, sans-serif; font-size: 18pt; font-weight: 900; line-height: 1; letter-spacing: 0.02em; }`;
-
-const BAY_LABEL_CSS = `
-  .bay-label { width: 100%; height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: center; gap: 0.18in; padding: 0.12in; overflow: hidden; }
-  .bay-title { display: flex; flex-direction: column; align-items: center; font-family: 'Arial Black', system-ui, sans-serif; font-size: 34pt; font-weight: 900; line-height: 1; letter-spacing: 0.04em; }
-  .bay-title-number { letter-spacing: 0; }
-  .bay-qr { position: relative; width: 100%; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center; }
-  .bay-qr svg { width: min(3.5in, 100%); height: min(3.5in, 100%); transform: rotate(90deg); }
-`;
+const ZONE_CSS = `
+  .zone { width: 100%; height: 100%; display: grid; grid-template-rows: 1fr 40mm; gap: 3mm; }
+  .zone-meta { display: flex; flex-direction: column; gap: 2mm; border-left: 3mm solid; padding-left: 4mm; justify-content: center; }
+  .zone-eyebrow { font-size: 8.5pt; font-weight: 900; text-transform: uppercase; color: #334155; letter-spacing: .05em; }
+  .zone-code  { font-size: 24pt; font-weight: 900; line-height: 1.05; word-break: break-word; }
+  .zone-title { font-size: 12pt; font-weight: 800; }
+  .zone-sub   { font-size: 9.5pt; color: #334155; }
+  .zone-temp  { width: fit-content; border-radius: 999px; padding: 2px 10px; color: #fff; font-size: 7.5pt; font-weight: 800; }
+  .zone-qr    { display: flex; justify-content: center; }
+  .zone-qr svg { width: 38mm; height: 38mm; }`;
 
 // ─── Print window helper ──────────────────────────────────────────────────────
 
@@ -236,15 +259,40 @@ function buildSheets<T>(
 
 // ─── Bay print ────────────────────────────────────────────────────────────────
 
-function printBayLabels(items: LabelSheetItem[]) {
+function printBayLabels(items: LabelSheetItem[], size: BayLabelSize) {
+  if (size === "a4-6up") {
+    const html = buildSheets(items, 6, (item) =>
+      item
+        ? `<div class="cell">${CUT_HTML}${bayLabelBodyHtml(item)}</div>`
+        : `<div class="cell empty"></div>`,
+    );
+    openPrint(`Bay Labels — ${items.length} labels`, html, "A4 portrait", `
+      .sheet { width: 210mm; height: 297mm; padding: 8mm 6mm; display: grid;
+        grid-template-columns: repeat(2, 99mm); grid-template-rows: repeat(3, 91mm);
+        gap: 2mm; page-break-after: always; }
+      .sheet:last-child { page-break-after: auto; }
+      .cell { position: relative; width: 99mm; height: 91mm; overflow: hidden;
+        border: 0.6px dashed #bbb; }
+      .cell.empty { opacity: 0.15; }
+      ${CUT_CSS}
+      ${bayLabelCss("20pt", "36mm")}`);
+    return;
+  }
+  const dims: Record<string, { w: string; h: string; code: string; qr: string }> = {
+    "label-4x6": { w: "4in",   h: "6in",   code: "28pt", qr: "52mm" },
+    "label-4x4": { w: "4in",   h: "4in",   code: "24pt", qr: "44mm" },
+    "label-2x4": { w: "2in",   h: "4in",   code: "16pt", qr: "30mm" },
+  };
+  const d = dims[size] ?? dims["label-4x6"];
   const html = items.map((item) =>
-    `<div class="lpage">${bayLabelBodyHtml(item)}</div>`,
+    `<div class="lpage">${CUT_HTML}${bayLabelBodyHtml(item)}</div>`,
   ).join("");
-  openPrint(`Bay Labels — ${items.length} labels`, html, "6in 4in landscape", `
-    .lpage { position: relative; width: 6in; height: 4in; overflow: hidden;
-      border: 1px solid #000; display: flex; page-break-after: always; }
+  openPrint(`Bay Labels — ${items.length} labels`, html, `${d.w} ${d.h} portrait`, `
+    .lpage { position: relative; width: ${d.w}; height: ${d.h}; overflow: hidden;
+      border: 0.6px dashed #ccc; display: flex; page-break-after: always; }
     .lpage:last-child { page-break-after: auto; }
-    ${BAY_LABEL_CSS}`);
+    ${CUT_CSS}
+    ${bayLabelCss(d.code, d.qr)}`);
 }
 
 // ─── Location print ───────────────────────────────────────────────────────────
@@ -285,14 +333,20 @@ function printLocationLabels(items: LabelSheetItem[], size: LocationLabelSize) {
 // ─── Zone print ───────────────────────────────────────────────────────────────
 
 function printZoneLabels(items: LabelSheetItem[]) {
-  const html = items.map((item) =>
-    `<div class="lpage">${zoneLabelHtml(item)}</div>`,
-  ).join("");
-  openPrint(`Zone Labels — ${items.length} labels`, html, "4in 6in portrait", `
-    .lpage { position: relative; width: 4in; height: 6in; overflow: hidden;
-      border: 1px solid #000; display: flex; page-break-after: always; }
-    .lpage:last-child { page-break-after: auto; }
-    ${CODE_LABEL_CSS}`);
+  const html = buildSheets(items, 6, (item) =>
+    item
+      ? `<div class="cell">${zoneLabelHtml(item)}</div>`
+      : `<div class="cell empty"></div>`,
+  );
+  openPrint(`Zone Labels — ${items.length} labels`, html, "A4 portrait", `
+    .sheet { width: 210mm; height: 297mm; padding: 9mm 6mm; display: grid;
+      grid-template-columns: repeat(2, 99mm); grid-template-rows: repeat(3, 93mm);
+      page-break-after: always; }
+    .sheet:last-child { page-break-after: auto; }
+    .cell { width: 99mm; height: 93mm; padding: 6mm; overflow: hidden;
+      border: 0.25mm dashed #d1d5db; display: flex; }
+    .cell.empty { opacity: 0.15; }
+    ${ZONE_CSS}`);
 }
 
 // ─── Preview components ───────────────────────────────────────────────────────
@@ -310,66 +364,123 @@ function PageNav({ page, total, onChange }: { page: number; total: number; onCha
   );
 }
 
-/** 6x4 landscape single-label preview for bay codes */
-function BaySheetPreview({ items }: { items: LabelSheetItem[] }) {
-  const item = items[0];
-  if (!item) return null;
-  const { prefix, number } = bayLabelParts(item.code);
-  return (
-    <div className="relative mx-auto grid aspect-[3/2] w-full max-w-[420px] grid-cols-[auto_minmax(0,1fr)] items-center justify-items-center gap-3 overflow-hidden border border-black bg-white p-3 text-black shadow-sm">
-      <div className="flex flex-col items-center text-7xl font-black leading-none tracking-wide">
-        <span>{prefix}</span>
-        {number ? <>
-          <span>-</span>
-          <span className="tracking-normal">{number}</span>
-        </> : null}
-      </div>
-      <div className="relative flex min-h-0 min-w-0 items-center justify-center">
-        <QRCodeSVG value={item.code} size={255} level="H" className="rotate-90" />
-      </div>
-    </div>
-  );
-}
+/** Miniaturised A4 sheet or single-label preview for bay codes */
+function BaySheetPreview({ items, size }: { items: LabelSheetItem[]; size: BayLabelSize }) {
+  const [page, setPage] = useState(0);
 
-function ZoneSheetPreview({ items }: { items: LabelSheetItem[] }) {
-  const item = items[0];
-  if (!item) return null;
+  if (size !== "a4-6up") {
+    const item = items[0];
+    if (!item) return null;
+    const parts = locationLine(item);
+    const isCompact = size === "label-2x4";
     return (
-      <div className="mx-auto grid aspect-[2/3] w-full max-w-[280px] grid-rows-[1fr_auto] items-center justify-items-center gap-1 overflow-hidden border border-black bg-white p-[5px] text-center text-black shadow-sm">
-        <div className="flex min-h-0 w-full items-center justify-center">
-          <QRCodeSVG value={item.code} size={255} level="H" />
+      <div
+        className="relative mx-auto overflow-hidden rounded border border-dashed border-gray-400 bg-white text-black shadow-xs"
+        style={{
+          width: isCompact ? 160 : 220,
+          aspectRatio: size === "label-4x4" ? "1/1" : isCompact ? "1/2" : "2/3",
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        {/* Corner cut marks */}
+        {(["tl", "tr", "bl", "br"] as const).map((p) => (
+          <div key={p} className={`absolute h-3 w-3 border-gray-500 ${
+            p === "tl" ? "top-0.5 left-0.5 border-t border-l" :
+            p === "tr" ? "top-0.5 right-0.5 border-t border-r" :
+            p === "bl" ? "bottom-0.5 left-0.5 border-b border-l" :
+                         "bottom-0.5 right-0.5 border-b border-r"}`} />
+        ))}
+        {/* Teal left bar */}
+        <div className="absolute top-0 left-0 h-full" style={{ width: 5, background: TEAL }} />
+        <div className="flex h-full flex-col pl-4 pr-2 py-2 gap-1.5">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-extrabold uppercase tracking-widest" style={{ color: TEAL }}>Bay Code</span>
+            <span className="font-black leading-tight break-words" style={{ fontSize: isCompact ? 13 : 16 }}>{item.code}</span>
+            {parts && <span className="font-semibold" style={{ fontSize: isCompact ? 9 : 10 }}>{parts}</span>}
+            {item.subtitle && <span className="text-gray-500 uppercase tracking-wide" style={{ fontSize: 8 }}>{item.subtitle}</span>}
+          </div>
+          <div className="flex flex-1 items-center justify-center">
+            <QRCodeSVG value={item.code} size={isCompact ? 70 : 100} level="M" />
+          </div>
         </div>
-        <div className="w-full break-words text-4xl font-black leading-none">{rackLabelFromZoneCode(item.code)}</div>
       </div>
     );
   }
 
-/** Miniaturised A4 sheet preview for location labels */
-function LocationSheetPreview({ items }: { items: LabelSheetItem[] }) {
-  const [page, setPage] = useState(0);
-  const perSheet = 16;
-  const cols = 2;
-  const rows = 8;
+  // A4 sheet: 2-col × 3-row grid
+  const perSheet = 6;
   const totalSheets = Math.max(1, Math.ceil(items.length / perSheet));
   const curPage = Math.min(page, totalSheets - 1);
   const cells = Array.from({ length: perSheet }, (_, i) => items[curPage * perSheet + i] ?? null);
 
   return (
     <div className="space-y-2">
-      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-sm"
+      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-xs"
+        style={{ aspectRatio: "1/1.414", maxWidth: 340, fontFamily: "system-ui, sans-serif", padding: "2%" }}>
+        <div className="grid h-full gap-[1.5%]"
+          style={{ gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr 1fr" }}>
+          {cells.map((item, i) => item ? (
+            <div key={i} className="relative overflow-hidden rounded-sm border border-dashed border-gray-400 bg-white">
+              {/* Teal bar */}
+              <div className="absolute top-0 left-0 h-full" style={{ width: 4, background: TEAL }} />
+              <div className="flex h-full flex-col pl-3 pr-1 py-1 gap-0.5">
+                <span className="text-[5.5px] font-extrabold uppercase tracking-widest" style={{ color: TEAL }}>Bay Code</span>
+                <span className="text-[9px] font-black leading-tight break-words">{item.code}</span>
+                {locationLine(item) && <span className="text-[6px] font-semibold">{locationLine(item)}</span>}
+                {item.subtitle && <span className="text-[5px] text-gray-500 uppercase truncate">{item.subtitle}</span>}
+                <div className="flex flex-1 items-center justify-center pt-0.5">
+                  <QRCodeSVG value={item.code} size={28} level="L" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div key={i} className="rounded-sm border border-dotted border-gray-300 bg-gray-50 opacity-25" />
+          ))}
+        </div>
+      </div>
+      <PageNav page={curPage} total={totalSheets} onChange={setPage} />
+    </div>
+  );
+}
+
+/** Miniaturised A4 sheet preview for location/zone labels */
+function LabelSheetPreview({ items, kind }: { items: LabelSheetItem[]; kind: LabelSheetKind }) {
+  const [page, setPage] = useState(0);
+  const perSheet = kind === "zone" ? 6 : 16;
+  const cols = 2;
+  const rows = kind === "zone" ? 3 : 8;
+  const totalSheets = Math.max(1, Math.ceil(items.length / perSheet));
+  const curPage = Math.min(page, totalSheets - 1);
+  const cells = Array.from({ length: perSheet }, (_, i) => items[curPage * perSheet + i] ?? null);
+
+  return (
+    <div className="space-y-2">
+      <div className="mx-auto overflow-hidden rounded border border-border bg-gray-100 shadow-xs"
         style={{ aspectRatio: "1/1.414", maxWidth: 340, fontFamily: "system-ui, sans-serif", padding: "2%" }}>
         <div className="grid h-full gap-[0.8%]"
           style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
           {cells.map((item, i) => item ? (
             <div key={i} className="overflow-hidden rounded-sm border border-dashed border-gray-300 bg-white">
-              <div className="flex h-full items-center gap-0.5 py-0.5 pr-0.5"
-                style={{ borderLeft: `2px solid ${accentFor(item)}`, paddingLeft: 2 }}>
-                <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-                  <span className="text-[7px] font-black leading-none break-words">{item.code}</span>
-                  {locationLine(item) && <span className="text-[5px] text-gray-500 truncate">{locationLine(item)}</span>}
+              {kind === "zone" ? (
+                <div className="flex h-full flex-col p-1 gap-0.5">
+                  <div className="h-0.5 w-full rounded-full" style={{ background: accentFor(item) }} />
+                  <span className="text-[5px] font-extrabold uppercase tracking-wide" style={{ color: accentFor(item) }}>Zone</span>
+                  <span className="text-[8px] font-black leading-tight break-words flex-1">{item.code}</span>
+                  {item.title && <span className="text-[5.5px] font-semibold truncate">{item.title}</span>}
+                  <div className="flex justify-center">
+                    <QRCodeSVG value={item.code} size={22} level="L" />
+                  </div>
                 </div>
-                <QRCodeSVG value={item.code} size={16} level="L" />
-              </div>
+              ) : (
+                <div className="flex h-full items-center gap-0.5 py-0.5 pr-0.5"
+                  style={{ borderLeft: `2px solid ${accentFor(item)}`, paddingLeft: 2 }}>
+                  <div className="flex flex-1 flex-col gap-0.5 min-w-0">
+                    <span className="text-[7px] font-black leading-none break-words">{item.code}</span>
+                    {locationLine(item) && <span className="text-[5px] text-gray-500 truncate">{locationLine(item)}</span>}
+                  </div>
+                  <QRCodeSVG value={item.code} size={16} level="L" />
+                </div>
+              )}
             </div>
           ) : (
             <div key={i} className="rounded-sm border border-dotted border-gray-200 bg-gray-50 opacity-25" />
@@ -379,10 +490,6 @@ function LocationSheetPreview({ items }: { items: LabelSheetItem[] }) {
       <PageNav page={curPage} total={totalSheets} onChange={setPage} />
     </div>
   );
-}
-
-function LabelSheetPreview({ items, kind }: { items: LabelSheetItem[]; kind: LabelSheetKind }) {
-  return kind === "zone" ? <ZoneSheetPreview items={items} /> : <LocationSheetPreview items={items} />;
 }
 
 // ─── Dialogs ──────────────────────────────────────────────────────────────────
@@ -401,8 +508,8 @@ export function LabelSheetPrintDialog({
   const [open, setOpen] = useState(false);
   const [locSize, setLocSize] = useState<LocationLabelSize>("a4-16up");
 
-  const isSheet    = kind === "location" && locSize === "a4-16up";
-  const perSheet   = 16;
+  const isSheet    = kind === "zone" || locSize === "a4-16up";
+  const perSheet   = kind === "zone" ? 6 : 16;
   const totalSheets = isSheet ? Math.max(1, Math.ceil(items.length / perSheet)) : items.length;
 
   function handlePrint() {
@@ -422,7 +529,7 @@ export function LabelSheetPrintDialog({
             {items.length} label{items.length !== 1 ? "s" : ""}
             {isSheet
               ? ` · ${totalSheets} sheet${totalSheets !== 1 ? "s" : ""}`
-              : ` · ${items.length} 4 x 6 label${items.length !== 1 ? "s" : ""}`}.
+              : " · 1 per page"}.
           </DialogDescription>
         </DialogHeader>
 
@@ -445,7 +552,7 @@ export function LabelSheetPrintDialog({
           </div>
         )}
         {kind === "zone" && (
-          <p className="text-xs text-muted-foreground">4 x 6 in label · Zebra ZD420 / Rollo / Dymo 4XL label printer</p>
+          <p className="text-xs text-muted-foreground">Avery 99×93 mm · 6 labels per A4 sheet</p>
         )}
 
         {/* Sheet preview */}
@@ -466,43 +573,55 @@ export function LabelSheetPrintDialog({
 export function BayLocationCodesPrintDialog({
   items,
   trigger,
-  open: controlledOpen,
-  onOpenChange,
 }: {
   items: LabelSheetItem[];
-  trigger?: React.ReactNode;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  trigger: React.ReactNode;
 }) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = controlledOpen ?? uncontrolledOpen;
-  const setOpen = (nextOpen: boolean) => {
-    if (controlledOpen === undefined) setUncontrolledOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  };
+  const [open, setOpen] = useState(false);
+  const [baySize, setBaySize] = useState<BayLabelSize>("label-4x6");
+
+  const isSheet     = baySize === "a4-6up";
+  const totalSheets = isSheet ? Math.max(1, Math.ceil(items.length / 6)) : items.length;
 
   function handlePrint() {
     if (items.length === 0) return;
-    printBayLabels(items);
+    printBayLabels(items, baySize);
     setOpen(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Print Bay Location Codes</DialogTitle>
           <DialogDescription>
             {items.length} bay code{items.length !== 1 ? "s" : ""}
-            {` · ${items.length} 6 x 4 landscape label${items.length !== 1 ? "s" : ""}`}.
+            {isSheet
+              ? ` · ${totalSheets} A4 sheet${totalSheets !== 1 ? "s" : ""}`
+              : ` · ${items.length} label${items.length !== 1 ? "s" : ""}`}.
           </DialogDescription>
         </DialogHeader>
 
-        <p className="text-xs text-muted-foreground">{BAY_LABEL_HINT}</p>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <Label className="shrink-0 text-sm">Label size</Label>
+            <Select value={baySize} onValueChange={(v) => setBaySize(v as BayLabelSize)}>
+              <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {BAY_LABEL_SIZES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="pl-1 text-xs text-muted-foreground">
+            {BAY_LABEL_SIZES.find((s) => s.value === baySize)?.hint}
+          </p>
+        </div>
 
         {/* Label preview */}
-        <BaySheetPreview items={items} />
+        <BaySheetPreview items={items} size={baySize} />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

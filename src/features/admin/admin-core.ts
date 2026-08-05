@@ -8,7 +8,6 @@ import {
   formatSupabaseError,
   throwIfSupabaseError,
   applyArchiveFilter,
-  fetchAllRows,
   receivingSchema,
   pickListSchema,
   transferSchema,
@@ -25,24 +24,17 @@ export async function listRecords(
   orderBy?: { column: string; ascending?: boolean },
   options?: { includeHidden?: boolean; archiveField?: ArchiveField },
 ) {
-  // Page through with .range() — an unbounded select silently truncates to
-  // PostgREST's default row cap (1000), which is what made the Locations
-  // table (and its search box) invisible past the first 1000 rows.
-  const rows = await fetchAllRows<any>((from, to) => {
-    let query = (supabase.from as any)(table).select(select);
+  let query = (supabase.from as any)(table).select(select);
 
-    if (orderBy) {
-      query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
-    }
-    // Stable tiebreaker so .range() paging is deterministic even when the
-    // orderBy column isn't unique (otherwise rows can be skipped or repeated
-    // across pages).
-    query = query.order("id", { ascending: true });
+  if (orderBy) {
+    query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
+  }
 
-    query = applyArchiveFilter(query, options?.archiveField, options?.includeHidden);
+  query = applyArchiveFilter(query, options?.archiveField, options?.includeHidden);
 
-    return query.range(from, to);
-  });
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
   if (table !== "locations") return rows;
   return rows.map((row) => ({
     ...row,
@@ -250,16 +242,6 @@ export async function adminUpdateUserPassword(profileId: string, password: strin
   });
 }
 
-export async function adminSignOutAllSessions(profileId: string) {
-  const { error } = await (supabase.rpc as any)("admin_sign_out_all_sessions", {
-    in_user_id: profileId,
-  });
-  if (error) throw new Error(formatSupabaseError(error, "Could not revoke the user's sessions"));
-  await logUserActivity("user_access_change", "profiles", profileId, {
-    fields: ["sessions_revoked"],
-  });
-}
-
 export async function adminDeleteUser(profileId: string) {
   const client = supabase as unknown as {
     rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
@@ -288,13 +270,10 @@ export async function adminUpdateUserPin(profileId: string, pin: string) {
 }
 
 export async function refreshUserDeviceTrust(deviceId: string) {
-  // Trusted-device shortcut is a mobile-only feature; the edge function
-  // rejects desktop clients with 403. Skip the call entirely on desktop.
-  if (isDesktopClient()) return;
   const { error } = await supabase.functions.invoke("trust-device", {
     body: {
       deviceId,
-      isDesktop: false,
+      isDesktop: isDesktopClient(),
     },
   });
   if (error) throw new Error((error as any).message ?? "Device trust update failed");

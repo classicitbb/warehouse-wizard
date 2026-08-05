@@ -9,7 +9,6 @@ import {
   formatSupabaseError,
   throwIfSupabaseError,
   receivingSchema,
-  escapePostgrestOrValue,
   type InventoryStatus,
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
@@ -173,10 +172,9 @@ export async function createReceiptFlow(input: z.infer<typeof receivingSchema>) 
   let reusedPalletId: string | null = null;
   const reusedBarcode = payload.reuse_pallet_barcode?.trim();
   if (reusedBarcode) {
-    const escapedReusedBarcode = escapePostgrestOrValue(reusedBarcode);
     const { data: existingPallet } = await db("pallets")
       .select("id, pallet_code, pallet_barcode, product_id, quantity")
-      .or(`pallet_code.eq.${escapedReusedBarcode},pallet_barcode.eq.${escapedReusedBarcode}`)
+      .or(`pallet_code.eq.${reusedBarcode},pallet_barcode.eq.${reusedBarcode}`)
       .single();
     if (existingPallet && (!existingPallet.product_id || existingPallet.quantity === 0)) {
       reusedPalletId = existingPallet.id;

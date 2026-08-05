@@ -28,7 +28,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
@@ -137,7 +136,6 @@ import {
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
-import { HintButton } from "@/components/hint-button";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
@@ -184,11 +182,13 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 import {
@@ -199,7 +199,6 @@ import {
 
 export function InventorySearchPage() {
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { roles, profile } = useAuth();
@@ -240,7 +239,7 @@ export function InventorySearchPage() {
   }
 
   function openInventoryDetail(balanceId: string) {
-    navigate(toPath(`/inventory/${balanceId}`));
+    navigate(`/inventory/${balanceId}`);
   }
 
   function prefetchInventoryDetail(balanceId: string) {
@@ -264,23 +263,19 @@ export function InventorySearchPage() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       <div>
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-semibold">Inventory Search</h2>
-          <HintButton label="Inventory Search hints">
-            Search by SKU, pallet, container, PO, lot, batch, expiry, owner, or location.
-          </HintButton>
-        </div>
+        <h2 className="text-2xl font-semibold">Inventory Search</h2>
+        <p className="text-sm text-muted-foreground">Search by SKU, pallet, container, PO, lot, batch, expiry, owner, or location.</p>
       </div>
       <Card>
         <CardContent className="flex flex-col gap-2 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2 sm:min-w-[17rem]">
+          <div className="flex flex-wrap items-stretch gap-2">
+            <div className="flex min-w-0 flex-1 gap-2 sm:min-w-[17rem]">
               <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input type="search" className="h-11 min-w-0 pl-10 pr-20" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search SKU, pallet, container, PO, or location" />
+                <Search className="absolute left-3 top-3 text-muted-foreground" />
+                <Input type="search" className="min-w-0 pl-10 pr-16" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search SKU, pallet, container, PO, or location" />
                 <Button
                   type="button"
-                  className="absolute right-2 top-1/2 h-8 -translate-y-1/2 px-2 text-xs"
+                  className="absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
                   variant="ghost"
                   onClick={clearInventoryFilters}
                   disabled={!hasInventoryFilters}
@@ -288,11 +283,7 @@ export function InventorySearchPage() {
                   Clear
                 </Button>
               </div>
-              <BarcodeScanButton
-                className="h-11 w-20 sm:w-24"
-                title="Scan SKU, pallet, container, PO, or location barcode"
-                onScan={(value) => setSearchTerm(normalizeScannerText(value))}
-              />
+              <BarcodeScanButton title="Scan SKU, pallet, container, PO, or location barcode" onScan={(value) => setSearchTerm(normalizeScannerText(value))} />
             </div>
           </div>
           {(options?.warehouses?.length ?? 0) > 1 && !restrictedToDefaultWarehouse ? (
@@ -380,7 +371,7 @@ export function InventorySearchPage() {
         <CardContent className="flex min-h-0 min-w-0 flex-1 p-0">
           <TableFrame className="h-full min-w-0 flex-1">
             <Table className="min-w-[72rem] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
-              <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
+              <TableHeader className="sticky top-0 z-20 bg-card shadow-xs">
                 <TableRow>
                   <TableHead>SKU</TableHead>
                   <TableHead>Pallet</TableHead>

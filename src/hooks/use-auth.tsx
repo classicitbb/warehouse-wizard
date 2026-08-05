@@ -4,7 +4,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useCallback,
 } from "react";
@@ -205,21 +204,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setRoles(bundle.roles);
   }, [user]);
 
-  // Tracks whether the initial session bootstrap has completed, and which
-  // user we last resolved a profile for. Supabase's auth client re-validates
-  // (and often silently refreshes) the session whenever the tab/app regains
-  // visibility — e.g. switching back from another app on Android, or
-  // returning to a backgrounded browser tab. That fires onAuthStateChange
-  // again for the *same* signed-in user. Previously we treated that exactly
-  // like a fresh sign-in and flipped `loading` back to true, which made
-  // RequireAuth unmount the whole current screen and show the full-page
-  // spinner — wiping out whatever the operator was in the middle of. Now we
-  // only show that loading state for a genuine sign-in/user-switch; a
-  // same-user revalidation just refreshes profile/roles quietly underneath
-  // the page that's already on screen.
-  const hasBootstrappedRef = useRef(false);
-  const lastUserIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     let mounted = true;
 
@@ -252,8 +236,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setProfile(demoAuth.profile);
         setRoles(demoAuth.roles);
         setLoading(false);
-        lastUserIdRef.current = demoAuth.user.id;
-        hasBootstrappedRef.current = true;
         return;
       }
 
@@ -264,11 +246,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
         setProfile(normalizeDeveloperAccess(bundle.profile, bundle.roles, nextSession.user));
         setRoles(bundle.roles);
-        lastUserIdRef.current = nextSession.user.id;
       }
 
       setLoading(false);
-      hasBootstrappedRef.current = true;
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -279,22 +259,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setProfile(null);
         setRoles([]);
         setLoading(false);
-        lastUserIdRef.current = null;
-        hasBootstrappedRef.current = true;
         return;
       }
 
-      // Same user we already had loaded — this is a background session
-      // revalidation/token refresh, not a real sign-in. Refresh profile/roles
-      // in place without touching `loading`, so the currently rendered page
-      // (and anything in progress on it) stays put.
-      const isSameUserRevalidation =
-        hasBootstrappedRef.current && lastUserIdRef.current === nextSession.user.id;
-
-      if (!isSameUserRevalidation) {
-        setLoading(true);
-      }
-
+      setLoading(true);
       fetchProfileBundle(nextSession.user.id)
         .then((bundle) => {
           if (!mounted) {
@@ -302,11 +270,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
           }
           setProfile(normalizeDeveloperAccess(bundle.profile, bundle.roles, nextSession.user));
           setRoles(bundle.roles);
-          lastUserIdRef.current = nextSession.user.id;
-          hasBootstrappedRef.current = true;
         })
         .finally(() => {
-          if (mounted && !isSameUserRevalidation) {
+          if (mounted) {
             setLoading(false);
           }
         });

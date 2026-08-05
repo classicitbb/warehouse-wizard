@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, Archive, ArchiveRestore, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -96,9 +96,6 @@ import {
   completeReceiptFromDraft,
   deleteDraftReceipt,
   listSystemLogs,
-  listArchivedSystemLogs,
-  archiveSystemLog,
-  archiveSystemLogsOlderThan,
   listUserActivities,
   listCycleCounts,
   listPickLists,
@@ -200,7 +197,6 @@ import {
 
 export function SystemLogPage() {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"active" | "archived">("active");
   const [logType, setLogType] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [showResolved, setShowResolved] = useState(false);
@@ -208,13 +204,6 @@ export function SystemLogPage() {
     queryKey: ["system-logs", logType, severity, showResolved],
     queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, resolved: showResolved ? undefined : false }),
     meta: { suppressGlobalError: true },
-    enabled: view === "active",
-  });
-  const { data: archivedLogs = [], error: archivedLogsError, isLoading: archivedLoading } = useQuery({
-    queryKey: ["system-logs-archive", logType, severity],
-    queryFn: () => listArchivedSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity }),
-    meta: { suppressGlobalError: true },
-    enabled: view === "archived",
   });
   const resolveMutation = useMutation({
     mutationFn: resolveSystemLog,
@@ -231,27 +220,6 @@ export function SystemLogPage() {
       writeSystemLog({ log_type: values.log_type as Parameters<typeof writeSystemLog>[0]["log_type"], severity: values.severity as Parameters<typeof writeSystemLog>[0]["severity"], title: values.title, message: values.message, source: "manual" }),
     onSuccess: () => { toast.success("Log entry created"); queryClient.invalidateQueries({ queryKey: ["system-logs"] }); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Log failed"),
-  });
-  const archiveMutation = useMutation({
-    mutationFn: archiveSystemLog,
-    onSuccess: () => {
-      toast.success("Log entry archived");
-      queryClient.invalidateQueries({ queryKey: ["system-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["system-logs-archive"] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to archive"),
-  });
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [archiveDays, setArchiveDays] = useState(90);
-  const bulkArchiveMutation = useMutation({
-    mutationFn: (days: number) => archiveSystemLogsOlderThan(days),
-    onSuccess: (count) => {
-      toast.success(count > 0 ? `Archived ${count} log entr${count === 1 ? "y" : "ies"}` : "No log entries were old enough to archive");
-      queryClient.invalidateQueries({ queryKey: ["system-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["system-logs-archive"] });
-      setArchiveDialogOpen(false);
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Bulk archive failed"),
   });
   const [addOpen, setAddOpen] = useState(false);
   const form = useForm({ defaultValues: { title: "", message: "", log_type: "system_change", severity: "info" } });
@@ -270,36 +238,19 @@ export function SystemLogPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold">System Log</h2>
-          <p className="text-sm text-muted-foreground">Software errors, bugs, system changes, infrastructure events, and record count snapshots. Archived entries are permanently deleted after 120 days.</p>
+          <p className="text-sm text-muted-foreground">Software errors, bugs, system changes, infrastructure events, and record count snapshots.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {view === "active" ? (
-            <>
-              <Button variant="outline" onClick={() => snapshotMutation.mutate()} disabled={snapshotMutation.isPending}>
-                {snapshotMutation.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw data-icon="inline-start" />}
-                Snapshot counts
-              </Button>
-              <Button variant="outline" onClick={() => setArchiveDialogOpen(true)}>
-                <Archive data-icon="inline-start" />
-                Archive old logs
-              </Button>
-              <Button onClick={() => setAddOpen(true)}>
-                <Plus data-icon="inline-start" />
-                Add entry
-              </Button>
-            </>
-          ) : null}
+          <Button variant="outline" onClick={() => snapshotMutation.mutate()} disabled={snapshotMutation.isPending}>
+            {snapshotMutation.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw data-icon="inline-start" />}
+            Snapshot counts
+          </Button>
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus data-icon="inline-start" />
+            Add entry
+          </Button>
         </div>
       </div>
-      <Tabs value={view} onValueChange={(v) => setView(v as "active" | "archived")}>
-        <TabsList>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="archived">
-            <ArchiveRestore data-icon="inline-start" />
-            Archived
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
       <Card>
         <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto]">
           <Select onValueChange={setLogType} value={logType}>
@@ -320,15 +271,12 @@ export function SystemLogPage() {
               ))}
             </SelectContent>
           </Select>
-          {view === "active" ? (
-            <div className="flex items-center gap-2">
-              <Checkbox checked={showResolved} onCheckedChange={(v) => setShowResolved(Boolean(v))} id="show-resolved" />
-              <label htmlFor="show-resolved" className="cursor-pointer text-sm">Show resolved</label>
-            </div>
-          ) : <div />}
+          <div className="flex items-center gap-2">
+            <Checkbox checked={showResolved} onCheckedChange={(v) => setShowResolved(Boolean(v))} id="show-resolved" />
+            <label htmlFor="show-resolved" className="cursor-pointer text-sm">Show resolved</label>
+          </div>
         </CardContent>
       </Card>
-      {view === "active" ? (
       <Card>
         <CardContent className="p-0">
           <TableFrame>
@@ -342,7 +290,7 @@ export function SystemLogPage() {
                   <TableHead className="w-24">Table</TableHead>
                   <TableHead className="w-24 text-right">Count</TableHead>
                   <TableHead className="w-32">Date</TableHead>
-                  <TableHead className="w-28" />
+                  <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -384,24 +332,13 @@ export function SystemLogPage() {
                     <TableCell className="text-right font-mono text-sm">{log.record_count != null ? formatNumber(log.record_count) : "—"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{formatDate(log.created_at)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        {log.resolved ? (
-                          <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Button size="sm" variant="ghost" title="Resolve" onClick={() => resolveMutation.mutate(log.id)}>
-                            <CheckCircle2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Archive"
-                          onClick={() => archiveMutation.mutate(log.id)}
-                          disabled={archiveMutation.isPending}
-                        >
-                          <Archive className="h-4 w-4" />
+                      {log.resolved ? (
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => resolveMutation.mutate(log.id)}>
+                          <CheckCircle2 className="h-4 w-4" />
                         </Button>
-                      </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -410,85 +347,6 @@ export function SystemLogPage() {
           </TableFrame>
         </CardContent>
       </Card>
-      ) : (
-      <Card>
-        <CardContent className="p-0">
-          <TableFrame>
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead className="w-32">Type</TableHead>
-                  <TableHead className="w-24">Severity</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="w-24">Table</TableHead>
-                  <TableHead className="w-24 text-right">Count</TableHead>
-                  <TableHead className="w-32">Created</TableHead>
-                  <TableHead className="w-32">Archived</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {archivedLoading ? (
-                  <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">Loading archive…</TableCell></TableRow>
-                ) : archivedLogsError ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
-                      <div className="mx-auto max-w-2xl space-y-2">
-                        <p className="font-medium text-destructive">Archived logs could not be loaded.</p>
-                        <p className="text-xs text-muted-foreground">
-                          {archivedLogsError instanceof Error ? archivedLogsError.message : String(archivedLogsError)}
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : archivedLogs.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No archived log entries.</TableCell></TableRow>
-                ) : archivedLogs.map((log: any) => (
-                  <TableRow key={log.id} className="even:bg-muted/30 opacity-80">
-                    <TableCell><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
-                    <TableCell><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
-                    <TableCell>
-                      <p className="font-medium leading-tight">{log.title}</p>
-                      {log.message ? <p className="text-xs text-muted-foreground">{log.message}</p> : null}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{log.source ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-sm">{log.table_name ?? "—"}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{log.record_count != null ? formatNumber(log.record_count) : "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(log.created_at)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(log.archived_at)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableFrame>
-        </CardContent>
-      </Card>
-      )}
-      <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Archive old logs</DialogTitle>
-            <DialogDescription>Move active log entries older than the cutoff into the archive. Archived entries are permanently deleted after 120 days.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <label htmlFor="archive-days" className="text-sm font-medium">Older than (days)</label>
-            <Input
-              id="archive-days"
-              type="number"
-              min={0}
-              value={archiveDays}
-              onChange={(e) => setArchiveDays(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => bulkArchiveMutation.mutate(archiveDays)} disabled={bulkArchiveMutation.isPending}>
-              {bulkArchiveMutation.isPending ? <Loader2 className="animate-spin" /> : <Archive data-icon="inline-start" />}
-              Archive
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

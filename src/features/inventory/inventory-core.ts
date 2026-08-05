@@ -6,7 +6,6 @@ import {
   isRetiredInventoryStatus,
   hasVisibleInventoryQuantity,
   DB_RETIRED_INVENTORY_STATUS_FILTER,
-  fetchAllRows,
   type InventoryAgeBucket,
   type InventoryExpiryWindow,
   type InventoryStatus,
@@ -283,38 +282,31 @@ export async function getBayOccupancy(locationCode: string): Promise<{
 
   let locations: any[] = [];
   if (anchor.warehouse_id && anchor.zone_id) {
-    // Page through with .range() — a whole-zone select can exceed PostgREST's
-    // default 1000-row cap on larger warehouses, which was silently dropping
-    // bins from the bay grid and the "Browse bays" picker in putaway.
-    locations = await fetchAllRows((from, to) => {
-      let query = db("locations")
-        .select("id, code, aisle, bay, level, position, depth, max_pallets, status, location_type, zone_sort_order:zones(sort_order), zone_name:zones(name), zone_code:zones(code)")
-        .eq("warehouse_id", anchor.warehouse_id)
-        .eq("zone_id", anchor.zone_id)
-        .eq("location_type", "rack");
-      if (anchor.aisle) query = query.eq("aisle", anchor.aisle);
-      if (anchor.bay) query = query.eq("bay", anchor.bay);
-      return query
-        .order("level", { ascending: false })
-        .order("position", { ascending: true })
-        .order("code", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to);
-    });
+    let query = db("locations")
+      .select("id, code, aisle, bay, level, position, depth, max_pallets, status, location_type, zone_sort_order:zones(sort_order), zone_name:zones(name), zone_code:zones(code)")
+      .eq("warehouse_id", anchor.warehouse_id)
+      .eq("zone_id", anchor.zone_id)
+      .eq("location_type", "rack");
+    if (anchor.aisle) query = query.eq("aisle", anchor.aisle);
+    if (anchor.bay) query = query.eq("bay", anchor.bay);
+    const result = await query
+      .order("level", { ascending: false })
+      .order("position", { ascending: true })
+      .order("code", { ascending: true });
+    if (result.error) throw result.error;
+    locations = result.data ?? [];
   }
 
   if ((locations ?? []).length === 0 && bayCodePrefix) {
-    locations = await fetchAllRows((from, to) =>
-      db("locations")
-        .select("id, code, aisle, bay, level, position, depth, max_pallets, status, location_type, zone_sort_order:zones(sort_order), zone_name:zones(name), zone_code:zones(code)")
-        .eq("location_type", "rack")
-        .ilike("code", `${bayCodePrefix}%`)
-        .order("level", { ascending: false })
-        .order("position", { ascending: true })
-        .order("code", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
-    );
+    const fallback = await db("locations")
+      .select("id, code, aisle, bay, level, position, depth, max_pallets, status, location_type, zone_sort_order:zones(sort_order), zone_name:zones(name), zone_code:zones(code)")
+      .eq("location_type", "rack")
+      .ilike("code", `${bayCodePrefix}%`)
+      .order("level", { ascending: false })
+      .order("position", { ascending: true })
+      .order("code", { ascending: true });
+    if (fallback.error) throw fallback.error;
+    locations = fallback.data ?? [];
   }
 
   const storedPalletCounts = await getStoredPalletCounts((locations ?? []).map((location: any) => location.id));
@@ -354,21 +346,15 @@ export type WarehouseBayGroup = {
 };
 
 export async function getWarehouseBayOccupancy(warehouseId: string): Promise<WarehouseBayGroup[]> {
-  // Page through with .range() — an unbounded select truncates to PostgREST's
-  // default 1000-row cap, which is exactly what made the putaway bay
-  // selectors miss bays/locations past the first page on larger warehouses.
-  const locations = await fetchAllRows((from, to) =>
-    db("locations")
-      .select("id, code, aisle, bay, level, position, depth, max_pallets, status, location_type, zone_sort_order:zones(sort_order), zone_name:zones(name), zone_code:zones(code)")
-      .eq("warehouse_id", warehouseId)
-      .eq("location_type", "rack")
-      .order("aisle")
-      .order("bay")
-      .order("level", { ascending: false })
-      .order("position")
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+  const { data: locations, error } = await db("locations")
+    .select("id, code, aisle, bay, level, position, depth, max_pallets, status, location_type, zone_sort_order:zones(sort_order), zone_name:zones(name), zone_code:zones(code)")
+    .eq("warehouse_id", warehouseId)
+    .eq("location_type", "rack")
+    .order("aisle")
+    .order("bay")
+    .order("level", { ascending: false })
+    .order("position");
+  if (error) throw error;
   if (!locations?.length) return [];
 
   const counts = await getStoredPalletCounts(locations.map((l: any) => l.id));

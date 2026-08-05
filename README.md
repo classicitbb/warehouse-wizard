@@ -25,7 +25,7 @@ Warehouse Wizard is a production-oriented internal WMS app for a 3PL-style wareh
 
 ## Local Launcher
 
-On Windows, double-click `Launch Warehouse Wizard.bat` from the project folder to repair missing dependencies when needed, start the local development server on port `8088`, and open it in Chrome, Edge, or the default browser. Press Enter in the launcher window when you want to stop the server.
+On Windows, double-click `Launch Warehouse Wizard.bat` from the project folder to build the site, start a local production preview, and open it in Chrome, Edge, or the default browser.
 
 To create a desktop shortcut for that launcher, right-click `Create Desktop Shortcut.ps1` and run it with PowerShell. The app window shows `LOCAL` when opened from the launcher or another local/private address, and `ONLINE` when opened from a hosted domain.
 

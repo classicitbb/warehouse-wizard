@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -28,9 +28,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { HintButton } from "@/components/hint-button";
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
@@ -220,7 +218,6 @@ import {
 
 export function DashboardPage() {
   const { profile } = useAuth();
-  const { toPath } = useTenantPath();
   const { flags, isEnabled } = useFeatureFlags();
   const [mode, setMode] = useState<DashboardMode>("floor");
   const [editMode, setEditMode] = useState(false);
@@ -266,17 +263,6 @@ export function DashboardPage() {
     queryKey: ["dashboard-metrics", profile?.default_warehouse_id, flags],
     queryFn: () => getDashboardMetrics(profile?.default_warehouse_id, flags),
     refetchInterval: 15_000,
-  });
-  const { data: reorderAlerts = [] } = useQuery({
-    queryKey: ["reorder-alerts", "command-center"],
-    queryFn: async () => {
-      const { data, error } = await (supabase.from as any)("reorder_alerts")
-        .select("id")
-        .eq("status", "active");
-      if (error) throw error;
-      return data ?? [];
-    },
-    refetchInterval: 30_000,
   });
   const { data: reports } = useQuery({ queryKey: ["reports", "enterprise-dashboard"], queryFn: getReportData });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, reports), [metrics, reports]);
@@ -424,11 +410,9 @@ export function DashboardPage() {
       )}
     >
       <div className="flex shrink-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="flex items-center gap-2">
+        <div>
           <h2 className="text-2xl font-bold tracking-tight">Command Center</h2>
-          <HintButton label="Command Center guidance" buttonClassName="text-muted-foreground">
-            Live warehouse metrics. Unlock edit mode to reorder, resize, or hide tiles.
-          </HintButton>
+          <p className="text-sm text-muted-foreground">Live warehouse metrics. Unlock edit mode to reorder, resize, or hide tiles.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Tabs value={mode} onValueChange={(value) => setMode(value as DashboardMode)}>
@@ -460,21 +444,6 @@ export function DashboardPage() {
           </Button>
         </div>
       </div>
-
-      {reorderAlerts.length > 0 ? (
-        <Card className="shrink-0 border-2 border-amber-500 bg-amber-100 shadow-sm dark:border-amber-500 dark:bg-amber-950/50">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-700 dark:text-amber-400" />
-              <span className="font-semibold text-amber-900 dark:text-amber-100">{reorderAlerts.length} active reorder alert{reorderAlerts.length === 1 ? "" : "s"}</span>
-              <span className="text-sm text-amber-800/90 dark:text-amber-200/80">Forecasts use completed outbound picks and supplier lead time.</span>
-            </div>
-            <Button asChild size="sm" variant="default" className="bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-700">
-              <Link to={toPath("/products")}>View products</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <div className="min-h-0 flex-1 overflow-auto">
         {mode === "floor" ? (

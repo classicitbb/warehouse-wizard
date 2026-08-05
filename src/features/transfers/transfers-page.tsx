@@ -28,7 +28,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
@@ -200,7 +199,6 @@ import {
 
 export function TransfersPage() {
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { data: options } = useQuery({ queryKey: ["options"], queryFn: () => fetchOptions() });
   const { data: transfers = [] } = useQuery({ queryKey: ["transfers"], queryFn: listTransfers });
@@ -259,7 +257,7 @@ export function TransfersPage() {
     mutationFn: async (transferId: string) => receiveTransfer(transferId),
     onSuccess: async () => {
       toast.success("Transfer received — putaway task created", {
-        action: { label: "Go to Put-Away", onClick: () => navigate(toPath("/putaway-tasks")) },
+        action: { label: "Go to Put-Away", onClick: () => navigate("/putaway-tasks") },
         duration: 8000,
       });
       await Promise.all([
@@ -277,7 +275,7 @@ export function TransfersPage() {
     onSuccess: async (_data, variables) => {
       setCancelState((s) => ({ ...s, [variables.transferId]: { open: false, reason: "" } }));
       toast.warning("Transfer cancelled — stock returned to receiving", {
-        action: { label: "Go to Receiving", onClick: () => navigate(toPath("/receiving")) },
+        action: { label: "Go to Receiving", onClick: () => navigate("/receiving") },
         duration: 8000,
       });
       await Promise.all([

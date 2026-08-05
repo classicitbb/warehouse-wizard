@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -28,8 +28,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
-import { MAX_TOOLBAR_MODULES, useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
+import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
   enqueueOfflineWork,
@@ -56,7 +55,6 @@ import {
   adminDeleteUser,
   adminUpdateUserPin,
   adminUpdateUserPassword,
-  adminSignOutAllSessions,
   buildBayOccupancyGrid,
   updateOwnPassword,
   changePalletStatus,
@@ -172,7 +170,6 @@ import { ZoneLabelPage } from "@/components/zone-label-page";
 import { LocationLabelPage } from "@/components/location-label-page";
 import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
 import { WarehouseStructureTab } from "@/components/warehouse-tree-view";
-import { ReorderForecastSettingsPanel } from "@/features/shared/reorder-forecast-settings";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -184,7 +181,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 // removed unused dropdown-menu and drawer imports
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -193,7 +190,6 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { LicenseAgreementTab } from "@/features/admin/license-agreement";
 
 
 
@@ -362,7 +358,7 @@ export function MobileActionBar() {
 
 function UsersRolesPageImpl() {
   const queryClient = useQueryClient();
-  const { profile: viewerProfile, roles } = useAuth();
+  const { roles } = useAuth();
   const canOperateRoles = roles.some((r) => ["developer", "admin"].includes(r));
   const canOperateDeveloperRole = roles.includes("developer");
   const [includeHidden, setIncludeHidden] = useState(false);
@@ -432,15 +428,6 @@ function UsersRolesPageImpl() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Update failed"),
   });
 
-  const revokeSessionsMutation = useMutation({
-    mutationFn: adminSignOutAllSessions,
-    onSuccess: async () => {
-      toast.success("All active sessions were signed out.");
-      await invalidateOptions();
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not sign out sessions"),
-  });
-
   const profiles = (options?.profiles ?? []) as ProfileRow[];
 
   return (
@@ -490,48 +477,25 @@ function UsersRolesPageImpl() {
               {includeHidden ? "Hide inactive" : "Show inactive"}
             </Button>
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <TableFrame>
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Roles</TableHead>
-                      <TableHead className="w-20 text-center">Enabled</TableHead>
-                      <TableHead className="w-20 text-center">Approved</TableHead>
-                      <TableHead className="w-10" />
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {profiles.map((profile) => (
-                      <UserProfileRow
-                        key={profile.id}
-                        profile={profile}
-                        warehouses={(options?.warehouses ?? []) as WarehouseOption[]}
-                        userRoles={(options?.userRoles ?? []).filter((ur: any) => ur.user_id === profile.id)}
-                        onSave={(values, credentials) => profileEditMutation.mutate({ values, ...credentials })}
-                        onToggleActive={() =>
-                          profileMutation.mutate({ profileId: profile.id, active: !(profile.active ?? true) })
-                        }
-                        onSignOutAllSessions={() => revokeSessionsMutation.mutate(profile.id)}
-                        revokingSessions={revokeSessionsMutation.isPending}
-                      />
-                    ))}
-                    {profiles.length === 0 && (
-                      <TableRow>
-                        <TableCell className="h-24 text-center text-muted-foreground" colSpan={7}>
-                          No users found. Use "Add User" to create the first one.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableFrame>
-            </CardContent>
-          </Card>
+          <div className="grid gap-3">
+            {profiles.map((profile) => (
+              <UserProfileRow
+                key={profile.id}
+                profile={profile}
+                warehouses={(options?.warehouses ?? []) as WarehouseOption[]}
+                userRoles={(options?.userRoles ?? []).filter((ur: any) => ur.user_id === profile.id)}
+                onSave={(values, credentials) => profileEditMutation.mutate({ values, ...credentials })}
+                onToggleActive={() =>
+                  profileMutation.mutate({ profileId: profile.id, active: !(profile.active ?? true) })
+                }
+              />
+            ))}
+            {profiles.length === 0 && (
+              <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+                No users found. Use "Add User" to create the first one.
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="roles" className="mt-4">
@@ -584,9 +548,6 @@ function UsersRolesPageImpl() {
                   .filter((userRole: any) => canOperateDeveloperRole || (userRole.roles as { code?: string } | null)?.code !== "developer")
                   .map((userRole: any) => {
                     const profile = profiles.find((p) => p.id === userRole.user_id);
-                    const role = userRole.roles as { code?: string; name?: string } | null;
-                    const isDeveloperRole = role?.code === "developer";
-                    const canUnassignDeveloperRole = isDeveloperRole && userRole.assigned_by === viewerProfile?.id;
                     return (
                       <div key={userRole.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
                         <div className="flex min-w-0 items-center gap-2.5">
@@ -602,28 +563,9 @@ function UsersRolesPageImpl() {
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <Badge variant={userRole.is_hidden ? "secondary" : "default"} className="text-xs">
-                            {role?.name ?? "Role"}
+                            {(userRole.roles as { name?: string } | null)?.name ?? "Role"}
                           </Badge>
-                          {canOperateRoles && isDeveloperRole ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              disabled={!canUnassignDeveloperRole}
-                              title={canUnassignDeveloperRole ? "Unassign developer role" : "Only the developer who assigned this role can unassign it"}
-                              onClick={async () => {
-                                try {
-                                  await removeUserRoleAssignment(userRole.id);
-                                  toast.success("Role unassigned");
-                                  await invalidateOptions();
-                                } catch (error) {
-                                  toast.error(error instanceof Error ? error.message : "Role unassign failed");
-                                }
-                              }}
-                            >
-                              Unassign
-                            </Button>
-                          ) : canOperateRoles ? (
+                          {canOperateRoles && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -632,7 +574,7 @@ function UsersRolesPageImpl() {
                             >
                               {userRole.is_hidden ? "Restore" : "Revoke"}
                             </Button>
-                          ) : null}
+                          )}
                         </div>
                       </div>
                     );
@@ -826,8 +768,6 @@ function UserProfileRow({
   userRoles,
   onSave,
   onToggleActive,
-  onSignOutAllSessions,
-  revokingSessions,
 }: {
   profile: ProfileRow;
   warehouses: WarehouseOption[];
@@ -837,14 +777,10 @@ function UserProfileRow({
     credentials?: { newPassword?: string; badgePin?: string },
   ) => void;
   onToggleActive: () => void;
-  onSignOutAllSessions: () => void;
-  revokingSessions: boolean;
 }) {
-  const { profile: viewerProfile, roles: viewerRoles } = useAuth();
+  const { roles: viewerRoles } = useAuth();
   const targetIsDeveloper = userRoles.some((ur: any) => (ur.roles as { code?: string } | null)?.code === "developer");
   const canChangePassword = viewerRoles.includes("developer") || !targetIsDeveloper;
-  const isSelf = viewerProfile?.id === profile.id;
-  const canRevokeSessions = viewerRoles.some((role) => ["developer", "admin"].includes(role));
 
   const [open, setOpen] = useState(false);
   const fallbackWarehouseId = !profile.default_warehouse_id && warehouses.length === 1 ? warehouses[0]?.id ?? "" : "";
@@ -865,6 +801,9 @@ function UserProfileRow({
       setValues((current) => ({ ...current, default_warehouse_id: warehouses[0]?.id ?? "" }));
     }
   }, [profile.default_warehouse_id, values.default_warehouse_id, warehouses]);
+
+  const initials = (profile.full_name ?? profile.email ?? "?")
+    .split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 
   const roleNames = userRoles
     .filter((ur) => !ur.is_hidden)
@@ -898,7 +837,7 @@ function UserProfileRow({
       return;
     }
     onSave(
-      { profileId: profile.id, ...values, active: isSelf ? true : values.active },
+      { profileId: profile.id, ...values },
       {
         newPassword: trimmedPassword || undefined,
         badgePin: trimmedBadgePin || undefined,
@@ -908,57 +847,62 @@ function UserProfileRow({
   };
 
   return (
-    <TableRow
-      className={cn("h-10 cursor-pointer even:bg-muted/30", !profile.active && "opacity-60")}
-      onDoubleClick={() => setOpen(true)}
-    >
-      <TableCell className="max-w-48 p-2">
-        <p className="truncate text-sm font-medium">{profile.full_name ?? profile.email ?? profile.id}</p>
-      </TableCell>
-      <TableCell className="max-w-56 p-2 text-sm text-muted-foreground">
-        <span className="block truncate">{profile.email ?? "—"}</span>
-      </TableCell>
-      <TableCell className="max-w-64 p-2">
-        <div className="flex flex-wrap items-center gap-1">
-          {roleNames.length > 0 ? roleNames.map((name) => (
-            <Badge key={name} variant="outline" className="px-1.5 py-0 text-xs">{name}</Badge>
-          )) : <span className="text-sm text-muted-foreground">No roles</span>}
-        </div>
-      </TableCell>
-      <TableCell className="p-2 text-center">
-        {profile.active ? (
-          <CheckCircle2 className="mx-auto h-4 w-4 text-emerald-600" aria-label="Enabled" />
-        ) : (
-          <CircleOff className="mx-auto h-4 w-4 text-muted-foreground" aria-label="Disabled" />
-        )}
-      </TableCell>
-      <TableCell className="p-2 text-center">
-        {profile.approved ? (
-          <CheckCircle2 className="mx-auto h-4 w-4 text-emerald-600" aria-label="Approved" />
-        ) : (
-          <CircleOff className="mx-auto h-4 w-4 text-muted-foreground" aria-label="Pending approval" />
-        )}
-      </TableCell>
-      <TableCell className="p-1 text-center">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              aria-label={`Edit ${profile.full_name ?? profile.email ?? "user"}`}
-              title="Edit user"
-              onClick={(event) => event.stopPropagation()}
+    <div className={cn(
+      "rounded-xl border border-border bg-card transition-colors",
+      !profile.active && "opacity-60"
+    )}>
+      <div className="flex items-center gap-3 p-4">
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarFallback className={cn(
+            "text-sm font-semibold",
+            profile.approved ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+          )}>
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-medium">{profile.full_name ?? profile.email ?? profile.id}</p>
+            <Badge
+              variant={profile.approved ? "default" : "secondary"}
+              className="text-xs"
             >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </DialogTrigger>
+              {profile.approved ? "Approved" : "Pending"}
+            </Badge>
+            {!profile.active && <Badge variant="outline" className="text-xs">Inactive</Badge>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{profile.email}</span>
+            {profile.user_code && <span>· {profile.user_code}</span>}
+            {roleNames.length > 0 && (
+              <span className="flex items-center gap-1">
+                ·
+                {roleNames.map((name) => (
+                  <Badge key={name} variant="outline" className="text-xs px-1.5 py-0">{name}</Badge>
+                ))}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs"
+            onClick={onToggleActive}
+          >
+            {profile.active ? "Disable" : "Enable"}
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="h-8 text-xs">Edit</Button>
+            </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Edit User</DialogTitle>
                 <DialogDescription>Update operational access, codes, and approval status.</DialogDescription>
               </DialogHeader>
-              <div className="max-h-[70vh] overflow-y-auto pr-4">
+              <ScrollArea className="max-h-[70vh] pr-4">
                 <div className="grid gap-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="grid gap-1.5">
@@ -1005,20 +949,14 @@ function UserProfileRow({
                     </div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <label className={cn(
-                      "flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm",
-                      isSelf ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-accent",
-                    )}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent">
                       <Checkbox
                         checked={values.active}
-                        disabled={isSelf}
-                        onCheckedChange={(c) => {
-                          if (!isSelf) setValues((v) => ({ ...v, active: Boolean(c) }));
-                        }}
+                        onCheckedChange={(c) => setValues((v) => ({ ...v, active: Boolean(c) }))}
                       />
                       <div>
                         <p className="font-medium">Active</p>
-                        <p className="text-xs text-muted-foreground">{isSelf ? "You cannot disable your own account" : "Can sign in"}</p>
+                        <p className="text-xs text-muted-foreground">Can sign in</p>
                       </div>
                     </label>
                     <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent">
@@ -1058,35 +996,6 @@ function UserProfileRow({
                       Print badge
                     </Button>
                   </div>
-                  {canRevokeSessions && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button type="button" variant="outline" className="border-destructive/50 text-destructive hover:bg-destructive/10">
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Sign out of all sessions
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Sign out {profile.full_name ?? profile.email ?? "this user"} everywhere?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This removes every active refresh session for this account. Existing access tokens expire shortly and the user must sign in again.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            disabled={revokingSessions}
-                            onClick={onSignOutAllSessions}
-                          >
-                            {revokingSessions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Sign out all sessions
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
                   <Button
                     className="w-full"
                     onClick={handleSave}
@@ -1094,27 +1003,12 @@ function UserProfileRow({
                     Save changes
                   </Button>
                 </div>
-              </div>
+              </ScrollArea>
             </DialogContent>
           </Dialog>
-      </TableCell>
-      <TableCell className="p-1 text-center">
-        <Button
-          size="icon"
-          variant="ghost"
-          className={cn("h-7 w-7", profile.active && !isSelf && "text-destructive hover:text-destructive")}
-          disabled={isSelf}
-          aria-label={profile.active ? `Disable ${profile.full_name ?? profile.email ?? "user"}` : `Enable ${profile.full_name ?? profile.email ?? "user"}`}
-          title={isSelf ? "You cannot disable your own account" : profile.active ? "Disable user" : "Enable user"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleActive();
-          }}
-        >
-          <Power className="h-3.5 w-3.5" />
-        </Button>
-      </TableCell>
-    </TableRow>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1143,8 +1037,8 @@ function ModulesSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
           <div>
             <CardTitle>Module Visibility</CardTitle>
             <CardDescription>
-              Hide modules that aren't needed for your operation. Star up to {MAX_TOOLBAR_MODULES} modules for personal shortcuts; smaller screens keep Dashboard fixed and show four favourites. Hidden modules remain fully functional — they just won't appear in the navigation.
-              {!isAdmin && " Only administrators can change module visibility; your shortcut stars are personal."}
+              Hide modules that aren't needed for your operation. Hidden modules remain fully functional — they just won't appear in the navigation.
+              {!isAdmin && " Admin access required to change module settings."}
             </CardDescription>
           </div>
           {isAdmin && (
@@ -1162,7 +1056,7 @@ function ModulesSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
                   const meta = MODULE_LABELS[key];
                   const enabled = flags[key] ?? STARTER_MODULES[key];
                   const pinned = isToolbarModule(key);
-                  const toolbarDisabled = !pinned && (!enabled || toolbarModules.length >= MAX_TOOLBAR_MODULES);
+                  const toolbarDisabled = !isAdmin || (!pinned && (!enabled || toolbarModules.length >= 4));
                   return (
                     <div key={key} className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
                       <div className="min-w-0">
@@ -1201,513 +1095,8 @@ function ModulesSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function NetSuiteIntegrationCard() {
-  const [status, setStatus] = useState<{
-    configured: boolean;
-    enabled: boolean;
-    accountIdMasked: string | null;
-    clientIdMasked: string | null;
-    lastTestedAt: string | null;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [accountId, setAccountId] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [enabled, setEnabled] = useState(false);
-  const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: { action: "status" },
-      });
-      if (error) throw error;
-      setStatus(data as any);
-      setEnabled(Boolean((data as any)?.enabled));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load NetSuite status");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  const handleSave = async () => {
-    if (!accountId.trim() || !clientId.trim()) {
-      toast.error("Account ID and Client ID are required");
-      return;
-    }
-    setSaving(true);
-    setRevealedWebhookSecret(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: {
-          action: "save",
-          accountId: accountId.trim(),
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim() || undefined,
-          enabled,
-        },
-      });
-      if (error) throw error;
-      const result = data as { ok: boolean; webhookSecret?: string | null };
-      if (result?.webhookSecret) setRevealedWebhookSecret(result.webhookSecret);
-      toast.success("NetSuite connection saved");
-      setClientSecret("");
-      await refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleTest = async () => {
-    setTesting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: { action: "test" },
-      });
-      if (error) throw error;
-      const result = data as { ok: boolean; error?: string };
-      if (result?.ok) toast.success("NetSuite credentials verified");
-      else toast.error(result?.error ?? "Test failed");
-      await refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Test failed");
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const savedSecretPlaceholder = status?.configured ? "•••• saved (leave blank to keep)" : "";
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Network className="h-4 w-4" />NetSuite Integration</CardTitle>
-        <CardDescription>
-          OAuth2 client credentials for the NetSuite REST API. Secrets are stored server-side and never returned to the browser.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-        ) : (
-          <>
-            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground grid gap-1">
-              <div>Status: <span className="font-medium text-foreground">{status?.configured ? "Configured" : "Not configured"}</span> · {status?.enabled ? "Enabled" : "Disabled"}</div>
-              {status?.accountIdMasked && <div>Account: <span className="font-mono">{status.accountIdMasked}</span></div>}
-              {status?.clientIdMasked && <div>Client ID: <span className="font-mono">{status.clientIdMasked}</span></div>}
-              {status?.lastTestedAt && <div>Last tested: {new Date(status.lastTestedAt).toLocaleString()}</div>}
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="ns-account">Account ID</Label>
-              <Input id="ns-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder="123456_SB1" autoComplete="off" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="ns-client-id">Client ID</Label>
-              <Input id="ns-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="ns-client-secret">Client Secret</Label>
-              <Input
-                id="ns-client-secret"
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder={savedSecretPlaceholder}
-                autoComplete="new-password"
-              />
-              <p className="text-xs text-muted-foreground">Write-only. The stored value is never sent back to the browser.</p>
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <Label htmlFor="ns-enabled" className="text-sm font-medium">Enabled</Label>
-                <p className="text-xs text-muted-foreground">Turn on to allow sync jobs against NetSuite.</p>
-              </div>
-              <Switch id="ns-enabled" checked={enabled} onCheckedChange={setEnabled} />
-            </div>
-
-            {revealedWebhookSecret && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-                <div className="mb-1 font-medium text-amber-700 dark:text-amber-300">Webhook shared secret — copy now, it will not be shown again:</div>
-                <code className="block break-all rounded bg-background/60 p-2 font-mono text-[11px]">{revealedWebhookSecret}</code>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Save connection
-              </Button>
-              <Button variant="outline" onClick={handleTest} disabled={testing || !status?.configured}>
-                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Test connection
-              </Button>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function NetSuiteWarehouseMappingCard() {
-  const queryClient = useQueryClient();
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-
-  const warehousesQuery = useQuery({
-    queryKey: ["settings", "netsuite-mapping", "warehouses"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouses")
-        .select("id, name, code")
-        .order("name", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string; code: string | null }>;
-    },
-  });
-
-  const linksQuery = useQuery({
-    queryKey: ["settings", "netsuite-mapping", "links"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("external_record_links")
-        .select("id, local_id, external_id")
-        .eq("system", "netsuite")
-        .eq("local_table", "warehouses")
-        .eq("external_record_type", "location");
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; local_id: string; external_id: string }>;
-    },
-  });
-
-  const linkByWarehouse = useMemo(() => {
-    const map = new Map<string, { id: string; external_id: string }>();
-    for (const link of linksQuery.data ?? []) {
-      map.set(link.local_id, { id: link.id, external_id: link.external_id });
-    }
-    return map;
-  }, [linksQuery.data]);
-
-  const handleSave = async (warehouseId: string) => {
-    const existing = linkByWarehouse.get(warehouseId);
-    const nextValue = (drafts[warehouseId] ?? existing?.external_id ?? "").trim();
-    setSavingId(warehouseId);
-    try {
-      if (!nextValue) {
-        if (existing) {
-          const { error } = await supabase
-            .from("external_record_links")
-            .delete()
-            .eq("id", existing.id);
-          if (error) throw error;
-          toast.success("Mapping cleared");
-        }
-      } else if (existing) {
-        const { error } = await supabase
-          .from("external_record_links")
-          .update({ external_id: nextValue })
-          .eq("id", existing.id);
-        if (error) throw error;
-        toast.success("Mapping updated");
-      } else {
-        const { error } = await supabase.from("external_record_links").insert({
-          system: "netsuite",
-          local_table: "warehouses",
-          local_id: warehouseId,
-          external_record_type: "location",
-          external_id: nextValue,
-        });
-        if (error) throw error;
-        toast.success("Mapping saved");
-      }
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[warehouseId];
-        return next;
-      });
-      await queryClient.invalidateQueries({ queryKey: ["settings", "netsuite-mapping", "links"] });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save mapping");
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  const warehouses = warehousesQuery.data ?? [];
-  const loading = warehousesQuery.isLoading || linksQuery.isLoading;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><MapPinned className="h-4 w-4" />NetSuite Location Mapping</CardTitle>
-        <CardDescription>
-          Map each Warehouse Wizard warehouse to its NetSuite Location internal ID so inventory adjustments post to the correct location.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-        ) : warehouses.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No warehouses defined yet.</p>
-        ) : (
-          <div className="grid gap-3">
-            {warehouses.map((wh) => {
-              const existing = linkByWarehouse.get(wh.id);
-              const draftValue = drafts[wh.id];
-              const value = draftValue ?? existing?.external_id ?? "";
-              const dirty = draftValue !== undefined && draftValue.trim() !== (existing?.external_id ?? "");
-              return (
-                <div key={wh.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-                  <div className="min-w-0">
-                    <Label className="text-xs text-muted-foreground">Warehouse</Label>
-                    <div className="truncate text-sm font-medium">{wh.name}</div>
-                    {wh.code ? <div className="truncate text-xs text-muted-foreground font-mono">{wh.code}</div> : null}
-                  </div>
-                  <div className="grid gap-1">
-                    <Label htmlFor={`ns-loc-${wh.id}`} className="text-xs text-muted-foreground">NetSuite Location Internal ID</Label>
-                    <Input
-                      id={`ns-loc-${wh.id}`}
-                      value={value}
-                      placeholder="e.g. 123"
-                      autoComplete="off"
-                      onChange={(e) => setDrafts((prev) => ({ ...prev, [wh.id]: e.target.value }))}
-                    />
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleSave(wh.id)}
-                    disabled={savingId === wh.id || (!dirty && !(existing && value === ""))}
-                  >
-                    {savingId === wh.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Save
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-type NetSuiteListedItem = {
-  externalId: string;
-  itemId: string;
-  displayName: string;
-  upcCode: string;
-  active: boolean;
-  alreadyImported: boolean;
-};
-
-function NetSuiteImportCard() {
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [items, setItems] = useState<NetSuiteListedItem[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [selected, setSelected] = useState<Record<string, NetSuiteListedItem>>({});
-  const [notConfigured, setNotConfigured] = useState(false);
-  const limit = 25;
-
-  const fetchItems = useCallback(async (nextOffset: number, nextSearch: string) => {
-    setLoading(true);
-    try {
-      const { data: statusData, error: statusError } = await supabase.functions.invoke("netsuite-connection", {
-        body: { action: "status" },
-      });
-      if (statusError) throw statusError;
-      const statusResult = statusData as { configured?: boolean } | null;
-      if (!statusResult?.configured) {
-        setNotConfigured(true);
-        setItems([]);
-        setHasMore(false);
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: { action: "list_items", search: nextSearch || undefined, limit, offset: nextOffset },
-      });
-      const result = data as { items?: NetSuiteListedItem[]; hasMore?: boolean; error?: string; notConfigured?: boolean };
-      const errMsg = result?.error ?? (error instanceof Error ? error.message : "");
-      if (result?.notConfigured || (errMsg && /(no netsuite connection|credentials incomplete)/i.test(errMsg))) {
-        setNotConfigured(true);
-        setItems([]);
-        setHasMore(false);
-        return;
-      }
-      setNotConfigured(false);
-      if (error) throw error;
-      if (result?.error) throw new Error(result.error);
-      setItems(result?.items ?? []);
-      setHasMore(Boolean(result?.hasMore));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load NetSuite items");
-      setItems([]);
-      setHasMore(false);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void fetchItems(0, ""); }, [fetchItems]);
-
-  const runSearch = () => {
-    const trimmed = searchInput.trim();
-    setSearch(trimmed);
-    setOffset(0);
-    void fetchItems(0, trimmed);
-  };
-
-  const goToPage = (nextOffset: number) => {
-    setOffset(nextOffset);
-    void fetchItems(nextOffset, search);
-  };
-
-  const toggleSelected = (item: NetSuiteListedItem) => {
-    setSelected((prev) => {
-      const next = { ...prev };
-      if (next[item.externalId]) delete next[item.externalId];
-      else next[item.externalId] = item;
-      return next;
-    });
-  };
-
-  const selectedCount = Object.keys(selected).length;
-
-  const handleImport = async () => {
-    const toImport = Object.values(selected);
-    if (toImport.length === 0) return;
-    setImporting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: {
-          action: "import_items",
-          items: toImport.map((i) => ({
-            externalId: i.externalId,
-            itemId: i.itemId,
-            displayName: i.displayName,
-            upcCode: i.upcCode,
-            active: i.active,
-          })),
-        },
-      });
-      if (error) throw error;
-      const result = data as { succeeded?: number; failed?: number; error?: string };
-      if (result?.error) throw new Error(result.error);
-      if ((result?.failed ?? 0) > 0) {
-        toast.warning(`Imported ${result?.succeeded ?? 0}, ${result?.failed} failed — check System Log for details.`);
-      } else {
-        toast.success(`Imported ${result?.succeeded ?? 0} product${result?.succeeded === 1 ? "" : "s"} from NetSuite`);
-      }
-      setSelected({});
-      await fetchItems(offset, search);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  return (
-    <Card className="xl:col-span-2">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Download className="h-4 w-4" />Import Products from NetSuite</CardTitle>
-        <CardDescription>
-          Search the NetSuite item catalog and choose which products to bring into Warehouse Wizard. Re-selecting an already-imported item updates it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
-              placeholder="Search by item ID or name…"
-              className="pl-8"
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={runSearch} disabled={loading}>Search</Button>
-          <Button size="sm" onClick={handleImport} disabled={selectedCount === 0 || importing}>
-            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Import selected ({selectedCount})
-          </Button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-        ) : notConfigured ? (
-          <p className="text-sm text-muted-foreground">NetSuite is not connected yet. Save valid credentials in the connection card above to browse the item catalog.</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No items found. Make sure the NetSuite connection above is configured and enabled.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead>Item ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>UPC</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.externalId}>
-                    <TableCell>
-                      <Checkbox
-                        checked={Boolean(selected[item.externalId])}
-                        onCheckedChange={() => toggleSelected(item)}
-                        aria-label={`Select ${item.itemId}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{item.itemId}</TableCell>
-                    <TableCell className="max-w-[240px] truncate">{item.displayName || "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{item.upcCode || "—"}</TableCell>
-                    <TableCell>
-                      {item.alreadyImported ? (
-                        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Imported</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Not imported</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <Button variant="outline" size="sm" disabled={offset === 0 || loading} onClick={() => goToPage(Math.max(0, offset - limit))}>
-            Previous
-          </Button>
-          <Button variant="outline" size="sm" disabled={!hasMore || loading} onClick={() => goToPage(offset + limit)}>
-            Next
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function SettingsPage() {
   const { roles } = useAuth();
-  const { toPath } = useTenantPath();
   const { isEnabled } = useFeatureFlags();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1716,20 +1105,16 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const requestedTab = searchParams.get("tab");
   const availableSettingsTabs = [
-    "warehouse-structure",
     ...(canViewUsersRoles ? ["users-roles"] : []),
     "modules",
     "environment",
-    ...(isDeveloperOrAdmin ? ["integrations"] : []),
     ...(isEnabled("clients") ? ["client-vars"] : []),
+    "warehouse-structure",
     "about",
-    "license",
   ];
   const defaultSettingsTab = requestedTab && availableSettingsTabs.includes(requestedTab)
     ? requestedTab
-    : "warehouse-structure";
-  const [activeSettingsTab, setActiveSettingsTab] = useState(defaultSettingsTab);
-  const warehouseStructureActive = activeSettingsTab === "warehouse-structure";
+    : canViewUsersRoles ? "users-roles" : "modules";
 
   const resetMutation = useMutation({
     mutationFn: resetWmsData,
@@ -1740,7 +1125,7 @@ export function SettingsPage() {
         0;
       toast.success(`Reset complete. Removed ${removed} user account${removed === 1 ? "" : "s"}.`);
       await invalidateWarehouseData(queryClient);
-      navigate(toPath("/setup-wizard"));
+      navigate("/setup-wizard");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Reset failed"),
   });
@@ -1761,46 +1146,23 @@ export function SettingsPage() {
   const isDeveloper = roles.includes("developer");
 
   return (
-    <div className={cn("flex flex-col gap-6", warehouseStructureActive && "h-full min-h-0 overflow-hidden")}>
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-6">
+      <div>
         <h2 className="text-2xl font-semibold">Settings</h2>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              aria-label="Settings overview"
-            >
-              <Info className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            Warehouse environment, client configuration, and system management.
-          </TooltipContent>
-        </Tooltip>
+        <p className="text-sm text-muted-foreground">Warehouse environment, client configuration, and system management.</p>
       </div>
-      <Tabs
-        value={activeSettingsTab}
-        onValueChange={setActiveSettingsTab}
-        className={cn(warehouseStructureActive && "flex min-h-0 flex-1 flex-col")}
-      >
+      <Tabs defaultValue={defaultSettingsTab}>
         <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 sm:w-fit">
-          <TabsTrigger value="warehouse-structure" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Network className="h-3.5 w-3.5" />Warehouse Structure</TabsTrigger>
           {canViewUsersRoles && (
             <TabsTrigger value="users-roles" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Users className="h-3.5 w-3.5" />Users & Roles</TabsTrigger>
           )}
           <TabsTrigger value="modules" className="min-h-9 flex-1 sm:flex-none">Modules</TabsTrigger>
           <TabsTrigger value="environment" className="min-h-9 flex-1 sm:flex-none">Environment</TabsTrigger>
-          {isDeveloperOrAdmin && (
-            <TabsTrigger value="integrations" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Network className="h-3.5 w-3.5" />Integrations</TabsTrigger>
-          )}
           {isEnabled("clients") && (
             <TabsTrigger value="client-vars" className="min-h-9 flex-1 sm:flex-none">Client Variables</TabsTrigger>
           )}
+          <TabsTrigger value="warehouse-structure" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Network className="h-3.5 w-3.5" />Warehouse Structure</TabsTrigger>
           <TabsTrigger value="about" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Info className="h-3.5 w-3.5" />About</TabsTrigger>
-          <TabsTrigger value="license" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><FileText className="h-3.5 w-3.5" />License</TabsTrigger>
         </TabsList>
 
         <TabsContent value="modules" className="mt-4">
@@ -1819,10 +1181,10 @@ export function SettingsPage() {
               <p>3. Demo operational data (clients, products, pallets, receipts) is opt-in for developers only on the final step.</p>
               <div className="flex flex-wrap gap-2 pt-2">
                 <Button asChild>
-                  <Link to={toPath("/setup-wizard")}>Open warehouse setup wizard</Link>
+                  <Link to="/setup-wizard">Open warehouse setup wizard</Link>
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link to={toPath("/system-log")}>View system log</Link>
+                  <Link to="/system-log">View system log</Link>
                 </Button>
                 <Button variant="destructive" onClick={() => { setResetChallenge(""); setResetOpen(true); }} disabled={resetMutation.isPending || !isDeveloperOrAdmin}>
                   {resetMutation.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw data-icon="inline-start" />}
@@ -1919,19 +1281,9 @@ export function SettingsPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="warehouse-structure" className="mt-4 min-h-0 flex-1 data-[state=active]:flex">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <WarehouseStructureTab />
-          </div>
+        <TabsContent value="warehouse-structure" className="mt-4">
+          <WarehouseStructureTab />
         </TabsContent>
-
-        {isDeveloperOrAdmin && (
-          <TabsContent value="integrations" className="mt-4 grid gap-6 xl:grid-cols-2">
-            <NetSuiteIntegrationCard />
-            <NetSuiteWarehouseMappingCard />
-            <NetSuiteImportCard />
-          </TabsContent>
-        )}
 
         <TabsContent value="about" className="mt-4 grid gap-6 xl:grid-cols-2">
           <Card>
@@ -1948,38 +1300,6 @@ export function SettingsPage() {
                 <span className="font-mono text-xs font-semibold text-primary">v{__APP_VERSION__}</span>
               </div>
               {[
-                {
-                  version: "1.26",
-                  date: "July 2026",
-                  changes: [
-                    "Warehouse Structure: the page frame now stays fixed while only the warehouse tree scrolls, keeping Settings, tabs, search, and Collapse all in view",
-                    "Warehouse Structure: Reorder Settings now opens from each warehouse action menu, keeping forecasting configuration beside the warehouse hierarchy",
-                    "Reorder Forecasting: existing demand look-back, safety lead time, alert threshold, and notification controls are preserved in the new popup",
-                  ],
-                },
-                {
-                  version: "1.25",
-                  date: "July 2026",
-                  changes: [
-                    "Cycle Counts: supervisor review now separates over-threshold variances from count exceptions, with required notes before approving, rejecting, accepting, or returning a line to blind entry",
-                    "Cycle Counts: count numbers now use the CCT sequence format, cancelled counts can be archived, and count lists distinguish review, approved, cancelled, and archived work",
-                    "Inventory freezes: cycle-count close, cancel, and review paths now preserve freeze relationships and release held stock consistently after count decisions",
-                    "Dashboard resilience: older databases without dashboard preference tables now load with safe defaults instead of breaking the Command Center",
-                    "Users & Roles: Developer role assignments now remember the original grantor, and only that developer can remove the Developer role later",
-                    "Account safety: users can no longer disable their own account; the edit control and database trigger both enforce the guardrail",
-                  ],
-                },
-                {
-                  version: "1.24",
-                  date: "July 2026",
-                  changes: [
-                    "Floor connectivity safety: live put-away, pick, receiving, and cycle-count commits now freeze immediately when a device goes offline instead of replaying stale work later",
-                    "Task resume: put-away, pick execution, receiving entry, and cycle-count text entry now keep the operator's local position on the device through reconnects",
-                    "Put-Away: reconnect now refreshes live task, pallet, and location state and can force a safe reselect or task reset when the warehouse record has changed",
-                    "System Log: critical RF disconnect entries now raise a dismissible red supervisor toast that requires typing ACK before acknowledgement",
-                    "Offline queue safety: legacy buffered commit items are moved to dead-letter review instead of being auto-posted back into live warehouse state",
-                  ],
-                },
                 {
                   version: "1.23",
                   date: "June 2026",
@@ -2176,10 +1496,6 @@ export function SettingsPage() {
               ))}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="license" className="mt-4">
-          <LicenseAgreementTab />
         </TabsContent>
       </Tabs>
     </div>

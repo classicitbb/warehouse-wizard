@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, Camera, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -28,17 +28,20 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
-import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
-import { isLikelyNetworkError } from "@/lib/offline-queue";
-import { beginActiveWork } from "@/lib/active-work";
+import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
-  clearPutawayResumeSnapshot,
-  loadPutawayResumeSnapshot,
-  savePutawayResumeSnapshot,
-  type PutawayResumeScanState,
-} from "@/lib/floor-task-resume";
+  enqueueOfflineWork,
+  flushOfflineQueue,
+  installOfflineAutoReplay,
+  isLikelyNetworkError,
+  useOfflineQueue,
+  useDeadLetterQueue,
+
+  type FailedWorkItem,
+} from "@/lib/offline-queue";
+import { useBackgroundSync } from "@/hooks/use-background-sync";
+import { beginActiveWork } from "@/lib/active-work";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -83,7 +86,6 @@ import {
   logPutawayBaySelection,
   getPutawayTasks,
   getPutawayTaskHistory,
-  revalidatePutawayTaskPosition,
   getReportData,
   parseCsvForResource,
   commitImportRows,
@@ -135,7 +137,6 @@ import {
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
-import { HintButton } from "@/components/hint-button";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
@@ -188,6 +189,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 import {
@@ -202,16 +204,12 @@ import {
 function WarehouseBayBrowserDialog({
   open,
   warehouseId,
-  zoneFilter,
   onSelectBay,
-  onScanInstead,
   onClose,
 }: {
   open: boolean;
   warehouseId: string;
-  zoneFilter?: string;
   onSelectBay: (bayCode: string) => void;
-  onScanInstead: () => void;
   onClose: () => void;
 }) {
   const { data: bays = [], isLoading, error } = useQuery<WarehouseBayGroup[]>({
@@ -229,8 +227,6 @@ function WarehouseBayBrowserDialog({
       next.has(zk) ? next.delete(zk) : next.add(zk);
       return next;
     });
-
-  const normalizedZoneFilter = normalizeScannerText(zoneFilter);
 
   // Group by zone (ordered by zone name), then by aisle within each zone
   const zoneGroups = useMemo(() => {
@@ -254,32 +250,12 @@ function WarehouseBayBrowserDialog({
       }));
   }, [bays]);
 
-  const visibleZoneGroups = useMemo(() => {
-    if (!normalizedZoneFilter) return zoneGroups;
-    const matches = zoneGroups.filter((zone) => {
-      const zoneKey = normalizeScannerText(zone.zoneKey);
-      const zoneName = normalizeScannerText(zone.zoneName);
-      return zoneKey === normalizedZoneFilter ||
-        zoneKey.startsWith(normalizedZoneFilter) ||
-        zoneName.includes(normalizedZoneFilter);
-    });
-    return matches.length > 0 ? matches : zoneGroups;
-  }, [normalizedZoneFilter, zoneGroups]);
-
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-3 pr-6">
-            <div>
-              <DialogTitle>Select a bay</DialogTitle>
-              <DialogDescription>Tap a bay to load its locations into the scan field.</DialogDescription>
-            </div>
-            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onScanInstead}>
-              <Camera className="mr-2 h-4 w-4" />
-              Scan
-            </Button>
-          </div>
+          <DialogTitle>Select a bay</DialogTitle>
+          <DialogDescription>Tap a bay to load its locations into the scan field.</DialogDescription>
         </DialogHeader>
         {isLoading && (
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
@@ -296,7 +272,7 @@ function WarehouseBayBrowserDialog({
           <p className="py-4 text-center text-sm text-muted-foreground">No rack locations configured for this warehouse.</p>
         )}
         <div className="divide-y divide-border/40">
-          {visibleZoneGroups.map((zone) => {
+          {zoneGroups.map((zone) => {
             const collapsed = collapsedZones.has(zone.zoneKey);
             return (
               <div key={zone.zoneKey} className="py-3 first:pt-1">
@@ -342,7 +318,7 @@ function WarehouseBayBrowserDialog({
                                 disabled={isFull}
                                 onClick={() => { onSelectBay(bay.bayCode); onClose(); }}
                                 className={cn(
-                                  "flex min-h-[4.25rem] min-w-[3.75rem] flex-col gap-1 rounded-md border p-3 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                                   isFull
                                     ? "cursor-not-allowed border-muted bg-muted/40 opacity-60"
                                     : "border-border bg-card hover:bg-secondary/60",
@@ -433,7 +409,7 @@ function BayOccupancyGrid({
           <div
             key={`level-${row[0]?.level ?? "unknown"}`}
             className="grid gap-2"
-            style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+            style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
           >
             {row.map((slot) => {
               const cell = slot.cell;
@@ -456,7 +432,7 @@ function BayOccupancyGrid({
                   disabled={!available}
                   onClick={() => onSelect(cell.locationCode)}
                   className={cn(
-                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                     selected
                       ? "animate-pulse border-cyan-400 bg-cyan-50 text-cyan-950 ring-2 ring-cyan-400 dark:bg-cyan-950/50 dark:text-cyan-50"
                       : available
@@ -527,9 +503,7 @@ function loadPutawayScannerFirstPreference() {
 export function PutawayTasksPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const { user, roles, profile } = useAuth();
-  const { online } = useNetworkStatus();
   // Managers and above see all open tasks; operators/clerks only see their own + unassigned
   const canSeeAllTasks = roles.some((r) => ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(r));
   const putawayUserId = canSeeAllTasks ? undefined : user?.id;
@@ -542,7 +516,7 @@ export function PutawayTasksPage() {
     queryKey: ["putaway-task-history", putawayUserId],
     queryFn: () => getPutawayTaskHistory(putawayUserId),
   });
-  const [scanState, setScanState] = useState<Record<string, PutawayResumeScanState>>({});
+  const [scanState, setScanState] = useState<Record<string, { pallet: string; location: string; override: boolean; reason: string }>>({});
   const [bayScanState, setBayScanState] = useState<Record<string, string>>({});
   const [violations, setViolations] = useState<Record<string, string>>({});
   const [bayBrowserOpen, setBayBrowserOpen] = useState<Record<string, boolean>>({});
@@ -555,119 +529,16 @@ export function PutawayTasksPage() {
   const [scannerPreferenceDismissed, setScannerPreferenceDismissed] = useState(false);
   const [scannerPreferencePending, setScannerPreferencePending] = useState(false);
   const [scannerAutoOpenSignal, setScannerAutoOpenSignal] = useState(0);
-  const [locationScannerAutoOpenSignal, setLocationScannerAutoOpenSignal] = useState(0);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [flowCancelled, setFlowCancelled] = useState(false);
   const [openTasksExpanded, setOpenTasksExpanded] = useState(false);
-  const [resumeHydrated, setResumeHydrated] = useState(false);
-  const [pendingReconnectValidation, setPendingReconnectValidation] = useState(false);
-  const [resumeNotice, setResumeNotice] = useState<{ mode: "reselect" | "reset-task"; summary: string } | null>(null);
   const scanInputRef = useRef<HTMLInputElement | null>(null);
   const palletRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const locationRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const confirmRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const actionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const previousOnlineRef = useRef(online);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [revertedIds, setRevertedIds] = useState<Set<string>>(new Set());
   const [returnTask, setReturnTask] = useState<any | null>(null);
-
-  const clearSelectedTaskState = useCallback((taskId?: string | null) => {
-    if (!taskId) return;
-    setScanState((current) => {
-      if (!(taskId in current)) return current;
-      const next = { ...current };
-      delete next[taskId];
-      return next;
-    });
-    setViolations((current) => {
-      if (!(taskId in current)) return current;
-      const next = { ...current };
-      delete next[taskId];
-      return next;
-    });
-    setBayScanState((current) => {
-      if (!(taskId in current)) return current;
-      const next = { ...current };
-      delete next[taskId];
-      return next;
-    });
-  }, []);
-
-  const resetPutawaySelection = useCallback((taskId?: string | null) => {
-    clearSelectedTaskState(taskId);
-    setSelectedTaskId(null);
-    setTaskSearch("");
-    setScanQuery("");
-    setScanError("");
-    setFlowCancelled(false);
-    setOpenTasksExpanded(false);
-  }, [clearSelectedTaskState]);
-
-  useEffect(() => {
-    if (resumeHydrated) return;
-    const snapshot = loadPutawayResumeSnapshot({
-      userId: user?.id ?? null,
-      warehouseId: activeWarehouseId,
-    });
-    if (snapshot) {
-      setSelectedTaskId(snapshot.selectedTaskId);
-      setTaskSearch(snapshot.taskSearch);
-      setScanQuery(snapshot.scanQuery);
-      setScanState(snapshot.scanState ?? {});
-      setBayScanState(snapshot.bayScanState ?? {});
-      setOpenTasksExpanded(snapshot.openTasksExpanded ?? false);
-      setFlowCancelled(false);
-      if (snapshot.selectedTaskId && online) {
-        setPendingReconnectValidation(true);
-      }
-    }
-    setResumeHydrated(true);
-  }, [activeWarehouseId, online, resumeHydrated, user?.id]);
-
-  useEffect(() => {
-    if (!resumeHydrated) return;
-    const hasPosition =
-      Boolean(selectedTaskId) ||
-      Object.keys(scanState).length > 0 ||
-      Object.keys(bayScanState).length > 0 ||
-      taskSearch.trim().length > 0 ||
-      scanQuery.trim().length > 0;
-    if (!hasPosition) {
-      clearPutawayResumeSnapshot();
-      return;
-    }
-    savePutawayResumeSnapshot({
-      userId: user?.id ?? null,
-      warehouseId: activeWarehouseId,
-      selectedTaskId,
-      taskSearch,
-      scanQuery,
-      scanState,
-      bayScanState,
-      openTasksExpanded,
-      updatedAt: Date.now(),
-    });
-  }, [
-    activeWarehouseId,
-    bayScanState,
-    openTasksExpanded,
-    resumeHydrated,
-    scanQuery,
-    scanState,
-    selectedTaskId,
-    taskSearch,
-    user?.id,
-  ]);
-
-  useEffect(() => {
-    const wasOnline = previousOnlineRef.current;
-    previousOnlineRef.current = online;
-    if (!resumeHydrated || !selectedTaskId) return;
-    if (!wasOnline && online) {
-      setPendingReconnectValidation(true);
-    }
-  }, [online, resumeHydrated, selectedTaskId]);
 
   const revertMutation = useMutation({
     mutationFn: ({ taskId }: { taskId: string; openReceiving?: boolean }) => revertPutawayToDraft(taskId),
@@ -675,41 +546,103 @@ export function PutawayTasksPage() {
       toast.success("Task saved as draft");
       setReturnTask(null);
       setRevertedIds((prev) => new Set([...prev, vars.taskId]));
-      setResumeNotice(null);
-      resetPutawaySelection(vars.taskId);
+      setSelectedTaskId(null);
+      setTaskSearch("");
+      setScanQuery("");
+      setScanError("");
+      setFlowCancelled(false);
+      setOpenTasksExpanded(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
         queryClient.invalidateQueries({ queryKey: ["putaway-task-history"] }),
         queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
       ]);
-      if (vars.openReceiving) navigate(toPath("/receiving"));
+      if (vars.openReceiving) navigate("/receiving");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Revert failed"),
   });
 
   const mutation = useMutation({
-    mutationFn: async ({ taskId, pallet, location, override, reason }: { taskId: string; pallet: string; location: string; override?: boolean; reason?: string }) => {
-      assertOnline();
+    meta: { offlineQueueable: true },
+    mutationFn: async ({ taskId, pallet, location, override, reason }: { taskId: string; pallet: string; location: string; override?: boolean; reason?: string }) =>
+    {
+      // If we're offline at submit time, buffer immediately — no network call.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        await enqueueOfflineWork("putaway", { taskId, pallet, location, override, reason });
+        return { queued: true as const };
+      }
       try {
         await confirmPutaway(taskId, pallet, location, { override, overrideReason: reason });
+        return { queued: false as const };
       } catch (err) {
+        // Network drop mid-submit → buffer and surface as queued, not as a failure.
         if (isLikelyNetworkError(err)) {
-          throw new Error(OFFLINE_WORK_MESSAGE);
+          await enqueueOfflineWork("putaway", { taskId, pallet, location, override, reason });
+          return { queued: true as const };
         }
         throw err;
       }
     },
-    onSuccess: async (_, vars) => {
+    onSuccess: async (result, vars) => {
+      if (result?.queued) {
+        playBarcodeBeep();
+        toast.message("Saved offline — will sync when reconnected", {
+          description: `Pallet ${vars.pallet} → ${vars.location} buffered locally.`,
+          duration: 6000,
+        });
+        setCompletedIds((prev) => new Set([...prev, vars.taskId]));
+        setScanState((current) => {
+          const next = { ...current };
+          delete next[vars.taskId];
+          return next;
+        });
+        setViolations((current) => {
+          const next = { ...current };
+          delete next[vars.taskId];
+          return next;
+        });
+        setBayScanState((current) => {
+          const next = { ...current };
+          delete next[vars.taskId];
+          return next;
+        });
+        setSelectedTaskId(null);
+        setTaskSearch("");
+        setScanQuery("");
+        setScanError("");
+        setFlowCancelled(false);
+        setOpenTasksExpanded(false);
+        return;
+      }
       playBarcodeBeep();
-      setResumeNotice(null);
       toast.success(vars.override ? "Put-Away locked in with override" : "Put-Away locked in", {
         description: `Pallet ${vars.pallet} stored at ${vars.location}.`,
         duration: 7000,
-        className: "task-success-toast-rim border-emerald-400 bg-emerald-50 text-emerald-950 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-50",
+        className: "border-emerald-400 bg-emerald-50 text-emerald-950 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-50",
       });
       markPutawayOccupancyCached(queryClient, vars.location);
       setCompletedIds((prev) => new Set([...prev, vars.taskId]));
-      resetPutawaySelection(vars.taskId);
+      setScanState((current) => {
+        const next = { ...current };
+        delete next[vars.taskId];
+        return next;
+      });
+      setViolations((current) => {
+        const next = { ...current };
+        delete next[vars.taskId];
+        return next;
+      });
+      setBayScanState((current) => {
+        const next = { ...current };
+        delete next[vars.taskId];
+        return next;
+      });
+      setSelectedTaskId(null);
+      setTaskSearch("");
+      setScanQuery("");
+      setScanError("");
+      setFlowCancelled(false);
+      setOpenTasksExpanded(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
         queryClient.invalidateQueries({ queryKey: ["putaway-task-history"] }),
@@ -734,72 +667,6 @@ export function PutawayTasksPage() {
   const openPutawayStatuses = new Set(["queued", "assigned", "in_progress", "exception"]);
   const pendingTasks = data.filter((task: any) => openPutawayStatuses.has(task.status) && !completedIds.has(task.id) && !revertedIds.has(task.id));
   const selectedTask = selectedTaskId ? pendingTasks.find((task: any) => task.id === selectedTaskId) ?? null : null;
-
-  useEffect(() => {
-    if (!pendingReconnectValidation || !resumeHydrated || !online || !selectedTaskId) return;
-    const localState = scanState[selectedTaskId];
-    let cancelled = false;
-
-    const validate = async () => {
-      try {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
-          queryClient.invalidateQueries({ queryKey: ["putaway-task-history"] }),
-          queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-          queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-        ]);
-        const result = await revalidatePutawayTaskPosition({
-          taskId: selectedTaskId,
-          scannedPalletBarcode: localState?.pallet,
-          scannedLocationCode: localState?.location,
-        });
-        if (cancelled) return;
-        if (result.status === "reset-task") {
-          setResumeNotice({ mode: "reset-task", summary: result.summary });
-          resetPutawaySelection(selectedTaskId);
-          toast.warning(result.summary, { duration: 8000 });
-          return;
-        }
-        if (result.status === "reselect") {
-          setResumeNotice({ mode: "reselect", summary: result.summary });
-          setScanState((current) => ({
-            ...current,
-            [selectedTaskId]: {
-              ...(current[selectedTaskId] ?? { pallet: "", location: "", override: false, reason: "" }),
-              location: "",
-            },
-          }));
-          setBayScanState((current) => {
-            if (!(selectedTaskId in current)) return current;
-            const next = { ...current };
-            delete next[selectedTaskId];
-            return next;
-          });
-          toast.warning(result.summary, { duration: 8000 });
-          setTimeout(() => locationRefs.current[selectedTaskId]?.focus(), 80);
-          return;
-        }
-        setResumeNotice(null);
-      } finally {
-        if (!cancelled) {
-          setPendingReconnectValidation(false);
-        }
-      }
-    };
-
-    void validate();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    online,
-    pendingReconnectValidation,
-    queryClient,
-    resetPutawaySelection,
-    resumeHydrated,
-    scanState,
-    selectedTaskId,
-  ]);
 
   // Mark active work while an operator has a pallet+task locked in. Background
   // refresh and SW reloads will defer until this is released so the in-flight
@@ -830,24 +697,6 @@ export function PutawayTasksPage() {
     }, 50);
   }
 
-  function clearTaskViolation(taskId: string) {
-    setViolations((current) => {
-      if (!(taskId in current)) return current;
-      const next = { ...current };
-      delete next[taskId];
-      return next;
-    });
-  }
-
-  function openLocationScannerForTask(taskId: string) {
-    setBayBrowserOpen((current) => ({ ...current, [taskId]: false }));
-    setLocationScannerAutoOpenSignal((current) => current + 1);
-    setTimeout(() => {
-      flashInput(locationRefs.current[taskId], "orange");
-      locationRefs.current[taskId]?.focus();
-    }, 50);
-  }
-
   function commitPalletScan(rawValue: string) {
     const value = normalizeScannerText(rawValue);
     if (!value) {
@@ -865,7 +714,6 @@ export function PutawayTasksPage() {
 
     const palletCode = getConfirmPalletCode(match, value);
     setSelectedTaskId(match.id);
-    setResumeNotice(null);
     setTaskSearch(value);
     setScanQuery(value);
     setScanError("");
@@ -883,9 +731,9 @@ export function PutawayTasksPage() {
       delete next[match.id];
       return next;
     });
+    setBayBrowserOpen({ [match.id]: true });
     playBarcodeBeep();
     setScanDialogOpen(false);
-    openLocationScannerForTask(match.id);
   }
 
   function applyLocationScan(task: any, scannedValue: string) {
@@ -894,8 +742,7 @@ export function PutawayTasksPage() {
     const localState = scanState[task.id] ?? { pallet: task.pallets?.pallet_barcode ?? "", location: "", override: false, reason: "" };
     if (isBaySelectorCode(value)) {
       setBayScanState((current) => ({ ...current, [task.id]: value }));
-      setScanState((current) => ({ ...current, [task.id]: { ...localState, location: "", override: false, reason: "" } }));
-      clearTaskViolation(task.id);
+      setScanState((current) => ({ ...current, [task.id]: { ...localState, location: "" } }));
       void logPutawayBaySelection({ taskId: task.id, scannedCode: value });
       playBarcodeBeep();
       flashInput(locationRefs.current[task.id], "orange");
@@ -906,8 +753,7 @@ export function PutawayTasksPage() {
       delete next[task.id];
       return next;
     });
-    setScanState((current) => ({ ...current, [task.id]: { ...localState, location: value, override: false, reason: "" } }));
-    clearTaskViolation(task.id);
+    setScanState((current) => ({ ...current, [task.id]: { ...localState, location: value } }));
     playBarcodeBeep();
     flashInput(locationRefs.current[task.id], "blue");
     setTimeout(() => confirmRefs.current[task.id]?.focus(), 50);
@@ -915,25 +761,16 @@ export function PutawayTasksPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    const coarsePointer = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
     if (pendingTasks.length === 0) {
       setScanDialogOpen(false);
       setSelectedTaskId(null);
       setFlowCancelled(false);
-      setResumeNotice(null);
       return;
     }
-    if (coarsePointer && !selectedTask && !flowCancelled) {
+    if (!selectedTask && !flowCancelled) {
       setScanDialogOpen(true);
     }
   }, [flowCancelled, isLoading, pendingTasks.length, selectedTask]);
-
-  useEffect(() => {
-    if (!resumeHydrated || isLoading || !online || !selectedTaskId) return;
-    if (!selectedTask) {
-      setPendingReconnectValidation(true);
-    }
-  }, [isLoading, online, resumeHydrated, selectedTask, selectedTaskId]);
 
   useEffect(() => {
     if (!scanDialogOpen) return;
@@ -1000,15 +837,10 @@ export function PutawayTasksPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <DialogTitle>Scan pallet for Put-Away</DialogTitle>
-              <DialogDescription className="sr-only">
-                Scan or type the pallet number, then confirm to open its pending Put-Away task.
-              </DialogDescription>
-              <HintButton label="Pallet scan help" buttonClassName="h-7 w-7" contentClassName="max-w-xs">
-                Scan or type the pallet number, then press Enter to open its Put-Away task.
-              </HintButton>
-            </div>
+            <DialogTitle>Scan pallet for Put-Away</DialogTitle>
+            <DialogDescription>
+              Scan or type the pallet number, then press Enter to open its Put-Away task.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <div
@@ -1039,7 +871,7 @@ export function PutawayTasksPage() {
               </div>
               <BarcodeScanButton
                 title="Scan pallet barcode"
-                className={cn("h-12 w-24", scanPromptWaiting && "scan-prompt-camera")}
+                className={cn("h-12 w-12", scanPromptWaiting && "scan-prompt-camera")}
                 autoOpenSignal={scannerAutoOpenSignal}
                 onOpenChange={handlePutawayScannerOpenChange}
                 onScan={(value) => commitPalletScan(value)}
@@ -1076,7 +908,7 @@ export function PutawayTasksPage() {
               </div>
             ) : null}
             {pendingTasks.length > 0 ? (
-              <p className="text-sm font-medium text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {pendingTasks.length} open Put-Away task{pendingTasks.length === 1 ? "" : "s"} waiting.
               </p>
             ) : null}
@@ -1092,48 +924,39 @@ export function PutawayTasksPage() {
             >
               Cancel
             </Button>
-            <Button type="button" className="min-w-36" onClick={() => commitPalletScan(scanQuery)}>
+            <Button type="button" onClick={() => commitPalletScan(scanQuery)}>
               Find pallet
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="shrink-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="text-2xl font-semibold">Put-Away Tasks</h2>
-            <HintButton label="Put-Away guidance" buttonClassName="text-muted-foreground">
-              Scan pallet barcode, then location barcode, and confirm.
-            </HintButton>
-          </div>
-          {pendingTasks.length > 0 ? (
-            <Badge variant="secondary" className="shrink-0 text-sm">{pendingTasks.length} pending</Badge>
-          ) : null}
+      <div className="shrink-0 rounded-lg border border-border bg-background/95 p-4 shadow-xs backdrop-blur sm:flex sm:items-end sm:justify-between sm:gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold">Put-Away Tasks</h2>
+          <p className="text-sm text-muted-foreground">Scan pallet barcode, then location barcode, and confirm.</p>
+        </div>
+        <div className="mt-3 flex min-w-0 flex-col gap-2 sm:mt-0 sm:min-w-80 sm:items-end">
+          {pendingTasks.length > 0 && (
+            <Badge variant="secondary" className="w-fit text-sm">{pendingTasks.length} pending</Badge>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center sm:w-auto"
+            onClick={() => {
+              setScanDialogOpen(true);
+              setFlowCancelled(false);
+            }}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            {taskSearch ? `Scan another pallet` : "Scan pallet"}
+          </Button>
         </div>
       </div>
-      {!online ? (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-          <p className="font-medium">This device is offline. Live Put-Away confirmations are frozen.</p>
-          <p className="mt-1 text-xs sm:text-sm">Your current task position stays on this device. When the signal returns, the app will refresh live bin state before it lets you confirm.</p>
-        </div>
-      ) : null}
-      {resumeNotice ? (
-        <div
-          className={cn(
-            "rounded-lg border px-4 py-3 text-sm",
-            resumeNotice.mode === "reset-task"
-              ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-              : "border-cyan-300 bg-cyan-50 text-cyan-950 dark:border-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-100",
-          )}
-        >
-          <p className="font-medium">{resumeNotice.mode === "reset-task" ? "Task changed while you were offline" : "Target changed while you were offline"}</p>
-          <p className="mt-1">{resumeNotice.summary}</p>
-        </div>
-      ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1">
         {!selectedTask && pendingTasks.length > 0 ? (
           <details
-            className="group w-fit max-w-full self-start rounded-lg border border-border bg-background/60 px-3 py-2"
+            className="group rounded-lg border border-border bg-background/60 px-3 py-2"
             open={openTasksExpanded}
             onToggle={(event) => setOpenTasksExpanded(event.currentTarget.open)}
           >
@@ -1146,15 +969,15 @@ export function PutawayTasksPage() {
         {isLoading ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading putaway tasks…</CardContent></Card>
         ) : visibleTasks.length === 0 ? (
-          <Card className="flex flex-1">
-            <CardContent className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
+          <Card>
+            <CardContent className="flex flex-col items-center gap-2 p-8 text-center text-sm text-muted-foreground">
               <CheckCircle2 className="h-8 w-8 text-green-500" />
               <p className="font-medium">{pendingTasks.length === 0 ? "All putaway tasks complete" : "Scan a pallet to begin Put-Away"}</p>
               {pendingTasks.length > 0 ? (
                 <Button
                   type="button"
+                  size="sm"
                   variant="outline"
-                  className="min-h-16 min-w-56 rounded-lg px-8 text-lg font-semibold"
                   onClick={() => {
                     setScanDialogOpen(true);
                     setFlowCancelled(false);
@@ -1173,9 +996,10 @@ export function PutawayTasksPage() {
             const binOccupancy = localState.location.length >= 2;
             const bayOccupancy = Boolean(bayScan || binOccupancy);
             const violation = violations[task.id];
+            const suggested = (task.locations as any)?.code;
             const taskPallet = task.pallets as any;
             const palletBarcode = taskPallet?.pallet_barcode ?? taskPallet?.pallet_code ?? "";
-            const overrideActive = Boolean(violation && localState.override);
+            const isOverridingSuggestion = Boolean(suggested && localState.location && localState.location !== suggested);
 
             return (
               <Card key={task.id} className="border-2">
@@ -1245,7 +1069,10 @@ export function PutawayTasksPage() {
                             setScanState((cur) => ({ ...cur, [task.id]: { ...localState, pallet: normalizeScannerText(v) } }));
                             playBarcodeBeep();
                             flashInput(palletRefs.current[task.id], "blue");
-                            openLocationScannerForTask(task.id);
+                            setTimeout(() => {
+                              flashInput(locationRefs.current[task.id], "orange");
+                              locationRefs.current[task.id]?.focus();
+                            }, 50);
                           }}
                         />
                       </div>
@@ -1271,10 +1098,9 @@ export function PutawayTasksPage() {
                                 return next;
                               });
                             }
-                            clearTaskViolation(task.id);
                             setScanState((current) => ({
                               ...current,
-                              [task.id]: { ...localState, location: val, override: false, reason: "" },
+                              [task.id]: { ...localState, location: val },
                             }));
                           }}
                           onKeyDown={(e) => {
@@ -1286,13 +1112,7 @@ export function PutawayTasksPage() {
                         />
                         <BarcodeScanButton
                           title="Scan location barcode"
-                          autoOpenSignal={selectedTaskId === task.id ? locationScannerAutoOpenSignal : 0}
                           onScan={(v) => applyLocationScan(task, normalizeScannerText(v))}
-                          footerAction={{
-                            label: "Select Location Manually",
-                            icon: <MapPinned className="mr-2 h-4 w-4" />,
-                            onClick: () => setBayBrowserOpen((s) => ({ ...s, [task.id]: true })),
-                          }}
                         />
                         <Button
                           type="button"
@@ -1309,13 +1129,10 @@ export function PutawayTasksPage() {
                   <WarehouseBayBrowserDialog
                     open={Boolean(bayBrowserOpen[task.id])}
                     warehouseId={task.warehouse_id as string}
-                    zoneFilter={localState.location}
                     onClose={() => closeBayBrowser(task.id)}
-                    onScanInstead={() => openLocationScannerForTask(task.id)}
                     onSelectBay={(bayCode) => {
                       setBayScanState((s) => ({ ...s, [task.id]: bayCode }));
-                      setScanState((s) => ({ ...s, [task.id]: { ...(s[task.id] ?? { pallet: "", location: "", override: false, reason: "" }), location: "", override: false, reason: "" } }));
-                      clearTaskViolation(task.id);
+                      setScanState((s) => ({ ...s, [task.id]: { ...(s[task.id] ?? { pallet: "", location: "", override: false, reason: "" }), location: "" } }));
                       void logPutawayBaySelection({ taskId: task.id, scannedCode: bayCode });
                       setBayBrowserOpen((s) => ({ ...s, [task.id]: false }));
                       flashInput(locationRefs.current[task.id], "orange");
@@ -1333,8 +1150,7 @@ export function PutawayTasksPage() {
                         locationCode={bayScan || localState.location}
                         selectedLocationCode={localState.location}
                         onSelect={(location) => {
-                          setScanState((current) => ({ ...current, [task.id]: { ...localState, location, override: false, reason: "" } }));
-                          clearTaskViolation(task.id);
+                          setScanState((current) => ({ ...current, [task.id]: { ...localState, location } }));
                           setBayScanState((current) => {
                             const next = { ...current };
                             delete next[task.id];
@@ -1342,36 +1158,36 @@ export function PutawayTasksPage() {
                           });
                           if (bayScan) void logPutawayBaySelection({ taskId: task.id, scannedCode: bayScan, selectedLocationCode: location });
                           flashInput(locationRefs.current[task.id], "blue");
-                          setTimeout(() => {
-                            actionRefs.current[task.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-                            confirmRefs.current[task.id]?.focus();
-                          }, 50);
+                          setTimeout(() => confirmRefs.current[task.id]?.focus(), 50);
                         }}
                       />
                     </>
+                  )}
+                  {isOverridingSuggestion && (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                      Operator override: scanned <span className="font-mono font-semibold">{localState.location}</span> instead of suggested <span className="font-mono font-semibold">{suggested}</span>. The audit log will record the change.
+                    </div>
                   )}
                   {violation && (
                     <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
                       Rule violation: {violation}
                     </div>
                   )}
-                  {violation && (
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={localState.override}
-                        onChange={(e) =>
-                          setScanState((current) => ({
-                            ...current,
-                            [task.id]: { ...localState, override: e.target.checked },
-                          }))
-                        }
-                      />
-                      Override location rules (warn only — logs reason)
-                    </label>
-                  )}
-                  {overrideActive && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={localState.override}
+                      onChange={(e) =>
+                        setScanState((current) => ({
+                          ...current,
+                          [task.id]: { ...localState, override: e.target.checked },
+                        }))
+                      }
+                    />
+                    Override location rules (warn only — logs reason)
+                  </label>
+                  {localState.override && (
                     <Input
                       className="min-h-10 text-sm"
                       placeholder="Reason for override (e.g. lane blocked, urgent ship)"
@@ -1384,39 +1200,34 @@ export function PutawayTasksPage() {
                       }
                     />
                   )}
-                  <div
-                    ref={(el) => { actionRefs.current[task.id] = el; }}
-                    className="grid gap-3"
+                  <Button
+                    ref={(el) => { confirmRefs.current[task.id] = el; }}
+                    className="min-h-12 w-full text-base"
+                    disabled={mutation.isPending || !localState.pallet || !localState.location}
+                    onClick={() =>
+                      mutation.mutate({
+                        taskId: task.id,
+                        pallet: localState.pallet,
+                        location: localState.location,
+                        override: localState.override,
+                        reason: localState.reason,
+                      })
+                    }
                   >
-                    <Button
-                      ref={(el) => { confirmRefs.current[task.id] = el; }}
-                      className="min-h-12 w-full text-base"
-                      disabled={mutation.isPending || !localState.pallet || !localState.location}
-                      onClick={() =>
-                        mutation.mutate({
-                          taskId: task.id,
-                          pallet: localState.pallet,
-                          location: localState.location,
-                          override: overrideActive,
-                          reason: overrideActive ? localState.reason : "",
-                        })
-                      }
-                    >
-                      {mutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 data-icon="inline-start" />}
-                      {overrideActive ? "Override & Confirm Put-Away" : "Confirm Put-Away"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-muted-foreground"
-                      disabled={revertMutation.isPending}
-                      onClick={() => setReturnTask(task)}
-                    >
-                      {revertMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RotateCcw className="h-3.5 w-3.5 mr-1" />}
-                      Save as Draft / Return to Receiving
-                    </Button>
-                  </div>
+                    {mutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 data-icon="inline-start" />}
+                    {localState.override ? "Override & Confirm Put-Away" : "Confirm Put-Away"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-muted-foreground"
+                    disabled={revertMutation.isPending}
+                    onClick={() => setReturnTask(task)}
+                  >
+                    {revertMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RotateCcw className="h-3.5 w-3.5 mr-1" />}
+                    Save as Draft / Return to Receiving
+                  </Button>
                 </CardContent>
               </Card>
             );
@@ -1432,6 +1243,7 @@ export function PutawayTasksPage() {
               {putawayHistory.map((task: any) => {
                 const pallet = task.pallets as any;
                 const product = pallet?.products as any;
+                const suggestedLocation = task.locations?.code ?? "No suggestion";
                 const palletCode = pallet?.pallet_barcode ?? pallet?.pallet_code ?? "No pallet";
                 return (
                   <details key={task.id} className="rounded-md border border-border px-3 py-2 text-sm opacity-85">
@@ -1439,7 +1251,7 @@ export function PutawayTasksPage() {
                       <div className="min-w-0">
                         <span className="block truncate font-mono text-xs">{task.task_number}</span>
                         <span className="text-xs text-muted-foreground">
-                          {palletCode}
+                          {palletCode} · {suggestedLocation}
                         </span>
                       </div>
                       <Badge variant={statusBadgeVariant(task.status)} className="shrink-0 text-xs">{task.status}</Badge>
@@ -1451,6 +1263,7 @@ export function PutawayTasksPage() {
                       </div>
                       <div className="sm:text-right">
                         <p className="font-mono">Pallet {palletCode}</p>
+                        <p className="text-muted-foreground">Suggested {suggestedLocation}</p>
                       </div>
                     </div>
                   </details>

@@ -10,13 +10,6 @@ import { recordPalletQtyObservation, recordPlacementObservation } from "@/lib/ai
 // Once all WMS tables are migrated, this can be replaced with direct db() calls.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase.from.bind(supabase) as (table: string) => any;
-
-// Safely embeds a scanned/typed value inside a PostgREST `.or()` filter
-// string. Without quoting, commas/parens/periods in the raw value change
-// the filter's structure instead of being treated as a literal to match.
-export function escapePostgrestOrValue(value: string): string {
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
 // These types will come from the DB once all WMS tables are created.
 // For now we define them locally so the code compiles.
 export type RoleCode =
@@ -292,7 +285,6 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Inventory", to: "/inventory-search", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "inventory" },
   { label: "Pick Lists", to: "/pick-lists", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "warehouse_operator"], moduleKey: "pick-lists" },
   { label: "Location Moves", to: "/location-moves", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
-  { label: "Cycle Counts", to: "/cycle-counts", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "cycle-counts" },
   { label: "Transfers", to: "/transfers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "dispatch_driver"], moduleKey: "transfers" },
   { label: "Warehouses", to: "/warehouses", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "warehouses" },
   { label: "Zones", to: "/zones", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "zones" },
@@ -302,6 +294,7 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Settings", to: "/settings", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor"], moduleKey: "settings" },
   { label: "Help", to: "/help", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"] },
   { label: "Packaging", to: "/packaging-profiles", roles: ["developer", "admin", "warehouse_manager", "inventory_clerk"], moduleKey: "packaging" },
+  { label: "Cycle Counts", to: "/cycle-counts", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "cycle-counts" },
   { label: "Statuses", to: "/status", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "status" },
   { label: "Reports", to: "/reports", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "reports" },
   { label: "System Log", to: "/system-log", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "system-log" },
@@ -365,9 +358,6 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
       { name: "city", label: "City", type: "text" },
       { name: "country", label: "Country", type: "text" },
       { name: "has_cool_zone", label: "Has cool zone", type: "boolean" },
-      { name: "variance_value_floor", label: "Variance value floor", type: "number", required: true, description: "Cycle-count variances at or above this value require review." },
-      { name: "supervisor_approval_cap", label: "Supervisor approval cap", type: "number", required: true, description: "Cycle-count adjustment value supervisors can approve before manager escalation." },
-      { name: "freeze_default_hours", label: "Freeze default hours", type: "number", required: true, description: "Default auto-expiry window for cycle-count bin freezes." },
       { name: "active", label: "Active", type: "boolean" },
     ],
   },
@@ -456,18 +446,8 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
       { name: "barcode", label: "Barcode", type: "text" },
       { name: "name", label: "Name", type: "text", required: true },
       { name: "description", label: "Description", type: "textarea" },
-      { name: "client_owner_id", label: "Client", type: "select", description: "Optional owner for client-specific catalog items." },
+      { name: "client_owner_id", label: "Client", type: "select", required: true },
       { name: "product_family", label: "Family", type: "text" },
-      { name: "velocity_class", label: "ABC class", type: "select", options: [
-        { label: "A", value: "A" },
-        { label: "B", value: "B" },
-        { label: "C", value: "C" },
-      ] },
-      { name: "unit_cost", label: "Unit cost", type: "number", description: "Used for cycle-count variance value review thresholds." },
-      { name: "minimum_stock_level", label: "Minimum stock", type: "number", description: "Alert when available stock reaches this floor." },
-      { name: "maximum_stock_level", label: "Maximum stock", type: "number", description: "Recommended replenishment target." },
-      { name: "pick_down_to_level", label: "Pick down to", type: "number", description: "Target level for pick-face replenishment planning." },
-      { name: "supplier_lead_time_days", label: "Supplier lead time (days)", type: "number", description: "Used with recent outbound demand for reorder forecasting." },
       { name: "temperature_requirement", label: "Temperature", type: "select", options: tempOptions, required: true },
       { name: "lot_tracked", label: "Lot tracked", type: "boolean" },
       { name: "batch_tracked", label: "Batch tracked", type: "boolean" },
@@ -572,17 +552,11 @@ export const transferSchema = z.object({
 
 export const cycleCountSchema = z.object({
   warehouse_id: z.string().uuid(),
-  scope: z.enum(["location", "zone", "sku", "spot", "abc"]),
+  scope: z.enum(["location", "zone", "sku", "spot"]),
   location_id: z.string().uuid().optional().or(z.literal("")),
-  location_ids: z.array(z.string().uuid()).default([]),
   zone_id: z.string().uuid().optional().or(z.literal("")),
-  zone_ids: z.array(z.string().uuid()).default([]),
   product_id: z.string().uuid().optional().or(z.literal("")),
-  product_ids: z.array(z.string().uuid()).default([]),
   variance_threshold_percent: z.coerce.number().min(0).max(100).default(5),
-  freeze_hours: z.coerce.number().positive().max(168).default(4),
-  assigned_user_id: z.string().uuid().optional().or(z.literal("")),
-  assigned_user_ids: z.array(z.string().uuid()).default([]),
 });
 
 export const statusChangeSchema = z.object({
@@ -728,38 +702,6 @@ function applyArchiveFilter(
   return query.eq("is_hidden", false);
 }
 
-// PostgREST (Supabase's REST layer) caps any unbounded select at a server-side
-// row limit — 1000 rows by default for this project. A query that doesn't
-// page through with `.range()` will silently return only the first page, with
-// no error, no matter how many rows actually match. This bit the Locations
-// admin table (client-side search only ever saw the first 1000 rows) and the
-// putaway bay selectors (bays past row 1000 never rendered). Any query that
-// could plausibly return more than a page of rows should use this helper.
-//
-// `buildPage` must build a *fresh* query for each call (a Supabase query
-// builder can only be awaited once), applying `.range(from, to)` as the last
-// step before returning it.
-const FETCH_ALL_ROWS_PAGE_SIZE = 1000;
-
-async function fetchAllRows<T = any>(
-  buildPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
-  pageSize: number = FETCH_ALL_ROWS_PAGE_SIZE,
-): Promise<T[]> {
-  const rows: T[] = [];
-  let from = 0;
-  // Safety valve so a pagination bug can't spin forever against a live table.
-  const maxPages = 10_000;
-  for (let page = 0; page < maxPages; page += 1) {
-    const { data, error } = await buildPage(from, from + pageSize - 1);
-    if (error) throw error;
-    const batch = data ?? [];
-    rows.push(...batch);
-    if (batch.length < pageSize) break;
-    from += pageSize;
-  }
-  return rows;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared helper exports (used by multiple feature modules)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -768,7 +710,6 @@ export { db };
 export { DB_RETIRED_INVENTORY_STATUS_FILTER, RETIRED_INVENTORY_STATUSES };
 export { isRetiredInventoryStatus, hasVisibleInventoryQuantity };
 export { formatSupabaseError, throwIfSupabaseError, applyArchiveFilter };
-export { fetchAllRows };
 export { PICK_COMPLETED_INVENTORY_STATUS };
 
 export function buildPalletCode(prefix: string) {

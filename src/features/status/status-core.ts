@@ -6,7 +6,6 @@ import {
   statusChangeSchema,
   DB_RETIRED_INVENTORY_STATUS_FILTER,
   buildPalletCode,
-  escapePostgrestOrValue,
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
 import { displayRackLocationCode } from "@/features/setup/setup-core";
@@ -17,10 +16,9 @@ async function resolvePalletId(palletInput: string) {
     return normalized;
   }
 
-  const escaped = escapePostgrestOrValue(normalized);
   const { data, error } = await db("pallets")
     .select("id")
-    .or(`pallet_code.eq.${escaped},pallet_barcode.eq.${escaped}`)
+    .or(`pallet_code.eq.${normalized},pallet_barcode.eq.${normalized}`)
     .single();
   if (error) throw new Error("Pallet barcode was not found.");
   return data.id as string;

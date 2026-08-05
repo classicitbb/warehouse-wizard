@@ -145,7 +145,7 @@ function getPalletLabelModel(props: PalletLabelPageProps) {
 }
 
 function renderPalletLabelSheet(props: PalletLabelPageProps, printTimestamp: string) {
-  const { productSku, productName, quantity } = props;
+  const { productSku, productName, quantity, receiptReference } = props;
   const { accentColor, tempLabel, safeBarcode, displayExpiry, detailBits, qrMarkup } = getPalletLabelModel(props);
 
   return `<div class="page-fit" style="--accent: ${accentColor}">
@@ -153,6 +153,7 @@ function renderPalletLabelSheet(props: PalletLabelPageProps, printTimestamp: str
       <div class="accent-bar"></div>
       <div class="header">
         <div>
+          <div class="title">Pallet Label</div>
           <div class="pallet-code">${escapeHtml(safeBarcode)}</div>
         </div>
         <span class="temp-badge">${escapeHtml(tempLabel)}</span>
@@ -165,10 +166,12 @@ function renderPalletLabelSheet(props: PalletLabelPageProps, printTimestamp: str
         <div class="field expiry"><div class="field-label">Expiry</div><div class="field-value expiry">${escapeHtml(displayExpiry)}</div></div>
       </div>
       <div class="barcode-section">
+        <div class="barcode-label">Scan QR code</div>
         <div class="barcode-wrap">${qrMarkup}</div>
+        ${hasValue(receiptReference) ? `<div class="receipt-text">Receipt ${escapeHtml(receiptReference)}</div>` : ""}
       </div>
       <div class="footer">
-        <span class="footer-text">Pallet Label</span>
+        <span class="footer-text">Warehouse Wizard</span>
         <span class="footer-text">${escapeHtml(printTimestamp)}</span>
         <span class="footer-text">v${escapeHtml(__APP_VERSION__)}</span>
       </div>
@@ -215,6 +218,7 @@ export function buildPalletLabelBatchPrintHtml(labels: PalletLabelPageProps[], p
     }
     .accent-bar { width: 100%; height: min(3mm, 2cqh); background: var(--accent); border-radius: 999px; }
     .header { display: flex; align-items: flex-start; justify-content: space-between; gap: min(6mm, 4cqw); }
+    .title { font-size: min(14pt, 3.5cqw); font-weight: 900; text-transform: uppercase; color: var(--accent); }
     .pallet-code { font-size: min(29pt, 7.2cqw, 5.4cqh); font-weight: 900; letter-spacing: 0.01em; line-height: 1.05; word-break: break-word; }
     .temp-badge { font-size: min(9.5pt, 2.4cqw); font-weight: 800; padding: min(2mm, 0.9cqh) min(4mm, 2.2cqw); border-radius: 999px; background: var(--accent); color: #fff; white-space: nowrap; }
     .detail-line { font-size: min(8.5pt, 2.15cqw); color: #475569; line-height: 1.35; overflow-wrap: anywhere; }
@@ -226,10 +230,12 @@ export function buildPalletLabelBatchPrintHtml(labels: PalletLabelPageProps[], p
     .field.expiry .field-label { color: #92400e; }
     .field-value { margin-top: min(1.5mm, 0.9cqh); font-size: min(12.5pt, 3.2cqw); line-height: 1.2; font-weight: 750; overflow-wrap: anywhere; }
     .field-value.expiry { font-size: min(14pt, 3.5cqw); font-weight: 900; letter-spacing: 0.01em; }
-    .barcode-section { margin-top: auto; background: #fff; padding: 5px; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+    .barcode-section { margin-top: auto; border: min(1mm, 0.28cqw) solid var(--accent); background: #fff; border-radius: min(2mm, 0.7cqw); padding: min(4mm, 1.9cqh) min(3.5mm, 2.1cqw) min(3mm, 1.6cqh); display: flex; flex-direction: column; align-items: center; gap: min(1.5mm, 0.8cqh); overflow: hidden; }
+    .barcode-label { color: #475569; text-transform: uppercase; font-size: min(7.5pt, 1.9cqw); font-weight: 900; letter-spacing: 0.06em; text-align: center; }
     .barcode-wrap { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: min(1mm, 0.6cqh); }
-    .barcode-wrap svg { width: min(77mm, calc(100cqw - 10px), 49cqh); height: min(77mm, calc(100cqw - 10px), 49cqh); }
+    .barcode-wrap svg { width: min(45mm, 52cqw, 31cqh); height: min(45mm, 52cqw, 31cqh); }
     .barcode-text { font-family: 'Courier New', monospace; font-size: min(12.5pt, 3.1cqw); font-weight: 800; letter-spacing: 0.03em; }
+    .receipt-text { font-size: min(7.5pt, 1.9cqw); color: #475569; font-weight: 700; text-align: center; overflow-wrap: anywhere; }
     .footer { display: flex; justify-content: space-between; align-items: center; gap: min(2mm, 1.2cqw); border-top: 0.5px solid #94a3b8; padding-top: min(2mm, 1.1cqh); flex-wrap: wrap; }
     .footer-text { font-size: min(7.5pt, 1.85cqw); color: #475569; font-weight: 700; }
     @media print {
@@ -254,6 +260,7 @@ export function PalletLabelPage(props: PalletLabelPageProps) {
     productSku,
     productName,
     quantity,
+    receiptReference,
     trigger,
     onPrinted,
   } = props;
@@ -287,13 +294,16 @@ export function PalletLabelPage(props: PalletLabelPageProps) {
         {/* Preview */}
         <div className="max-h-[68vh] overflow-auto rounded-lg bg-muted/30 p-3">
           <div
-            className="mx-auto flex aspect-[2/3] w-full max-w-[380px] flex-col gap-3 rounded-lg border-[4px] bg-white p-4 text-black shadow-sm"
+            className="mx-auto flex aspect-[2/3] w-full max-w-[380px] flex-col gap-3 rounded-lg border-[4px] bg-white p-4 text-black shadow-xs"
             style={{ borderColor: accentColor, fontFamily: "system-ui, sans-serif" }}
           >
             <div className="h-1.5 w-full rounded-full" style={{ background: accentColor }} />
 
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em]" style={{ color: accentColor }}>
+                  Pallet Label
+                </p>
                 <p className="break-words text-[1.85rem] font-black leading-tight tracking-tight">{safeBarcode}</p>
               </div>
               <span
@@ -317,14 +327,16 @@ export function PalletLabelPage(props: PalletLabelPageProps) {
               <FieldBlock label="Expiry" value={displayExpiry} highlight valueClassName="text-[15px] font-black tracking-wide" />
             </div>
 
-            <div className="mt-auto bg-white p-[5px]">
-              <div className="flex justify-center">
-                <BarcodePreview code={barcode} size={285} />
+            <div className="mt-auto rounded-md border-2 bg-white p-3" style={{ borderColor: accentColor }}>
+              <p className="text-center text-[10px] font-bold uppercase tracking-wide text-slate-500">Scan QR code</p>
+              <div className="flex justify-center py-2">
+                <BarcodePreview code={barcode} size={150} />
               </div>
+              {hasValue(receiptReference) ? <p className="text-center text-[10px] font-semibold text-slate-500">Receipt {receiptReference}</p> : null}
             </div>
 
             <div className="grid grid-cols-3 gap-2 border-t border-slate-300 pt-2 text-[9px] font-semibold text-slate-500">
-              <span className="truncate">Pallet Label</span>
+              <span className="truncate">Warehouse Wizard</span>
               <span className="truncate text-center">{formatPrintTimestamp()}</span>
               <span className="truncate text-right">v{__APP_VERSION__}</span>
             </div>

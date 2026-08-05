@@ -11,7 +11,6 @@ export * from "@/features/putaway/putaway-core";
 export * from "@/features/picking/picking-core";
 export * from "@/features/transfers/transfers-core";
 export * from "@/features/cycle-counts/cycle-counts-core";
-export * from "@/features/cycle-counts/freeze-core";
 export * from "@/features/status/status-core";
 export * from "@/features/dashboard/dashboard-core";
 export * from "@/features/reports/reports-core";

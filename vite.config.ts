@@ -1,82 +1,21 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path from "path";
-import { VitePWA } from "vite-plugin-pwa";
-import { componentTagger } from "lovable-tagger";
+// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
+// or the app will break with duplicate plugins:
+//   - TanStack devtools (dev-only, first), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
+//     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
+//     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
+// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import pkg from "./package.json" with { type: "json" };
-import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  cacheDir: "/tmp/vite-cache",
-  define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+export default defineConfig({
+  tanstackStart: {
+    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
+    // nitro/vite builds from this
+    server: { entry: "server" },
   },
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
+  vite: {
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
     },
   },
-  plugins: [
-    react(),
-    // The code generator currently emits non-portable absolute imports on Windows.
-    process.platform !== "win32" && mcpPlugin(),
-    VitePWA({
-      registerType: "prompt",
-      includeAssets: ["favicon.ico", "robots.txt", "icon.svg", "icon-maskable.svg"],
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
-      },
-      manifest: {
-        name: "Warehouse Wizard WMS",
-        short_name: "WarehouseWizard",
-        description: "Internal warehouse management for receiving, putaway, picking, and transfers.",
-        theme_color: "#1a2932",
-        background_color: "#0f171e",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          {
-            src: "/icon.svg",
-            sizes: "512x512",
-            type: "image/svg+xml",
-            purpose: "any",
-          },
-          {
-            src: "/icon-maskable.svg",
-            sizes: "512x512",
-            type: "image/svg+xml",
-            purpose: "maskable",
-          },
-        ],
-      },
-    }),
-    mode === "development" && componentTagger(),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@hookform/resolvers/zod": path.resolve(__dirname, "./node_modules/@hookform/resolvers/zod/dist/zod.js"),
-    },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (
-            id.includes("node_modules/@supabase/supabase-js") ||
-            id.includes("node_modules/@tanstack/react-query") ||
-            id.includes("node_modules/react") ||
-            id.includes("node_modules/react-dom") ||
-            id.includes("node_modules/react-router-dom")
-          ) {
-            return "vendor";
-          }
-        },
-      },
-    },
-  },
-}));
+});

@@ -23,11 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 screenshot.mjs
-
-# Android TWA build output — CI regenerates this from android-twa/twa-manifest.json
-# on every run; never commit the generated Gradle project or signing material.
-android-twa/build/
-android-twa/*.keystore
-android-twa/scripts/__pycache__/
-*.jks
-

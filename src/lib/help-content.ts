@@ -157,20 +157,18 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   receiving: {
     id: "receiving",
     title: "Receiving",
-    summary: "Receiving creates shipment drafts, pallet identity, lot context, and the downstream put-away workload while freezing live posts during disconnects.",
+    summary: "Receiving creates shipment drafts, pallet identity, lot context, and the downstream put-away workload.",
     keyActions: [
       "Start with container and PO, then scan or search product lines",
       "Use the container camera scanner to OCR printed ISO 6346 numbers and confirm the green candidate before insertion",
       "Commit the selected product with the right-arrow button before entering quantities",
       "Enter total, quantity per pallet, pallet count, and expiry in sequence",
-      "Reconnect and refresh live state before any save or receive after signal loss",
       "Print draft labels or send selected pallets to put-away",
     ],
     commonMistakes: [
       "Inserting a container number before the scanner shows a valid green ISO 6346 candidate",
       "Skipping the product commit arrow after scanning or selecting a SKU",
       "Letting learned quantity suggestions replace the physical count instead of confirming the pallet quantity",
-      "Trying to save or receive while the device is offline instead of reconnecting first",
       "Receiving cool-chain items without proper profile or zone setup",
     ],
     permissions: "Used by admins, managers, and inventory clerks.",
@@ -179,9 +177,9 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   putaway: {
     id: "putaway",
     title: "Put-Away",
-    summary: "Put-Away confirms pallet and location scans before stock becomes stored and available, and it re-validates live state after reconnects.",
-    keyActions: ["Scan pallet", "Scan a full location or shortened bay code", "Select an available bay cell when prompted", "Reconnect and review live task/location state before confirming again after signal loss", "Complete directed put-away with audit logging"],
-    commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trusting a pre-disconnect location without the reconnect recheck", "Trying to store cool stock in ambient locations"],
+    summary: "Put-Away confirms pallet and location scans before stock becomes stored and available.",
+    keyActions: ["Scan pallet", "Scan a full location or shortened bay code", "Select an available bay cell when prompted", "Complete directed put-away with audit logging"],
+    commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trying to store cool stock in ambient locations"],
     permissions: "Used by admins, managers, clerks, and operators.",
     wikiArticleIds: ["putaway-flow", "location-generation"],
   },
@@ -233,9 +231,9 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   "cycle-counts": {
     id: "cycle-counts",
     title: "Cycle Counts",
-    summary: "Cycle counts generate count work and record variances against expected stock, with local entry preserved while live posts are frozen offline.",
-    keyActions: ["Generate count sheets", "Submit counted quantities", "Reconnect and refresh live state before submit or approval after signal loss", "Investigate exceptions"],
-    commonMistakes: ["Counting from memory instead of live location verification", "Ignoring variance thresholds", "Posting a count after reconnect without reloading the live assignment state"],
+    summary: "Cycle counts generate count work and record variances against expected stock.",
+    keyActions: ["Generate count sheets", "Submit counted quantities", "Investigate exceptions"],
+    commonMistakes: ["Counting from memory instead of live location verification", "Ignoring variance thresholds"],
     permissions: "Used by admins, managers, clerks, and operators.",
     wikiArticleIds: ["cycle-counts"],
   },
@@ -269,9 +267,9 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   "system-log": {
     id: "system-log",
     title: "System Log",
-    summary: "System logs record operational issues, admin notes, snapshots, RF disconnect alerts, and resolution status.",
-    keyActions: ["Review recent log entries", "Acknowledge critical RF disconnect alerts with the typed challenge", "Resolve addressed issues", "Capture record-count snapshots"],
-    commonMistakes: ["Resolving a log before the underlying issue is fixed", "Acknowledging a disconnect alert without verifying floor recovery", "Using logs as a substitute for transactional audit history"],
+    summary: "System logs record operational issues, admin notes, snapshots, and resolution status.",
+    keyActions: ["Review recent log entries", "Resolve addressed issues", "Capture record-count snapshots"],
+    commonMistakes: ["Resolving a log before the underlying issue is fixed", "Using logs as a substitute for transactional audit history"],
     permissions: "Visible to admins and warehouse managers.",
     wikiArticleIds: ["system-log-operations", "reporting-basics"],
   },
@@ -399,7 +397,6 @@ export const helpArticles: HelpArticle[] = [
       { title: "Container Scanner", content: ["Use Scan container number when the printed container number is visible. The camera reads text, assembles the best ISO 6346 candidate, checks the check digit, and turns the candidate green only when it is valid.", "Confirm the green candidate to insert it. After insertion, focus moves to PO number so the operator can continue the receiving flow without touching the warehouse selector."] },
       { title: "Product Commit Step", content: ["Scan product or search by SKU/name to select the product. Selection alone does not move into quantities.", "After a product is selected, the right-arrow commit button is highlighted and focused. Confirm it to lock the chosen product for that line and move to Total received."] },
       { title: "Quantity and Expiry Entry", content: ["Quantity fields allow blank and partial typing, so multi-digit numbers should be typed normally and committed with Enter.", "Total received Enter recalculates pallet count and moves to Qty per pallet. Qty per pallet Enter recalculates pallet count and moves to Pallets. Pallets Enter opens the expiry calendar.", "When the product has prior receiving observations, Qty per pallet may be suggested from learned history. Treat it as a time saver, not a substitute for the physical count."] },
-      { title: "Connectivity Safety", content: ["If the device goes offline, keep typing or scanning locally but do not expect Save, Save & Receive, or Print & Receive to post. Live receiving commits are frozen until the connection returns.", "After reconnect, refresh live state, review the draft list and current shipment form, then save or receive again from the live screen."] },
       { title: "Critical Checks", content: ["Confirm warehouse, container, PO, product, quantity, pallet count, and lot/expiry values before saving or receiving.", "Cool-chain items must align with cool-zone storage, and products that require expiry tracking should use the calendar picker before labels are printed."] },
     ],
   },
@@ -411,7 +408,6 @@ export const helpArticles: HelpArticle[] = [
     keywords: ["put-away", "scan", "location", "temperature", "store"],
     sections: [
       { title: "How It Works", content: ["Put-Away is complete only after the pallet barcode and location barcode are both confirmed.", "A full location code fills the confirmation field directly. A shortened bay code opens the bay selector so the operator can tap the exact available slot.", "Successful confirmation moves stock into stored and available status."] },
-      { title: "Reconnect Safety", content: ["If signal drops, the current task position stays on the device, but the confirmation itself is frozen until connectivity returns.", "When the device reconnects, the screen refreshes live task, pallet, and location state. Be ready to reselect a location or restart the task if the live warehouse record no longer matches what was on screen before the disconnect."] },
       { title: "Common Exceptions", content: ["A location that is inactive, full, or temperature-incompatible will block the move.", "Scan mismatches should be corrected before retrying."] },
     ],
   },
@@ -434,7 +430,6 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "Release to Execution", content: ["Managers create pick lists and the system generates tasks from available palletized inventory.", "For now, pick tasks are whole-pallet tasks. If demand is 50 and the available pallet has 100, the task is created for 100 because partial picks are disabled."] },
       { title: "Location and Pallet Scans", content: ["Pick Execution tells the operator where to go using rack, aisle, bay, level, and the short rack position code.", "Scanning a bay code opens the bay grid and highlights the assigned location. Scanning the exact location code fills the field directly.", "After the pallet barcode is scanned, the Confirm pick button flashes yellow. Confirm the task before doing anything else on that pick."] },
-      { title: "Connectivity Safety", content: ["If the device goes offline mid-pick, keep the scanned fields on the device but do not force the confirmation. Live pick commits are frozen until reconnect.", "After signal returns, refresh the live pick state and confirm again from the current task instead of trusting the pre-disconnect screen."] },
       { title: "Shorts and Exceptions", content: ["If the pallet is missing, damaged, inaccessible, or does not physically match the system quantity, stop the pick and notify a supervisor instead of forcing the confirmation.", "Use Inventory Search and Status Controls to inspect or restrict the pallet. Use System Log for support-visible notes when the issue needs follow-up.", "A dedicated Pick Exception Resolver is planned so a supervisor can choose hold, damage, waste, defect, or escalation directly from the pick task."] },
     ],
   },
@@ -485,7 +480,7 @@ export const helpArticles: HelpArticle[] = [
       {
         title: "If the Pallet Is Not Where the Task Says",
         content: [
-          "Search Inventory by pallet barcode and check the last known location and movement history. For an eligible same-SKU, same-quantity pallet in the current warehouse, scan it through Pick Execution, review the source reassignment, then explicitly override and confirm the pick.",
+          "Search Inventory by pallet barcode and check the last known location and movement history. Do not pick a substitute pallet unless a manager releases or reassigns work for that pallet.",
           "If the pallet is physically found somewhere else, use Location Moves or Status Controls as appropriate before returning to pick execution.",
         ],
       },
@@ -522,8 +517,7 @@ export const helpArticles: HelpArticle[] = [
         title: "If the Scanner, Camera, or Network Fails",
         content: [
           "Use direct typing when the scanner cannot read a code. Normal text entry should always work without clipboard access.",
-          "If the network blocks posting, keep the pallet in its current physical state and treat the device as frozen for live commits until signal returns.",
-          "After reconnect, refresh live state, verify the task again, and then post once. Do not repeat the physical move under a second task number or trust a stale pre-disconnect screen.",
+          "If the network blocks posting, keep the pallet in its current physical state and wait for the task to post or be retried. Do not repeat the physical move under a second task number.",
         ],
       },
       {
@@ -580,7 +574,6 @@ export const helpArticles: HelpArticle[] = [
     keywords: ["cycle count", "variance", "count sheet", "stock check"],
     sections: [
       { title: "Counting Rules", content: ["Cycle counts can target a location, zone, SKU, or spot check. High-value, high-risk, and high-velocity stock should be counted more often than slow, stable stock.", "Entered quantities update stock and create adjustment records when variances exist. Variance is evidence of a broken handoff somewhere in receiving, put-away, picking, transfer, or status control."] },
-      { title: "Connectivity Safety", content: ["If signal drops during blind entry or supervisor review, keep the typed quantities and reasons on the device but do not submit, approve, reject, or close counts offline.", "After reconnect, refresh live cycle-count state first, then submit or approve from the current assignment so the post uses the latest freeze and variance status."] },
       { title: "Six Sigma View", content: ["DPMO is a defect-per-million-opportunities signal. In WMS terms, a defect can be a wrong location, wrong quantity, missing pallet, or wrong status.", "Use DMAIC thinking: define the defect, measure where it happens, analyze the cause, improve the process, and control it with scans, roles, labels, and standard work."] },
     ],
     acronyms: {
@@ -762,7 +755,6 @@ export const helpArticles: HelpArticle[] = [
     keywords: ["system log", "audit", "resolve", "snapshot", "severity", "operations"],
     sections: [
       { title: "Use Case", content: ["The System Log is for support notes, operational exceptions, and admin-visible events that need ownership or follow-up.", "Record-count snapshots are useful after setup, reset, import, or support activity because they provide a quick environment health checkpoint."] },
-      { title: "Critical RF Disconnect Alerts", content: ["When a floor device drops offline, the system writes a critical RF disconnect log and shows supervisors, managers, admins, and developers a red acknowledgment toast.", "The toast requires the typed challenge ACK before dismissal. Use that step only after the operator has reconnected, refreshed live state, and verified the floor work is safe to continue."] },
       { title: "Resolution", content: ["Resolve a log entry only after the real issue has been handled.", "Use severity to keep attention on problems that can block work, corrupt data, or hide operational exceptions."] },
     ],
   },

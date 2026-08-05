@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -28,7 +28,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
@@ -42,7 +41,6 @@ import {
   type FailedWorkItem,
 } from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
-import { useNotificationPermission } from "@/hooks/use-notification-permission";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -186,6 +184,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 // removed unused dropdown-menu and drawer imports
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -325,7 +324,7 @@ export function playBarcodeBeep() {
     osc.type = "sine";
     osc.frequency.setValueAtTime(1480, ctx.currentTime);          // E6 — bright & pleasant
     osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.06); // quick upward chirp
-    gain.gain.setValueAtTime(0.9, ctx.currentTime);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.18);
@@ -426,7 +425,7 @@ function SortableDashboardTile({
       >
         {children}
         {editMode ? (
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-background/80 p-0.5 shadow-sm backdrop-blur">
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-background/80 p-0.5 shadow-xs backdrop-blur">
             <button
               type="button"
               onClick={() => onHide(tile.id)}
@@ -481,7 +480,7 @@ function SortableMetricCard({
           <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Link to={dashboardMetricLink(card.metricKey)} className="block rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <Link to={dashboardMetricLink(card.metricKey)} className="block rounded-sm transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <div className="text-3xl font-bold">
               {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : formatNumber(value)}
             </div>
@@ -551,7 +550,7 @@ function PalletDialCard({
       <CardContent className="flex h-full items-center gap-4 p-4 pr-20">
         <Link
           to={route}
-          className="grid h-24 w-24 shrink-0 place-items-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="grid h-24 w-24 shrink-0 place-items-center rounded-full transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
           aria-label={`${label} ${percentage}%`}
           title={`Open source: ${label}`}
         >
@@ -568,7 +567,7 @@ function PalletDialCard({
         </Link>
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-          <Link to={route} className="block rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <Link to={route} className="block rounded-sm transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <p className="text-3xl font-bold tracking-tight">{isLoading ? "..." : formatNumber(value)}</p>
           </Link>
           <p className="truncate text-xs text-muted-foreground">{caption}</p>
@@ -659,10 +658,7 @@ export function renderField(
       name={field.name}
       render={({ field: controllerField }) => (
         <FormItem>
-          <FormLabel>
-            {field.label}
-            {field.required ? <span className="ml-1 text-destructive" aria-hidden="true">*</span> : null}
-          </FormLabel>
+          <FormLabel>{field.label}</FormLabel>
           <FormControl>
             {field.type === "textarea" ? (
               <Textarea {...controllerField} value={(controllerField.value as string | undefined) ?? ""} />
@@ -704,32 +700,6 @@ export function renderField(
       )}
     />
   );
-}
-
-function hasMissingRequiredValue(value: unknown) {
-  return value == null || (typeof value === "string" && value.trim() === "");
-}
-
-function validateRequiredResourceFields(
-  resource: ResourceDefinition,
-  values: Record<string, unknown>,
-  form: ReturnType<typeof useForm<Record<string, unknown>>>,
-) {
-  const missingFields = resource.fields.filter((field) => field.required && hasMissingRequiredValue(values[field.name]));
-  for (const field of resource.fields) {
-    if (missingFields.includes(field)) {
-      form.setError(field.name, { type: "required", message: `${field.label} is required` });
-    } else if (form.getFieldState(field.name).error?.type === "required") {
-      form.clearErrors(field.name);
-    }
-  }
-  return missingFields.length === 0;
-}
-
-function missingRequiredFieldLabels(resource: ResourceDefinition, values: Record<string, unknown>) {
-  return resource.fields
-    .filter((field) => field.required && hasMissingRequiredValue(values[field.name]))
-    .map((field) => field.label);
 }
 
 function RackLocationCodeBuilder({
@@ -957,20 +927,6 @@ export function ResourceFormDialog({
     },
   });
 
-  function handleCreateSubmit(values: Record<string, unknown>) {
-    if (!validateRequiredResourceFields(resource, values, form)) {
-      toast.error(`Complete the required fields: ${missingRequiredFieldLabels(resource, values).join(", ")}.`);
-      return;
-    }
-    createMutation.mutate(values);
-  }
-
-  const createValues = form.watch();
-  const createMissingFields = missingRequiredFieldLabels(resource, createValues);
-  const canCreate = createMissingFields.length === 0
-    && !(isZones && (!!form.formState.errors.code || !!form.formState.errors.name))
-    && !(isLocations && !!form.formState.errors.code);
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -979,33 +935,29 @@ export function ResourceFormDialog({
           Add {resource.singular}
         </Button>}
       </DialogTrigger>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="shrink-0 border-b px-6 py-4">
+      <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-2xl">
+        <DialogHeader>
           <DialogTitle>Create {resource.singular}</DialogTitle>
           <DialogDescription>{resource.description}</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit(handleCreateSubmit)}>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-              <div className="flex flex-col gap-4 pr-4">
+        <ScrollArea className="max-h-[72vh] pr-4">
+          <Form {...form}>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={form.handleSubmit(async (values) => createMutation.mutate(values))}
+            >
               {resource.fields.map((field) => {
                 if (isLocations && builderControlledFields.has(field.name)) return null;
                 return renderField(field, form, getResourceFieldOptions(field, options));
               })}
               {isLocations && <RackLocationCodeBuilder form={form} options={options} />}
-              </div>
-            </div>
-            <DialogFooter className="shrink-0 border-t bg-card px-6 py-3 sm:justify-between">
-              <p className="text-xs text-muted-foreground" aria-live="polite">
-                {createMissingFields.length > 0 ? `Required: ${createMissingFields.join(", ")}` : "All required fields are complete."}
-              </p>
-              <Button type="submit" disabled={createMutation.isPending || !canCreate}>
+              <Button type="submit" disabled={createMutation.isPending || (isZones && (!!form.formState.errors.code || !!form.formState.errors.name)) || (isLocations && !!form.formState.errors.code)}>
                 {createMutation.isPending ? <Loader2 className="animate-spin" /> : null}
                 Save {resource.singular}
               </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            </form>
+          </Form>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
@@ -1065,10 +1017,6 @@ export function ResourceEditDialog({
   });
 
   function handleSubmit(values: Record<string, unknown>) {
-    if (!validateRequiredResourceFields(resource, values, form)) {
-      toast.error(`Complete the required fields: ${missingRequiredFieldLabels(resource, values).join(", ")}.`);
-      return;
-    }
     // Locations: require a reason in Notes when disabling or marking maintenance
     if (isLocations && isBeingDisabled && !values.notes) {
       toast.error("Add a reason in the Notes field before marking this location unavailable.");
@@ -1077,23 +1025,22 @@ export function ResourceEditDialog({
     updateMutation.mutate(values);
   }
 
-  const editValues = form.watch();
-  const editMissingFields = missingRequiredFieldLabels(resource, editValues);
-
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="shrink-0 border-b px-6 py-4">
+      <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-2xl">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4" />
             Edit {resource.singular}
           </DialogTitle>
           <DialogDescription>{resource.description}</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit(handleSubmit)}>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-              <div className="flex flex-col gap-4 pr-4">
+        <ScrollArea className="max-h-[72vh] pr-4">
+          <Form {...form}>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={form.handleSubmit(handleSubmit)}
+            >
               {resource.fields.map((field) => (
                 <div key={field.name}>
                   {renderField(field, form, getResourceFieldOptions(field, options))}
@@ -1110,19 +1057,13 @@ export function ResourceEditDialog({
                   )}
                 </div>
               ))}
-              </div>
-            </div>
-            <DialogFooter className="shrink-0 border-t bg-card px-6 py-3 sm:justify-between">
-              <p className="text-xs text-muted-foreground" aria-live="polite">
-                {editMissingFields.length > 0 ? `Required: ${editMissingFields.join(", ")}` : "All required fields are complete."}
-              </p>
-              <Button type="submit" disabled={updateMutation.isPending || editMissingFields.length > 0}>
+              <Button type="submit" disabled={updateMutation.isPending}>
                 {updateMutation.isPending ? <Loader2 className="animate-spin" /> : null}
                 Save changes
               </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            </form>
+          </Form>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
@@ -1249,7 +1190,7 @@ function ProfileMenu({ initials, displayName, onSignOut }: { initials: string; d
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
@@ -1331,11 +1272,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         item.roles.some((role) => roles.includes(role)) &&
         (!item.moduleKey || isEnabled(item.moduleKey as ModuleKey)),
     )
-    // Settings and Help stay pinned below the module list.
-    .sort((a, b) => {
-      const pinnedOrder: Partial<Record<AppRoute, number>> = { "/settings": 1, "/help": 2 };
-      return (pinnedOrder[a.to] ?? 0) - (pinnedOrder[b.to] ?? 0);
-    });
+    // Help is always pinned as the last sidebar entry, regardless of module order.
+    .sort((a, b) => (a.to === "/help" ? 1 : 0) - (b.to === "/help" ? 1 : 0));
   const canSwitchWarehouses = roles.some((role) => ["admin", "warehouse_manager", "developer"].includes(role));
   const canSelectAllWarehouses = roles.some((role) => ["admin", "developer"].includes(role));
   const { data: headerOptions } = useQuery({
@@ -1448,19 +1386,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
     >
       {/* Logo area */}
-      {(
-        <div className={cn(
-          "mb-4 flex items-center gap-3 px-2",
-          sidebarCollapsed && "justify-center px-0"
-        )}>
-          <img src="/logo.png" alt="Warehouse Wizard" className="h-8 w-8 shrink-0 rounded-lg object-fill" />
-          {!sidebarCollapsed && (
-            <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
-          )}
-        </div>
-      )}
+      <div className={cn(
+        "mb-4 flex items-center gap-3 px-2",
+        sidebarCollapsed && "justify-center px-0"
+      )}>
+        <img src="/logo.png" alt="Warehouse Wizard" className="h-8 w-8 shrink-0 rounded-lg object-fill" />
+        {!sidebarCollapsed && (
+          <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
+        )}
+      </div>
 
-      <nav className={cn("flex-1 overflow-y-auto")}>
+      <nav className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-0.5">
           {items.map((item) => {
             const Icon = navIcons[item.to] ?? LayoutDashboard;
@@ -1474,7 +1410,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     "group flex min-h-[3.375rem] items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
                     sidebarCollapsed && "h-[3.375rem] w-11 justify-center p-0",
                     navActive || isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-xs"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )
                 }
@@ -1556,7 +1492,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="top" className="left-auto right-4 top-3 flex max-h-[calc(100svh-1.5rem)] w-[min(24rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] origin-top-right flex-col overflow-hidden rounded-2xl border border-border bg-card/95 p-0 shadow-2xl backdrop-blur data-[state=closed]:duration-75 data-[state=open]:duration-100 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+              <SheetContent side="top" className="flex max-h-svh w-screen max-w-full flex-col p-0">
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
@@ -1722,7 +1658,6 @@ export function FailedTasksReminder() {
 export function AccessRequestsBanner() {
   const { roles } = useAuth();
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const canSee = roles.some((r) => ["admin", "warehouse_manager", "warehouse_supervisor", "developer"].includes(r));
   const [dismissed, setDismissed] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -1767,7 +1702,7 @@ export function AccessRequestsBanner() {
 
   function goToUsers() {
     dismissAll();
-    navigate(toPath("/settings"));
+    navigate("/settings");
   }
 
   return (
@@ -1809,87 +1744,12 @@ export function AccessRequestsBanner() {
   );
 }
 
-const NOTIFICATION_PROMPT_DISMISSED_SESSION_KEY = "warehouseWizard.notificationPrompt.dismissed";
-
-/**
- * Soft, dismissible ask for browser notification permission — this is the
- * first of the two prompts. Clicking "Enable notifications" triggers the
- * real native browser permission popup (the second, unskippable prompt).
- * Browsers only allow that native popup to fire from a genuine user
- * gesture, so we can't skip straight to it; the banner is what gives the
- * click its context. Dismissing only suppresses it for the current session
- * (sessionStorage) — if the user still hasn't decided, it reappears next
- * session rather than nagging on every page within one.
- */
-export function ReorderAlertNotificationPrompt() {
-  const { supported, permission, requestPermission } = useNotificationPermission();
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.sessionStorage.getItem(NOTIFICATION_PROMPT_DISMISSED_SESSION_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const [requesting, setRequesting] = useState(false);
-
-  function dismiss() {
-    setDismissed(true);
-    try {
-      window.sessionStorage.setItem(NOTIFICATION_PROMPT_DISMISSED_SESSION_KEY, "1");
-    } catch {
-      // ignore storage failures — worst case the banner reappears
-    }
-  }
-
-  async function handleEnable() {
-    setRequesting(true);
-    try {
-      const result = await requestPermission();
-      if (result === "granted") {
-        toast.success("Notifications enabled — you'll get an alert when a product enters the reorder state.");
-      } else if (result === "denied") {
-        toast.message("Notifications blocked. You can turn them back on from your browser's site settings.");
-      }
-    } finally {
-      setRequesting(false);
-      dismiss();
-    }
-  }
-
-  if (!supported || permission !== "default" || dismissed) return null;
-
-  return (
-    <div className="fixed bottom-20 right-4 z-40 w-[min(22rem,calc(100vw-2rem))] lg:landscape:bottom-4">
-      <Card className="border-primary/40 shadow-lg">
-        <CardContent className="flex items-start gap-3 p-3.5">
-          <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">Get notified about reorder alerts</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Turn on browser notifications to hear about low-stock products as soon as they enter the reorder state.
-            </p>
-            <div className="mt-2.5 flex gap-2">
-              <Button size="sm" disabled={requesting} onClick={() => void handleEnable()}>
-                {requesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                Enable notifications
-              </Button>
-              <Button size="sm" variant="ghost" onClick={dismiss}>Not now</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 export function ResourcePage({
   resource,
 }: {
   resource: ResourceDefinition;
 }) {
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const { roles: viewerRoles } = useAuth();
   const canHardDelete = viewerRoles.some((r) => ["admin", "developer"].includes(r));
   const cascadeSupported = ["warehouses", "zones", "locations", "products", "clients"].includes(resource.table);
@@ -2212,7 +2072,7 @@ export function ResourcePage({
                 {hasWarehouseStructureShortcut ? (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate(toPath("/settings?tab=warehouse-structure"))}>
+                    <DropdownMenuItem onClick={() => navigate("/settings?tab=warehouse-structure")}>
                       <Network className="mr-2 h-4 w-4" />
                       Warehouse Structure
                     </DropdownMenuItem>
@@ -2391,13 +2251,13 @@ export function ResourcePage({
                       {hasTrailingLabelColumn ? (
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            {resource.table === "warehouses" ? (
+                            <>
                                 <BarcodePrintDialog
-                                  labelType="warehouse"
+                                  labelType={resource.table === "warehouses" ? "warehouse" : "zone"}
                                   code={String((row as Record<string, unknown>).code ?? "")}
                                   title={String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).code ?? resource.singular)}
                                 />
-                              ) : resource.table === "zones" ? (
+                                {resource.table === "zones" && (
                                   <ZoneLabelPage
                                     code={String((row as Record<string, unknown>).code ?? "")}
                                     name={String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).code ?? "")}
@@ -2405,14 +2265,9 @@ export function ResourcePage({
                                     isStaging={Boolean((row as Record<string, unknown>).is_staging)}
                                     isDispatch={Boolean((row as Record<string, unknown>).is_dispatch)}
                                     isQuarantine={Boolean((row as Record<string, unknown>).is_quarantine)}
-                                    trigger={
-                                      <Button size="sm" variant="outline">
-                                        <QrCode className="mr-2 h-4 w-4" />
-                                        Print label
-                                      </Button>
-                                    }
                                   />
-                              ) : null}
+                                )}
+                              </>
                           </div>
                         </TableCell>
                       ) : null}
@@ -3103,7 +2958,7 @@ export function LocationWizardDialog({
           <DialogTitle>Create locations by range</DialogTitle>
           <DialogDescription>Each bay-level splits into 1–3 side-by-side positions. Total = bays × levels × positions. Depth = pallet capacity per slot.</DialogDescription>
         </DialogHeader>
-        <div className="max-h-[72vh] overflow-y-auto pr-4">
+        <ScrollArea className="max-h-[72vh] pr-4">
           <Form {...form}>
             <form className="grid gap-4 sm:grid-cols-2" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
               <SelectField
@@ -3182,7 +3037,7 @@ export function LocationWizardDialog({
               </Button>
             </form>
           </Form>
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
@@ -3283,10 +3138,6 @@ export function BarcodePrintDialog({ labelType, code, title }: { labelType: "war
 
 export function defaultFieldValue(field: FieldDefinition) {
   if (field.type === "boolean") return field.name === "active" || field.name === "lot_tracked";
-  if (field.name === "variance_value_floor") return 500;
-  if (field.name === "supervisor_approval_cap") return 1000;
-  if (field.name === "freeze_default_hours") return 4;
-  if (["minimum_stock_level", "maximum_stock_level", "pick_down_to_level", "supplier_lead_time_days"].includes(field.name)) return 0;
   if (field.type === "number") return "";
   if (field.name === "temperature_class" || field.name === "temperature_requirement") return "ambient";
   if (field.name === "rotation_method") return "fifo";
@@ -3648,7 +3499,6 @@ export function WarehouseFloorMode({
   onHide: (id: string) => void;
   onRestore: (id: string) => void;
 }) {
-  const { toPath } = useTenantPath();
   const queuesByLabel = new Map(snapshot.floorQueues.map((queue) => [queue.label, queue]));
 
   return (
@@ -3677,7 +3527,7 @@ export function WarehouseFloorMode({
                     <CardHeader className="p-4 pb-2 pr-20">
                       <CardTitle className="flex items-center justify-between gap-4">
                         <span>{queue.label}</span>
-                        <Link to={queue.route} className="shrink-0 rounded-sm text-3xl transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                        <Link to={queue.route} className="shrink-0 rounded-sm text-3xl transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
                           {formatNumber(queue.count)}
                         </Link>
                       </CardTitle>
@@ -3690,10 +3540,10 @@ export function WarehouseFloorMode({
                             <li key={task.id}>
                               <Link
                                 to={task.route}
-                                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md border border-border bg-secondary/30 px-3 py-1.5 text-sm transition-colors hover:bg-secondary/60"
+                                className="flex items-center justify-between rounded-md border border-border bg-secondary/30 px-3 py-1.5 text-sm hover:bg-secondary/60 transition-colors"
                               >
-                                <span className="min-w-0 break-all font-medium leading-tight">{task.label}</span>
-                                <Badge variant="outline" className="shrink-0 self-start whitespace-nowrap capitalize text-xs">{task.sublabel}</Badge>
+                                <span className="font-medium truncate">{task.label}</span>
+                                <Badge variant="outline" className="ml-2 shrink-0 capitalize text-xs">{task.sublabel}</Badge>
                               </Link>
                             </li>
                           ))}
@@ -3761,14 +3611,14 @@ function WarehouseIntelligenceCard({ snapshot }: { snapshot: EnterpriseDashboard
       </CardHeader>
       <CardContent className="grid gap-2">
         {snapshot.leanMetrics.map((metric) => (
-          <Link key={metric.label} to={metric.route} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md border border-border px-3 py-2 transition hover:bg-secondary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <Link key={metric.label} to={metric.route} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 transition hover:bg-secondary/40 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <div className="min-w-0">
-              <p className="break-words text-xs font-medium leading-4">{metric.label}</p>
-              <p className="mt-0.5 break-words text-xs leading-4 text-muted-foreground">Target: {metric.target}</p>
+              <p className="truncate text-xs font-medium">{metric.label}</p>
+              <p className="text-xs text-muted-foreground">Target: {metric.target}</p>
             </div>
-            <div className="flex min-w-0 max-w-[8.5rem] flex-col items-end gap-1 text-right">
-              <span className="break-words text-lg font-semibold leading-none tabular-nums">{metric.value}</span>
-              <Badge className="max-w-full whitespace-normal break-words px-1.5 py-0 text-[10px] leading-4" variant={metric.status === "off_target" ? "destructive" : metric.status === "watch" ? "secondary" : "default"}>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-lg font-semibold tabular-nums">{metric.value}</span>
+              <Badge className="text-[10px] px-1.5 py-0" variant={metric.status === "off_target" ? "destructive" : metric.status === "watch" ? "secondary" : "default"}>
                 {metric.status.replace("_", " ")}
               </Badge>
             </div>
@@ -3806,7 +3656,6 @@ export function DockHandoffBoard({
   onHide: (id: string) => void;
   onRestore: (id: string) => void;
 }) {
-  const { toPath } = useTenantPath();
   return (
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -3833,7 +3682,7 @@ export function DockHandoffBoard({
                     <CardHeader className="pr-20">
                       <CardTitle className="flex items-center justify-between gap-2 capitalize">
                         <span>{status}</span>
-                        <Link to={toPath("/pick-lists")} className="rounded-sm text-2xl transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                        <Link to="/pick-lists" className="rounded-sm text-2xl transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
                           {formatNumber(laneLoads.length)}
                         </Link>
                       </CardTitle>
@@ -3941,7 +3790,7 @@ export function OfficeMonitoringMode({
                     <CardHeader className="pr-20">
                       <CardDescription>{widget.label}</CardDescription>
                       <CardTitle className="text-4xl">
-                        <Link to={widget.route} className="rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                        <Link to={widget.route} className="rounded-sm transition hover:text-primary focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2">
                           {widget.value}
                         </Link>
                       </CardTitle>
@@ -3997,7 +3846,7 @@ export function WarehouseBrainPanel({ recommendations }: { recommendations: Ware
       </CardHeader>
       <CardContent className="grid gap-3">
         {recommendations.map((recommendation) => (
-          <Link key={recommendation.id} to={recommendation.route} className={cn("block rounded-lg border border-border p-3 transition hover:bg-secondary/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", recommendation.severity === "critical" ? "bg-destructive/10" : recommendation.severity === "warning" ? "bg-warning/10" : "bg-secondary/30")}>
+          <Link key={recommendation.id} to={recommendation.route} className={cn("block rounded-lg border border-border p-3 transition hover:bg-secondary/50 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2", recommendation.severity === "critical" ? "bg-destructive/10" : recommendation.severity === "warning" ? "bg-warning/10" : "bg-secondary/30")}>
             <div className="flex items-center justify-between gap-3">
               <p className="font-medium">{recommendation.title}</p>
               <Badge variant={recommendation.severity === "critical" ? "destructive" : "secondary"}>{recommendation.severity}</Badge>
@@ -4186,7 +4035,7 @@ export function printDraftLabels(
       packaging: packaging?.name ?? packaging?.unit_name ?? packaging?.unit_of_measure,
       draftSequence: draft.draft_sequence,
       draftCount: draft.draft_count,
-      temperatureClass: product?.temperature_requirement ?? undefined,
+      temperatureClass: product?.temperature_requirement,
     };
   });
   const win = window.open("", "_blank", "width=900,height=1100");
@@ -4202,7 +4051,6 @@ export function printDraftLabels(
 
 export function ReceivingPage() {
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const online = useNetworkStatus();
   const { roles, profile } = useAuth();
@@ -4627,7 +4475,7 @@ export function ReceivingPage() {
             <p className="text-xs text-green-700 dark:text-green-400">Put-Away task {lastResult.taskNumber} queued</p>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => navigate(toPath("/putaway-tasks"))}>Go to Put-Away</Button>
+            <Button size="sm" onClick={() => navigate("/putaway-tasks")}>Go to Put-Away</Button>
             <Button size="sm" variant="ghost" onClick={() => setLastResult(null)}>x</Button>
           </div>
         </div>
@@ -4746,7 +4594,7 @@ export function ReceivingPage() {
             <DialogTitle>{editingDraft ? "Edit Draft Pallet" : "New Shipment"}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">Container and PO come first, then one or more SKU lines with expiry and pallet distribution.</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[calc(100dvh-8.75rem)] overflow-y-auto px-3 py-3 sm:max-h-[calc(92vh-150px)] sm:px-4 sm:py-4">
+          <ScrollArea className="max-h-[calc(100dvh-8.75rem)] px-3 py-3 sm:max-h-[calc(92vh-150px)] sm:px-4 sm:py-4">
             <div className="grid gap-3 sm:gap-4">
               <div className="grid grid-cols-2 items-start gap-2 sm:gap-3 md:grid-cols-3">
                 <div className="grid gap-1.5">
@@ -4977,7 +4825,7 @@ export function ReceivingPage() {
                 )}
               </div>
             </div>
-          </div>
+          </ScrollArea>
           <DialogFooter className="flex-row flex-wrap justify-end gap-2 border-t border-border px-3 py-2 sm:px-4 sm:py-3">
             {saveBlockedReason && (
               <p className="mr-auto w-full text-xs font-medium text-amber-500 sm:w-auto sm:self-center">{saveBlockedReason}</p>
@@ -5028,7 +4876,7 @@ export function ReceivingPage() {
                 {printContainerWarning ?? "Enter or scan an ISO 6346 container number to narrow this label batch."}
               </p>
             </div>
-            <div className="max-h-[50vh] overflow-y-auto pr-3">
+            <ScrollArea className="max-h-[50vh] pr-3">
               <div className="grid gap-2">
                 {printDrafts.map((draft) => {
                   const meta = parseDraftMeta(draft.notes);
@@ -5051,7 +4899,7 @@ export function ReceivingPage() {
                   );
                 })}
               </div>
-            </div>
+            </ScrollArea>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedDraftIds(new Set(printDrafts.map((draft) => draft.id)))}>Select all shown</Button>
@@ -5304,7 +5152,7 @@ export function WarehouseBayBrowserDialog({
                                 disabled={isFull}
                                 onClick={() => { onSelectBay(bay.bayCode); onClose(); }}
                                 className={cn(
-                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                                   isFull
                                     ? "cursor-not-allowed border-muted bg-muted/40 opacity-60"
                                     : "border-border bg-card hover:bg-secondary/60",
@@ -5395,7 +5243,7 @@ export function BayOccupancyGrid({
           <div
             key={`level-${row[0]?.level ?? "unknown"}`}
             className="grid gap-2"
-            style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+            style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
           >
             {row.map((slot) => {
               const cell = slot.cell;
@@ -5418,7 +5266,7 @@ export function BayOccupancyGrid({
                   disabled={!available}
                   onClick={() => onSelect(cell.locationCode)}
                   className={cn(
-                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                     selected
                       ? "animate-pulse border-cyan-400 bg-cyan-50 text-cyan-950 ring-2 ring-cyan-400 dark:bg-cyan-950/50 dark:text-cyan-50"
                       : available

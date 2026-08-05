@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   db,
   buildPalletCode,
-  escapePostgrestOrValue,
   formatSupabaseError,
   transferSchema,
 } from "@/features/shared/core-types";
@@ -16,10 +15,9 @@ async function resolvePalletId(palletInput: string) {
     return normalized;
   }
 
-  const escaped = escapePostgrestOrValue(normalized);
   const { data, error } = await db("pallets")
     .select("id")
-    .or(`pallet_code.eq.${escaped},pallet_barcode.eq.${escaped}`)
+    .or(`pallet_code.eq.${normalized},pallet_barcode.eq.${normalized}`)
     .single();
   if (error) throw new Error("Pallet barcode was not found.");
   return data.id as string;
@@ -241,7 +239,7 @@ export async function cancelTransfer(transferId: string, reason: string) {
 export async function flagCountLineException(lineId: string, reason: string) {
   if (!reason.trim()) throw new Error("A reason is required to flag a count exception.");
   await db("cycle_count_lines")
-    .update({ status: "exception", line_status: "exception", exception_reason: reason, notes: reason } as any)
+    .update({ status: "exception", notes: reason } as any)
     .eq("id", lineId);
 
   await (supabase.rpc as any)("log_audit_event", {

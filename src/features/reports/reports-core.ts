@@ -515,7 +515,6 @@ export async function snapshotRecordCounts() {
             log_type: "record_count",
             severity: "info",
             title: `Record count snapshot: ${table}`,
-            message: `${table} had ${count} record${count === 1 ? "" : "s"} at snapshot time.`,
             table_name: table,
             record_count: count,
             source: "snapshot",

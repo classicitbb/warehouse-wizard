@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -28,13 +28,19 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
-import { useNetworkStatus } from "@/hooks/use-network-status";
+import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
+import {
+  enqueueOfflineWork,
+  flushOfflineQueue,
+  installOfflineAutoReplay,
+  isLikelyNetworkError,
+  useOfflineQueue,
+  useDeadLetterQueue,
+
+  type FailedWorkItem,
+} from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
-import { useNotificationPermission } from "@/hooks/use-notification-permission";
-import { useReorderAlertNotifications } from "@/hooks/use-reorder-alert-notifications";
-import { isActiveWorkInProgress } from "@/lib/active-work";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -188,113 +194,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   FailedTasksReminder,
   AccessRequestsBanner,
-  ReorderAlertNotificationPrompt,
   navIcons,
   appTitle,
   ChangeOwnPasswordDialog,
   shouldRestrictToDefaultWarehouse,
 } from "@/features/shared/ui-shared";
 
-const OFFLINE_SYSTEM_LOG_SOURCE = "rf.offline_disconnect";
-const OFFLINE_ALERT_CHALLENGE = "ACK";
-const OFFLINE_ALERT_SESSION_KEY = "warehouseWizard.offlineAlert.current";
-
-type OfflineSupervisorAlert = {
-  id: string;
-  title: string;
-  message: string | null;
-  created_at: string;
-  source: string | null;
-  details?: Record<string, unknown> | null;
-};
-
-type ReorderAlertBellRow = {
-  id: string;
-  available_quantity: number | null;
-  recommended_quantity: number | null;
-  created_at: string;
-  products?: { sku: string | null; name: string | null } | null;
-  warehouses?: { code: string | null; name: string | null } | null;
-};
-
-function readOfflineAlertSession() {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage.getItem(OFFLINE_ALERT_SESSION_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeOfflineAlertSession(value: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(OFFLINE_ALERT_SESSION_KEY, value);
-  } catch {
-    // ignore storage failures
-  }
-}
-
-function clearOfflineAlertSession() {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.removeItem(OFFLINE_ALERT_SESSION_KEY);
-  } catch {
-    // ignore storage failures
-  }
-}
-
-function OfflineSupervisorAlertToastCard({
-  alert,
-  onAcknowledge,
-}: {
-  alert: OfflineSupervisorAlert;
-  onAcknowledge: () => Promise<void>;
-}) {
-  const [challenge, setChallenge] = useState("");
-  const [pending, setPending] = useState(false);
-
-  return (
-    <div className="w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-red-500 bg-red-950 px-4 py-3 text-red-50 shadow-2xl">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-300" />
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">{alert.title}</p>
-          <p className="mt-1 text-sm text-red-100">{alert.message ?? "A warehouse-floor device lost connectivity and is frozen for live commits."}</p>
-          <p className="mt-2 text-xs text-red-200">
-            Type <span className="font-mono font-semibold">{OFFLINE_ALERT_CHALLENGE}</span> to acknowledge and dismiss this alert.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Input
-              value={challenge}
-              onChange={(event) => setChallenge(event.target.value.toUpperCase())}
-              className="h-9 border-red-400/60 bg-red-900 text-red-50 placeholder:text-red-300"
-              placeholder={OFFLINE_ALERT_CHALLENGE}
-            />
-            <Button
-              type="button"
-              size="sm"
-              className="shrink-0 bg-red-100 text-red-950 hover:bg-red-200"
-              disabled={pending || challenge.trim() !== OFFLINE_ALERT_CHALLENGE}
-              onClick={async () => {
-                setPending(true);
-                try {
-                  await onAcknowledge();
-                } finally {
-                  setPending(false);
-                }
-              }}
-            >
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Acknowledge"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials: string; displayName: string; onSignOut: () => void; onRefresh: () => void }) {
+function ProfileMenu({ initials, displayName, onSignOut }: { initials: string; displayName: string; onSignOut: () => void }) {
   const [pwOpen, setPwOpen] = useState(false);
   return (
     <div className="contents">
@@ -302,7 +208,7 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
@@ -312,10 +218,6 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onSelect={onRefresh}>
-            <RefreshCw className="mr-2 h-3.5 w-3.5" />
-            Refresh
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={(event) => { event.preventDefault(); setPwOpen(true); }}>
             <KeyRound className="mr-2 h-3.5 w-3.5" />
             Change password
@@ -332,162 +234,64 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
   );
 }
 
-function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervisorAlert[]; offline: boolean }) {
-  const notificationCount = alerts.length + (offline ? 1 : 0);
+function OfflineQueueBadge({ compact = false }: { compact?: boolean }) {
+  const { count, syncing } = useOfflineQueue();
+  if (count === 0 && !syncing) return null;
+  const label = syncing ? "Syncing…" : `${count} queued`;
+  const handleClick = async () => {
+    if (syncing) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      toast.error("Still offline — reconnect to a network, then tap again.");
+      return;
+    }
+    const result = await flushOfflineQueue();
+    if (result.remaining === 0 && result.succeeded > 0) {
+      toast.success(`Synced ${result.succeeded} buffered action${result.succeeded === 1 ? "" : "s"}.`);
+    } else if (result.remaining > 0) {
+      toast.warning(`${result.remaining} item${result.remaining === 1 ? "" : "s"} still pending — will retry on next reconnect.`);
+    }
+  };
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className="relative h-9 w-9"
-          size="icon"
-          variant="outline"
-          aria-label={notificationCount ? `${notificationCount} RF connectivity notification${notificationCount === 1 ? "" : "s"}` : "RF connectivity notifications"}
-          title="RF connectivity notifications"
-        >
-          <Bell className="h-4 w-4" />
-          {notificationCount ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground">
-              {notificationCount > 9 ? "9+" : notificationCount}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
-        <div className="border-b border-border px-3 py-2">
-          <p className="text-sm font-semibold">RF connectivity</p>
-          <p className="text-xs text-muted-foreground">Warehouse-floor connection notices</p>
-        </div>
-        {notificationCount === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">No RF connectivity notifications.</p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto p-1">
-            {offline ? (
-              <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm">
-                <p className="font-medium text-amber-900 dark:text-amber-100">This RF device is offline</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">Live warehouse commits are frozen until the backend connection is restored.</p>
-              </div>
-            ) : null}
-            {alerts.map((alert) => (
-              <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
-                <p className="font-medium">{alert.title}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{alert.message ?? "A warehouse-floor device lost connectivity and is frozen for live commits."}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ReorderAlertsNotificationBell({ alerts }: { alerts: ReorderAlertBellRow[] }) {
-  const count = alerts.length;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className="relative h-9 w-9"
-          size="icon"
-          variant="outline"
-          aria-label={count ? `${count} reorder alert${count === 1 ? "" : "s"}` : "Reorder alerts"}
-          title="Reorder alerts"
-        >
-          <Bell className="h-4 w-4" />
-          {count ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-semibold leading-none text-white">
-              {count > 9 ? "9+" : count}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
-        <div className="border-b border-border px-3 py-2">
-          <p className="text-sm font-semibold">Reorder alerts</p>
-          <p className="text-xs text-muted-foreground">Products that have entered the reorder state</p>
-        </div>
-        {count === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">No active reorder alerts.</p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto p-1">
-            {alerts.map((alert) => (
-              <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
-                <p className="font-medium">{alert.products?.sku ?? "Product"}{alert.products?.name ? ` — ${alert.products.name}` : ""}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {alert.warehouses?.code ?? alert.warehouses?.name ?? "Warehouse"} · {Number(alert.available_quantity ?? 0)} available · replenish {Number(alert.recommended_quantity ?? 0)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function OfflineFreezeBadge({ compact = false }: { compact?: boolean }) {
-  const { online } = useNetworkStatus();
-  if (online) return null;
-  return (
-    <div
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      onClick={handleClick}
+      disabled={syncing}
       className={cn(
-        "inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-50 px-3 text-sm font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
+        "h-9 gap-1.5 border-amber-400/60 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50",
         compact && "px-2 text-[11px]",
       )}
-      title="This device is offline. Live warehouse commits are frozen until reconnect."
+      title="Buffered work waiting for reconnect"
     >
-      <CloudOff className="h-3.5 w-3.5" />
-      <span className={cn(compact && "hidden sm:inline")}>Offline</span>
-      {!compact ? <span className="text-xs opacity-80">commits frozen</span> : null}
-    </div>
+      {syncing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CloudOff className="h-3.5 w-3.5" />}
+      <span className={cn(compact && "hidden sm:inline")}>{label}</span>
+      {!compact && count > 0 && !syncing ? <span className="text-xs opacity-70">tap to sync</span> : null}
+    </Button>
   );
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const { profile, roles, signOut, user, refreshProfile } = useAuth();
-  const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { isEnabled } = useFeatureFlags();
-  const networkStatus = useNetworkStatus();
-  const { online } = networkStatus;
-  // Older narrow test doubles and frozen consumers return only `online`.
-  // Treat that shape as already confirmed while production waits for the
-  // live-service retry in useNetworkStatus.
-  const connectionConfirmed = networkStatus.confirmed ?? true;
+  const { online } = useNetworkStatus();
+  useEffect(() => {
+    installOfflineAutoReplay();
+  }, []);
   useBackgroundSync(queryClient);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
   const networkStatusSeenRef = useRef(false);
-  const shownOfflineAlertIdsRef = useRef<Set<string>>(new Set());
-  const flushingOfflineAlertRef = useRef(false);
-
-  // The desktop/landscape rail has a persistent preference, while the mobile
-  // drawer is deliberately transient. A layout change or route change must
-  // never reopen a stale mobile drawer or inherit the icon-only rail state.
-  useEffect(() => {
-    const desktopLandscape = window.matchMedia("(min-width: 1024px) and (orientation: landscape)");
-    const closeMobileDrawer = () => setMobileMenuOpen(false);
-    desktopLandscape.addEventListener("change", closeMobileDrawer);
-    return () => desktopLandscape.removeEventListener("change", closeMobileDrawer);
-  }, []);
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
   const items = NAVIGATION
     .filter(
       (item) =>
         item.roles.some((role) => roles.includes(role)) &&
         (!item.moduleKey || isEnabled(item.moduleKey as ModuleKey)),
     )
-    // Settings and Help stay pinned below the module list.
-    .sort((a, b) => {
-      const pinnedOrder: Partial<Record<AppRoute, number>> = { "/settings": 1, "/help": 2 };
-      return (pinnedOrder[a.to] ?? 0) - (pinnedOrder[b.to] ?? 0);
-    });
+    // Help is always pinned as the last sidebar entry, regardless of module order.
+    .sort((a, b) => (a.to === "/help" ? 1 : 0) - (b.to === "/help" ? 1 : 0));
   const canAccessPutaway = items.some((item) => item.to === "/putaway-tasks");
   const canAccessReceiving = items.some((item) => item.to === "/receiving");
   const canAccessPickLists = items.some((item) => item.to === "/pick-lists");
@@ -520,45 +324,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   const canSwitchWarehouses = roles.some((role) => ["admin", "warehouse_manager", "developer"].includes(role));
   const canSelectAllWarehouses = roles.some((role) => ["admin", "developer"].includes(role));
-  const canAcknowledgeOfflineAlerts = roles.some((role) =>
-    ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(role),
-  );
-  // Same eligible-recipient set as the reorder-alert emails (see
-  // ReorderForecastSettingsPanel) — admins and warehouse managers/supervisors.
-  const canReceiveReorderNotifications = roles.some((role) =>
-    ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(role),
-  );
-  const { permission: notificationPermission } = useNotificationPermission();
-  useReorderAlertNotifications(canReceiveReorderNotifications && notificationPermission === "granted");
   const { data: headerOptions } = useQuery({
     queryKey: ["header-warehouse-options", canSwitchWarehouses],
     queryFn: () => fetchOptions(false),
     enabled: canSwitchWarehouses,
-  });
-  const { data: offlineSupervisorAlerts = [] } = useQuery<OfflineSupervisorAlert[]>({
-    queryKey: ["system-logs", "offline-disconnect-alerts"],
-    queryFn: async () => {
-      const rows = await listSystemLogs({ severity: "critical", resolved: false, limit: 20 });
-      return (rows as OfflineSupervisorAlert[]).filter((row) => row.source === OFFLINE_SYSTEM_LOG_SOURCE);
-    },
-    enabled: canAcknowledgeOfflineAlerts && online,
-    staleTime: 5_000,
-    refetchInterval: 15_000,
-    meta: { suppressGlobalError: true },
-  });
-  const { data: reorderAlertsForBell = [] } = useQuery<ReorderAlertBellRow[]>({
-    queryKey: ["reorder-alerts", "notification-bell"],
-    queryFn: async () => {
-      const { data, error } = await (supabase.from as any)("reorder_alerts")
-        .select("id, available_quantity, recommended_quantity, created_at, products(sku, name), warehouses(code, name)")
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as ReorderAlertBellRow[];
-    },
-    enabled: canReceiveReorderNotifications,
-    refetchInterval: 30_000,
-    meta: { suppressGlobalError: true },
   });
   const selectedWarehouseValue = profile?.default_warehouse_id ?? (canSelectAllWarehouses ? "__all__" : "");
   const headerWarehouses = useMemo(() => {
@@ -607,93 +376,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .join("") || "WU";
 
   useEffect(() => {
-    if (!connectionConfirmed) return;
-    const isInitialNetworkStatus = !networkStatusSeenRef.current;
-    networkStatusSeenRef.current = true;
+    if (!networkStatusSeenRef.current) {
+      networkStatusSeenRef.current = true;
+      return;
+    }
     if (online) {
-      if (isInitialNetworkStatus) return;
-      if (isActiveWorkInProgress()) {
-        void queryClient.invalidateQueries({ refetchType: "none" });
-        return;
-      }
-      let cancelled = false;
-      setReconnectRefreshing(true);
-      void queryClient.invalidateQueries()
-        .finally(() => {
-          if (!cancelled) setReconnectRefreshing(false);
-        });
-      return () => {
-        cancelled = true;
-      };
+      toast.success("Connection restored. Refreshing live data.");
+      void flushOfflineQueue({ silent: true }).finally(() => {
+        void queryClient.invalidateQueries();
+      });
+      return;
     }
-    setReconnectRefreshing(false);
-    if (!readOfflineAlertSession() && user?.id) {
-      const happenedAt = new Date().toISOString();
-      writeOfflineAlertSession(happenedAt);
-    }
-    toast.message("Connection lost. This device is frozen for live commits until reconnect. Your current task position stays on this device.", {
+    toast.message("Connection lost. Keep finishing scan work already open; it will sync when signal returns.", {
       duration: 6000,
     });
-  }, [connectionConfirmed, online, pathname, profile?.default_warehouse_id, profile?.full_name, queryClient, user?.email, user?.id]);
-
-  useEffect(() => {
-    const happenedAt = readOfflineAlertSession();
-    if (!connectionConfirmed || !online || !happenedAt || !user?.id || flushingOfflineAlertRef.current) return;
-    flushingOfflineAlertRef.current = true;
-    void writeSystemLog({
-      log_type: "infrastructure",
-      severity: "critical",
-      title: "RF device offline — commits frozen",
-      message: `${profile?.full_name?.trim() || user.email || "Unknown operator"} lost connectivity on ${pathname} at ${new Date(happenedAt).toLocaleString()}. The connection has returned; review the interrupted RF work before continuing.`,
-      source: OFFLINE_SYSTEM_LOG_SOURCE,
-      details: {
-        alert_kind: "offline_disconnect",
-        happened_at: happenedAt,
-        restored_at: new Date().toISOString(),
-        route: pathname,
-        device_id: getOrCreateDeviceId(),
-        user_id: user.id,
-        user_email: user.email ?? null,
-        user_name: profile?.full_name ?? null,
-        warehouse_id: profile?.default_warehouse_id ?? null,
-      },
-    })
-      .then(() => clearOfflineAlertSession())
-      .catch((error) => console.error("[offline-alert] deferred writeSystemLog failed:", error))
-      .finally(() => {
-        flushingOfflineAlertRef.current = false;
-      });
-  }, [connectionConfirmed, online, pathname, profile?.default_warehouse_id, profile?.full_name, user?.email, user?.id]);
-
-  useEffect(() => {
-    for (const alert of offlineSupervisorAlerts) {
-      if (shownOfflineAlertIdsRef.current.has(alert.id)) continue;
-      shownOfflineAlertIdsRef.current.add(alert.id);
-      toast.custom(
-        () => (
-          <OfflineSupervisorAlertToastCard
-            alert={alert}
-            onAcknowledge={async () => {
-              await resolveSystemLog(alert.id);
-              toast.dismiss(`offline-alert-${alert.id}`);
-              await queryClient.invalidateQueries({ queryKey: ["system-logs", "offline-disconnect-alerts"] });
-            }}
-          />
-        ),
-        {
-          id: `offline-alert-${alert.id}`,
-          duration: Infinity,
-        },
-      );
-    }
-    const activeIds = new Set(offlineSupervisorAlerts.map((alert) => alert.id));
-    shownOfflineAlertIdsRef.current.forEach((id) => {
-      if (!activeIds.has(id)) {
-        shownOfflineAlertIdsRef.current.delete(id);
-        toast.dismiss(`offline-alert-${id}`);
-      }
-    });
-  }, [offlineSupervisorAlerts, queryClient]);
+  }, [online, queryClient]);
 
   const prefetchRouteData = useCallback((route: AppRoute) => {
     const warehouseId = profile?.default_warehouse_id;
@@ -735,36 +432,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [profile?.default_warehouse_id, queryClient, roles, user?.id]);
 
-  const renderNavigation = (compactTop = false, collapsed = sidebarCollapsed) => (
+  const renderNavigation = (compactTop = false) => (
       <div
         className={cn(
           "flex h-full flex-col overflow-hidden bg-sidebar",
-          collapsed ? "items-center bg-teal-500 px-1.5 py-3" : compactTop ? "px-2.5 py-0" : "px-2.5 py-3"
+          sidebarCollapsed ? "items-center px-1.5 py-3 bg-teal-500" : compactTop ? "px-2.5 pb-3 pt-1" : "px-2.5 py-3"
         )}
       >
       {/* Logo area */}
-      {!compactTop ? (
-        <div className={cn(
-          "mb-4 flex items-center justify-between gap-2 px-2",
-          collapsed && "justify-center px-0"
-        )}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black p-1">
-              <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
-            </div>
-            {!collapsed && (
-              <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
-            )}
+      <div className={cn(
+        "mb-4 flex items-center justify-between gap-2 px-2",
+        sidebarCollapsed && "justify-center px-0"
+      )}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black p-1">
+            <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
           </div>
+          {!sidebarCollapsed && (
+            <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
+          )}
         </div>
-      ) : null}
+      </div>
 
-      <nav className={cn("flex-1 overflow-y-auto", compactTop && "pt-0")}>
-        <div className="flex flex-col gap-0.0">
+      <nav className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-0.5">
           {items.map((item) => {
             const Icon = navIcons[item.to] ?? LayoutDashboard;
             const isActive = pathname === item.to;
-            const showSeparator = !collapsed && item.to === "/warehouses";
+            const showSeparator = !sidebarCollapsed && item.to === "/warehouses";
             const badgeCount = getNavBadgeCount(item.to);
             const link = (
               <NavLink
@@ -772,13 +467,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className={({ isActive: navActive }) =>
                   cn(
                     "group relative flex min-h-[3.375rem] items-center gap-2 rounded-md px-2 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
-                    collapsed && "h-11 min-h-11 w-11 justify-center p-0",
+                    sidebarCollapsed && "h-11 min-h-11 w-11 justify-center p-0",
                     navActive || isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-xs"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )
                 }
-                to={toPath(item.to)}
+                to={item.to}
                 aria-label={item.label}
                 onMouseEnter={() => prefetchRouteData(item.to)}
                 onFocus={() => prefetchRouteData(item.to)}
@@ -786,14 +481,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon
                   data-active-icon={isActive ? "true" : "false"}
-                  className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4", isActive && "text-accent")}
+                  className={cn("shrink-0", sidebarCollapsed ? "h-5 w-5" : "h-4 w-4", isActive && "text-accent")}
                 />
-                {collapsed ? null : <span className="truncate">{item.label}</span>}
+                {sidebarCollapsed ? null : <span className="truncate">{item.label}</span>}
                 {badgeCount > 0 ? (
                   <span
                     className={cn(
                       "ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold leading-none text-destructive-foreground",
-                      collapsed && "absolute right-0 top-1 ml-0",
+                      sidebarCollapsed && "absolute right-0 top-1 ml-0",
                     )}
                     aria-label={getNavBadgeLabel(item.to, badgeCount)}
                   >
@@ -803,7 +498,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </NavLink>
             );
 
-            const node = collapsed ? (
+            const node = sidebarCollapsed ? (
               <Tooltip key={item.to}>
                 <TooltipTrigger asChild>{link}</TooltipTrigger>
                 <TooltipContent side="right">{item.label}</TooltipContent>
@@ -823,15 +518,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <div className={cn("mt-2 hidden border-t border-sidebar-border pt-2 lg:landscape:flex", collapsed ? "justify-center" : "justify-end")}>
+      {/* Sidebar footer — desktop only */}
+      <div className={cn("mt-2 hidden lg:landscape:flex", sidebarCollapsed ? "justify-center" : "justify-start")}>
+        <Button
+          className={cn(
+            "h-8 gap-1.5 shrink-0",
+            sidebarCollapsed ? "w-8 justify-center px-0" : "px-2.5",
+          )}
+          size={sidebarCollapsed ? "icon" : "sm"}
+          variant="ghost"
+          onClick={() => window.location.reload()}
+          aria-label="Hard refresh"
+          title="Hard refresh"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          {!sidebarCollapsed && <span className="text-xs">Refresh</span>}
+        </Button>
+      </div>
+      <div className={cn("mt-2 hidden border-t border-sidebar-border pt-2 lg:landscape:flex", sidebarCollapsed ? "justify-center" : "justify-end")}>
         <Button
           className="h-8 w-8 shrink-0"
           size="icon"
           variant="ghost"
           onClick={() => setSidebarCollapsed((c) => !c)}
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
         >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </Button>
       </div>
     </div>
@@ -849,17 +561,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {/* Mobile header */}
         <header className="col-span-full flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:landscape:hidden">
-          <Link
-            to={toPath("/dashboard")}
-            className="flex min-w-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            aria-label="Go to dashboard"
-          >
+          <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black p-1">
               <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
             </div>
-            <span className="truncate text-sm font-semibold">{appTitle}</span>
+            <span className="text-sm font-semibold">{appTitle}</span>
             <span className="hidden text-[10px] font-medium text-muted-foreground sm:inline">v{__APP_VERSION__}</span>
-          </Link>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-1.5 py-1">
               <Avatar className="h-6 w-6">
@@ -867,9 +575,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Avatar>
               <span className="hidden max-w-[120px] truncate text-xs font-medium sm:inline">{displayName}</span>
             </div>
-            <OfflineFreezeBadge compact />
-            <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
-            {canReceiveReorderNotifications ? <ReorderAlertsNotificationBell alerts={reorderAlertsForBell} /> : null}
+            <OfflineQueueBadge compact />
             <HelpSidebar pathname={pathname} />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -877,7 +583,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="top" className="left-auto right-4 top-3 flex max-h-[calc(100svh-1.5rem)] w-[min(24rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] origin-top-right flex-col overflow-hidden rounded-2xl border border-border bg-card/95 p-0 shadow-2xl backdrop-blur data-[state=closed]:duration-75 data-[state=open]:duration-100 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+              <SheetContent side="top" className="flex max-h-svh w-screen max-w-full flex-col p-0">
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
@@ -920,16 +626,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     ) : null}
-                    <Button className="h-8 w-8 shrink-0" size="icon" variant="outline" onClick={() => window.location.reload()} aria-label="Refresh" title="Refresh">
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
                     <Button className="h-8 flex-1 text-xs justify-start" variant="outline" size="sm" onClick={() => { setMobileMenuOpen(false); void signOut(); }}>
                       <LogOut className="mr-2 h-3 w-3" />
                       Sign out
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">{renderNavigation(true, false)}</div>
+                <div className="flex-1 overflow-y-auto">{renderNavigation(true)}</div>
               </SheetContent>
             </Sheet>
           </div>
@@ -969,10 +672,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Select>
               ) : null}
               <HelpSidebar pathname={pathname} />
-              <OfflineFreezeBadge />
-              <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
-              {canReceiveReorderNotifications ? <ReorderAlertsNotificationBell alerts={reorderAlertsForBell} /> : null}
-              <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => window.location.reload()} />
+              <OfflineQueueBadge />
+              <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} />
             </div>
           </div>
           <div
@@ -984,25 +685,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               pathname === "/inventory-search" ? "overflow-hidden" : "overflow-y-auto",
             )}
           >
-            {reconnectRefreshing ? (
-              <div
-                role="status"
-                aria-live="polite"
-                className="mb-4 flex flex-col items-center justify-center rounded-lg border border-border/70 bg-card/80 px-4 py-3 text-center shadow-sm"
-              >
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="mt-1 text-[11px] font-medium text-muted-foreground">
-                  Refreshing live warehouse state…
-                </p>
-              </div>
-            ) : null}
             {children}
           </div>
         </main>
       </div>
       <AccessRequestsBanner />
       <FailedTasksReminder />
-      {canReceiveReorderNotifications ? <ReorderAlertNotificationPrompt /> : null}
       <MobileActionBar items={items} pathname={pathname} routeBadgeCounts={routeBadgeCounts} getNavBadgeLabel={getNavBadgeLabel} />
     </div>
   );
@@ -1019,18 +707,8 @@ function MobileActionBar({
   routeBadgeCounts: Partial<Record<AppRoute, number>>;
   getNavBadgeLabel: (route: AppRoute, count: number) => string;
 }) {
-  const { toolbarModules } = useFeatureFlags();
-  const { toPath } = useTenantPath();
-  const favoriteItems = toolbarModules.flatMap((moduleKey) => {
-    const item = items.find((candidate) => candidate.moduleKey === moduleKey && candidate.to !== "/help");
-    return item ? [item] : [];
-  });
-  const dashboardItem = items.find((item) => item.to === "/dashboard");
-  const shortcutItems = favoriteItems.length > 0
-    ? favoriteItems
-    : items.filter((item) => item.to !== "/help" && item.to !== "/dashboard");
-  // Dashboard stays fixed as the first shortcut. Compact screens have room for it plus four personal favourites.
-  const barItems = dashboardItem ? [dashboardItem, ...shortcutItems].slice(0, 5) : shortcutItems.slice(0, 5);
+  // Show up to 5 primary nav items (skip Help — it lives in the header).
+  const barItems = items.filter((item) => item.to !== "/help").slice(0, 5);
   if (barItems.length === 0) return null;
   const getNavBadgeCount = (route: AppRoute) => routeBadgeCounts[route] ?? 0;
   const hostname = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
@@ -1056,7 +734,7 @@ function MobileActionBar({
         return (
           <NavLink
             key={item.to}
-            to={toPath(item.to)}
+            to={item.to}
             aria-label={item.label}
             className={cn(
               "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-md py-1 text-[10px] font-medium transition-colors",
