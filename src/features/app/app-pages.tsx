@@ -673,13 +673,11 @@ function PendingAccessShell() {
           </div>
           <nav className="flex-1">
             <NavLink
-              className={({ isActive }) =>
-                `group flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 ${
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`
-              }
+              className={`group flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 ${
+                pathname === "/help"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
               to="/help"
             >
               <HelpCircle className="h-4 w-4 shrink-0" />

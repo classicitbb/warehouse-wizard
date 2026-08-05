@@ -218,7 +218,7 @@ function AddUserDialog({
   onSuccess: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const form = useForm<z.infer<typeof inviteUserSchema>>({
+  const form = useForm<z.input<typeof inviteUserSchema>, any, z.output<typeof inviteUserSchema>>({
     resolver: zodResolver(inviteUserSchema),
     defaultValues: { email: "", full_name: "", password: "", role_code: "", warehouse_id: "" },
   });

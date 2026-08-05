@@ -54,13 +54,13 @@ interface State {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null, errorInfo: null };
+  override state: State = { error: null, errorInfo: null };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     this.setState({ errorInfo: info });
     this.props.onError?.(error, info);
 
@@ -93,7 +93,7 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ error: null, errorInfo: null });
   };
 
-  render() {
+  override render() {
     const { error, errorInfo } = this.state;
     const { children, fallback, level = "route" } = this.props;
 

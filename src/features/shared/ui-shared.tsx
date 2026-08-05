@@ -1405,15 +1405,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const link = (
               <NavLink
                 key={item.to}
-                className={({ isActive: navActive }) =>
-                  cn(
-                    "group flex min-h-[3.375rem] items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
-                    sidebarCollapsed && "h-[3.375rem] w-11 justify-center p-0",
-                    navActive || isActive
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )
-                }
+                className={cn(
+                  "group flex min-h-[3.375rem] items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
+                  sidebarCollapsed && "h-[3.375rem] w-11 justify-center p-0",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                )}
                 to={item.to}
                 aria-label={item.label}
                 onMouseEnter={() => prefetchRouteData(item.to)}
@@ -2785,7 +2783,7 @@ export function LocationWizardDialog({
     [resolvedDefaultWarehouseId, resolvedDefaultZoneId],
   );
 
-  const form = useForm<LocationWizardValues>({
+  const form = useForm<z.input<typeof locationWizardSchema>, any, z.output<typeof locationWizardSchema>>({
     resolver: zodResolver(locationWizardSchema),
     defaultValues: buildDefaults(),
   });

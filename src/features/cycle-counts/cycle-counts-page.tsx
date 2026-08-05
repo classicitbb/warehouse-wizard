@@ -204,7 +204,7 @@ export function CycleCountsPage() {
   // Per-line "can't count" exception state
   const [exState, setExState] = useState<Record<string, { open: boolean; reason: string }>>({});
 
-  const form = useForm<z.infer<typeof cycleCountSchema>>({
+  const form = useForm<z.input<typeof cycleCountSchema>, any, z.output<typeof cycleCountSchema>>({
     resolver: zodResolver(cycleCountSchema),
     defaultValues: { scope: "spot", variance_threshold_percent: 5 },
   });

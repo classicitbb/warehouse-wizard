@@ -866,8 +866,7 @@ export function ReceivingPage() {
       event.preventDefault();
       if (field === "total") { productRefs.current[lineId]?.open(); return; }
       if (field === "perPallet") { focusShipmentField(lineId, "total"); return; }
-      if (field === "count") { focusShipmentField(lineId, "perPallet"); return; }
-      if (field === "expiry") { focusShipmentField(lineId, "count"); }
+      if (field === "count") { focusShipmentField(lineId, "perPallet"); }
     }
   }
 

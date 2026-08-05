@@ -464,15 +464,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const link = (
               <NavLink
                 key={item.to}
-                className={({ isActive: navActive }) =>
-                  cn(
-                    "group relative flex min-h-[3.375rem] items-center gap-2 rounded-md px-2 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
-                    sidebarCollapsed && "h-11 min-h-11 w-11 justify-center p-0",
-                    navActive || isActive
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )
-                }
+                className={cn(
+                  "group relative flex min-h-[3.375rem] items-center gap-2 rounded-md px-2 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
+                  sidebarCollapsed && "h-11 min-h-11 w-11 justify-center p-0",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                )}
                 to={item.to}
                 aria-label={item.label}
                 onMouseEnter={() => prefetchRouteData(item.to)}
