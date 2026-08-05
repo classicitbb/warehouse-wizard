@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Warehouse Wizard — Download the App</title>
+<meta name="description" content="Download the Warehouse Wizard Android app for scan-first warehouse operations." />
+<link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+<style>
+  :root {
+    --teal: #1ed2b0;
+    --navy: #0f171e;
+    --navy-soft: #1a2932;
+    --ink: #0f1b1a;
+    --ink-soft: rgba(15, 27, 26, 0.65);
+    --card-bg: rgba(255, 255, 255, 0.22);
+    --card-bg-strong: rgba(255, 255, 255, 0.32);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--teal);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    padding: 48px 20px 32px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 720px;
+  }
+
+  header.brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 56px;
+  }
+
+  .logo-badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 24px rgba(15, 23, 30, 0.25);
+    flex-shrink: 0;
+  }
+
+  .logo-badge img { width: 40px; height: 40px; }
+
+  header.brand h1 {
+    font-size: 28px;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  h2.headline {
+    font-size: 34px;
+    line-height: 1.15;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+
+  p.subhead {
+    font-size: 17px;
+    color: var(--ink-soft);
+    margin: 0 0 28px;
+    max-width: 56ch;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 480px) {
+    .feature-grid { grid-template-columns: 1fr; }
+  }
+
+  .feature-card {
+    background: var(--card-bg);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+
+  .feature-card strong {
+    display: block;
+    font-size: 15px;
+    margin-bottom: 3px;
+  }
+
+  .feature-card span {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  section.install {
+    background: var(--navy);
+    color: #f4fbfa;
+    border-radius: 20px;
+    padding: 28px 26px;
+    margin-bottom: 28px;
+  }
+
+  section.install h3 {
+    margin: 0 0 6px;
+    font-size: 19px;
+  }
+
+  section.install p {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: rgba(244, 251, 250, 0.7);
+  }
+
+  #download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--teal);
+    color: var(--navy);
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 26px;
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+  }
+
+  #download-btn:active { transform: translateY(1px); }
+
+  #platform-note {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    display: none;
+  }
+
+  #platform-note.warning {
+    display: block;
+    background: rgba(255, 196, 105, 0.14);
+    border: 1px solid rgba(255, 196, 105, 0.35);
+    color: #ffd9a0;
+  }
+
+  #platform-note.ready {
+    display: block;
+    background: rgba(30, 210, 176, 0.14);
+    border: 1px solid rgba(30, 210, 176, 0.35);
+    color: #a8f2e2;
+  }
+
+  #platform-note a { color: inherit; }
+
+  #version-line {
+    font-size: 12px;
+    color: rgba(244, 251, 250, 0.5);
+    margin-top: 14px;
+  }
+
+  footer {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    padding-top: 6px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="brand">
+    <div class="logo-badge"><img src="assets/icon.svg" alt="" /></div>
+    <h1>Warehouse Wizard</h1>
+  </header>
+
+  <h2 class="headline">Enterprise Warehouse Management System</h2>
+  <p class="subhead">
+    Scan-first operations, role-gated workflows, and a complete audit trail
+    for modern warehouse teams.
+  </p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <strong>Pallet tracking</strong>
+      <span>Real-time location &amp; status</span>
+    </div>
+    <div class="feature-card">
+      <strong>Pick &amp; putaway</strong>
+      <span>Directed task execution</span>
+    </div>
+    <div class="feature-card">
+      <strong>Cycle counts</strong>
+      <span>Variance-aware counting</span>
+    </div>
+    <div class="feature-card">
+      <strong>Multi-warehouse</strong>
+      <span>Unified cross-site control</span>
+    </div>
+  </div>
+
+  <section class="install">
+    <h3>Install the Android app</h3>
+    <p>For warehouse scanners and handhelds. The full app also runs in any
+       desktop or mobile browser at
+       <a href="https://warehousewizard.app" style="color:#a8f2e2;">warehousewizard.app</a>
+       — installing the Android app is optional and additional.</p>
+
+    <button id="download-btn" type="button">Download App</button>
+
+    <div id="platform-note"></div>
+    <div id="version-line">Checking latest version…</div>
+  </section>
+
+  <footer>Warehouse Wizard Enterprise WMS</footer>
+</main>
+
+<script>
+  (function () {
+    var isAndroid = /Android/i.test(navigator.userAgent);
+    var btn = document.getElementById("download-btn");
+    var note = document.getElementById("platform-note");
+    var versionLine = document.getElementById("version-line");
+    var APK_PATH = "downloads/warehouse-wizard-latest.apk";
+    var MANIFEST_PATH = "update-manifest.json";
+
+    function showNote(kind, html) {
+      note.className = kind;
+      note.innerHTML = html;
+    }
+
+    if (isAndroid) {
+      showNote(
+        "ready",
+        "You're on Android — tap the button to download the APK, then open " +
+          "it from your Downloads to install. You may need to allow " +
+          '"install unknown apps" for your browser the first time.'
+      );
+    } else {
+      showNote(
+        "warning",
+        "This installer is for Android devices only. Open this page on an " +
+          "Android phone or tablet to install the app — on desktop, just use " +
+          '<a href="https://warehousewizard.app">warehousewizard.app</a> directly in your browser.'
+      );
+    }
+
+    btn.addEventListener("click", function () {
+      if (!isAndroid) {
+        showNote(
+          "warning",
+          "This installer is for Android devices only. Please open this page " +
+            "on an Android phone or tablet, or use " +
+            '<a href="https://warehousewizard.app">warehousewizard.app</a> in your browser instead.'
+        );
+        return;
+      }
+      var a = document.createElement("a");
+      a.href = APK_PATH + "?cb=" + Date.now();
+      a.download = "warehouse-wizard.apk";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+
+    fetch(MANIFEST_PATH + "?cb=" + Date.now())
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) throw new Error("no manifest");
+        versionLine.textContent =
+          "Latest version: v" + data.versionName +
+          (data.publishedAt ? " · published " + data.publishedAt.slice(0, 10) : "");
+      })
+      .catch(function () {
+        versionLine.textContent = "Version info unavailable — the first CI build hasn't published yet.";
+      });
+  })();
+</script>
+</body>
+</html>

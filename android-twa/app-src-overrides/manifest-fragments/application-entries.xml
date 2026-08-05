@@ -1,0 +1,59 @@
+<!--
+  Warehouse Wizard — <application> element additions.
+
+  Spliced by CI immediately before the closing </application> tag of the
+  Bubblewrap-generated AndroidManifest.xml (right after the existing
+  LauncherActivity declaration). If merging by hand, paste this block in
+  the same place — do not remove Bubblewrap's own <activity> / <meta-data>
+  entries above it.
+-->
+
+<!-- Auto-launches LauncherActivity after the device finishes booting. -->
+<receiver
+    android:name=".BootReceiver"
+    android:enabled="true"
+    android:exported="true"
+    android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+  <intent-filter>
+    <action android:name="android.intent.action.BOOT_COMPLETED" />
+    <category android:name="android.intent.category.DEFAULT" />
+  </intent-filter>
+</receiver>
+
+<!--
+  Internal trigger only — fired by the PendingIntent attached to our own
+  update notification. Not exported: nothing outside this app should be
+  able to kick off a download.
+-->
+<receiver
+    android:name=".DownloadTriggerReceiver"
+    android:enabled="true"
+    android:exported="false">
+  <intent-filter>
+    <action android:name="com.warehouse.wizard.ACTION_DOWNLOAD_UPDATE" />
+  </intent-filter>
+</receiver>
+
+<!--
+  Must be exported: DownloadManager.ACTION_DOWNLOAD_COMPLETE is a system
+  broadcast sent by another UID (the OS), not by this app.
+-->
+<receiver
+    android:name=".DownloadCompleteReceiver"
+    android:enabled="true"
+    android:exported="true">
+  <intent-filter>
+    <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+  </intent-filter>
+</receiver>
+
+<!-- Hands the downloaded APK to the system installer via a content:// URI. -->
+<provider
+    android:name="androidx.core.content.FileProvider"
+    android:authorities="${applicationId}.fileprovider"
+    android:exported="false"
+    android:grantUriPermissions="true">
+  <meta-data
+      android:name="android.support.FILE_PROVIDER_PATHS"
+      android:resource="@xml/file_paths" />
+</provider>

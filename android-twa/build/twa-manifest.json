@@ -1,0 +1,50 @@
+{
+  "packageId": "com.warehouse.wizard",
+  "host": "warehousewizard.app",
+  "name": "Warehouse Wizard",
+  "launcherName": "WW Wizard",
+  "display": "standalone",
+  "themeColor": "#1A2932",
+  "themeColorDark": "#0F171E",
+  "navigationColor": "#1A2932",
+  "navigationColorDark": "#0F171E",
+  "navigationDividerColor": "#1ED2B0",
+  "navigationDividerColorDark": "#1ED2B0",
+  "backgroundColor": "#1ED2B0",
+  "enableNotifications": true,
+  "startUrl": "/?source=twa",
+  "iconUrl": "https://warehousewizard.app/logo.png",
+  "maskableIconUrl": "https://warehousewizard.app/icon-maskable.svg",
+  "monochromeIconUrl": "https://warehousewizard.app/icon.svg",
+  "shortcuts": [],
+  "generatorApp": "Bubblewrap",
+  "webManifestUrl": "https://warehousewizard.app/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://warehousewizard.app/",
+  "minSdkVersion": 24,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "appVersion": "1.0.123",
+  "appVersionCode": 1123,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "myalias"
+  },
+  "splashScreenFadeOutDuration": 300
+}

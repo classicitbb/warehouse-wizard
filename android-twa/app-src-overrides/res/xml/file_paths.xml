@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider path config. Must match the destination used in
+  DownloadTriggerReceiver (Environment.DIRECTORY_DOWNLOADS under the app's
+  external-files-dir) so DownloadCompleteReceiver can hand the file to the
+  system installer via a content:// URI.
+
+  Destination: android-twa/app-src-overrides/res/xml/file_paths.xml
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path
+        name="updates"
+        path="Download/" />
+</paths>
