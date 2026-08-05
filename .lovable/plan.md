@@ -1,31 +1,32 @@
-# Fix the broken preview after the TanStack Start migration
+# Fix the 403 that fires on desktop sign-in
 
-## What I found so far
+## What's actually happening
 
-- The app itself is fine in the sandbox: the dev server returns HTTP 200 and renders the real Warehouse Wizard HTML at `/`, with no errors in the Vite log.
-- A full TypeScript check passes with zero errors.
-- The preview host (`id-preview--...lovable.app`) answers, but bounces to the Lovable auth bridge instead of your app, and the pasted link carries an expired one-time token.
+The preview is loading fine — the app is running and reporting a real runtime error from the login flow.
 
-Dev mode being healthy while the preview is dead points at the **production/preview build step**, which is a different pipeline (server bundle for the edge Worker) from `vite dev`. That build has not been verified since the migration. This is the leading suspect, not yet confirmed — confirming it is step 1.
+Confirmed by reading the code:
 
-## Plan
+- `src/features/app/app-pages.tsx:825` — after a successful password sign-in, the login mutation always calls `refreshUserDeviceTrust(getOrCreateDeviceId())`.
+- `src/features/admin/admin-core.ts:272-280` — that function invokes the `trust-device` edge function and passes `isDesktop: isDesktopClient()`.
+- `supabase/functions/trust-device/index.ts:47-48` — the function deliberately rejects desktop callers: `return json({ error: 'Trusted device shortcut is unavailable' }, 403)`.
 
-1. **Reproduce the real failure**
-   - Run the production build (`bun run build`) and read the full output.
-   - If it fails, the error text names the cause directly (usually a Node-only dependency, a server/client import leak, or a prerender-time call that needs auth).
+So on any desktop browser the app calls an endpoint that is designed to refuse it, the thrown error aborts the rest of the sign-in mutation (`recordUserSignIn` never runs), and the user gets a red error toast.
 
-2. **Fix by failure class**
-   - *Build error*: repair the offending import boundary or swap the Node-only package for a Worker-safe path. Server-only modules must not be reachable from route/client graphs.
-   - *Prerender 401/500*: any protected server function called from a public route loader gets moved into the component (`useServerFn` + `useQuery`), per the auth-gate rule.
-   - *Builds clean*: then the problem is deployment/serving, not code — I'll verify with an SSR probe over the built output and report exactly where it breaks instead of changing app code.
+Elsewhere the app already knows this: the badge/trusted-device shortcut is gated behind `!isDesktopClient()` in three places (lines 760, 764, 904). Only this one call site is missing the guard.
 
-3. **Verify before handing back**
-   - Serve the production build locally and probe the key routes (`/`, `/login`, `/dashboard`, and a couple of `_authed` shell routes) for non-500 responses.
-   - Load the built app in a headless browser and confirm the login screen renders with a clean console.
+## The fix
 
-4. **Publish**
-   - Once the build is green and verified, publish so the preview and `warehousewizard.app` pick up the working bundle.
+1. **Guard the call** — in `refreshUserDeviceTrust` (`admin-core.ts`), return early when `isDesktopClient()` is true. Desktop clients never get the trusted-device shortcut, so there is nothing to register.
+
+2. **Make it non-fatal** — device-trust registration is a convenience, not part of authentication. Wrap the call at the login site so a failure is logged but never blocks sign-in or the `recordUserSignIn` audit entry that follows it.
+
+3. **Leave the edge function alone** — the 403 is intentional policy, not a bug. The client should stop calling it, rather than the server being loosened.
+
+## Verification
+
+- Sign in on desktop and confirm: no error toast, session established, sign-in recorded.
+- Confirm the mobile/badge path is untouched — it goes through `badge-login`, not this call.
 
 ## Scope
 
-Diagnosis and build-fix only. No UI redesign, no feature changes, no schema changes. Any file touched will be limited to what the build error points at.
+Two small edits in existing client code. No UI, schema, or edge-function changes.
