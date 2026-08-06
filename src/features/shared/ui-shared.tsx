@@ -198,7 +198,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 let dashboardLayoutLockedToastAt = 0;
 
 const baseFormSchema = z.record(z.any());
-export const appTitle = "Warehouse Wizard Enterprise WMS";
+export const appTitle = "WW Enterprise WMS";
 
 type DashboardMetricKey =
   | "totalPallets"
