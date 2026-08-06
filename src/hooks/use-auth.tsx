@@ -185,7 +185,7 @@ async function fetchProfileBundle(userId: string) {
     .filter((value, index, values) => values.indexOf(value) === index);
 
   return {
-    profile: profile ?? null,
+    profile: profile ? { ...profile, pin_hash: null } : null,
     roles,
   };
 }
