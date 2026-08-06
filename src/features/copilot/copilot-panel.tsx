@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Bot, Loader2, Send, Sparkle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,7 +147,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
                 message.error ? "text-destructive" : "",
               )}
             >
-              <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+              {message.role === "assistant" && !message.error ? (
+                <div className="space-y-2 text-sm leading-relaxed [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_h3]:mt-2 [&_h3]:text-xs [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-semibold [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold [&_ul]:space-y-1">
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+              )}
               {message.trace && message.trace.length > 0 ? (
                 <details className="mt-2 rounded-md border border-border/70 bg-muted/30 px-2 py-1.5">
                   <summary className="cursor-pointer text-[11px] text-muted-foreground">
