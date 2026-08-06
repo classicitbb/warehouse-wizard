@@ -871,8 +871,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="hidden max-w-[120px] truncate text-xs font-medium sm:inline">{displayName}</span>
             </div>
             <OfflineFreezeBadge compact />
-            <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
-            {canReceiveReorderNotifications ? <ReorderAlertsNotificationBell alerts={reorderAlertsForBell} /> : null}
+            <NotificationBell
+              alerts={offlineSupervisorAlerts}
+              offline={connectionConfirmed && !online}
+              reorderAlerts={reorderAlertsForBell}
+              showReorder={canReceiveReorderNotifications}
+            />
             <HelpSidebar pathname={pathname} />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -982,8 +986,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <CopilotPanel />
               <HelpSidebar pathname={pathname} />
               <OfflineFreezeBadge />
-              <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
-              {canReceiveReorderNotifications ? <ReorderAlertsNotificationBell alerts={reorderAlertsForBell} /> : null}
+              <NotificationBell
+                alerts={offlineSupervisorAlerts}
+                offline={connectionConfirmed && !online}
+                reorderAlerts={reorderAlertsForBell}
+                showReorder={canReceiveReorderNotifications}
+              />
               <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => window.location.reload()} />
             </div>
           </div>
