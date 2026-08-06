@@ -159,6 +159,7 @@ import {
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
 import { HelpSidebar } from "@/components/help-sidebar";
+import { CopilotPanel } from "@/features/copilot/copilot-panel";
 import { ZoneLabelPage } from "@/components/zone-label-page";
 import { LocationLabelPage } from "@/components/location-label-page";
 import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
@@ -923,6 +924,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <Button className="h-8 w-8 shrink-0" size="icon" variant="outline" onClick={() => window.location.reload()} aria-label="Refresh" title="Refresh">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
+                    <CopilotPanel variant="mobile" />
                     <Button className="h-8 flex-1 text-xs justify-start" variant="outline" size="sm" onClick={() => { setMobileMenuOpen(false); void signOut(); }}>
                       <LogOut className="mr-2 h-3 w-3" />
                       Sign out
@@ -968,6 +970,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </SelectContent>
                 </Select>
               ) : null}
+              <CopilotPanel />
               <HelpSidebar pathname={pathname} />
               <OfflineFreezeBadge />
               <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
