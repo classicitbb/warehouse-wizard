@@ -161,6 +161,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     keyActions: [
       "Start with container and PO, then scan or search product lines",
       "Use the container camera scanner to OCR printed ISO 6346 numbers and confirm the green candidate before insertion",
+      "Hold the container face in frame if on-device reading fails — AI-assisted capture takes over automatically and still asks you to confirm",
       "Commit the selected product with the right-arrow button before entering quantities",
       "Enter total, quantity per pallet, pallet count, and expiry in sequence",
       "Reconnect and refresh live state before any save or receive after signal loss",
