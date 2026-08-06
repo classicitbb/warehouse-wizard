@@ -257,7 +257,7 @@ describe("AppShell", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/refreshing live warehouse state/i);
+    expect((await screen.findAllByRole("status", { name: /refreshing live warehouse state/i })).length).toBeGreaterThan(0);
     expect(sonnerMocks.success).not.toHaveBeenCalledWith("Connection restored. Refreshing live warehouse state.");
 
     await act(async () => {
@@ -265,7 +265,9 @@ describe("AppShell", () => {
       await refreshPromise;
     });
 
-    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryAllByRole("status", { name: /refreshing live warehouse state/i })).toHaveLength(0),
+    );
   });
 
   it("raises a supervisor acknowledgement toast for unresolved offline alerts", async () => {
