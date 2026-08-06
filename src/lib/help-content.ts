@@ -336,6 +336,18 @@ export const helpArticles: HelpArticle[] = [
     ],
   },
   {
+    id: "notification-bell",
+    title: "Notification Bell",
+    module: "help",
+    audience: "All operators",
+    keywords: ["notifications", "bell", "alerts", "rf", "offline", "connectivity", "reorder"],
+    sections: [
+      { title: "Overview", content: ["Connectivity notices and reorder alerts share one bell in the header on desktop and mobile.", "The badge shows the combined count of both groups; it turns red when a connectivity notice is present and amber when only reorder alerts are waiting."] },
+      { title: "Connectivity", content: ["This group lists the offline state of the current RF device plus supervisor notices raised when a floor device loses its connection.", "Live commits stay frozen on an offline device until the backend connection is restored."] },
+      { title: "Reorder Alerts", content: ["This group lists products that have entered the reorder state, with available quantity and the recommended replenishment quantity per warehouse.", "It only appears for users whose role receives reorder notifications."] },
+    ],
+  },
+  {
     id: "warehouse-setup",
     title: "Warehouse Setup Wizard",
     module: "setup-wizard",
