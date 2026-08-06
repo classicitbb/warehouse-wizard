@@ -233,6 +233,8 @@ export function BarcodeScanButton({
   const rejectedRegionsRef = useRef<ScanTelemetryEvent["rejectedRegions"]>([]);
   const failureLoggedRef = useRef(false);
   const pendingContainerSuccessRef = useRef<{ event: ScanTelemetryEvent; sample: ContainerScannerSuccessSample } | null>(null);
+  const aiBusyRef = useRef(false);
+  const lastAiCallRef = useRef(0);
 
   const updateOpen = useCallback((nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -396,6 +398,47 @@ export function BarcodeScanButton({
     setScanMessage(elapsedMs > CONTAINER_RETRY_NOTICE_MS
       ? "Verify failed. Manual entry is available while the scanner keeps looking."
       : "Verify failed. Keeping scanner open.");
+
+    // AI-assisted fallback: local OCR could not produce a check-digit-valid
+    // code, so send one frame to the vision helper. Failures are silent — the
+    // local OCR loop keeps running exactly as before.
+    const now = Date.now();
+    if (
+      attemptCount >= CONTAINER_AI_AFTER_ATTEMPTS &&
+      !aiBusyRef.current &&
+      now - lastAiCallRef.current > CONTAINER_AI_INTERVAL_MS
+    ) {
+      const frame = captureFrame(video);
+      if (frame) {
+        aiBusyRef.current = true;
+        lastAiCallRef.current = now;
+        setScanMessage("Reading container with AI…");
+        try {
+          const aiValue = await readContainerNumberWithAi(frame);
+          if (aiValue) {
+            pendingContainerSuccessRef.current = null;
+            emitScanTelemetry({
+              event: "scan-success",
+              scanMode,
+              value: aiValue,
+              rejectedCandidates: rejectedCandidatesRef.current,
+              rejectedRegions: rejectedRegionsRef.current,
+              attemptCount,
+              elapsedMs: Date.now() - scanStartedAtRef.current,
+              fallbackUsed: true,
+              faceDetected: true,
+              tags: ["container-scanner", "iso6346", "scan-success", "ai-vision"],
+            });
+            return handleScanValue(aiValue, "ocr");
+          }
+          setScanMessage("AI could not read the container number. Keeping scanner open.");
+        } catch {
+          // Offline, rate-limited, or function error — stay on local OCR.
+        } finally {
+          aiBusyRef.current = false;
+        }
+      }
+    }
 
     if (elapsedMs > CONTAINER_RETRY_NOTICE_MS && !failureLoggedRef.current) {
       failureLoggedRef.current = true;
