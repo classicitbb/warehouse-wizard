@@ -473,6 +473,8 @@ export function BarcodeScanButton({
       rejectedCandidatesRef.current = [];
       rejectedRegionsRef.current = [];
       failureLoggedRef.current = false;
+      aiBusyRef.current = false;
+      lastAiCallRef.current = 0;
       pendingContainerSuccessRef.current = null;
       if (acceptTimerRef.current != null) {
         clearTimeout(acceptTimerRef.current);
