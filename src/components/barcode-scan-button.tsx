@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject, type ReactNod
 import { Camera, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type ContainerScannerSuccessSample } from "@/lib/container-scanner-learning";
 import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
 import { cn } from "@/lib/utils";
@@ -81,6 +82,37 @@ const OCR_SCAN_INTERVAL_MS = 1800;
 const CONTAINER_RETRY_NOTICE_MS = 5000;
 const BARCODE_PREVIEW_DELAY_MS = 450;
 const TEXT_PREVIEW_DELAY_MS = 1500;
+/** Local OCR passes to try before asking the AI vision helper for a read. */
+const CONTAINER_AI_AFTER_ATTEMPTS = 2;
+/** Minimum gap between AI vision calls while the scanner stays open. */
+const CONTAINER_AI_INTERVAL_MS = 6000;
+
+function captureFrame(video: HTMLVideoElement) {
+  const width = video.videoWidth || 1280;
+  const height = video.videoHeight || 720;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.drawImage(video, 0, 0, width, height);
+  try {
+    return canvas.toDataURL("image/jpeg", 0.8);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * AI-assisted container read. Returns the container number only when the edge
+ * function has re-validated the ISO 6346 check digit server-side.
+ */
+async function readContainerNumberWithAi(image: string) {
+  const { data, error } = await supabase.functions.invoke("container-vision", { body: { image } });
+  if (error) return null;
+  const value = (data as { containerNumber?: string | null } | null)?.containerNumber;
+  return typeof value === "string" && value ? value : null;
+}
 
 function getScanCandidate(raw: string, validateScan?: (raw: string) => ScanValidationResult) {
   if (!validateScan) return { valid: true, value: raw, raw };
