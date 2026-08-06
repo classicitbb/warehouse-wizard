@@ -184,4 +184,53 @@ describe("BarcodeScanButton", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(onScan).not.toHaveBeenCalled();
   });
+
+  it("falls back to AI vision when local OCR keeps failing", async () => {
+    const onScan = vi.fn();
+    ocrMocks.recognize.mockResolvedValue({ data: { text: "TARE 3510 KG 45G1" } });
+    supabaseMocks.invoke.mockResolvedValue({ data: { containerNumber: "MTBU0200596" }, error: null });
+
+    render(
+      <BarcodeScanButton
+        title="Scan container number"
+        enableTextRecognition
+        requireConfirm
+        scanMode="containerNumber"
+        validateScan={validateContainerScan}
+        getScanCandidates={collectIso6346ContainerCandidates}
+        onScan={onScan}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Scan container number" }));
+
+    expect(await screen.findByText("MTBU0200596")).toBeInTheDocument();
+    expect(onScan).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use" }));
+    await waitFor(() => expect(onScan).toHaveBeenCalledWith("MTBU0200596"));
+  });
+
+  it("ignores an AI vision result the server could not validate", async () => {
+    const onScan = vi.fn();
+    ocrMocks.recognize.mockResolvedValue({ data: { text: "TARE 3510 KG 45G1" } });
+    supabaseMocks.invoke.mockResolvedValue({ data: { containerNumber: null }, error: null });
+
+    render(
+      <BarcodeScanButton
+        title="Scan container number"
+        enableTextRecognition
+        requireConfirm
+        scanMode="containerNumber"
+        validateScan={validateContainerScan}
+        getScanCandidates={collectIso6346ContainerCandidates}
+        onScan={onScan}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Scan container number" }));
+
+    expect(await screen.findByText("Verify failed. Keeping scanner open.")).toBeInTheDocument();
+    expect(onScan).not.toHaveBeenCalled();
+  });
 });
