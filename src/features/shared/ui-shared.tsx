@@ -1198,9 +1198,8 @@ export function ChangeOwnPasswordDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {!hideTrigger && (
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 shrink-0 text-xs">
-            <KeyRound className="mr-1 h-3 w-3" />
-            Change password
+          <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" aria-label="Change password">
+            <KeyRound className="h-3 w-3" />
           </Button>
         </DialogTrigger>
       )}
