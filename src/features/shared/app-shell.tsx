@@ -860,6 +860,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <span className="truncate text-sm font-semibold">{appTitle}</span>
             <span className="hidden text-[10px] font-medium text-muted-foreground sm:inline">v{__APP_VERSION__}</span>
+            {reconnectRefreshing ? (
+              <Loader2
+                role="status"
+                aria-label="Refreshing live warehouse state"
+                className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+              />
+            ) : null}
           </Link>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-1.5 py-1">
@@ -946,6 +953,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
                 <span className="truncate">{items.find((item) => item.to === pathname)?.label ?? "Warehouse Wizard Enterprise WMS"}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
+                {reconnectRefreshing ? (
+                  <Loader2
+                    role="status"
+                    aria-label="Refreshing live warehouse state"
+                    className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                  />
+                ) : null}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -987,18 +1001,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               pathname === "/inventory-search" ? "overflow-hidden" : "overflow-y-auto",
             )}
           >
-            {reconnectRefreshing ? (
-              <div
-                role="status"
-                aria-live="polite"
-                className="mb-4 flex flex-col items-center justify-center rounded-lg border border-border/70 bg-card/80 px-4 py-3 text-center shadow-sm"
-              >
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="mt-1 text-[11px] font-medium text-muted-foreground">
-                  Refreshing live warehouse state…
-                </p>
-              </div>
-            ) : null}
             {children}
           </div>
         </main>
