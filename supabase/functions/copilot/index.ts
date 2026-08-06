@@ -63,7 +63,7 @@ const toolDefs = [
   },
   {
     name: 'get_receipt_status',
-    description: 'Look up receipts by reference, container number or PO number, with their lines and status.',
+    description: 'Look up receipts by receipt number or reference number, with their lines and status.',
     parameters: {
       type: 'object',
       properties: { query: { type: 'string' } },
@@ -81,7 +81,7 @@ const toolDefs = [
   },
   {
     name: 'get_putaway_tasks',
-    description: 'List put-away tasks for the active warehouse. Optionally filter by status (pending, in_progress, completed, cancelled).',
+    description: 'List put-away tasks for the active warehouse. Optionally filter by status (draft, queued, assigned, in_progress, completed, cancelled, exception).',
     parameters: {
       type: 'object',
       properties: { status: { type: 'string' }, limit: { type: 'number' } },
@@ -156,7 +156,7 @@ async function runTool(
       const code = String(args.code ?? '').trim()
       const { data, error } = await sb
         .from('locations')
-        .select('id, code, warehouse_id, zone_id, active, max_pallets, max_weight, allow_mixed_sku, zones(code, name, temperature_class)')
+        .select('id, code, warehouse_id, zone_id, status, location_type, temperature_class, max_pallets, max_weight, mixed_sku_allowed, mixed_lot_allowed, zones(code, name, temperature_class)')
         .ilike('code', `%${code}%`)
         .limit(5)
       if (error) throw new Error(error.message)
@@ -176,8 +176,8 @@ async function runTool(
       const term = orValue(`%${String(args.query ?? '').trim()}%`)
       const { data, error } = await sb
         .from('receipts')
-        .select('id, receipt_number, container_number, po_number, status, warehouse_id, expected_date, created_at, receipt_lines(id, quantity_expected, quantity_received, products(sku, name))')
-        .or(`receipt_number.ilike.${term},container_number.ilike.${term},po_number.ilike.${term}`)
+        .select('id, receipt_number, reference_number, receipt_type, status, warehouse_id, created_at, receipt_lines(id, quantity, received_quantity, products(sku, name))')
+        .or(`receipt_number.ilike.${term},reference_number.ilike.${term}`)
         .order('created_at', { ascending: false })
         .limit(10)
       if (error) throw new Error(error.message)
@@ -199,7 +199,7 @@ async function runTool(
     case 'get_putaway_tasks': {
       let q = sb
         .from('putaway_tasks')
-        .select('id, task_number, status, suggested_location_id, created_at, pallets(pallet_code, products(sku, name))')
+        .select('id, task_number, status, suggested_location_id, confirmed_location_id, created_at, pallets(pallet_code, products(sku, name))')
         .order('created_at', { ascending: false })
         .limit(clampLimit(args.limit, 25, 100))
       const status = String(args.status ?? '').trim()
@@ -224,17 +224,17 @@ async function runTool(
     }
     case 'get_open_tasks': {
       const [putaway, picks, receipts, moves] = await Promise.all([
-        sb.from('putaway_tasks').select('id, task_number, status', { count: 'exact' }).in('status', ['pending', 'in_progress']).limit(20),
-        sb.from('pick_lists').select('id, pick_list_number, status', { count: 'exact' }).in('status', ['released', 'in_progress']).limit(20),
-        sb.from('receipts').select('id, receipt_number, status', { count: 'exact' }).in('status', ['draft', 'in_progress', 'pending']).limit(20),
-        sb.from('location_moves').select('id, status', { count: 'exact' }).in('status', ['queued', 'in_progress']).limit(20),
+        sb.from('putaway_tasks').select('id, task_number, status', { count: 'exact' }).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        sb.from('pick_lists').select('id, pick_list_number, status', { count: 'exact' }).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        sb.from('receipts').select('id, receipt_number, status', { count: 'exact' }).in('status', ['draft', 'queued', 'in_progress']).limit(20),
+        sb.from('move_tasks').select('id, task_number, status', { count: 'exact' }).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
       ])
       return {
         rows: {
           putaway_tasks: putaway.data ?? [],
           pick_lists: picks.data ?? [],
           receipts: receipts.data ?? [],
-          location_moves: moves.data ?? [],
+          move_tasks: moves.data ?? [],
         },
       }
     }
@@ -248,7 +248,7 @@ async function runTool(
       const { data: stalePutaway } = await sb
         .from('putaway_tasks')
         .select('id, task_number, status, created_at, pallets(pallet_code)')
-        .in('status', ['pending', 'in_progress'])
+        .in('status', ['queued', 'assigned', 'in_progress'])
         .lte('created_at', new Date(Date.now() - 24 * 3600_000).toISOString())
         .limit(50)
       return { rows: { blocked_stock: blockedStock ?? [], stale_putaway_tasks: stalePutaway ?? [] } }
