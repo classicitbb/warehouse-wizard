@@ -159,6 +159,7 @@ import {
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
 import { HelpSidebar } from "@/components/help-sidebar";
+import { CopilotPanel } from "@/features/copilot/copilot-panel";
 import { ZoneLabelPage } from "@/components/zone-label-page";
 import { LocationLabelPage } from "@/components/location-label-page";
 import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
