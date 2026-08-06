@@ -12,6 +12,14 @@ vi.mock("tesseract.js", () => ({
   recognize: ocrMocks.recognize,
 }));
 
+const supabaseMocks = vi.hoisted(() => ({
+  invoke: vi.fn(async () => ({ data: { containerNumber: null }, error: null })),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { functions: { invoke: supabaseMocks.invoke } },
+}));
+
 function validateContainerScan(raw: string) {
   const result = extractIso6346ContainerNumber(raw);
   return { valid: result.valid, value: result.normalized, message: result.message };
@@ -22,6 +30,7 @@ describe("BarcodeScanButton", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    supabaseMocks.invoke.mockResolvedValue({ data: { containerNumber: null }, error: null });
     window.localStorage.clear();
     rafCount = 0;
 
