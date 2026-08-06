@@ -1,61 +1,122 @@
-# Warehouse-scoped task lists + non-disruptive refresh
+# Warehouse Copilot — AI assist layer around the WMS
 
-## 1. Filter Put-Away tasks and Pick Lists by the active warehouse
+An intelligence layer that surrounds the existing WMS. The WMS stays the system of record; every
+copilot feature degrades to today's manual workflow if AI is unavailable. Scope for this build:
+**Ask + Assist** (grounded answers, data-entry help, document OCR, code reading, summaries).
+No automatic writes — anything that changes data is prepared as a draft a human confirms.
 
-Today `getPutawayTasks()` and the pick-list query return tasks for every warehouse, so picking a specific warehouse in the switcher does not narrow the active queues. The "All warehouses" sentinel (developer/admin) should keep showing everything; any other selection should hide tasks from other warehouses.
+## Recommended surface
 
-**Changes**
-- `src/features/putaway/putaway-core.ts` — extend `getPutawayTasks(userId?, warehouseId?: string | null)`. When `warehouseId` is a non-null string, add `.eq("warehouse_id", warehouseId)`. When it is `null` (All) or `undefined` (legacy callers), no warehouse filter is applied.
-- `src/features/putaway/putaway-page.tsx` — read `profile?.default_warehouse_id` and pass it into `getPutawayTasks`. Include the value in the `queryKey` (`["putaway-tasks", userId, warehouseId]`) so switching warehouses refetches.
-- `src/features/picking/picking-core.ts` — add an optional `warehouseId` arg to the pick-list fetcher and `.eq("warehouse_id", …)` when set.
-- `src/features/picking/picking-page.tsx` — pass `profile?.default_warehouse_id` into the pick-list query and include it in the query key.
-- Update `src/test/putaway-page.test.tsx` mocks so the new signature stays satisfied.
+A **global context-aware side panel plus quiet inline hints** — the panel is the copilot's home,
+and the same engine feeds small suggestions inside Receiving, Putaway, Picking and Counts.
 
-The active-doc badge counts in the sidebar already aggregate across warehouses; leave those alone so admins/developers still see global totals.
+Why: operators live inside task screens on handhelds; sending them to a separate Copilot page
+breaks the flow and loses the on-screen context (selected pallet, location, receipt). A panel
+opened from the header keeps the current screen visible, and inline hints put the help exactly
+where the mistake would happen. Managers get depth in the panel; floor staff mostly never open it.
 
-## 2. Keep the bay selector scoped to the receiving warehouse
+```text
+Header  [ Warehouse Wizard ]            ... [ Ask Copilot ]
++-----------------------------+---------------------------+
+| Receiving / Putaway / etc.  |  Copilot panel            |
+|                             |   - knows this screen     |
+|  [inline hint chip]         |   - answers with record   |
+|  "Usual pallet qty 48"      |     IDs + timestamps      |
+|                             |   - drafts, never commits |
++-----------------------------+---------------------------+
+```
 
-The Put-Away bay browser is already invoked with `warehouseId={task.warehouse_id}` (the warehouse the pallet was received in), so the dialog itself is correct even when "All warehouses" is active. Verify nothing else passes the active-warehouse instead:
+## What it can do
 
-- Audit `src/features/putaway/putaway-page.tsx` and confirm every `<WarehouseBayBrowserDialog …>` and `getWarehouseBayOccupancy(...)` call uses the **task's** `warehouse_id`, never `profile?.default_warehouse_id`. Fix any stray usage.
-- Same audit for pick-task bay/location pickers in `src/features/picking/picking-page.tsx`.
+**Ask (grounded answers, read-only)**
+- "Where is SKU 4412?", "What's blocking receipt R-1043?", "Which pallets expire this week in CH2?",
+  "Why can't I put away to A-01-02-3?", "What are my open tasks?"
+- Every operational answer cites the records it used (pallet IDs, location codes, timestamps).
+  If the tools return nothing, the copilot says so — it never invents stock.
+- Procedure/how-to answers come from the existing Help Center content, labelled by source
+  (official procedure vs. system behaviour vs. AI explanation).
 
-No schema or RPC change needed.
+**Assist**
+- **Receiving from a document (vision).** Photograph or upload a packing list / BOL / invoice.
+  The copilot OCRs it, matches SKUs against the catalog, and pre-fills a receiving draft for
+  line-by-line review. Low-confidence fields are flagged, never silently accepted. Nothing is
+  committed until the user presses the existing confirm.
+- **Label / container code reading (vision).** When a barcode won't scan, the camera reads pallet,
+  location or container codes from the printed text and drops the value into the scan field —
+  shown for confirmation and cross-checked against the existing container-number validator.
+- **Data-entry help.** Explains validation failures in plain language and suggests the fix
+  ("this location is temperature-incompatible with this product — nearest valid bay is ...").
+- **Training.** New-operator Q&A over the help content plus how this warehouse actually works.
+- **Shift and manager summaries.** On-demand summary of receipts, putaways, picks, exceptions and
+  expiring stock for the active warehouse, built only from tool results.
 
-## 3. Non-disruptive background refresh
+## Safety rules (non-negotiable)
 
-Two mechanisms currently cause "hard refresh" feel:
+- The model never writes to the database and never generates SQL. It may only call a fixed set of
+  server-side tools, each of which re-checks the caller's role and warehouse scope.
+- Warehouse/client scope comes from the signed-in user's session, never from the prompt.
+- Uploaded documents and OCR text are treated as data, never instructions.
+- Every tool call, suggestion, acceptance and rejection is logged to the audit trail.
+- If the AI service is down, rate-limited or out of credits, the panel shows a clear error and the
+  underlying screens keep working exactly as they do today.
 
-- `src/hooks/use-background-sync.ts` calls `queryClient.invalidateQueries()` (all queries) when the tab returns after 2 min hidden. That can re-render an in-progress put-away/pick screen, dropping local form state and scan focus.
-- `src/main.tsx` registers the PWA service worker with auto-reload behaviors that, in some flows, can navigate the page.
+## Technical plan
 
-**Changes**
-- Introduce a tiny module `src/lib/active-work.ts` exporting:
-  ```ts
-  let active = 0;
-  export function beginActiveWork(): () => void { active++; return () => { active = Math.max(0, active-1); }; }
-  export function isActiveWorkInProgress() { return active > 0; }
-  ```
-- `use-background-sync.ts` — when returning to foreground:
-  - Always flush the offline queue (unchanged).
-  - If `isActiveWorkInProgress()` is true, **skip** the blanket `invalidateQueries` and instead only invalidate safe, read-only keys (`["putaway-tasks"]`, `["pick-lists"]`, `["warehouse-bay-occupancy"]`, `["options"]`) using `{ refetchType: "none" }` so background data stays fresh on next access but no in-flight screen re-mounts.
-  - If no active work, keep today's behavior.
-- Mark active work from the screens that own scan/confirm flow:
-  - `putaway-page.tsx` — call `beginActiveWork()` when a pallet has been scanned and a task is selected; release it on confirm/cancel/back to scan prompt.
-  - `picking-page.tsx` — call `beginActiveWork()` when a pick task is in progress (location scanned or quantity entered); release on confirm/skip/cancel.
-  - `receiving-page.tsx` — call it while the New Shipment / Print Draft dialog is open.
-- `src/main.tsx` PWA hook — when `onNeedRefresh` fires and `isActiveWorkInProgress()`, defer `updateSW(true)` until `visibilitychange → hidden` **and** active work is zero (current code already waits for hidden; add the active-work guard). Same for the preview-mode SW cleanup reload: skip the `window.location.reload()` if active work is in progress; reschedule on the next idle visibility change.
+**Backend — one new edge function `copilot`** (Lovable AI Gateway, `google/gemini-3.6-flash`,
+streaming, key stays server-side):
+- Resolves a *context envelope* server-side from the caller's JWT: user, roles, active warehouse,
+  client scope, current screen, selected entity. Client context is a hint only and is re-validated.
+- Dispatches a controlled tool catalog. Each tool = permission check -> input validation ->
+  existing service/RPC or approved read view -> structured result -> audit event.
+  - Read tools: `search_inventory`, `get_product_details`, `get_location_details`,
+    `get_receipt_status`, `get_pick_list_status`, `get_putaway_tasks`, `get_expiring_inventory`,
+    `get_blocked_workflows`, `get_open_tasks`, `search_procedures`.
+  - Draft tools (return a preview payload to the UI, never persist):
+    `draft_receiving_from_document`, `read_code_from_image`, `prepare_shift_summary`.
+- Reuses the read logic already in `src/features/*/*-core.ts` and the existing MCP tools as the
+  pattern for scoped reads.
+- Vision path: image/PDF sent as a multimodal message; the model returns a strict schema
+  (lines, SKU, qty, lot, expiry, plus per-field confidence). Result is schema-validated and
+  business-rule-checked (SKU exists, qty > 0, expiry sane) before it reaches the UI.
 
-This keeps data fresh in the background while guaranteeing that an operator mid-task is never bounced.
+**Procedure index**: reuse `src/lib/help-content.ts` as the retrieval corpus (module + title +
+body passed as candidate context), so no new documentation store is needed for v1.
 
-## Verification
+**Side stores (copilot-owned, non-authoritative)** — new tables, RLS + grants per project rules:
+- `copilot_conversations` / `copilot_messages` — one conversation per user per warehouse,
+  restartable; scoped to the owner.
+- `copilot_tool_calls` — tool name, inputs (redacted), outcome, latency, for audit.
+- `copilot_suggestions` — suggestion, whether it was accepted or rejected, for measuring value.
+- `copilot_documents` — uploaded doc reference + OCR artifact + confidence, retained for review.
 
-- `bunx tsc --noEmit`
-- `bunx vitest run src/test/putaway-page.test.tsx src/test/pick-tasks.test.ts`
-- Manual: set a specific warehouse → confirm only its put-away tasks and pick lists appear; switch to "All warehouses" (admin) → both warehouses show. Open bay selector from a task created in WH-A while "All" is active → only WH-A bays load.
-- Manual: start a put-away (scan pallet, open bay selector), background the tab for >2 min, return → the in-progress dialog is still open with the same task and scan focus; no flicker, no data loss.
+**Frontend**
+- `src/features/copilot/` — `copilot-core.ts` (client calls, streaming, context assembly) and
+  `copilot-panel.tsx` (the side panel), plus a small `useCopilotContext()` hook that reports the
+  current screen and selection.
+- Panel trigger added to the existing header and the mobile toolbar; nothing else in the shell moves.
+- Inline hint chips inside Receiving, Putaway and Picking reuse the existing hint-button pattern
+  (`src/components/hint-button.tsx`) and the current `ai-assist.ts` statistical hints, so learned
+  pallet quantities and placements sit next to the copilot's answers.
+- Document capture reuses the existing scan/camera components; the OCR draft opens the current
+  receiving draft form pre-filled, not a new flow.
 
-## Out of scope
+**Existing pieces reused**: `ai-assist.ts` (pallet-qty / placement / velocity learning),
+`container-number.ts` + `container-scanner-*` (code validation and region learning),
+`help-content.ts`, the MCP scoped-read tools, and the audit/system-log RPCs.
 
-- No visual redesign, no schema changes.
-- Sidebar active-doc count behavior is unchanged.
+## Build order
+
+1. Tool layer + `copilot` edge function + context envelope, with audit logging. Read tools only.
+2. Side panel UI, streaming answers with citations, procedure/how-to answers.
+3. Inline hints in Receiving / Putaway / Picking wired to the same engine.
+4. Document OCR -> receiving draft (review before commit).
+5. Label / container code reading from camera.
+6. Shift + manager summaries.
+
+Voice is deliberately out of scope for now; the tool layer built in step 1 is what a later
+push-to-talk mode would sit on top of.
+
+## Out of scope for this build
+
+Automatic actions, model-issued writes, inventory adjustments, purchase suggestions, and any
+capability that would change WMS state without an explicit human confirmation.
