@@ -951,7 +951,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="min-w-0">
               <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
                 <span className="truncate">{items.find((item) => item.to === pathname)?.label ?? "Warehouse Wizard Enterprise WMS"}</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
+                {roles.includes("developer") ? (
+                  <a
+                    href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Edit with Lovable"
+                    className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium underline-offset-2 hover:underline hover:text-primary"
+                  >
+                    v{__APP_VERSION__}
+                  </a>
+                ) : (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
+                )}
                 {reconnectRefreshing ? (
                   <Loader2
                     role="status"
