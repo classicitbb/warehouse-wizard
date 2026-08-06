@@ -13,7 +13,10 @@ vi.mock("tesseract.js", () => ({
 }));
 
 const supabaseMocks = vi.hoisted(() => ({
-  invoke: vi.fn(async () => ({ data: { containerNumber: null }, error: null })),
+  invoke: vi.fn(async (): Promise<{ data: { containerNumber: string | null } | null; error: unknown }> => ({
+    data: { containerNumber: null },
+    error: null,
+  })),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
