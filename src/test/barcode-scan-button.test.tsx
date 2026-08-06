@@ -183,7 +183,7 @@ describe("BarcodeScanButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Scan container number" }));
 
-    expect(await screen.findByText("Verify failed. Keeping scanner open.")).toBeInTheDocument();
+    expect(await screen.findByText("AI could not read the container number. Keeping scanner open.")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(onScan).not.toHaveBeenCalled();
   });
@@ -233,7 +233,7 @@ describe("BarcodeScanButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Scan container number" }));
 
-    expect(await screen.findByText("Verify failed. Keeping scanner open.")).toBeInTheDocument();
+    expect(await screen.findByText("AI could not read the container number. Keeping scanner open.")).toBeInTheDocument();
     expect(onScan).not.toHaveBeenCalled();
   });
 });
