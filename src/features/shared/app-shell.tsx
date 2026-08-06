@@ -333,8 +333,20 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
   );
 }
 
-function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervisorAlert[]; offline: boolean }) {
-  const notificationCount = alerts.length + (offline ? 1 : 0);
+function NotificationBell({
+  alerts,
+  offline,
+  reorderAlerts,
+  showReorder,
+}: {
+  alerts: OfflineSupervisorAlert[];
+  offline: boolean;
+  reorderAlerts: ReorderAlertBellRow[];
+  showReorder: boolean;
+}) {
+  const connectivityCount = alerts.length + (offline ? 1 : 0);
+  const reorderCount = showReorder ? reorderAlerts.length : 0;
+  const notificationCount = connectivityCount + reorderCount;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -342,12 +354,19 @@ function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervi
           className="relative h-9 w-9"
           size="icon"
           variant="outline"
-          aria-label={notificationCount ? `${notificationCount} RF connectivity notification${notificationCount === 1 ? "" : "s"}` : "RF connectivity notifications"}
-          title="RF connectivity notifications"
+          aria-label={notificationCount ? `${notificationCount} notification${notificationCount === 1 ? "" : "s"}` : "Notifications"}
+          title="Notifications"
         >
           <Bell className="h-4 w-4" />
           {notificationCount ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground">
+            <span
+              className={cn(
+                "absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
+                connectivityCount
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-amber-500 text-white",
+              )}
+            >
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           ) : null}
@@ -355,13 +374,15 @@ function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervi
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
         <div className="border-b border-border px-3 py-2">
-          <p className="text-sm font-semibold">RF connectivity</p>
-          <p className="text-xs text-muted-foreground">Warehouse-floor connection notices</p>
+          <p className="text-sm font-semibold">Notifications</p>
+          <p className="text-xs text-muted-foreground">Connectivity and inventory alerts</p>
         </div>
-        {notificationCount === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">No RF connectivity notifications.</p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto p-1">
+        <div className="max-h-80 overflow-y-auto">
+          <p className="bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Connectivity</p>
+          <div className="p-1">
+            {connectivityCount === 0 ? (
+              <p className="px-2 py-2 text-sm text-muted-foreground">No RF connectivity notifications.</p>
+            ) : null}
             {offline ? (
               <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm">
                 <p className="font-medium text-amber-900 dark:text-amber-100">This RF device is offline</p>
@@ -376,52 +397,26 @@ function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervi
               </div>
             ))}
           </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ReorderAlertsNotificationBell({ alerts }: { alerts: ReorderAlertBellRow[] }) {
-  const count = alerts.length;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className="relative h-9 w-9"
-          size="icon"
-          variant="outline"
-          aria-label={count ? `${count} reorder alert${count === 1 ? "" : "s"}` : "Reorder alerts"}
-          title="Reorder alerts"
-        >
-          <Bell className="h-4 w-4" />
-          {count ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-semibold leading-none text-white">
-              {count > 9 ? "9+" : count}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
-        <div className="border-b border-border px-3 py-2">
-          <p className="text-sm font-semibold">Reorder alerts</p>
-          <p className="text-xs text-muted-foreground">Products that have entered the reorder state</p>
-        </div>
-        {count === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">No active reorder alerts.</p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto p-1">
-            {alerts.map((alert) => (
-              <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
-                <p className="font-medium">{alert.products?.sku ?? "Product"}{alert.products?.name ? ` — ${alert.products.name}` : ""}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {alert.warehouses?.code ?? alert.warehouses?.name ?? "Warehouse"} · {Number(alert.available_quantity ?? 0)} available · replenish {Number(alert.recommended_quantity ?? 0)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
+          {showReorder ? (
+            <>
+              <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Reorder alerts</p>
+              <div className="p-1">
+                {reorderCount === 0 ? (
+                  <p className="px-2 py-2 text-sm text-muted-foreground">No active reorder alerts.</p>
+                ) : null}
+                {reorderAlerts.map((alert) => (
+                  <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                    <p className="font-medium">{alert.products?.sku ?? "Product"}{alert.products?.name ? ` — ${alert.products.name}` : ""}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {alert.warehouses?.code ?? alert.warehouses?.name ?? "Warehouse"} · {Number(alert.available_quantity ?? 0)} available · replenish {Number(alert.recommended_quantity ?? 0)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            </>
+          ) : null}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
