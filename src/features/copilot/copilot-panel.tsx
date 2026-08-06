@@ -23,6 +23,7 @@ const SUGGESTIONS = [
   "What is open for me right now?",
   "What stock expires in the next 14 days?",
   "What work is blocked or on hold?",
+  "Give me a shift summary for this warehouse",
 ];
 
 function messageId() {
