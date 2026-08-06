@@ -307,10 +307,10 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     id: "help",
     title: "Help Center",
     summary: "The Help Center is the searchable wiki for operators, supervisors, and administrators.",
-    keyActions: ["Search articles", "Open module-specific guides", "Use linked context from the help sidebar"],
+    keyActions: ["Search articles", "Open module-specific guides", "Use linked context from the help sidebar", "Check the header notification bell for connectivity and reorder alerts"],
     commonMistakes: ["Searching too narrowly by exact title only", "Using an outdated process instead of the in-app wiki"],
     permissions: "Visible to all approved users.",
-    wikiArticleIds: ["help-center", "operational-dead-ends", "warehouse-setup", "receiving-flow"],
+    wikiArticleIds: ["help-center", "notification-bell", "operational-dead-ends", "warehouse-setup", "receiving-flow"],
   },
   "setup-wizard": {
     id: "setup-wizard",
