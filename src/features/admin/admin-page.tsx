@@ -1949,6 +1949,16 @@ export function SettingsPage() {
               </div>
               {[
                 {
+                  version: "1.27",
+                  date: "August 2026",
+                  changes: [
+                    "Notifications: RF connectivity notices and reorder alerts now share one header bell, with grouped sections and a single combined count",
+                    "Receiving: the container scanner is AI-assisted — when on-device text recognition cannot read the container face, a photo is analysed by AI and the ISO 6346 number is offered for confirmation",
+                    "Container scanning: every AI or OCR read is still check-digit validated and must be confirmed before it is inserted into the container number field",
+                    "Help Center: Receiving and notification topics updated for AI-assisted container capture and the unified alert bell",
+                  ],
+                },
+                {
                   version: "1.26",
                   date: "July 2026",
                   changes: [
