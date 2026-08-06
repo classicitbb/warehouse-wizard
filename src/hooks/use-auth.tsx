@@ -159,7 +159,13 @@ function normalizeDeveloperAccess(
 
 async function fetchProfileBundle(userId: string) {
   const [{ data: profile }, { data: roleRows }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select(
+        "id, full_name, email, phone, approved, created_at, updated_at, active, default_warehouse_id, user_code, badge_code"
+      )
+      .eq("id", userId)
+      .maybeSingle(),
     supabase
       .from("user_roles")
       .select("role_id, roles!inner(code)")
