@@ -82,8 +82,8 @@ const OCR_SCAN_INTERVAL_MS = 1800;
 const CONTAINER_RETRY_NOTICE_MS = 5000;
 const BARCODE_PREVIEW_DELAY_MS = 450;
 const TEXT_PREVIEW_DELAY_MS = 1500;
-/** Local OCR passes to try before asking the AI vision helper for a read. */
-const CONTAINER_AI_AFTER_ATTEMPTS = 2;
+/** Local OCR passes to complete before asking the AI vision helper for a read. */
+const CONTAINER_AI_AFTER_ATTEMPTS = 1;
 /** Minimum gap between AI vision calls while the scanner stays open. */
 const CONTAINER_AI_INTERVAL_MS = 6000;
 
