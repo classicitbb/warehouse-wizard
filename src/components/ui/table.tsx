@@ -1,6 +1,8 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { abbreviateColumnLabel } from "@/lib/column-labels";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
@@ -42,16 +44,33 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 TableRow.displayName = "TableRow";
 
 const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => (
-    <th
-      ref={ref}
-      className={cn(
-        "h-9 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  ({ className, children, ...props }, ref) => {
+    const label = typeof children === "string" ? children : null;
+    const short = label ? abbreviateColumnLabel(label) : null;
+    const content =
+      label && short && short !== label.trim() ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help underline decoration-dotted underline-offset-4">{short}</span>
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        children
+      );
+    return (
+      <th
+        ref={ref}
+        className={cn(
+          "h-9 whitespace-nowrap px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+          className,
+        )}
+        {...props}
+      >
+        {content}
+      </th>
+    );
+  },
 );
 TableHead.displayName = "TableHead";
 
