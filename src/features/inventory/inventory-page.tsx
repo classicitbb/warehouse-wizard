@@ -225,13 +225,15 @@ export function InventorySearchPage() {
       warehouseId: warehouseId || undefined,
       ageBucket: ageBucket as any,
       expiryWindow: expiryWindow as any,
-      limit: searchTerm.trim() ? undefined : visibleRecordLimit,
+      limit: searchTerm.trim() ? undefined : visibleRecordLimit + 1,
     }),
   });
 
   useEffect(() => {
     setVisibleRecordLimit(50);
   }, [searchTerm, status, warehouseId, ageBucket, expiryWindow]);
+  const hasMoreRecords = !searchTerm.trim() && data.length > visibleRecordLimit;
+  const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
 
   useEffect(() => {
     const next = new URLSearchParams();
@@ -410,12 +412,12 @@ export function InventorySearchPage() {
                   <TableRow>
                     <TableCell className="h-24 text-center text-muted-foreground" colSpan={9}>Searching…</TableCell>
                   </TableRow>
-                ) : data.length === 0 ? (
+                ) : tableData.length === 0 ? (
                   <TableRow>
                     <TableCell className="h-24 text-center text-muted-foreground" colSpan={9}>No inventory matched.</TableCell>
                   </TableRow>
                 ) : (
-                  data.map((row) => (
+                  tableData.map((row) => (
                     <TableRow
                       key={row.inventory_balance_id}
                       className="cursor-pointer even:bg-muted/30 hover:bg-muted/50"
@@ -439,16 +441,16 @@ export function InventorySearchPage() {
                 )}
               </TableBody>
             </Table>
+            {hasMoreRecords ? (
+              <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
+                  Load 50 more
+                </Button>
+              </div>
+            ) : null}
           </TableFrame>
         </CardContent>
       </Card>
-      {!searchTerm.trim() && data.length === visibleRecordLimit ? (
-        <div className="flex justify-center">
-          <Button type="button" variant="outline" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
-            Load 50 more
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

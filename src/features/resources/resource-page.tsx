@@ -255,7 +255,7 @@ export function ResourcePage({
       // An explicit search intentionally reads the full permitted resource set,
       // so a matching product, zone, or location is never hidden past page 50.
       if (usesIncrementalTable && !activeFilter) {
-        return listRecordsPage(resource.table, resource.select ?? "*", resource.orderBy, { ...options, limit: visibleRecordLimit });
+        return listRecordsPage(resource.table, resource.select ?? "*", resource.orderBy, { ...options, limit: visibleRecordLimit + 1 });
       }
       return listRecords(resource.table, resource.select ?? "*", resource.orderBy, options);
     },
@@ -263,6 +263,8 @@ export function ResourcePage({
   useEffect(() => {
     setVisibleRecordLimit(50);
   }, [includeHidden, resource.table]);
+  const hasMoreRecords = usesIncrementalTable && !activeFilter && data.length > visibleRecordLimit;
+  const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
   const { data: locationRowsForLabels = [] } = useQuery({
     queryKey: ["locations", "label-source"],
     enabled: resource.table === "zones",
@@ -437,15 +439,15 @@ export function ResourcePage({
 
   const filteredData = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((row) =>
+    if (!q) return tableData;
+    return tableData.filter((row) =>
       resource.fields.some((field) => {
         const val = (row as Record<string, unknown>)[field.name];
         if (val == null) return false;
         return String(val).toLowerCase().includes(q);
       })
     );
-  }, [data, filterQuery, resource.fields]);
+  }, [filterQuery, resource.fields, tableData]);
   const tableFields = useMemo(() => {
     if (resource.table === "products") {
       return resource.fields.filter((field) =>
@@ -725,7 +727,7 @@ export function ResourcePage({
           </span>
         ) : (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {isLoading ? "" : usesIncrementalTable ? `${data.length} loaded` : `${data.length} rows`}
+            {isLoading ? "" : usesIncrementalTable ? `${tableData.length} loaded` : `${data.length} rows`}
           </span>
         )}
       </div>
@@ -955,16 +957,16 @@ export function ResourcePage({
                 )}
               </TableBody>
             </Table>
+            {hasMoreRecords ? (
+              <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
+                  Load 50 more
+                </Button>
+              </div>
+            ) : null}
           </TableFrame>
         </CardContent>
       </Card>
-      {usesIncrementalTable && !activeFilter && data.length === visibleRecordLimit ? (
-        <div className="flex justify-center">
-          <Button type="button" variant="outline" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
-            Load 50 more
-          </Button>
-        </div>
-      ) : null}
 
       {editRecord ? (
         <ResourceEditDialog resource={resource} editRecord={editRecord} onClose={() => setEditRecord(null)} />
