@@ -277,9 +277,15 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
-  const { data: userData } = await sb.auth.getUser()
-  const user = userData?.user
-  if (!user) return json({ error: 'Not authenticated' }, 401)
+  // Verify the caller by validating the JWT itself. getUser() calls the auth
+  // server and fails with "session not found" when the session row has been
+  // rotated/revoked even though the access token is still valid.
+  const token = authHeader.slice('Bearer '.length).trim()
+  const { data: claimsData, error: claimsError } = await sb.auth.getClaims(token)
+  const claims = claimsData?.claims as Record<string, unknown> | undefined
+  const userId = typeof claims?.sub === 'string' ? claims.sub : null
+  if (claimsError || !userId) return json({ error: 'Not authenticated' }, 401)
+  const user = { id: userId, email: typeof claims?.email === 'string' ? claims.email : null }
 
   let body: {
     message?: string

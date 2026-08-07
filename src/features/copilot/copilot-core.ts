@@ -205,7 +205,7 @@ export async function saveCopilotMessage(params: {
     user_id: params.userId,
     role: params.message.role,
     content: params.message.content,
-    citations: params.message.trace ?? [],
+    citations: JSON.parse(JSON.stringify(params.message.trace ?? [])),
   });
   if (error) throw error;
 
