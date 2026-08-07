@@ -31,3 +31,6 @@ android-twa/*.keystore
 android-twa/scripts/__pycache__/
 *.jks
 
+
+# Codebase rehabilitation working notes (local only)
+.codebase-rehabilitation/

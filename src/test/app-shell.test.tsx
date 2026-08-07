@@ -143,7 +143,7 @@ describe("AppShell", () => {
   it("keeps the page title compact and uses a dedicated scroll container for body content", () => {
     const { container } = renderShell();
 
-    expect(screen.getByText("Warehouse Wizard Enterprise WMS")).toBeInTheDocument();
+    expect(screen.getAllByText("WW").length).toBeGreaterThan(0);
     expect(screen.queryByText("2-warehouse, scan-first control room")).not.toBeInTheDocument();
 
     const bodyScrollRegion = container.querySelector(".overflow-y-auto.px-4");
@@ -270,7 +270,7 @@ describe("AppShell", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/refreshing live warehouse state/i);
+    expect((await screen.findAllByRole("status", { name: /refreshing live warehouse state/i })).length).toBeGreaterThan(0);
     expect(sonnerMocks.success).not.toHaveBeenCalledWith("Connection restored. Refreshing live warehouse state.");
 
     await act(async () => {
@@ -278,7 +278,9 @@ describe("AppShell", () => {
       await refreshPromise;
     });
 
-    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryAllByRole("status", { name: /refreshing live warehouse state/i })).toHaveLength(0),
+    );
   });
 
   it("raises a supervisor acknowledgement toast for unresolved offline alerts", async () => {

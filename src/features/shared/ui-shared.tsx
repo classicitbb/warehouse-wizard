@@ -198,7 +198,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 let dashboardLayoutLockedToastAt = 0;
 
 const baseFormSchema = z.record(z.any());
-export const appTitle = "Warehouse Wizard Enterprise WMS";
+export const appTitle = "WW";
 
 type DashboardMetricKey =
   | "totalPallets"
@@ -1060,7 +1060,13 @@ export function ResourceEditDialog({
       onClose();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Update failed");
+      const detail =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message?: unknown }).message ?? "")
+            : "";
+      toast.error(detail || "Update failed");
     },
   });
 
@@ -1198,9 +1204,8 @@ export function ChangeOwnPasswordDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {!hideTrigger && (
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 shrink-0 text-xs">
-            <KeyRound className="mr-1 h-3 w-3" />
-            Change password
+          <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" aria-label="Change password">
+            <KeyRound className="h-3 w-3" />
           </Button>
         </DialogTrigger>
       )}

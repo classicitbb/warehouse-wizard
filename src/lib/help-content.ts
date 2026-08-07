@@ -161,6 +161,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     keyActions: [
       "Start with container and PO, then scan or search product lines",
       "Use the container camera scanner to OCR printed ISO 6346 numbers and confirm the green candidate before insertion",
+      "Hold the container face in frame if on-device reading fails — AI-assisted capture takes over automatically and still asks you to confirm",
       "Commit the selected product with the right-arrow button before entering quantities",
       "Enter total, quantity per pallet, pallet count, and expiry in sequence",
       "Reconnect and refresh live state before any save or receive after signal loss",
@@ -306,10 +307,10 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     id: "help",
     title: "Help Center",
     summary: "The Help Center is the searchable wiki for operators, supervisors, and administrators.",
-    keyActions: ["Search articles", "Open module-specific guides", "Use linked context from the help sidebar"],
+    keyActions: ["Search articles", "Open module-specific guides", "Use linked context from the help sidebar", "Check the header notification bell for connectivity and reorder alerts"],
     commonMistakes: ["Searching too narrowly by exact title only", "Using an outdated process instead of the in-app wiki"],
     permissions: "Visible to all approved users.",
-    wikiArticleIds: ["help-center", "operational-dead-ends", "warehouse-setup", "receiving-flow"],
+    wikiArticleIds: ["help-center", "notification-bell", "operational-dead-ends", "warehouse-setup", "receiving-flow"],
   },
   "setup-wizard": {
     id: "setup-wizard",
@@ -332,6 +333,18 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "Overview", content: ["The Help Center is the searchable documentation hub for the warehouse system.", "Use the sidebar on any page for quick context, then open the full wiki when you need deeper instructions."] },
       { title: "Search Tips", content: ["Search by module name, workflow name, or operational term such as receiving, transfer, cycle count, or quarantine.", "Results match titles, keywords, and article content."] },
+    ],
+  },
+  {
+    id: "notification-bell",
+    title: "Notification Bell",
+    module: "help",
+    audience: "All operators",
+    keywords: ["notifications", "bell", "alerts", "rf", "offline", "connectivity", "reorder"],
+    sections: [
+      { title: "Overview", content: ["Connectivity notices and reorder alerts share one bell in the header on desktop and mobile.", "The badge shows the combined count of both groups; it turns red when a connectivity notice is present and amber when only reorder alerts are waiting."] },
+      { title: "Connectivity", content: ["This group lists the offline state of the current RF device plus supervisor notices raised when a floor device loses its connection.", "Live commits stay frozen on an offline device until the backend connection is restored."] },
+      { title: "Reorder Alerts", content: ["This group lists products that have entered the reorder state, with available quantity and the recommended replenishment quantity per warehouse.", "It only appears for users whose role receives reorder notifications."] },
     ],
   },
   {
@@ -397,6 +410,7 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "Core Flow", content: ["Receiving creates shipment drafts, lot context, pallet identity, and the downstream put-away task.", "The New Shipment form is ordered for scanner work: warehouse context, container number, PO number, product, quantities, expiry, then optional lot, batch, and packaging details."] },
       { title: "Container Scanner", content: ["Use Scan container number when the printed container number is visible. The camera reads text, assembles the best ISO 6346 candidate, checks the check digit, and turns the candidate green only when it is valid.", "Confirm the green candidate to insert it. After insertion, focus moves to PO number so the operator can continue the receiving flow without touching the warehouse selector."] },
+      { title: "AI-Assisted Container Capture", content: ["When on-device text recognition cannot read the container face after a couple of passes, the scanner sends a single photo of the current frame for AI reading and shows Reading container with AI.", "Frame the whole container face square-on, with the painted number inside the guide and as little glare as possible. Dirty, angled, or low-contrast doors are exactly what this pass is for.", "Any number the AI returns is re-checked against the ISO 6346 check digit on the server, so an unreadable or invented code is rejected and never offered.", "Nothing is written automatically: the code appears as a green candidate and only enters the container field when you press Use.", "If the device is offline or the AI is unavailable, the scanner keeps doing on-device reading and manual entry stays available."] },
       { title: "Product Commit Step", content: ["Scan product or search by SKU/name to select the product. Selection alone does not move into quantities.", "After a product is selected, the right-arrow commit button is highlighted and focused. Confirm it to lock the chosen product for that line and move to Total received."] },
       { title: "Quantity and Expiry Entry", content: ["Quantity fields allow blank and partial typing, so multi-digit numbers should be typed normally and committed with Enter.", "Total received Enter recalculates pallet count and moves to Qty per pallet. Qty per pallet Enter recalculates pallet count and moves to Pallets. Pallets Enter opens the expiry calendar.", "When the product has prior receiving observations, Qty per pallet may be suggested from learned history. Treat it as a time saver, not a substitute for the physical count."] },
       { title: "Connectivity Safety", content: ["If the device goes offline, keep typing or scanning locally but do not expect Save, Save & Receive, or Print & Receive to post. Live receiving commits are frozen until the connection returns.", "After reconnect, refresh live state, review the draft list and current shipment form, then save or receive again from the live screen."] },

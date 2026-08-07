@@ -159,6 +159,7 @@ import {
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
 import { HelpSidebar } from "@/components/help-sidebar";
+import { CopilotPanel } from "@/features/copilot/copilot-panel";
 import { ZoneLabelPage } from "@/components/zone-label-page";
 import { LocationLabelPage } from "@/components/location-label-page";
 import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
@@ -332,8 +333,20 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
   );
 }
 
-function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervisorAlert[]; offline: boolean }) {
-  const notificationCount = alerts.length + (offline ? 1 : 0);
+function NotificationBell({
+  alerts,
+  offline,
+  reorderAlerts,
+  showReorder,
+}: {
+  alerts: OfflineSupervisorAlert[];
+  offline: boolean;
+  reorderAlerts: ReorderAlertBellRow[];
+  showReorder: boolean;
+}) {
+  const connectivityCount = alerts.length + (offline ? 1 : 0);
+  const reorderCount = showReorder ? reorderAlerts.length : 0;
+  const notificationCount = connectivityCount + reorderCount;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -341,12 +354,19 @@ function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervi
           className="relative h-9 w-9"
           size="icon"
           variant="outline"
-          aria-label={notificationCount ? `${notificationCount} RF connectivity notification${notificationCount === 1 ? "" : "s"}` : "RF connectivity notifications"}
-          title="RF connectivity notifications"
+          aria-label={notificationCount ? `${notificationCount} notification${notificationCount === 1 ? "" : "s"}` : "Notifications"}
+          title="Notifications"
         >
           <Bell className="h-4 w-4" />
           {notificationCount ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground">
+            <span
+              className={cn(
+                "absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
+                connectivityCount
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-amber-500 text-white",
+              )}
+            >
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           ) : null}
@@ -354,13 +374,15 @@ function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervi
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
         <div className="border-b border-border px-3 py-2">
-          <p className="text-sm font-semibold">RF connectivity</p>
-          <p className="text-xs text-muted-foreground">Warehouse-floor connection notices</p>
+          <p className="text-sm font-semibold">Notifications</p>
+          <p className="text-xs text-muted-foreground">Connectivity and inventory alerts</p>
         </div>
-        {notificationCount === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">No RF connectivity notifications.</p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto p-1">
+        <div className="max-h-80 overflow-y-auto">
+          <p className="bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Connectivity</p>
+          <div className="p-1">
+            {connectivityCount === 0 ? (
+              <p className="px-2 py-2 text-sm text-muted-foreground">No RF connectivity notifications.</p>
+            ) : null}
             {offline ? (
               <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm">
                 <p className="font-medium text-amber-900 dark:text-amber-100">This RF device is offline</p>
@@ -375,52 +397,26 @@ function RfOfflineNotificationBell({ alerts, offline }: { alerts: OfflineSupervi
               </div>
             ))}
           </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ReorderAlertsNotificationBell({ alerts }: { alerts: ReorderAlertBellRow[] }) {
-  const count = alerts.length;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className="relative h-9 w-9"
-          size="icon"
-          variant="outline"
-          aria-label={count ? `${count} reorder alert${count === 1 ? "" : "s"}` : "Reorder alerts"}
-          title="Reorder alerts"
-        >
-          <Bell className="h-4 w-4" />
-          {count ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-semibold leading-none text-white">
-              {count > 9 ? "9+" : count}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
-        <div className="border-b border-border px-3 py-2">
-          <p className="text-sm font-semibold">Reorder alerts</p>
-          <p className="text-xs text-muted-foreground">Products that have entered the reorder state</p>
-        </div>
-        {count === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">No active reorder alerts.</p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto p-1">
-            {alerts.map((alert) => (
-              <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
-                <p className="font-medium">{alert.products?.sku ?? "Product"}{alert.products?.name ? ` — ${alert.products.name}` : ""}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {alert.warehouses?.code ?? alert.warehouses?.name ?? "Warehouse"} · {Number(alert.available_quantity ?? 0)} available · replenish {Number(alert.recommended_quantity ?? 0)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
+          {showReorder ? (
+            <>
+              <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Reorder alerts</p>
+              <div className="p-1">
+                {reorderCount === 0 ? (
+                  <p className="px-2 py-2 text-sm text-muted-foreground">No active reorder alerts.</p>
+                ) : null}
+                {reorderAlerts.map((alert) => (
+                  <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                    <p className="font-medium">{alert.products?.sku ?? "Product"}{alert.products?.name ? ` — ${alert.products.name}` : ""}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {alert.warehouses?.code ?? alert.warehouses?.name ?? "Warehouse"} · {Number(alert.available_quantity ?? 0)} available · replenish {Number(alert.recommended_quantity ?? 0)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            </>
+          ) : null}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -859,6 +855,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <span className="truncate text-sm font-semibold">{appTitle}</span>
             <span className="hidden text-[10px] font-medium text-muted-foreground sm:inline">v{__APP_VERSION__}</span>
+            {reconnectRefreshing ? (
+              <Loader2
+                role="status"
+                aria-label="Refreshing live warehouse state"
+                className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+              />
+            ) : null}
           </Link>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-1.5 py-1">
@@ -868,8 +871,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="hidden max-w-[120px] truncate text-xs font-medium sm:inline">{displayName}</span>
             </div>
             <OfflineFreezeBadge compact />
-            <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
-            {canReceiveReorderNotifications ? <ReorderAlertsNotificationBell alerts={reorderAlertsForBell} /> : null}
+            <NotificationBell
+              alerts={offlineSupervisorAlerts}
+              offline={connectionConfirmed && !online}
+              reorderAlerts={reorderAlertsForBell}
+              showReorder={canReceiveReorderNotifications}
+            />
             <HelpSidebar pathname={pathname} />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -923,6 +930,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <Button className="h-8 w-8 shrink-0" size="icon" variant="outline" onClick={() => window.location.reload()} aria-label="Refresh" title="Refresh">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
+                    <CopilotPanel variant="mobile" />
                     <Button className="h-8 flex-1 text-xs justify-start" variant="outline" size="sm" onClick={() => { setMobileMenuOpen(false); void signOut(); }}>
                       <LogOut className="mr-2 h-3 w-3" />
                       Sign out
@@ -943,7 +951,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="min-w-0">
               <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
                 <span className="truncate">{items.find((item) => item.to === pathname)?.label ?? "Warehouse Wizard Enterprise WMS"}</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
+                {roles.includes("developer") ? (
+                  <a
+                    href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Edit with Lovable"
+                    className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium underline-offset-2 hover:underline hover:text-primary"
+                  >
+                    v{__APP_VERSION__}
+                  </a>
+                ) : (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
+                )}
+                {reconnectRefreshing ? (
+                  <Loader2
+                    role="status"
+                    aria-label="Refreshing live warehouse state"
+                    className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                  />
+                ) : null}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -968,10 +995,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </SelectContent>
                 </Select>
               ) : null}
+              <CopilotPanel />
               <HelpSidebar pathname={pathname} />
               <OfflineFreezeBadge />
-              <RfOfflineNotificationBell alerts={offlineSupervisorAlerts} offline={connectionConfirmed && !online} />
-              {canReceiveReorderNotifications ? <ReorderAlertsNotificationBell alerts={reorderAlertsForBell} /> : null}
+              <NotificationBell
+                alerts={offlineSupervisorAlerts}
+                offline={connectionConfirmed && !online}
+                reorderAlerts={reorderAlertsForBell}
+                showReorder={canReceiveReorderNotifications}
+              />
               <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => window.location.reload()} />
             </div>
           </div>
@@ -984,18 +1016,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               pathname === "/inventory-search" ? "overflow-hidden" : "overflow-y-auto",
             )}
           >
-            {reconnectRefreshing ? (
-              <div
-                role="status"
-                aria-live="polite"
-                className="mb-4 flex flex-col items-center justify-center rounded-lg border border-border/70 bg-card/80 px-4 py-3 text-center shadow-sm"
-              >
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="mt-1 text-[11px] font-medium text-muted-foreground">
-                  Refreshing live warehouse state…
-                </p>
-              </div>
-            ) : null}
             {children}
           </div>
         </main>
