@@ -50,13 +50,27 @@ export async function listRecords(
   }));
 }
 
+/** Columns that are NOT NULL in Postgres but have a database default. Sending
+ *  an explicit null (from a cleared form field) violates the constraint, so we
+ *  drop them from the payload and let the default apply. */
+const NOT_NULL_WITH_DEFAULT: Record<string, string[]> = {
+  products: ["velocity_class", "rotation_method", "temperature_requirement"],
+};
+
+function cleanPayload(table: string, payload: Record<string, unknown>) {
+  const dropIfEmpty = new Set(NOT_NULL_WITH_DEFAULT[table] ?? []);
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([key, value]) => [key, value === "" ? null : value] as const)
+      .filter(([key, value]) => !(value === null && dropIfEmpty.has(key))),
+  );
+}
+
 export async function upsertRecord(
   table: string,
   payload: Record<string, unknown>,
 ) {
-  const cleanedPayload = Object.fromEntries(
-    Object.entries(payload).map(([key, value]) => [key, value === "" ? null : value]),
-  );
+  const cleanedPayload = cleanPayload(table, payload);
   const { data, error } = await (supabase.from as any)(table).upsert(cleanedPayload as never).select().single();
   if (error) throw error;
   return data as any;
@@ -67,9 +81,7 @@ export async function updateRecord(
   id: string,
   payload: Record<string, unknown>,
 ) {
-  const cleanedPayload = Object.fromEntries(
-    Object.entries(payload).map(([key, value]) => [key, value === "" ? null : value]),
-  );
+  const cleanedPayload = cleanPayload(table, payload);
   const { data, error } = await (supabase.from as any)(table)
     .update(cleanedPayload as never)
     .eq("id", id)
