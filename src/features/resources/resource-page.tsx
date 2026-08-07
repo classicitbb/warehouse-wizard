@@ -541,7 +541,7 @@ export function ResourcePage({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-2xl font-semibold">{resource.title}</h2>
@@ -732,9 +732,9 @@ export function ResourcePage({
         )}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <TableFrame>
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <TableFrame className="h-full">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>

@@ -1022,7 +1022,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               pathname === "/help"
                 ? "p-0 pb-14 lg:landscape:pb-0"
                 : "px-4 pt-5 pb-[4.75rem] sm:px-5 lg:px-6 lg:landscape:pb-5",
-              pathname === "/inventory-search" ? "overflow-hidden" : "overflow-y-auto",
+              ["/inventory-search", "/warehouses", "/zones", "/locations"].includes(pathname) ? "overflow-hidden" : "overflow-y-auto",
             )}
           >
             {children}
