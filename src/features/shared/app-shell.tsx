@@ -1039,15 +1039,16 @@ function MobileActionBar({
   routeBadgeCounts: Partial<Record<AppRoute, number>>;
   getNavBadgeLabel: (route: AppRoute, count: number) => string;
 }) {
-  const { toolbarModules } = useFeatureFlags();
+  const { toolbarModules, isEnabled } = useFeatureFlags();
   const { toPath } = useTenantPath();
   const favoriteItems = toolbarModules.flatMap((moduleKey) => {
+    if (moduleKey === "copilot") return isEnabled(moduleKey) ? [{ type: "copilot" as const }] : [];
     const item = items.find((candidate) => candidate.moduleKey === moduleKey && candidate.to !== "/help");
-    return item ? [item] : [];
+    return item ? [{ type: "navigation" as const, item }] : [];
   });
   const shortcutItems = favoriteItems.length > 0
     ? favoriteItems
-    : items.filter((item) => item.to !== "/help" && item.to !== "/dashboard");
+    : items.filter((item) => item.to !== "/help" && item.to !== "/dashboard").map((item) => ({ type: "navigation" as const, item }));
   const barItems = shortcutItems.slice(0, 8);
   if (barItems.length === 0) return null;
   const getNavBadgeCount = (route: AppRoute) => routeBadgeCounts[route] ?? 0;
@@ -1069,7 +1070,11 @@ function MobileActionBar({
       onContextMenu={(event) => event.preventDefault()}
       aria-label="Primary mobile navigation"
     >
-      {barItems.map((item) => {
+      {barItems.map((entry) => {
+        if (entry.type === "copilot") {
+          return <CopilotPanel key="copilot" variant="dock" />;
+        }
+        const { item } = entry;
         const Icon = navIcons[item.to] ?? LayoutDashboard;
         const isActive = pathname === item.to;
         const badgeCount = getNavBadgeCount(item.to);

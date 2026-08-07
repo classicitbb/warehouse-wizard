@@ -30,7 +30,7 @@ function messageId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "mobile" }) {
+export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "mobile" | "dock" }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -93,7 +93,17 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        {variant === "mobile" ? (
+        {variant === "dock" ? (
+          <Button
+            className="h-full w-full flex-col gap-0.5 rounded-md px-0.5 py-1 text-[10px] font-medium"
+            variant="ghost"
+            aria-label="Ask Copilot"
+            title="Ask Copilot"
+          >
+            <Bot className="h-5 w-5" />
+            <span className="w-full truncate text-center leading-none">Copilot</span>
+          </Button>
+        ) : variant === "mobile" ? (
           <Button className="h-8 w-8 shrink-0" size="icon" variant="outline" aria-label="Ask Copilot" title="Ask Copilot">
             <Bot className="h-3.5 w-3.5" />
           </Button>

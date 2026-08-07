@@ -1166,7 +1166,7 @@ function ModulesSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
                   const meta = MODULE_LABELS[key];
                   const enabled = flags[key] ?? STARTER_MODULES[key];
                   const pinned = isToolbarModule(key);
-                  const hasToolbarDestination = NAVIGATION.some((item) => item.moduleKey === key);
+                  const hasToolbarDestination = key === "copilot" || NAVIGATION.some((item) => item.moduleKey === key);
                   const toolbarDisabled = !hasToolbarDestination || (!pinned && (!enabled || toolbarModules.length >= MAX_TOOLBAR_MODULES));
                   return (
                     <div key={key} className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
