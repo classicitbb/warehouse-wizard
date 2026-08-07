@@ -76,6 +76,7 @@ import {
   downloadCsv,
   downloadCsvTemplate,
   fetchOptions,
+  fetchLocationCreationOptions,
   formatDate,
   formatNumber,
   getDashboardMetrics,
@@ -135,6 +136,7 @@ import {
   cancelMoveTask,
   expandLocationRange,
   buildRackLocationCode,
+  levelToLetter,
   suggestNextRackPosition,
   validateMoveDestination,
   type MoveValidationResult,
@@ -743,24 +745,39 @@ function RackLocationCodeBuilder({
   const [aisle, setAisle] = useState(1);
   const [bay, setBay] = useState(1);
   const [level, setLevel] = useState(1);
+  const [levelStyle, setLevelStyle] = useState<"numeric" | "alpha">("numeric");
   const [position, setPosition] = useState(1);
   const [depth, setDepth] = useState(1);
+  const selectedZoneId = String(form.watch("zone_id") ?? "");
+  const selectedZone = (options?.zones ?? []).find((zone: any) => String(zone.id) === selectedZoneId) as any;
+  const previousZoneId = useRef(selectedZoneId);
 
-  const localCode = buildRackLocationCode({ rack, aisle, bay, level, position });
-  const prefixKey = `${rack.toUpperCase()}-${String(bay).padStart(2, "0")}-L${String(level).padStart(2, "0")}`;
+  const localCode = buildRackLocationCode({ rack, aisle, bay, level, position, levelStyle });
+  const prefixKey = `${rack.toUpperCase()}-${String(bay).padStart(2, "0")}-`;
 
   const { data: existingAtPrefix = [] } = useQuery({
-    queryKey: ["locations-prefix", prefixKey],
+    queryKey: ["locations-prefix", selectedZoneId, prefixKey],
     queryFn: async () => {
-      const { data } = await supabase.from("locations").select("code").ilike("code", `${prefixKey}%`);
+      const { data } = await supabase.from("locations").select("code").eq("zone_id", selectedZoneId).ilike("code", `${prefixKey}%`);
       return (data ?? []).map((r: any) => String(r.code));
     },
-    enabled: Boolean(rack && aisle && bay && level),
+    enabled: Boolean(selectedZoneId && rack && aisle && bay && level),
     staleTime: 10_000,
   });
 
-  const isDuplicate = existingAtPrefix.some((c) => c.toUpperCase().includes(localCode.toUpperCase()));
+  const isDuplicate = existingAtPrefix.some((code) => {
+    const existingCode = code.toUpperCase();
+    const candidateCode = localCode.toUpperCase();
+    return existingCode === candidateCode || existingCode === `${candidateCode}-P1`;
+  });
   const nextSuggestion = suggestNextRackPosition(existingAtPrefix, rack, aisle, bay, level);
+
+  useEffect(() => {
+    if (!selectedZoneId || previousZoneId.current === selectedZoneId) return;
+    previousZoneId.current = selectedZoneId;
+    const zoneCode = String(selectedZone?.code ?? "").trim().toUpperCase();
+    if (zoneCode) setRack(zoneCode);
+  }, [selectedZone?.code, selectedZoneId]);
 
   useEffect(() => {
     form.setValue("code", localCode, { shouldValidate: true });
@@ -770,12 +787,13 @@ function RackLocationCodeBuilder({
     form.setValue("position", position);
     form.setValue("depth", depth);
     form.setValue("location_type", "rack");
+    form.setValue("level_style", levelStyle);
     if (isDuplicate) {
       form.setError("code", { type: "manual", message: "This location already exists" });
     } else {
       form.clearErrors("code");
     }
-  }, [rack, aisle, bay, level, position, depth, localCode, isDuplicate, form]);
+  }, [rack, aisle, bay, level, levelStyle, position, depth, localCode, isDuplicate, form]);
 
   return (
     <div className="space-y-4">
@@ -784,9 +802,9 @@ function RackLocationCodeBuilder({
           <FormLabel>Rack</FormLabel>
           <FormControl>
             <Input
-              maxLength={1}
+              maxLength={8}
               value={rack}
-              placeholder="A"
+              placeholder="A or BR"
               onChange={(e) => setRack(e.target.value.toUpperCase().replace(/[^A-Z]/g, "") || "A")}
             />
           </FormControl>
@@ -821,14 +839,22 @@ function RackLocationCodeBuilder({
           <FormLabel>Level</FormLabel>
           <FormControl>
             <Input
-              type="number"
-              min={1}
-              max={7}
-              value={level}
-              onChange={(e) => setLevel(Math.max(1, Math.min(7, parseInt(e.target.value, 10) || 1)))}
+              inputMode="text"
+              maxLength={2}
+              value={levelStyle === "alpha" ? levelToLetter(level) : String(level)}
+              onChange={(e) => {
+                const value = e.target.value.trim().toUpperCase();
+                if (/^[A-G]$/.test(value)) {
+                  setLevelStyle("alpha");
+                  setLevel(value.charCodeAt(0) - 64);
+                } else if (/^\d{1,2}$/.test(value)) {
+                  setLevelStyle("numeric");
+                  setLevel(Math.max(1, Math.min(7, parseInt(value, 10))));
+                }
+              }}
             />
           </FormControl>
-          <p className="text-[11px] text-muted-foreground">1 = floor, 2+ above</p>
+          <p className="text-[11px] text-muted-foreground">1–7 or A–G; 1/A = floor, 2+/B+ above</p>
         </FormItem>
         <FormItem>
           <FormLabel>
@@ -895,12 +921,14 @@ export function ResourceFormDialog({
   const { roles, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
-  const { data: options } = useQuery({
-    queryKey: ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
-    queryFn: () => fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
-  });
   const isZones = resource.table === "zones";
   const isLocations = resource.table === "locations";
+  const { data: options } = useQuery({
+    queryKey: ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
+    queryFn: () => isLocations
+      ? fetchLocationCreationOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id })
+      : fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
+  });
   // Fields controlled by the location code builder — hidden from the generic loop
   const builderControlledFields = new Set(["code", "aisle", "bay", "level", "position", "depth", "location_type"]);
 
@@ -2885,7 +2913,7 @@ export function LocationWizardDialog({
 }: LocationWizardDialogProps = {}) {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
-  const { data: options } = useQuery({ queryKey: ["options", "location-wizard"], queryFn: () => fetchOptions() });
+  const { data: options } = useQuery({ queryKey: ["options", "location-wizard"], queryFn: () => fetchLocationCreationOptions() });
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = openProp !== undefined;
   const open = isControlled ? !!openProp : internalOpen;
@@ -2919,7 +2947,7 @@ export function LocationWizardDialog({
     (): LocationWizardValues => ({
       warehouse_id: resolvedDefaultWarehouseId,
       zone_id: resolvedDefaultZoneId,
-      prefix: "A",
+      prefix: String((options?.zones ?? []).find((zone: any) => zone.id === resolvedDefaultZoneId)?.code ?? "A").toUpperCase(),
       start_bay: 1,
       end_bay: 10,
       levels: 3,
@@ -2941,7 +2969,9 @@ export function LocationWizardDialog({
   });
 
   const selectedWarehouseId = form.watch("warehouse_id");
+  const selectedZoneId = form.watch("zone_id");
   const prevWarehouseRef = useRef(selectedWarehouseId);
+  const prevZoneRef = useRef(selectedZoneId);
 
   // Reset form to prefilled defaults whenever the dialog opens.
   useEffect(() => {
@@ -2949,6 +2979,7 @@ export function LocationWizardDialog({
       const next = buildDefaults();
       form.reset(next);
       prevWarehouseRef.current = next.warehouse_id;
+      prevZoneRef.current = next.zone_id;
     }
   }, [open, buildDefaults, form]);
 
@@ -2973,6 +3004,13 @@ export function LocationWizardDialog({
       form.setValue("zone_id", fallbackZoneId, { shouldValidate: true });
     }
   }, [filteredZones, form, open, resolvedDefaultZoneId, selectedWarehouseId]);
+
+  useEffect(() => {
+    if (!open || !selectedZoneId || prevZoneRef.current === selectedZoneId) return;
+    prevZoneRef.current = selectedZoneId;
+    const zoneCode = String((options?.zones ?? []).find((zone: any) => zone.id === selectedZoneId)?.code ?? "").trim().toUpperCase();
+    if (zoneCode) form.setValue("prefix", zoneCode, { shouldValidate: true });
+  }, [form, open, options?.zones, selectedZoneId]);
 
   const locationCount =
     Math.max((form.watch("end_bay") ?? 1) - (form.watch("start_bay") ?? 1) + 1, 0) *
@@ -3329,6 +3367,9 @@ export function normalizeResourceValues(
   }, {});
   if (resource.table === "locations" && !behavior?.preserveLocationCode) {
     payload.code = composeLocationCode(options, payload.warehouse_id, payload.zone_id, payload.code);
+    if (values.level_style === "alpha" || values.level_style === "numeric") {
+      payload.level_style = values.level_style;
+    }
   }
   return payload;
 }

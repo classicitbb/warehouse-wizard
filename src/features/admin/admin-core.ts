@@ -361,6 +361,34 @@ export async function fetchOptions(includeHidden = false, scope?: WarehouseVisib
   };
 }
 
+/**
+ * The location creation forms only need their warehouse and zone selectors.
+ * Keep this separate from fetchOptions(), which intentionally loads the full
+ * admin option set for broader management screens.
+ */
+export async function fetchLocationCreationOptions(
+  includeHidden = false,
+  scope?: WarehouseVisibilityScope,
+): Promise<Awaited<ReturnType<typeof fetchOptions>>> {
+  const [warehouses, zones] = await Promise.all([
+    listRecords("warehouses", "*", undefined, { includeHidden, archiveField: "active" }),
+    listRecords("zones", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
+  ]);
+  const scopedWarehouseId = scope?.restrictToWarehouse ? scope.warehouseId : null;
+  return {
+    warehouses: scopedWarehouseId ? warehouses.filter((warehouse: any) => warehouse.id === scopedWarehouseId) : warehouses,
+    zones: scopedWarehouseId ? zones.filter((zone: any) => zone.warehouse_id === scopedWarehouseId) : zones,
+    locations: [],
+    clients: [],
+    products: [],
+    packagingProfiles: [],
+    pallets: [],
+    profiles: [],
+    roles: [],
+    userRoles: [],
+  };
+}
+
 export async function getWarehouseForLocationBarcode(locationCode: string) {
   const normalizedCode = locationCode.trim();
   if (!normalizedCode) throw new Error("Scan a location barcode first.");
