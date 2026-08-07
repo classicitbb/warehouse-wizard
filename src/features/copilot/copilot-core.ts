@@ -26,6 +26,12 @@ export type CopilotMessage = {
   error?: boolean;
 };
 
+export type CopilotConversation = {
+  id: string;
+  title: string | null;
+  updatedAt: string;
+};
+
 export type CopilotAnswer = {
   answer: string;
   trace: CopilotTraceEntry[];
@@ -105,6 +111,8 @@ export async function askCopilot(params: {
   pathname: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   selection?: Record<string, unknown>;
+  conversationId?: string | null;
+  signal?: AbortSignal;
 }): Promise<CopilotAnswer> {
   const { data, error } = await supabase.functions.invoke("copilot", {
     body: {
@@ -112,7 +120,9 @@ export async function askCopilot(params: {
       history: params.history,
       context: { screen: params.pathname, selection: params.selection ?? {} },
       procedures: buildProcedureContext(params.pathname, params.question),
+      conversationId: params.conversationId ?? null,
     },
+    signal: params.signal,
   });
 
   if (error) {
@@ -137,4 +147,71 @@ export async function askCopilot(params: {
     trace: payload.trace ?? [],
     context: payload.context,
   };
+}
+
+export async function loadCopilotConversations(userId: string): Promise<CopilotConversation[]> {
+  const { data, error } = await supabase
+    .from("copilot_conversations")
+    .select("id, title, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []).map((conversation) => ({
+    id: conversation.id,
+    title: conversation.title,
+    updatedAt: conversation.updated_at,
+  }));
+}
+
+export async function loadCopilotMessages(conversationId: string): Promise<CopilotMessage[]> {
+  const { data, error } = await supabase
+    .from("copilot_messages")
+    .select("id, role, content, citations")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? [])
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .map((message) => ({
+      id: message.id,
+      role: message.role as CopilotMessage["role"],
+      content: message.content,
+      trace: Array.isArray(message.citations) ? message.citations as CopilotTraceEntry[] : undefined,
+    }));
+}
+
+export async function createCopilotConversation(params: {
+  userId: string;
+  warehouseId?: string | null;
+  title: string;
+}): Promise<CopilotConversation> {
+  const { data, error } = await supabase
+    .from("copilot_conversations")
+    .insert({ user_id: params.userId, warehouse_id: params.warehouseId ?? null, title: params.title.slice(0, 100) })
+    .select("id, title, updated_at")
+    .single();
+  if (error) throw error;
+  return { id: data.id, title: data.title, updatedAt: data.updated_at };
+}
+
+export async function saveCopilotMessage(params: {
+  conversationId: string;
+  userId: string;
+  message: CopilotMessage;
+}) {
+  const { error } = await supabase.from("copilot_messages").insert({
+    conversation_id: params.conversationId,
+    user_id: params.userId,
+    role: params.message.role,
+    content: params.message.content,
+    citations: params.message.trace ?? [],
+  });
+  if (error) throw error;
+
+  const { error: touchError } = await supabase
+    .from("copilot_conversations")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", params.conversationId);
+  if (touchError) throw touchError;
 }

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Bot, Loader2, Send, Sparkle } from "lucide-react";
+import { Bot, History, Loader2, Plus, Send, Sparkle, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -17,7 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { askCopilot, isCopilotPreviewHost, type CopilotMessage } from "@/features/copilot/copilot-core";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  askCopilot,
+  createCopilotConversation,
+  isCopilotPreviewHost,
+  loadCopilotConversations,
+  loadCopilotMessages,
+  saveCopilotMessage,
+  type CopilotConversation,
+  type CopilotMessage,
+} from "@/features/copilot/copilot-core";
 
 const SUGGESTIONS = [
   "What is open for me right now?",
@@ -32,12 +42,18 @@ function messageId() {
 
 export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "mobile" | "dock" }) {
   const { pathname } = useLocation();
+  const { user, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
+  const [conversations, setConversations] = useState<CopilotConversation[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const stoppedRef = useRef(false);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -47,30 +63,95 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
 
+  useEffect(() => {
+    if (!open || !user?.id) return;
+    void loadCopilotConversations(user.id).then(setConversations).catch(() => {
+      // History is supplementary; the active chat remains usable if it cannot load.
+    });
+  }, [open, user?.id]);
+
+  const startNewChat = useCallback(() => {
+    if (busy) return;
+    setConversationId(null);
+    setMessages([]);
+    setHistoryOpen(false);
+    setInput("");
+    inputRef.current?.focus();
+  }, [busy]);
+
+  const openConversation = useCallback(async (id: string) => {
+    if (busy || id === conversationId) return;
+    try {
+      setMessages(await loadCopilotMessages(id));
+      setConversationId(id);
+      setHistoryOpen(false);
+    } catch {
+      // Keep the current thread intact when a saved conversation cannot be read.
+    }
+  }, [busy, conversationId]);
+
+  const stop = useCallback(() => {
+    stoppedRef.current = true;
+    abortRef.current?.abort();
+  }, []);
+
   const send = useCallback(
     async (question: string) => {
       const trimmed = question.trim();
       if (!trimmed || busy) return;
-      const history = messages
+      const chatHistory = messages
         .filter((message) => !message.error)
         .slice(-8)
         .map((message) => ({ role: message.role, content: message.content }));
 
-      setMessages((prev) => [...prev, { id: messageId(), role: "user", content: trimmed }]);
+      const userMessage = { id: messageId(), role: "user" as const, content: trimmed };
+      let activeConversationId = conversationId;
+      if (!activeConversationId && user?.id) {
+        try {
+          const conversation = await createCopilotConversation({
+            userId: user.id,
+            warehouseId: profile?.default_warehouse_id ?? null,
+            title: trimmed,
+          });
+          activeConversationId = conversation.id;
+          setConversationId(conversation.id);
+          setConversations((prev) => [conversation, ...prev]);
+        } catch {
+          // The chat still works in preview/demo environments without a persisted session.
+        }
+      }
+
+      setMessages((prev) => [...prev, userMessage]);
       setInput("");
       setBusy(true);
+      stoppedRef.current = false;
+      const controller = new AbortController();
+      abortRef.current = controller;
+      if (activeConversationId && user?.id) {
+        void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: userMessage }).catch(() => {});
+      }
       try {
-        const result = await askCopilot({ question: trimmed, pathname, history });
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: messageId(),
-            role: "assistant",
-            content: result.answer || "No answer was returned.",
-            trace: result.trace,
-          },
-        ]);
+        const result = await askCopilot({
+          question: trimmed,
+          pathname,
+          history: chatHistory,
+          conversationId: activeConversationId,
+          signal: controller.signal,
+        });
+        const assistantMessage = {
+          id: messageId(),
+          role: "assistant" as const,
+          content: result.answer || "No answer was returned.",
+          trace: result.trace,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        if (activeConversationId && user?.id) {
+          void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: assistantMessage })
+            .then(() => loadCopilotConversations(user.id).then(setConversations))
+            .catch(() => {});
+        }
       } catch (error) {
+        if (stoppedRef.current || controller.signal.aborted) return;
         setMessages((prev) => [
           ...prev,
           {
@@ -81,11 +162,12 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           },
         ]);
       } finally {
+        abortRef.current = null;
         setBusy(false);
         inputRef.current?.focus();
       }
     },
-    [busy, messages, pathname],
+    [busy, conversationId, messages, pathname, profile?.default_warehouse_id, user?.id],
   );
 
   // The dock is an explicit user opt-in; keep the existing header controls
@@ -126,7 +208,32 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           <SheetDescription className="text-xs">
             Read-only. Answers come from live records you have access to and cite them. It never changes data.
           </SheetDescription>
+          <div className="flex items-center gap-2 pt-1">
+            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs" onClick={() => setHistoryOpen((value) => !value)}>
+              <History className="h-3.5 w-3.5" /> History
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs" onClick={startNewChat} disabled={busy}>
+              <Plus className="h-3.5 w-3.5" /> New chat
+            </Button>
+          </div>
         </SheetHeader>
+
+        {historyOpen ? (
+          <div className="max-h-44 space-y-1 overflow-y-auto border-b border-border bg-muted/20 px-4 py-2">
+            {conversations.length ? conversations.map((conversation) => (
+              <button
+                key={conversation.id}
+                type="button"
+                onClick={() => void openConversation(conversation.id)}
+                disabled={busy}
+                className={cn("block w-full truncate rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:cursor-not-allowed", conversation.id === conversationId && "bg-muted font-medium")}
+                title={conversation.title ?? "Untitled chat"}
+              >
+                {conversation.title || "Untitled chat"}
+              </button>
+            )) : <p className="px-2 py-1 text-xs text-muted-foreground">No saved chats yet.</p>}
+          </div>
+        ) : null}
 
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {messages.length === 0 ? (
@@ -206,6 +313,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
+            disabled={busy}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -216,9 +324,15 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             rows={2}
             className="min-h-[2.5rem] flex-1 resize-none text-sm"
           />
-          <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={busy || !input.trim()} aria-label="Send">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+          {busy ? (
+            <Button type="button" size="icon" variant="destructive" className="h-9 w-9 shrink-0" onClick={stop} aria-label="Stop response" title="Stop response">
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </Button>
+          ) : (
+            <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={!input.trim()} aria-label="Send">
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
         </form>
       </SheetContent>
     </Sheet>
