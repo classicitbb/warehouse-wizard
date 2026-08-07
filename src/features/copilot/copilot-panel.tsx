@@ -88,7 +88,9 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     [busy, messages, pathname],
   );
 
-  if (!isCopilotPreviewHost()) return null;
+  // The dock is an explicit user opt-in; keep the existing header controls
+  // preview-only until Copilot is generally released.
+  if (variant !== "dock" && !isCopilotPreviewHost()) return null;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
