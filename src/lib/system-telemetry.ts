@@ -1,5 +1,6 @@
 import { toast as sonnerToast } from "sonner";
 
+import { supabase } from "@/integrations/supabase/client";
 import { writeSystemLog, type SystemLogEntry } from "@/features/system/system-core";
 
 type LogType = SystemLogEntry["log_type"];
