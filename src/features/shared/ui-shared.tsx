@@ -181,6 +181,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -923,6 +924,7 @@ export function ResourceFormDialog({
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
   const isZones = resource.table === "zones";
   const isLocations = resource.table === "locations";
+  const [locationDefaultsOpen, setLocationDefaultsOpen] = useState(false);
   const { data: options } = useQuery({
     queryKey: ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
     queryFn: () => isLocations
@@ -1016,11 +1018,37 @@ export function ResourceFormDialog({
           <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit(handleCreateSubmit)}>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
               <div className="flex flex-col gap-4 pr-4">
-              {resource.fields.map((field) => {
-                if (isLocations && builderControlledFields.has(field.name)) return null;
-                return renderField(field, form, getResourceFieldOptions(field, options));
-              })}
-              {isLocations && <RackLocationCodeBuilder form={form} options={options} />}
+              {isLocations ? (
+                <>
+                  {resource.fields
+                    .filter((field) => field.name === "warehouse_id" || field.name === "zone_id")
+                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                  <RackLocationCodeBuilder form={form} options={options} />
+                  <Collapsible open={locationDefaultsOpen} onOpenChange={setLocationDefaultsOpen} className="rounded-lg border border-border">
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50"
+                      >
+                        <span>
+                          <span className="block text-sm font-medium">Defaults & advanced options</span>
+                          <span className="block text-xs text-muted-foreground">Ambient, 1 pallet, active — expand only to change these.</span>
+                        </span>
+                        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", locationDefaultsOpen && "rotate-180")} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t border-border px-4 py-4">
+                      <div className="grid gap-4">
+                        {resource.fields
+                          .filter((field) => !builderControlledFields.has(field.name) && field.name !== "warehouse_id" && field.name !== "zone_id")
+                          .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </>
+              ) : (
+                resource.fields.map((field) => renderField(field, form, getResourceFieldOptions(field, options)))
+              )}
               </div>
             </div>
             <DialogFooter className="shrink-0 border-t bg-card px-6 py-3 sm:justify-between">
@@ -3329,6 +3357,7 @@ export function defaultFieldValue(field: FieldDefinition) {
   if (field.name === "variance_value_floor") return 500;
   if (field.name === "supervisor_approval_cap") return 1000;
   if (field.name === "freeze_default_hours") return 4;
+  if (field.name === "max_pallets") return 1;
   if (["minimum_stock_level", "maximum_stock_level", "pick_down_to_level", "supplier_lead_time_days"].includes(field.name)) return 0;
   if (field.type === "number") return "";
   if (field.name === "temperature_class" || field.name === "temperature_requirement") return "ambient";
