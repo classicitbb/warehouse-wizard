@@ -28,7 +28,15 @@ let consoleErrorTelemetryInstalled = false;
 const IGNORED_CONSOLE_PATTERNS = [
   /Function components cannot be given refs/i,
   /Warning: ReactDOM.render is no longer supported/i,
+  // `lovable-tagger` adds data-lov-id in development. React emits this for
+  // fragments because they only accept key and children; it has no runtime
+  // impact and can otherwise produce one entry per rendered table row.
+  /Invalid prop .* supplied to `React\.Fragment`\. React\.Fragment can only have `key` and `children` props/i,
 ];
+
+export function isIgnoredConsoleError(value: unknown) {
+  return typeof value === "string" && IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(value));
+}
 
 function getAppVersion() {
   try {
@@ -241,7 +249,7 @@ export function installConsoleErrorTelemetry() {
 
     const firstArg = typeof args[0] === "string" ? args[0] : "";
     if (firstArg.startsWith("[system-telemetry]")) return;
-    if (IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(firstArg))) return;
+    if (isIgnoredConsoleError(firstArg)) return;
 
     const errorArg = args.find((arg) => arg instanceof Error);
     logSystemTelemetry({

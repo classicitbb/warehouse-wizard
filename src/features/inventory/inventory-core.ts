@@ -28,6 +28,7 @@ export async function searchInventory(filters: {
   status?: InventoryStatus | "all";
   ageBucket?: InventoryAgeBucket | "";
   expiryWindow?: InventoryExpiryWindow | "";
+  limit?: number;
 }) {
   if (filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) return [];
   let query = db("inventory_search_view").select("*");
@@ -40,9 +41,27 @@ export async function searchInventory(filters: {
     query = query.eq("status", filters.status);
   }
 
-  const { data, error } = await query.order("received_at", { ascending: false });
-  if (error) throw error;
-  let rows = ((data ?? []) as any[])
+  if (filters.ageBucket) {
+    const minimumDays = filters.ageBucket === "12m" ? 365 : filters.ageBucket === "6m" ? 180 : 90;
+    query = query.lte("received_at", new Date(Date.now() - minimumDays * 24 * 60 * 60 * 1000).toISOString());
+  }
+  if (filters.expiryWindow) {
+    const maximumDays = filters.expiryWindow === "30d" ? 30 : 60;
+    const today = new Date().toISOString().slice(0, 10);
+    const cutoff = new Date(Date.now() + maximumDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    query = query.gte("expiry_date", today).lte("expiry_date", cutoff);
+  }
+
+  const loadAll = Boolean(filters.search?.trim());
+  let rawRows: any[];
+  if (loadAll) {
+    rawRows = await fetchAllRows<any>((from, to) => query.order("received_at", { ascending: false }).range(from, to));
+  } else {
+    const { data, error } = await query.order("received_at", { ascending: false }).limit(Math.max(1, filters.limit ?? 50));
+    if (error) throw error;
+    rawRows = data ?? [];
+  }
+  let rows = rawRows
     .filter((row) => !isRetiredInventoryStatus(row.status) && hasVisibleInventoryQuantity(row))
     .map((row) => ({
       ...row,
@@ -81,27 +100,6 @@ export async function searchInventory(filters: {
       return searchTokens.every((token) => haystack.includes(token));
     });
   }
-  const nowMs = Date.now();
-  const dayMs = 24 * 60 * 60 * 1000;
-
-  if (filters.ageBucket) {
-    const minimumDays = filters.ageBucket === "12m" ? 365 : filters.ageBucket === "6m" ? 180 : 90;
-    rows = rows.filter((row) => {
-      const value = row.received_at ?? row.created_at;
-      if (!value) return false;
-      return Math.floor((nowMs - new Date(value).getTime()) / dayMs) >= minimumDays;
-    });
-  }
-
-  if (filters.expiryWindow) {
-    const maximumDays = filters.expiryWindow === "30d" ? 30 : 60;
-    rows = rows.filter((row) => {
-      if (!row.expiry_date) return false;
-      const days = Math.ceil((new Date(row.expiry_date).getTime() - nowMs) / dayMs);
-      return days >= 0 && days <= maximumDays;
-    });
-  }
-
   return rows;
 }
 

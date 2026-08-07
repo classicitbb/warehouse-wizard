@@ -207,6 +207,7 @@ export function InventorySearchPage() {
   const [status, setStatus] = useState<string>(searchParams.get("status") ?? "all");
   const [ageBucket, setAgeBucket] = useState(searchParams.get("age") ?? "");
   const [expiryWindow, setExpiryWindow] = useState(searchParams.get("expiry") ?? "");
+  const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
   const lastDetailTapRef = useRef<{ id: string; time: number } | null>(null);
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
   const { data: options } = useQuery({
@@ -217,9 +218,20 @@ export function InventorySearchPage() {
   const hasInventoryFilters = Boolean(searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow);
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow],
-    queryFn: () => searchInventory({ search: searchTerm, status, warehouseId: warehouseId || undefined, ageBucket: ageBucket as any, expiryWindow: expiryWindow as any }),
+    queryKey: ["inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow, searchTerm.trim() ? "all" : visibleRecordLimit],
+    queryFn: () => searchInventory({
+      search: searchTerm,
+      status,
+      warehouseId: warehouseId || undefined,
+      ageBucket: ageBucket as any,
+      expiryWindow: expiryWindow as any,
+      limit: searchTerm.trim() ? undefined : visibleRecordLimit,
+    }),
   });
+
+  useEffect(() => {
+    setVisibleRecordLimit(50);
+  }, [searchTerm, status, warehouseId, ageBucket, expiryWindow]);
 
   useEffect(() => {
     const next = new URLSearchParams();
@@ -430,6 +442,13 @@ export function InventorySearchPage() {
           </TableFrame>
         </CardContent>
       </Card>
+      {!searchTerm.trim() && data.length === visibleRecordLimit ? (
+        <div className="flex justify-center">
+          <Button type="button" variant="outline" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
+            Load 50 more
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -101,6 +101,7 @@ import {
   listCycleCounts,
   listPickLists,
   listRecords,
+  listRecordsPage,
   listStatusPallets,
   listTransfers,
   pickListSchema,
@@ -221,6 +222,7 @@ export function ResourcePage({
   const [includeHidden, setIncludeHidden] = useState(false);
   const [editRecord, setEditRecord] = useState<Record<string, unknown> | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
+  const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
   const [deleteRecord, setDeleteRecord] = useState<Record<string, unknown> | null>(null);
   const [deleteChallenge, setDeleteChallenge] = useState("");
@@ -244,13 +246,23 @@ export function ResourcePage({
   });
   const useGearActions = ["warehouses", "zones", "locations", "products"].includes(resource.table);
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
+  const usesIncrementalTable = ["products", "zones", "locations"].includes(resource.table);
+  const activeFilter = filterQuery.trim();
   const { data = [], isLoading } = useQuery({
-    queryKey: [resource.table, includeHidden],
-    queryFn: () => listRecords(resource.table, resource.select ?? "*", resource.orderBy, {
-      includeHidden,
-      archiveField: resource.archiveField,
-    }),
+    queryKey: [resource.table, includeHidden, usesIncrementalTable && !activeFilter ? visibleRecordLimit : "all"],
+    queryFn: () => {
+      const options = { includeHidden, archiveField: resource.archiveField };
+      // An explicit search intentionally reads the full permitted resource set,
+      // so a matching product, zone, or location is never hidden past page 50.
+      if (usesIncrementalTable && !activeFilter) {
+        return listRecordsPage(resource.table, resource.select ?? "*", resource.orderBy, { ...options, limit: visibleRecordLimit });
+      }
+      return listRecords(resource.table, resource.select ?? "*", resource.orderBy, options);
+    },
   });
+  useEffect(() => {
+    setVisibleRecordLimit(50);
+  }, [includeHidden, resource.table]);
   const { data: locationRowsForLabels = [] } = useQuery({
     queryKey: ["locations", "label-source"],
     enabled: resource.table === "zones",
@@ -709,11 +721,11 @@ export function ResourcePage({
         />
         {filterQuery ? (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {filteredData.length} / {data.length}
+            {filteredData.length} results
           </span>
         ) : (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {isLoading ? "" : `${data.length} rows`}
+            {isLoading ? "" : usesIncrementalTable ? `${data.length} loaded` : `${data.length} rows`}
           </span>
         )}
       </div>
@@ -946,6 +958,13 @@ export function ResourcePage({
           </TableFrame>
         </CardContent>
       </Card>
+      {usesIncrementalTable && !activeFilter && data.length === visibleRecordLimit ? (
+        <div className="flex justify-center">
+          <Button type="button" variant="outline" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
+            Load 50 more
+          </Button>
+        </div>
+      ) : null}
 
       {editRecord ? (
         <ResourceEditDialog resource={resource} editRecord={editRecord} onClose={() => setEditRecord(null)} />

@@ -516,9 +516,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   const canSwitchWarehouses = roles.some((role) => ["admin", "warehouse_manager", "developer"].includes(role));
   const canSelectAllWarehouses = roles.some((role) => ["admin", "developer"].includes(role));
+  const isDeveloperUser = roles.includes("developer") || profile?.user_code === "DEV01";
   const canAcknowledgeOfflineAlerts = roles.some((role) =>
     ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(role),
-  );
+  ) && !isDeveloperUser;
   // Same eligible-recipient set as the reorder-alert emails (see
   // ReorderForecastSettingsPanel) — admins and warehouse managers/supervisors.
   const canReceiveReorderNotifications = roles.some((role) =>
@@ -603,6 +604,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .join("") || "WU";
 
   useEffect(() => {
+    if (isDeveloperUser) {
+      clearOfflineAlertSession();
+      return;
+    }
     if (!connectionConfirmed) return;
     const isInitialNetworkStatus = !networkStatusSeenRef.current;
     networkStatusSeenRef.current = true;
@@ -630,10 +635,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     toast.message("Connection lost. This device is frozen for live commits until reconnect. Your current task position stays on this device.", {
       duration: 6000,
     });
-  }, [connectionConfirmed, online, pathname, profile?.default_warehouse_id, profile?.full_name, queryClient, user?.email, user?.id]);
+  }, [connectionConfirmed, isDeveloperUser, online, pathname, profile?.default_warehouse_id, profile?.full_name, queryClient, user?.email, user?.id]);
 
   useEffect(() => {
     const happenedAt = readOfflineAlertSession();
+    if (isDeveloperUser) {
+      clearOfflineAlertSession();
+      return;
+    }
     if (!connectionConfirmed || !online || !happenedAt || !user?.id || flushingOfflineAlertRef.current) return;
     flushingOfflineAlertRef.current = true;
     void writeSystemLog({
@@ -659,7 +668,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .finally(() => {
         flushingOfflineAlertRef.current = false;
       });
-  }, [connectionConfirmed, online, pathname, profile?.default_warehouse_id, profile?.full_name, user?.email, user?.id]);
+  }, [connectionConfirmed, isDeveloperUser, online, pathname, profile?.default_warehouse_id, profile?.full_name, user?.email, user?.id]);
 
   useEffect(() => {
     for (const alert of offlineSupervisorAlerts) {

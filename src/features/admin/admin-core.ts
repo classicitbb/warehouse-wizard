@@ -50,6 +50,27 @@ export async function listRecords(
   }));
 }
 
+/** A bounded resource-table read. Full scans remain available through
+ * `listRecords` for explicit searches, exports, and selectors. */
+export async function listRecordsPage(
+  table: string,
+  select = "*",
+  orderBy?: { column: string; ascending?: boolean },
+  options?: { includeHidden?: boolean; archiveField?: ArchiveField; limit?: number },
+) {
+  const limit = Math.max(1, options?.limit ?? 50);
+  let query = (supabase.from as any)(table).select(select);
+  if (orderBy) query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
+  query = query.order("id", { ascending: true });
+  query = applyArchiveFilter(query, options?.archiveField, options?.includeHidden).range(0, limit - 1);
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = data ?? [];
+  return table === "locations"
+    ? rows.map((row: any) => ({ ...row, code: displayRackLocationCode(row.code) }))
+    : rows;
+}
+
 /** Columns that are NOT NULL in Postgres but have a database default. Sending
  *  an explicit null (from a cleared form field) violates the constraint, so we
  *  drop them from the payload and let the default apply. */
