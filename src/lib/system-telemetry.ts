@@ -1,5 +1,6 @@
 import { toast as sonnerToast } from "sonner";
 
+import { supabase } from "@/integrations/supabase/client";
 import { writeSystemLog, type SystemLogEntry } from "@/features/system/system-core";
 
 type LogType = SystemLogEntry["log_type"];
@@ -22,6 +23,12 @@ const SENSITIVE_KEY_PATTERN = /password|passcode|pin|token|secret|apikey|api_key
 
 let toastTelemetryInstalled = false;
 let consoleErrorTelemetryInstalled = false;
+
+/** Dev-only noise we never want to persist into the system log. */
+const IGNORED_CONSOLE_PATTERNS = [
+  /Function components cannot be given refs/i,
+  /Warning: ReactDOM.render is no longer supported/i,
+];
 
 function getAppVersion() {
   try {
@@ -115,14 +122,20 @@ export function logSystemTelemetry(payload: TelemetryPayload) {
     runtime: getRuntimeContext(),
   };
 
-  void writeSystemLog({
+  void supabase.auth
+    .getSession()
+    .then(({ data }) => {
+      // Unauthenticated visitors cannot write system logs — skip instead of 401 noise.
+      if (!data.session) return;
+      return writeSystemLog({
     log_type: payload.log_type,
     severity: payload.severity,
     title: payload.title,
     message: payload.message,
     source: payload.source,
     details: sanitizeValue(details) as Record<string, unknown>,
-  })
+      });
+    })
     .catch((error) => {
       console.error("[system-telemetry] writeSystemLog failed:", error);
     });
@@ -228,6 +241,7 @@ export function installConsoleErrorTelemetry() {
 
     const firstArg = typeof args[0] === "string" ? args[0] : "";
     if (firstArg.startsWith("[system-telemetry]")) return;
+    if (IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(firstArg))) return;
 
     const errorArg = args.find((arg) => arg instanceof Error);
     logSystemTelemetry({

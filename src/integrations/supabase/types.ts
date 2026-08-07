@@ -2114,8 +2114,11 @@ export type Database = {
           original_pallet_id: string | null
           pallet_id: string | null
           pick_list_id: string
+          picked_location_id: string | null
+          picked_pallet_id: string | null
           requested_quantity: number
           short_reason: string | null
+          source_override_reason: string | null
           source_reassigned_at: string | null
           staging_location_id: string | null
           status: Database["public"]["Enums"]["task_status"]
@@ -2135,8 +2138,11 @@ export type Database = {
           original_pallet_id?: string | null
           pallet_id?: string | null
           pick_list_id: string
+          picked_location_id?: string | null
+          picked_pallet_id?: string | null
           requested_quantity?: number
           short_reason?: string | null
+          source_override_reason?: string | null
           source_reassigned_at?: string | null
           staging_location_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -2156,8 +2162,11 @@ export type Database = {
           original_pallet_id?: string | null
           pallet_id?: string | null
           pick_list_id?: string
+          picked_location_id?: string | null
+          picked_pallet_id?: string | null
           requested_quantity?: number
           short_reason?: string | null
+          source_override_reason?: string | null
           source_reassigned_at?: string | null
           staging_location_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -2219,6 +2228,27 @@ export type Database = {
             columns: ["pick_list_id"]
             isOneToOne: false
             referencedRelation: "pick_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_picked_location_id_fkey"
+            columns: ["picked_location_id"]
+            isOneToOne: false
+            referencedRelation: "location_occupancy_view"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_picked_location_id_fkey"
+            columns: ["picked_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_picked_pallet_id_fkey"
+            columns: ["picked_pallet_id"]
+            isOneToOne: false
+            referencedRelation: "pallets"
             referencedColumns: ["id"]
           },
           {
