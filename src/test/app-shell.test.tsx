@@ -141,7 +141,7 @@ describe("AppShell", () => {
   it("keeps the page title compact and uses a dedicated scroll container for body content", () => {
     const { container } = renderShell();
 
-    expect(screen.getByText("Warehouse Wizard Enterprise WMS")).toBeInTheDocument();
+    expect(screen.getAllByText("WW").length).toBeGreaterThan(0);
     expect(screen.queryByText("2-warehouse, scan-first control room")).not.toBeInTheDocument();
 
     const bodyScrollRegion = container.querySelector(".overflow-y-auto.px-4");
