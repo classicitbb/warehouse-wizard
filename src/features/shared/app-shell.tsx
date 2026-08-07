@@ -1041,12 +1041,15 @@ function MobileActionBar({
 }) {
   const { toolbarModules, isEnabled } = useFeatureFlags();
   const { toPath } = useTenantPath();
-  const favoriteItems = toolbarModules.flatMap((moduleKey) => {
+  type ShortcutEntry =
+    | { type: "copilot" }
+    | { type: "navigation"; item: (typeof NAVIGATION)[number] };
+  const favoriteItems = toolbarModules.flatMap((moduleKey): ShortcutEntry[] => {
     if (moduleKey === "copilot") return isEnabled(moduleKey) ? [{ type: "copilot" as const }] : [];
     const item = items.find((candidate) => candidate.moduleKey === moduleKey && candidate.to !== "/help");
     return item ? [{ type: "navigation" as const, item }] : [];
   });
-  const shortcutItems = favoriteItems.length > 0
+  const shortcutItems: ShortcutEntry[] = favoriteItems.length > 0
     ? favoriteItems
     : items.filter((item) => item.to !== "/help" && item.to !== "/dashboard").map((item) => ({ type: "navigation" as const, item }));
   const barItems = shortcutItems.slice(0, 8);
