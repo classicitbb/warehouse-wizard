@@ -65,6 +65,7 @@ interface ZoneRow {
 interface LocationRow {
   id: string; code: string;
   aisle?: string | null; bay?: string | null; level?: number | null; position?: string | null;
+  level_style?: string | null;
   depth?: number | null; location_type?: string | null; temperature_class?: string | null;
   max_pallets?: number | null; status?: string | null;
   pick_sequence?: number | null; putaway_sequence?: number | null;
@@ -73,7 +74,7 @@ interface LocationRow {
   zone_id: string; warehouse_id: string;
 }
 
-interface LevelGroup { level: string; positions: LocationRow[] }
+interface LevelGroup { level: string; displayLevel: string; positions: LocationRow[] }
 interface BayGroup { bay: string; levels: LevelGroup[] }
 interface AisleGroup { aisle: string; bays: BayGroup[] }
 interface FillStats { occupied: number; capacity: number; disabled: number; total: number }
@@ -238,7 +239,7 @@ function useTCtx() {
 async function fetchZoneLocations(zoneId: string): Promise<LocationRow[]> {
   const { data, error } = await supabase
     .from("locations")
-    .select("id, code, aisle, bay, level, position, depth, location_type, temperature_class, max_pallets, status, pick_sequence, putaway_sequence, mixed_sku_allowed, mixed_lot_allowed, max_height, notes, zone_id, warehouse_id")
+    .select("id, code, aisle, bay, level, level_style, position, depth, location_type, temperature_class, max_pallets, status, pick_sequence, putaway_sequence, mixed_sku_allowed, mixed_lot_allowed, max_height, notes, zone_id, warehouse_id")
     .eq("zone_id", zoneId)
     .eq("is_hidden", false)
     .order("aisle").order("bay").order("level").order("position")
@@ -250,11 +251,11 @@ async function fetchZoneLocations(zoneId: string): Promise<LocationRow[]> {
 async function fetchLocationFillStats() {
   const { data, error } = await supabase
     .from("locations")
-    .select("id, warehouse_id, zone_id, max_pallets, status")
+    .select("id, warehouse_id, zone_id, max_pallets, depth, status")
     .eq("is_hidden", false);
   if (error) throw error;
 
-  const rows = (data ?? []) as Array<Pick<LocationRow, "id" | "warehouse_id" | "zone_id" | "max_pallets" | "status">>;
+  const rows = (data ?? []) as Array<Pick<LocationRow, "id" | "warehouse_id" | "zone_id" | "max_pallets" | "depth" | "status">>;
   const storedCounts = await getStoredPalletCounts(rows.map((row) => row.id));
   const byWarehouse = new Map<string, FillStats>();
   const byZone = new Map<string, FillStats>();
@@ -295,6 +296,14 @@ function numComp(a: string, b: string) {
   return !isNaN(na) && !isNaN(nb) ? na - nb : a.localeCompare(b);
 }
 
+function displayLevel(level: string, levelStyle: string | null | undefined) {
+  if (levelStyle !== "alpha") return level;
+  const numericLevel = Number(level);
+  return Number.isInteger(numericLevel) && numericLevel >= 1 && numericLevel <= 26
+    ? String.fromCharCode(64 + numericLevel)
+    : level;
+}
+
 function groupIntoTree(locs: LocationRow[]): AisleGroup[] {
   const m = new Map<string, Map<string, Map<string, LocationRow[]>>>();
   for (const l of locs) {
@@ -312,6 +321,7 @@ function groupIntoTree(locs: LocationRow[]): AisleGroup[] {
       bay,
       levels: [...lm.entries()].sort(([a], [b]) => numComp(a, b)).map(([level, positions]) => ({
         level,
+        displayLevel: displayLevel(level, positions[0]?.level_style),
         positions: positions.sort((a, b) => numComp(String(a.position ?? ""), String(b.position ?? ""))),
       })),
     })),
@@ -368,9 +378,10 @@ function emptyFillStats(): FillStats {
 }
 
 function locationFillStats(location: LocationRow, occupied = 0): FillStats {
+  const capacity = Number(location.max_pallets ?? location.depth ?? 0);
   return {
-    occupied,
-    capacity: Number(location.max_pallets ?? 0),
+    occupied: Number.isFinite(occupied) ? Math.max(0, occupied) : 0,
+    capacity: Number.isFinite(capacity) ? Math.max(0, capacity) : 0,
     disabled: location.status && location.status !== "active" ? 1 : 0,
     total: 1,
   };
@@ -553,7 +564,7 @@ function LevelNode({ levelGroup, nodeKey, bayItems }: { levelGroup: LevelGroup; 
             >
           <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
           <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="flex-1 text-xs">Level {levelGroup.level}</span>
+          <span className="flex-1 text-xs">Level {levelGroup.displayLevel}</span>
           <FillBar stats={stats} />
           <span className="mr-1 text-xs text-muted-foreground">{levelGroup.positions.length}</span>
             </div>
