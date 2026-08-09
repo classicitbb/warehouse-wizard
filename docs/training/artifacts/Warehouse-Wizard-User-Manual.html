@@ -1,0 +1,777 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@page{size:Letter;margin:.7in .68in .7in .72in}*{box-sizing:border-box}body{font-family:Aptos,Arial,sans-serif;color:#16303d;font-size:10.5pt;line-height:1.38;margin:0}h1{font-size:30pt;color:#123247;border-bottom:5px solid #0f9d96;padding-bottom:12px;margin-top:0}h2{font-size:20pt;color:#123247;border-bottom:1px solid #d7e2e6;padding-bottom:5px;break-after:avoid-page;margin-top:24px}h3{font-size:14pt;color:#087b76;break-after:avoid-page;margin-top:18px}p,li{orphans:3;widows:3}blockquote{border-left:5px solid #f47c20;background:#fff3df;margin:14px 0;padding:9px 13px;color:#123247}table{border-collapse:collapse;width:100%;font-size:9pt;margin:12px 0;break-inside:auto}tr{break-inside:avoid}th{background:#123247;color:white;text-align:left}th,td{border:1px solid #cbd9de;padding:6px;vertical-align:top}code{background:#eff7f7;color:#087b76;padding:1px 3px;border-radius:3px}a{color:#087b76}hr{border:0;border-top:1px solid #d7e2e6}.cover{height:9in;display:flex;flex-direction:column;justify-content:center;page-break-after:always;background:#0b2434;color:white;margin:-.7in -.68in -.7in -.72in;padding:1in}.cover h1{color:white;border-color:#ffc928}.cover .eyebrow{color:#ffc928;letter-spacing:2px;font-weight:700}.cover .meta{color:#bfe7e5;font-size:14pt}</style></head><body><div class="cover"><div class="eyebrow">WAREHOUSE WIZARD</div><h1>User Manual</h1><p class="meta">End-to-end operating guide • Product 1.27 • WW-UM-001 • Revision 1.0</p><p>Managers • Supervisors • Clerks • Operators • Dispatch • Admins</p></div><h1>Warehouse Wizard User Manual</h1>
+<p>End-to-end operating guide for warehouse managers, supervisors, inventory clerks, operators, dispatch staff, and administrators.</p>
+<h3>A note to experienced warehouse teams</h3>
+<p>This manual is not here to teach experienced people how to run a warehouse. The audience already knows what a clean receiving lane looks like, when a pallet does not belong in a location, why a short pick matters, and how quickly a weak handoff becomes tomorrow’s problem.</p>
+<p>Warehouse Wizard gives those familiar decisions a shared place to live. It records what the team saw, who acted, where the pallet went, and what still needs attention. During training, start with the way the team handles the situation today, then connect that practice to the matching screen and scan. New inventory terms are explained only so everyone can use the same language—not to replace the language or experience already on the floor.</p>
+<p><strong>Document:</strong> WW-UM-001<br><strong>Product:</strong> Warehouse Wizard 1.27<br><strong>Revision:</strong> 1.0<br><strong>Effective:</strong> 10 August 2026<br><strong>Owner:</strong> {{DOCUMENT_OWNER}}<br><strong>Approved by:</strong> {{APPROVER}}<br><strong>Support / escalation:</strong> {{SUPPORT_CONTACT}}</p>
+<blockquote>
+<p>Site owners must replace all <code>{{PLACEHOLDER}}</code> values, confirm local safety rules, and issue the approved revision before using this as controlled floor documentation. The application and its in-app Help Center remain the source of truth for current screen behavior.</p>
+</blockquote>
+<h2>1. Purpose and operating principle</h2>
+<p>Warehouse Wizard controls pallet-level warehouse work from receipt through storage, picking, transfer, counting, status control, and reporting. It is designed around one principle:</p>
+<blockquote>
+<p><strong>See the work, confirm the physical pallet or location, record the action once, and leave a clear handoff for the next person.</strong></p>
+</blockquote>
+<p>If the floor and the system disagree, stop the transaction. Do not guess a code, bypass a scan, invent a quantity, or repeat a physical movement under a second task. Keep the stock safe, verify it in Inventory Search, apply a controlled status if authorized, record the issue, and involve a supervisor.</p>
+<h3>1.1 What “normal workflow” means</h3>
+<p>A normal workflow has all of the following:</p>
+<ol>
+<li>The user is signed in with the correct role and warehouse selected.</li>
+<li>The physical pallet, product, location, and paperwork are identifiable.</li>
+<li>Required labels scan or can be typed exactly as printed.</li>
+<li>The device is online when the transaction is committed.</li>
+<li>The system accepts the live pallet, location, quantity, status, and temperature rules.</li>
+<li>The operator confirms the action once and verifies completion before moving on.</li>
+</ol>
+<p>Anything outside those conditions is an exception, not an invitation to improvise.</p>
+<h3>1.2 Core safety rules</h3>
+<ul>
+<li>Follow site PPE, material-handling, food/pharma, dangerous-goods, and lifting rules. The WMS does not replace physical safety procedures.</li>
+<li>Never stand in an unsafe area to scan a label. Stop and reposition safely.</li>
+<li>Never move leaking, unstable, contaminated, or unsafe stock unless authorized by local procedure.</li>
+<li>Cool or frozen stock must use a compatible temperature zone.</li>
+<li>A bay code identifies a group of locations; select the exact cell before confirming.</li>
+<li>Live posts are frozen when the device is offline. Reconnect, refresh, re-check, then post once.</li>
+</ul>
+<h2>2. Roles and responsibility</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Normal responsibility</th>
+<th>Typical modules</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Warehouse Operator</td>
+<td>Execute directed work and stop on exceptions</td>
+<td>Put-Away, Pick Execution, Location Moves, Cycle Counts, Inventory Search</td>
+</tr>
+<tr>
+<td>Inventory Clerk</td>
+<td>Receive stock, maintain product data, investigate inventory, control status</td>
+<td>Receiving, Products, Packaging Profiles, Inventory Search, Cycle Counts, Statuses</td>
+</tr>
+<tr>
+<td>Dispatch Driver</td>
+<td>Confirm transfer departure and destination handoff</td>
+<td>Transfers</td>
+</tr>
+<tr>
+<td>Warehouse Supervisor</td>
+<td>Allocate work, resolve exceptions, review counts, coach standard work</td>
+<td>Dashboard, operational modules, Cycle Counts, Statuses, System Log</td>
+</tr>
+<tr>
+<td>Warehouse Manager</td>
+<td>Plan work, release pick lists, monitor flow, manage structure and access</td>
+<td>Dashboard, Reports, Pick Lists, Settings, Users &amp; Roles, System Log</td>
+</tr>
+<tr>
+<td>Admin</td>
+<td>Configure the environment and administer access</td>
+<td>All modules, Setup Wizard, Reset, integrations, logs</td>
+</tr>
+</tbody></table>
+<p>Assign the smallest role that allows the person to complete their normal work. Reassign open work before disabling a person or removing a role.</p>
+<h2>3. Navigation, sign-in, and device use</h2>
+<p><strong>Parallel Help ID:</strong> <code>help-center</code></p>
+<h3>3.1 Sign in</h3>
+<ol>
+<li>Open Warehouse Wizard in the approved browser or installed shortcut.</li>
+<li>Sign in with email or user code and password.</li>
+<li>On an approved mobile/tablet device, badge and PIN may be available after a normal password sign-in established trust.</li>
+<li>Confirm your name, role, and active warehouse before starting work.</li>
+<li>Never share a password, PIN, badge, or signed-in device.</li>
+</ol>
+<p>Badge sign-in is a convenience, not a replacement for identity controls. A lost badge must be reported and disabled.</p>
+<h3>3.2 Select the active warehouse</h3>
+<p>The active warehouse is working context for tasks, searches, and location codes. Always check it:</p>
+<ul>
+<li>at sign-in;</li>
+<li>after changing facilities;</li>
+<li>when a location code cannot be found;</li>
+<li>before receiving, moving, counting, picking, or transferring stock.</li>
+</ul>
+<h3>3.3 Use scanners and typing</h3>
+<p>Use a scanner or camera where available. Direct typing remains a supported fallback:</p>
+<ul>
+<li>click or tap the field;</li>
+<li>type the visible code exactly as printed;</li>
+<li>use Enter or the screen action to commit;</li>
+<li>do not depend on clipboard access.</li>
+</ul>
+<p>If the scanner reads the wrong code repeatedly, stop and reprint or replace the damaged label.</p>
+<h3>3.4 Help and notifications</h3>
+<p>Open the contextual Help sidebar from any module for the relevant summary, key actions, mistakes, and linked articles. Open the full Help Center for search.</p>
+<p>The header notification bell combines:</p>
+<ul>
+<li><strong>Connectivity notices:</strong> the current device is offline or a floor device lost its connection. These take priority and show red.</li>
+<li><strong>Reorder alerts:</strong> available stock has crossed a reorder threshold and a replenishment quantity is recommended. These show amber when no connectivity alert is present.</li>
+</ul>
+<h2>4. The standard operating day</h2>
+<h3>4.1 Manager start-of-shift — 5 to 10 minutes</h3>
+<ol>
+<li>Open Dashboard and select the relevant view: Floor, Dock, or Office.</li>
+<li>Confirm the active warehouse and available staffing.</li>
+<li>Review open Receiving, Put-Away, Pick Lists, transfers, and count work.</li>
+<li>Check hold, quarantine, damaged, missing, and blocked-location exceptions.</li>
+<li>Review occupancy pressure, reorder alerts, expiry risk, and System Log items.</li>
+<li>Assign an owner and next action to every material exception.</li>
+<li>Release only the work the floor can finish safely with available stock and space.</li>
+</ol>
+<h3>4.2 Operator start-of-shift — 2 to 5 minutes</h3>
+<ol>
+<li>Sign in on the assigned device and verify the active warehouse.</li>
+<li>Confirm scanner/camera, network, battery, and printer availability.</li>
+<li>Inspect PPE and material-handling equipment.</li>
+<li>Read notifications and the supervisor’s work priority.</li>
+<li>Open the assigned queue and complete one task at a time.</li>
+</ol>
+<h3>4.3 End-of-shift handoff</h3>
+<p>Operators:</p>
+<ul>
+<li>finish or clearly leave each task in its correct system state;</li>
+<li>keep unfinished physical stock in the matching controlled area;</li>
+<li>report unposted scans, offline work, damaged labels, and exceptions;</li>
+<li>sign out of shared devices.</li>
+</ul>
+<p>Managers:</p>
+<ul>
+<li>reconcile open tasks with the physical floor;</li>
+<li>review receiving lanes, put-away backlog, staging, controlled stock, and count variances;</li>
+<li>assign owners to unresolved System Log entries;</li>
+<li>do not mark an issue resolved until the real condition is corrected.</li>
+</ul>
+<h2>5. Dashboard and management control</h2>
+<p><strong>Parallel Help IDs:</strong> <code>enterprise-dashboard-modes</code>, <code>warehouse-brain</code>, <code>reporting-basics</code>, <code>lean-standard-work</code></p>
+<h3>5.1 Choose the right view</h3>
+<ul>
+<li><strong>Floor:</strong> shift-start queue and large workflow cards for operators.</li>
+<li><strong>Dock:</strong> staged outbound lanes and handoff states such as ready, called, loading, blocked, and loaded.</li>
+<li><strong>Office:</strong> fill level, inventory turn, expiration, variance, setup readiness, and management recommendations.</li>
+</ul>
+<p>Dashboard numbers are signals. Drill into the operational module or Inventory Search before making a stock decision.</p>
+<h3>5.2 Manager routine</h3>
+<p>Review three times: shift start, before releasing a major wave, and end of shift.</p>
+<p>Ask:</p>
+<ol>
+<li>Where is work accumulating?</li>
+<li>Is space available where inbound stock is being directed?</li>
+<li>Are hold/quarantine/missing trends increasing?</li>
+<li>Are people repeating scans, searches, or corrections?</li>
+<li>Which exception has no owner or due time?</li>
+</ol>
+<p>Treat blocked locations, quarantine buildup, missing stock, and repeated scan failures as daily 5S and standard-work signals.</p>
+<h2>6. Master data before operations</h2>
+<p>Correct master data prevents downstream errors. Configure in this sequence:</p>
+<ol>
+<li>Warehouses.</li>
+<li>Clients and ownership rules.</li>
+<li>Zones and temperature/purpose flags.</li>
+<li>Bin locations, sequence, and capacity.</li>
+<li>Products, tracking, rotation, and temperature requirements.</li>
+<li>Packaging profiles and barcodes.</li>
+<li>Labels that physically match every configured code.</li>
+</ol>
+<h3>6.1 Warehouse and zone design</h3>
+<p>Use short, stable warehouse codes. Keep receiving, put-away/staging, picking, dispatch, quarantine, and temperature-controlled use cases distinct. Hide obsolete records where the application supports it rather than deleting history.</p>
+<h3>6.2 Locations and labels</h3>
+<p>Location hierarchy is Warehouse &gt; Zone &gt; Aisle &gt; Bay &gt; Level &gt; Depth/Position. A rack label identifies an exact cell, for example <code>A-05-L05</code> or <code>A-05-L05-P1</code>. A bay label omits level/position and opens the bay grid.</p>
+<p>Sequence locations to match the walking path. Set realistic capacity and mixed-stock rules. Whenever a code changes, print and install the new physical label before releasing work.</p>
+<h3>6.3 Products and packaging</h3>
+<p>For every SKU, verify:</p>
+<ul>
+<li>stable SKU and name;</li>
+<li>client owner;</li>
+<li>barcode(s);</li>
+<li>FIFO or FEFO rotation;</li>
+<li>expiry and lot tracking;</li>
+<li>temperature and handling requirements;</li>
+<li>one appropriate default packaging profile;</li>
+<li>each/case/pallet quantities and dimensions.</li>
+</ul>
+<p>Do not receive an unknown product under a guessed SKU. Correct the master data first.</p>
+<h2>7. Receiving — normal inbound workflow</h2>
+<p><strong>Parallel Help IDs:</strong> <code>receiving-flow</code>, <code>label-printing</code><br><strong>Normal owner:</strong> Inventory Clerk<br><strong>Result:</strong> Pallet records, lot/expiry context, labels, inventory in receiving state, and Put-Away tasks.</p>
+<h3>7.1 Before receiving</h3>
+<p>Confirm:</p>
+<ul>
+<li>correct active warehouse and client owner;</li>
+<li>paperwork, PO, or transfer reference;</li>
+<li>container identity where applicable;</li>
+<li>product master and packaging profile;</li>
+<li>physical quantity and palletization;</li>
+<li>lot, batch, expiry, and temperature requirements;</li>
+<li>printer and destination storage capability.</li>
+</ul>
+<h3>7.2 New Shipment sequence</h3>
+<ol>
+<li>Open <strong>Receiving &gt; New Shipment</strong>.</li>
+<li>Confirm warehouse context.</li>
+<li>Scan or type the container number. For camera capture, use only a valid green ISO 6346 candidate and press <strong>Use</strong>.</li>
+<li>Enter the PO number.</li>
+<li>Scan a product or search by SKU/name.</li>
+<li>Press the highlighted right-arrow to commit the selected product to the line.</li>
+<li>Enter <strong>Total received</strong>, then press Enter.</li>
+<li>Enter <strong>Qty per pallet</strong>, then press Enter.</li>
+<li>Confirm <strong>Pallets</strong>, then press Enter.</li>
+<li>Select expiry when required; add lot, batch, packaging, and notes.</li>
+<li>Repeat for every product line.</li>
+<li>Compare the completed form with the physical receipt and paperwork.</li>
+<li>Save as a draft if information is incomplete, or receive once when verified.</li>
+<li>Print pallet labels and attach them to the matching physical pallets.</li>
+<li>Release/send the pallets to Put-Away.</li>
+</ol>
+<p>Learned quantity-per-pallet suggestions are time savers only. The physical count always wins.</p>
+<h3>7.3 Saved drafts</h3>
+<p>Use a draft when the physical shipment is present but the transaction cannot be safely completed. Keep the physical pallets in the designated receiving area and ensure the draft can be matched by container, PO, pallet, or product. Complete or cancel drafts promptly so lanes do not become invisible queues.</p>
+<h3>7.4 Receiving exceptions</h3>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Required action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Container code will not validate</td>
+<td>Improve framing/light or type the visible code; verify before use. Do not invent a code.</td>
+</tr>
+<tr>
+<td>Unknown SKU/barcode</td>
+<td>Stop. Correct product and packaging master data.</td>
+</tr>
+<tr>
+<td>Physical quantity differs from paperwork</td>
+<td>Record the verified physical count and escalate/document the discrepancy.</td>
+</tr>
+<tr>
+<td>Cool stock has no compatible zone/profile</td>
+<td>Stop before receipt completion; correct setup.</td>
+</tr>
+<tr>
+<td>Device is offline</td>
+<td>Keep the physical stock in receiving. Reconnect, refresh drafts/live form, re-check, then post once.</td>
+</tr>
+<tr>
+<td>Label fails</td>
+<td>Reprint the same pallet identity; do not create a duplicate pallet.</td>
+</tr>
+</tbody></table>
+<p><strong>Done when:</strong> every physical pallet has one matching label/record and a downstream Put-Away task or documented controlled exception.</p>
+<h2>8. Directed Put-Away</h2>
+<p><strong>Parallel Help ID:</strong> <code>putaway-flow</code><br><strong>Normal owner:</strong> Warehouse Operator<br><strong>Result:</strong> Stock becomes stored and available in an exact compatible location.</p>
+<h3>8.1 Normal sequence</h3>
+<ol>
+<li>Open Put-Away and select the next assigned/priority task.</li>
+<li>Verify the physical pallet and task number.</li>
+<li>Scan the pallet label.</li>
+<li>Travel to the directed area.</li>
+<li>Scan the exact location label, or scan a shortened bay code and select the exact available cell.</li>
+<li>Check the cell is physically open, safe, and temperature-compatible.</li>
+<li>Place the pallet in that exact cell.</li>
+<li>Confirm the task once.</li>
+<li>Verify the task clears and stock shows at the destination.</li>
+</ol>
+<p>Two confirmations are essential: pallet identity and exact location. A bay code is not the final location.</p>
+<h3>8.2 Return to Receiving</h3>
+<p>If the pallet or receipt needs correction, use <strong>Save as Draft / Return to Receiving</strong> when authorized. The task leaves the active Put-Away queue and creates a Saved Draft in Receiving. Keep the physical pallet in the receiving area and tell the clerk why it was returned.</p>
+<h3>8.3 Put-Away exceptions</h3>
+<p>Stop if the cell is inactive, full, blocked, unsafe, or temperature-incompatible. Use another eligible cell only through the provided bay selection/override process and with the required reason. If the device disconnected, refresh the task and destination after reconnect; do not trust a pre-disconnect location.</p>
+<p><strong>Done when:</strong> pallet and exact location are confirmed, the task clears, and Inventory Search shows the new stored location.</p>
+<h2>9. Inventory Search and verification</h2>
+<p><strong>Parallel Help ID:</strong> <code>inventory-search</code><br><strong>Normal users:</strong> All approved operational roles.</p>
+<p>Search by SKU, pallet, lot, warehouse, zone, or location. Open Inventory Detail to inspect quantity, status, owner, lot/expiry, current location, and movement history.</p>
+<p>Use Inventory Search before:</p>
+<ul>
+<li>substituting or reassigning a pallet;</li>
+<li>correcting a location;</li>
+<li>changing status;</li>
+<li>investigating a short or missing pick;</li>
+<li>dispatching a transfer;</li>
+<li>resolving a count variance.</li>
+</ul>
+<p>Filters matter: held or quarantined stock may be excluded from normal availability. Never treat a dashboard total or memory as the live pallet record.</p>
+<h2>10. Pick Lists and whole-pallet execution</h2>
+<p><strong>Parallel Help IDs:</strong> <code>pick-flow</code>, <code>operational-dead-ends</code><br><strong>Manager result:</strong> Executable whole-pallet work released against available stock.<br><strong>Operator result:</strong> Correct pallet confirmed and moved to the directed staging/dispatch area.</p>
+<h3>10.1 Manager: create and release</h3>
+<ol>
+<li>Verify demand, client/order details, warehouse, due date, and staging capacity.</li>
+<li>Use Inventory Search to confirm available stock and rotation eligibility.</li>
+<li>Create the list and product lines. Scanner-first creation may add repeated scans before quantities/details are finalized.</li>
+<li>Review shortages and task quantities.</li>
+<li>Remember that normal execution is whole-pallet: do not release a plan that requires an unsupported split.</li>
+<li>Release the list.</li>
+<li>Confirm it appears in the Lists tab and monitor assigned work.</li>
+</ol>
+<h3>10.2 Operator: execute</h3>
+<ol>
+<li>Open the assigned pick task.</li>
+<li>Read the rack, aisle, bay, level, and short position instruction.</li>
+<li>Travel to the location.</li>
+<li>Scan the exact location, or scan the bay and select the highlighted assigned cell.</li>
+<li>Verify the pallet condition and expected whole-pallet quantity.</li>
+<li>Scan the pallet label.</li>
+<li>When <strong>Confirm pick</strong> highlights/flashes, confirm before doing anything else on that task.</li>
+<li>Move the whole pallet to the directed staging/dispatch lane.</li>
+<li>Verify the task completed.</li>
+</ol>
+<h3>10.3 Short, missing, or damaged pick</h3>
+<p>If the system expects 100 and the pallet physically contains 80 or 90, do not confirm a normal whole-pallet pick. Stop and notify a supervisor. The current controlled response is:</p>
+<ol>
+<li>Verify the pallet in Inventory Search.</li>
+<li>Apply Hold, Quarantine, Damaged, or Missing only as facts justify and authorization permits.</li>
+<li>Record a System Log note for investigation/customer/quality follow-up.</li>
+<li>Replan or reassign the pick after the stock record is corrected.</li>
+</ol>
+<p>Do not split a pallet or type a smaller quantity simply to finish the task.</p>
+<h2>11. Location Moves</h2>
+<p><strong>Parallel Help ID:</strong> <code>location-move-flow</code><br>Use when a pallet changes location inside the same warehouse. Use Transfers when it changes warehouse.</p>
+<ol>
+<li>Verify the active warehouse.</li>
+<li>Open Location Moves and scan/type the pallet.</li>
+<li>Confirm its current live location/status.</li>
+<li>Scan/type the destination or use <strong>Browse bays</strong>.</li>
+<li>If a bay was selected, choose the exact eligible cell.</li>
+<li>Physically move the pallet.</li>
+<li>Confirm the move once and verify Inventory Search.</li>
+</ol>
+<p>Cancel queued or in-progress moves when plans change. If a move was posted to the wrong bin, perform a controlled corrective move; do not edit history away.</p>
+<h2>12. Warehouse Transfers</h2>
+<p><strong>Parallel Help ID:</strong> <code>transfer-flow</code><br>Transfers preserve pallet and lot identity across warehouse boundaries.</p>
+<h3>12.1 Create and stage</h3>
+<ol>
+<li>Manager/clerk confirms source, destination, pallet, lot, route, and destination readiness.</li>
+<li>Create the transfer.</li>
+<li>Stage the correct pallet in the dispatch area.</li>
+<li>Resolve mismatches before loading.</li>
+</ol>
+<h3>12.2 Dispatch and driver sign-off</h3>
+<ol>
+<li>Scan/verify the pallet and transfer.</li>
+<li>Load the correct vehicle.</li>
+<li>Driver scans badge or enters user code.</li>
+<li>Confirm departure only after the pallet physically leaves.</li>
+<li>Verify status is in-transit.</li>
+</ol>
+<h3>12.3 Receive at destination</h3>
+<ol>
+<li>Select the destination warehouse.</li>
+<li>Open the inbound transfer.</li>
+<li>Verify pallet and lot identity and condition.</li>
+<li>Receive the pallet.</li>
+<li>Immediately hand it to directed Put-Away.</li>
+</ol>
+<p>Never leave transferred stock physically in a receiving lane while the system suggests it is stored.</p>
+<h2>13. Cycle Counts</h2>
+<p><strong>Parallel Help ID:</strong> <code>cycle-counts</code></p>
+<h3>13.1 Manager/supervisor: plan</h3>
+<ol>
+<li>Choose location, zone, SKU, or spot-check scope.</li>
+<li>Prioritize high-value, high-risk, high-velocity, and recently discrepant stock.</li>
+<li>Generate the count and assign it.</li>
+<li>Avoid unnecessary stock movement in the count area during execution.</li>
+</ol>
+<h3>13.2 Operator: blind count</h3>
+<ol>
+<li>Open the assigned CCT count.</li>
+<li>Verify/scan the exact location.</li>
+<li>Count physical stock without reading or guessing the expected value.</li>
+<li>Enter the true count and required notes.</li>
+<li>Submit once while online.</li>
+</ol>
+<h3>13.3 Supervisor review</h3>
+<p>Review over-threshold variances separately from count exceptions. Recount or investigate when required. Use notes before approving, rejecting, accepting, or returning a line to blind entry. Approved variances create the controlled stock/adjustment history.</p>
+<p>If disconnected, entered values can remain on the device, but submit/approve/reject/close actions must wait. Reconnect, refresh the live assignment and freeze state, then act once.</p>
+<p>Variance is evidence of a broken upstream handoff. Track root cause across receiving, put-away, movement, picking, transfer, labeling, or status control.</p>
+<h2>14. Status Controls</h2>
+<p><strong>Parallel Help ID:</strong> <code>status-controls</code></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Use when</th>
+<th>Do not use when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Available</td>
+<td>Stock is verified and eligible for normal work</td>
+<td>Quality, count, location, or ownership is uncertain</td>
+</tr>
+<tr>
+<td>Hold</td>
+<td>Review is needed and final disposition is not known</td>
+<td>A confirmed quarantine/damage/missing condition already exists</td>
+</tr>
+<tr>
+<td>Quarantine</td>
+<td>Quality, expiry, contamination, temperature, or customer rules require isolation</td>
+<td>The pallet is simply waiting for ordinary work</td>
+</tr>
+<tr>
+<td>Damaged</td>
+<td>Physical damage has been verified</td>
+<td>Damage is suspected but not confirmed</td>
+</tr>
+<tr>
+<td>Missing</td>
+<td>A verified search/count supports missing status</td>
+<td>The operator only checked one expected location</td>
+</tr>
+</tbody></table>
+<p>Every status change requires a meaningful reason. Add a System Log entry when quality, customer, manager, or support follow-up is required. Return stock to Available only after authorized verification.</p>
+<h2>15. Labels and printing</h2>
+<p>Labels connect physical reality to system identity. Print immediately after receiving or structure setup.</p>
+<ul>
+<li>Pallet labels: attach to the matching pallet; reprint the same identity when damaged.</li>
+<li>Exact location labels: scan directly for the final rack cell.</li>
+<li>Bay labels: open the bay grid; operator selects the exact cell.</li>
+<li>Zone/warehouse labels: support navigation and bulk label sheets.</li>
+</ul>
+<p>Do not create a new record simply to replace a damaged label. If a code changes, replace the floor label before releasing work. Use the configured Zebra/ZPL path for warehouse stations and browser printing only as the approved fallback.</p>
+<h2>16. Exception and Andon response</h2>
+<p><strong>Parallel Help ID:</strong> <code>operational-dead-ends</code></p>
+<h3>16.1 Operator five-step stop rule</h3>
+<ol>
+<li><strong>Stop</strong> the transaction and keep stock safe.</li>
+<li><strong>Identify</strong> pallet, location, warehouse, and task.</li>
+<li><strong>Verify</strong> the live record in Inventory Search.</li>
+<li><strong>Notify</strong> the supervisor with facts, not guesses.</li>
+<li><strong>Resume once</strong> only after the record and floor agree.</li>
+</ol>
+<h3>16.2 Supervisor response matrix</h3>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Verify</th>
+<th>Controlled action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pallet label unreadable</td>
+<td>Printed text, Inventory Search record</td>
+<td>Reprint same pallet label</td>
+</tr>
+<tr>
+<td>Location label unreadable/stale</td>
+<td>Active warehouse, Warehouse Structure, physical rack</td>
+<td>Reprint label; correct structure only if wrong</td>
+</tr>
+<tr>
+<td>Pallet in wrong bin</td>
+<td>Movement history and physical location</td>
+<td>Location Move to actual/correct destination</td>
+</tr>
+<tr>
+<td>Quantity mismatch</td>
+<td>Recount, lot, pallet identity, recent movements</td>
+<td>Hold; count/investigate; adjust through approved workflow</td>
+</tr>
+<tr>
+<td>Damage/contamination/expiry</td>
+<td>Condition, lot, photos/site quality process</td>
+<td>Quarantine/Damaged with reason and log</td>
+</tr>
+<tr>
+<td>Unknown product barcode</td>
+<td>Product/client/packaging records</td>
+<td>Correct master data before work</td>
+</tr>
+<tr>
+<td>Full/blocked destination</td>
+<td>Physical cell and live capacity/status</td>
+<td>Choose eligible cell or correct location state</td>
+</tr>
+<tr>
+<td>Offline device</td>
+<td>Network and backend connectivity</td>
+<td>Freeze physical/system commit; reconnect and refresh</td>
+</tr>
+</tbody></table>
+<h3>16.3 Offline recovery</h3>
+<p>When connectivity drops:</p>
+<ul>
+<li>do not force or repeat Save, Receive, Put-Away, Pick, Move, Count, or approval actions;</li>
+<li>keep the pallet in its current physical state;</li>
+<li>preserve the visible task/form where possible;</li>
+<li>notify the supervisor if floor work is affected.</li>
+</ul>
+<p>After reconnect:</p>
+<ol>
+<li>Confirm the connection notice clears.</li>
+<li>Refresh the module/live task.</li>
+<li>Re-check pallet, location, quantity, status, and task state.</li>
+<li>If the task changed, follow the current live instruction.</li>
+<li>Post once and verify completion.</li>
+</ol>
+<h2>17. Reports, System Log, and audit</h2>
+<p>Reports provide snapshots for management; they do not replace transaction detail.</p>
+<p>Use Reports for stock by warehouse, occupancy, expiry risk, low stock/turn, dock performance, and variance trends. Use Inventory Search for pallet decisions. Use the System Log for operational exceptions and support/manager follow-up. Resolve a log only after the underlying condition is fixed.</p>
+<p>Critical RF disconnect alerts require acknowledgment only after the operator has reconnected, refreshed live state, and verified work can safely continue.</p>
+<h2>18. Users, roles, badges, and access</h2>
+<p><strong>Parallel Help ID:</strong> <code>user-management</code></p>
+<p>Admin standard work:</p>
+<ol>
+<li>Create/approve the user.</li>
+<li>Assign the smallest appropriate role.</li>
+<li>Issue user code and approved badge/PIN for shared mobile devices.</li>
+<li>Test sign-in before the shift.</li>
+<li>Hide a role to remove one area; disable the profile to stop sign-in entirely.</li>
+<li>Reassign open work before access changes.</li>
+<li>Preserve audit history; do not delete records as a routine access action.</li>
+</ol>
+<h2>19. Warehouse Setup Wizard and Structure tool</h2>
+<p><strong>Parallel Help IDs:</strong> <code>warehouse-setup</code>, <code>warehouse-structure-tool</code>, <code>zone-design</code>, <code>location-generation</code></p>
+<p>Use the Setup Wizard for a new implementation or planned rebuild:</p>
+<ol>
+<li>Define facilities.</li>
+<li>Define purpose- and temperature-aligned zones.</li>
+<li>Generate locations matching real aisles, bays, levels, and depth.</li>
+<li>Review counts and codes; nothing is created yet.</li>
+<li>Create the structure, then print and install matching labels.</li>
+</ol>
+<p>Use Warehouse Structure to inspect the live hierarchy and capacity/fill. Edit a wrong item in its matching resource table rather than rerunning the wizard. Reset All is destructive and must be used only by an authorized admin with a documented rebuild plan and typed challenge.</p>
+<h2>20. Recommended training and competency sign-off</h2>
+<h3>20.1 Operator competency</h3>
+<p>The operator can demonstrate, without prompting:</p>
+<ul>
+<li>sign-in and warehouse selection;</li>
+<li>scanner and manual typing fallback;</li>
+<li>exact location versus bay selection;</li>
+<li>one Put-Away, one Pick, one Location Move, and one Cycle Count;</li>
+<li>the stop rule for mismatch, damage, unknown code, full location, and offline device;</li>
+<li>Inventory Search verification and Help Center search;</li>
+<li>clean end-of-shift handoff.</li>
+</ul>
+<h3>20.2 Clerk competency</h3>
+<p>Add:</p>
+<ul>
+<li>complete receipt with product commit, quantities, lot/expiry, and labels;</li>
+<li>product/packaging correction before receipt;</li>
+<li>controlled status with reason;</li>
+<li>receipt draft and return-from-Put-Away handling.</li>
+</ul>
+<h3>20.3 Manager/supervisor competency</h3>
+<p>Add:</p>
+<ul>
+<li>start-of-shift control review;</li>
+<li>whole-pallet pick list release and shortage decision;</li>
+<li>cycle-count review and variance escalation;</li>
+<li>transfer dispatch/receive oversight;</li>
+<li>exception diagnosis, owner, and closure;</li>
+<li>role/access administration within authorization;</li>
+<li>end-of-shift reconciliation.</li>
+</ul>
+<p>Record trainee, trainer, date, facility, scenarios completed, exceptions tested, and any retraining due.</p>
+<h2>21. Quick reference: normal end-to-end flow</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Owner</th>
+<th>Physical confirmation</th>
+<th>System completion</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Plan</td>
+<td>Manager</td>
+<td>Capacity, stock, labor, priorities</td>
+<td>Work released with owner</td>
+</tr>
+<tr>
+<td>Receive</td>
+<td>Clerk</td>
+<td>Product, count, lot/expiry, pallets</td>
+<td>Receipt/pallets/labels/put-away tasks</td>
+</tr>
+<tr>
+<td>Put away</td>
+<td>Operator</td>
+<td>Pallet + exact eligible location</td>
+<td>Stored/available inventory</td>
+</tr>
+<tr>
+<td>Verify</td>
+<td>Any operations user</td>
+<td>Floor matches pallet record</td>
+<td>Live state confirmed</td>
+</tr>
+<tr>
+<td>Pick</td>
+<td>Manager + Operator</td>
+<td>Whole pallet at assigned cell</td>
+<td>Pick confirmed and staged</td>
+</tr>
+<tr>
+<td>Transfer</td>
+<td>Manager/Driver/Clerk</td>
+<td>Pallet, route, departure, arrival</td>
+<td>In-transit then destination receipt/put-away</td>
+</tr>
+<tr>
+<td>Count</td>
+<td>Operator + Supervisor</td>
+<td>Blind physical count</td>
+<td>Reviewed variance/adjustment</td>
+</tr>
+<tr>
+<td>Control exception</td>
+<td>Clerk/Supervisor</td>
+<td>Condition/location/count verified</td>
+<td>Status, audit, and log</td>
+</tr>
+<tr>
+<td>Close shift</td>
+<td>Manager</td>
+<td>Floor and queues reconciled</td>
+<td>Owners assigned; safe handoff</td>
+</tr>
+</tbody></table>
+<h2>22. Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3PL</td>
+<td>Third-party logistics provider.</td>
+</tr>
+<tr>
+<td>5S</td>
+<td>Sort, Set in order, Shine, Standardize, Sustain.</td>
+</tr>
+<tr>
+<td>Andon</td>
+<td>A visible stop/escalation signal used when work cannot safely continue.</td>
+</tr>
+<tr>
+<td>CCT</td>
+<td>Cycle-count task/number prefix used by the application.</td>
+</tr>
+<tr>
+<td>DMAIC</td>
+<td>Define, Measure, Analyze, Improve, Control.</td>
+</tr>
+<tr>
+<td>DPMO</td>
+<td>Defects per million opportunities.</td>
+</tr>
+<tr>
+<td>FEFO</td>
+<td>First Expired, First Out; earliest usable expiry is selected first.</td>
+</tr>
+<tr>
+<td>FIFO</td>
+<td>First In, First Out; oldest eligible stock is selected first.</td>
+</tr>
+<tr>
+<td>ISO 6346</td>
+<td>International container identification and check-digit standard.</td>
+</tr>
+<tr>
+<td>Pallet identity</td>
+<td>The unique system code/label that follows one physical pallet.</td>
+</tr>
+<tr>
+<td>Put-Away</td>
+<td>Controlled move from receiving/staging to an exact storage location.</td>
+</tr>
+<tr>
+<td>RLS</td>
+<td>Row-level security controlling which data a signed-in user may access.</td>
+</tr>
+<tr>
+<td>SKU</td>
+<td>Stock keeping unit.</td>
+</tr>
+<tr>
+<td>Whole-pallet pick</td>
+<td>A task that moves the entire assigned pallet; no ordinary split is permitted.</td>
+</tr>
+<tr>
+<td>WMS</td>
+<td>Warehouse management system.</td>
+</tr>
+<tr>
+<td>ZPL</td>
+<td>Zebra Programming Language used for warehouse label printing.</td>
+</tr>
+</tbody></table>
+<h2>23. AI / ChatGPT reference guidance</h2>
+<p>For reliable answers, provide the assistant with this manual and ask it to cite the stable section or Help ID. The assistant should:</p>
+<ol>
+<li>Prefer the current product version and revision metadata.</li>
+<li>Distinguish normal workflow from exception handling.</li>
+<li>Never recommend bypassing scans, guessing codes, forcing quantities, or posting offline.</li>
+<li>State the role required for a consequential action.</li>
+<li>Refer destructive setup/access actions to an authorized admin.</li>
+<li>Use <code>operational-dead-ends</code> when the physical floor and system disagree.</li>
+<li>Ask for the active warehouse, task number, pallet code, location code, current status, and exact error when diagnosing.</li>
+</ol>
+<p>Suggested prompt:</p>
+<blockquote>
+<p>Using Warehouse Wizard User Manual WW-UM-001 for product version 1.27, answer as a warehouse trainer. Give the normal workflow first, then stop/escalate conditions. Cite the relevant section and HELP ID. Do not invent permissions or bypass a blocked transaction.</p>
+</blockquote>
+<h2>24. Module-by-module system overview</h2>
+<p>This section provides the normal orientation for every current application module. Use it during onboarding before role-specific hands-on training. A module may be hidden when the user’s role or a configured feature flag does not permit access.</p>
+<h2>24.1 Dashboard</h2>
+<p><strong>Purpose:</strong> Provide a live starting point for inbound, storage, outbound, exception, capacity, and management signals.<br><strong>Normal users:</strong> Managers, supervisors, clerks, and operators.<br><strong>Normal use:</strong> Select the active warehouse and the Floor, Dock, or Office view; read open-work and exception signals; open the source module for detail.<br><strong>Handoff:</strong> Managers set priority and ownership; operators open the assigned execution queue.<br><strong>Avoid:</strong> Treating a dashboard total as sufficient evidence for a pallet decision.</p>
+<h2>24.2 Warehouses</h2>
+<p><strong>Purpose:</strong> Define the top-level facilities that own zones, locations, users, and operational activity.<br><strong>Normal users:</strong> Admins and warehouse managers.<br><strong>Normal use:</strong> Create a unique stable facility code, name, address/context, status, and cool-zone capability; keep the physical facility and system record aligned.<br><strong>Handoff:</strong> Create zones and locations before releasing warehouse work.<br><strong>Avoid:</strong> Duplicate codes, disabling a warehouse with dependent work, or deleting history.</p>
+<h2>24.3 Clients</h2>
+<p><strong>Purpose:</strong> Identify the owner of 3PL stock and the rules that apply to its receipt, storage, picking, and reporting.<br><strong>Normal users:</strong> Admins and warehouse managers.<br><strong>Normal use:</strong> Maintain short stable client codes, ownership, expiry/mixed-stock requirements, and active status.<br><strong>Handoff:</strong> Products and receipts must reference the correct client.<br><strong>Avoid:</strong> Receiving under a guessed owner or deleting client context needed by historical transactions.</p>
+<h2>24.4 Zones</h2>
+<p><strong>Purpose:</strong> Group warehouse space by workflow, storage purpose, and temperature.<br><strong>Normal users:</strong> Admins and warehouse managers.<br><strong>Normal use:</strong> Configure Receiving, Put-Away/staging, Picking, Dispatch, Quarantine, Bulk, Cool, or Frozen areas with appropriate flags.<br><strong>Handoff:</strong> Generate exact bin locations and labels inside each zone.<br><strong>Avoid:</strong> Mixing staging/dispatch/quarantine purposes or assigning the wrong temperature class.</p>
+<h2>24.5 Bin Locations</h2>
+<p><strong>Purpose:</strong> Define the exact physical cells used by directed Put-Away, picking, moves, counts, and occupancy reporting.<br><strong>Normal users:</strong> Admins and warehouse managers; operational roles consume the labels.<br><strong>Normal use:</strong> Maintain aisle, bay, level, position/depth, capacity, sequence, status, and scan code; print exact-cell and bay labels.<br><strong>Handoff:</strong> Warehouse Structure verifies the hierarchy; operators scan locations in execution modules.<br><strong>Avoid:</strong> Releasing work to inactive/full cells or changing a code without replacing the physical label.</p>
+<h2>24.6 Products</h2>
+<p><strong>Purpose:</strong> Define SKU identity, client ownership, rotation, tracking, temperature, and handling behavior.<br><strong>Normal users:</strong> Admins, managers, and inventory clerks.<br><strong>Normal use:</strong> Create or import verified SKU/name/barcode/owner data; set FIFO/FEFO, lot/expiry, and temperature controls; hide discontinued products.<br><strong>Handoff:</strong> Create one appropriate default Packaging Profile before receiving.<br><strong>Avoid:</strong> Guessed SKUs, unknown rotation values, duplicate barcodes, or temperature rules that conflict with storage.</p>
+<h2>24.7 Packaging Profiles</h2>
+<p><strong>Purpose:</strong> Connect physical each/case/pallet units and barcodes to receiving and handling quantities.<br><strong>Normal users:</strong> Admins, managers, and inventory clerks.<br><strong>Normal use:</strong> Configure pack sizes, dimensions, weights, barcodes, and one default profile per normal pack style.<br><strong>Handoff:</strong> Receiving uses the profile to interpret product scans and pallet quantities.<br><strong>Avoid:</strong> Multiple defaults or a units-per-package value that does not match the physical pack.</p>
+<h2>24.8 Receiving</h2>
+<p><strong>Purpose:</strong> Create receipts, shipment drafts, pallet identities, lot/expiry context, labels, and downstream Put-Away work.<br><strong>Normal users:</strong> Admins, managers, and inventory clerks.<br><strong>Normal use:</strong> Confirm warehouse/container/PO; scan and commit product; enter physical quantities and trace fields; verify; receive once; print labels; release Put-Away.<br><strong>Handoff:</strong> Labeled pallets and tasks move to Put-Away; incomplete work remains an identifiable Saved Draft in the receiving area.<br><strong>Avoid:</strong> Skipping the product commit arrow, accepting a learned suggestion without counting, guessed SKUs, or posting offline.</p>
+<h2>24.9 Put-Away</h2>
+<p><strong>Purpose:</strong> Store a received pallet in an exact eligible location and make stock available.<br><strong>Normal users:</strong> Admins, managers, clerks, and operators.<br><strong>Normal use:</strong> Select task; scan pallet; scan exact cell or choose a bay cell; verify physical/temperature capacity; place; confirm once.<br><strong>Handoff:</strong> Inventory Search reflects the stored location and the task clears.<br><strong>Avoid:</strong> Treating a bay code as final, forcing a blocked cell, or trusting stale pre-disconnect state.</p>
+<h2>24.10 Inventory Search</h2>
+<p><strong>Purpose:</strong> Show the live pallet, quantity, status, ownership, lot, location, and movement record.<br><strong>Normal users:</strong> All approved operational roles.<br><strong>Normal use:</strong> Search by pallet, SKU, lot, warehouse, zone, or location; open detail and history; compare with the physical floor before acting.<br><strong>Handoff:</strong> Use the verified record to justify a pick, move, transfer, status change, count, or correction.<br><strong>Avoid:</strong> Ignoring filters or acting from a dashboard snapshot, memory, or stale paper.</p>
+<h2>24.11 Pick Lists</h2>
+<p><strong>Purpose:</strong> Create, release, assign, and execute outbound whole-pallet work.<br><strong>Normal users:</strong> Admins, managers, supervisors, and warehouse operators.<br><strong>Normal use:</strong> Manager confirms demand/stock/staging and releases executable tasks; operator scans assigned location and whole pallet, confirms, and stages it.<br><strong>Handoff:</strong> Completed pallets move to the directed outbound lane or transfer/dispatch process.<br><strong>Avoid:</strong> Releasing short work, splitting a pallet in normal execution, or confirming a physical quantity mismatch.</p>
+<h2>24.12 Transfers</h2>
+<p><strong>Purpose:</strong> Move pallet identity between warehouses with source, in-transit, destination, and driver handoff history.<br><strong>Normal users:</strong> Admins, managers, clerks, supervisors, and dispatch drivers.<br><strong>Normal use:</strong> Create and stage; verify pallet/route; obtain driver departure sign-off; dispatch; receive at destination; trigger Put-Away.<br><strong>Handoff:</strong> Destination Receiving and Put-Away complete the transfer journey.<br><strong>Avoid:</strong> Using Transfers for a same-warehouse relocation, signing before physical departure, or leaving received stock invisible in a lane.</p>
+<h2>24.13 Location Moves</h2>
+<p><strong>Purpose:</strong> Relocate a pallet inside the same warehouse while preserving identity and audit history.<br><strong>Normal users:</strong> Admins, managers, inventory clerks, supervisors, and operators.<br><strong>Normal use:</strong> Scan pallet; verify live state; scan/type/Browse bays; choose exact eligible destination; move; confirm once.<br><strong>Handoff:</strong> Inventory Search shows the destination; queued/in-progress work may be cancelled when plans change.<br><strong>Avoid:</strong> Using a Move across warehouses, posting into a disabled/full/incompatible cell, or treating a bay as final.</p>
+<h2>24.14 Cycle Counts</h2>
+<p><strong>Purpose:</strong> Plan blind physical counts, review exceptions/variances, and maintain controlled adjustment history.<br><strong>Normal users:</strong> Admins, managers, clerks, supervisors, and operators.<br><strong>Normal use:</strong> Manager creates/assigns CCT scope; operator verifies location and submits the physical count online; supervisor reviews threshold variance and notes.<br><strong>Handoff:</strong> Approved corrections update stock and feed root-cause action.<br><strong>Avoid:</strong> Counting expected values, ignoring thresholds, or approving stale state after reconnect.</p>
+<h2>24.15 Statuses</h2>
+<p><strong>Purpose:</strong> Keep restricted stock visible through Available, Hold, Quarantine, Damaged, or Missing states.<br><strong>Normal users:</strong> Admins, managers, supervisors, and inventory clerks.<br><strong>Normal use:</strong> Verify the pallet and condition; choose the justified status; enter a meaningful reason; add System Log ownership when follow-up is required.<br><strong>Handoff:</strong> The corrected status controls availability in picking and other operations.<br><strong>Avoid:</strong> Marking Damaged/Missing on assumption or returning stock to Available without authorization.</p>
+<h2>24.16 Reports</h2>
+<p><strong>Purpose:</strong> Provide management snapshots across stock, occupancy, expiry, movement, count, and operational performance.<br><strong>Normal users:</strong> Admins, managers, supervisors, and inventory clerks as authorized.<br><strong>Normal use:</strong> Review trends and export approved reports; identify a bottleneck; open the underlying module or Inventory Search for transaction detail.<br><strong>Handoff:</strong> Assign improvement/action owners and verify later performance.<br><strong>Avoid:</strong> Treating aggregated reports as a substitute for live task or pallet records.</p>
+<h2>24.17 Users &amp; Roles</h2>
+<p><strong>Purpose:</strong> Create, approve, authorize, badge/PIN-enable, disable, and audit user access.<br><strong>Normal users:</strong> Admins; managers/supervisors may view or perform only configured actions.<br><strong>Normal use:</strong> Create/approve; assign least privilege; issue credentials; test access; hide a role or disable a profile non-destructively.<br><strong>Handoff:</strong> Reassign open operational work before changing access.<br><strong>Avoid:</strong> Shared credentials, excessive roles, deleting audit history, or disabling a person mid-task.</p>
+<h2>24.18 System Log</h2>
+<p><strong>Purpose:</strong> Record operational issues, support notes, RF alerts, snapshots, ownership, and resolution status.<br><strong>Normal users:</strong> Admins and warehouse managers.<br><strong>Normal use:</strong> Review severity and evidence; assign an owner; investigate the underlying transaction; resolve only after the real condition is corrected.<br><strong>Handoff:</strong> Quality, customer, IT, or warehouse action is traceable to closure.<br><strong>Avoid:</strong> Using a log instead of the required inventory/status transaction or acknowledging RF recovery without checking the floor.</p>
+<h2>24.19 Email Log</h2>
+<p><strong>Purpose:</strong> Show outbound email attempts, templates, recipients, delivery states, and failure details.<br><strong>Normal users:</strong> Admins.<br><strong>Normal use:</strong> Search the user/message; verify recipient/template/status/error; correct the cause; retry through the approved workflow or escalate provider/DNS/suppression issues.<br><strong>Handoff:</strong> Confirm delivery before telling the user an invitation or recovery message succeeded.<br><strong>Avoid:</strong> Repeated retries without reading the error.</p>
+<h2>24.20 Settings</h2>
+<p><strong>Purpose:</strong> Group environment guidance, Warehouse Structure, Users &amp; Roles, setup access, release information, and controlled administrative actions.<br><strong>Normal users:</strong> Admins and warehouse managers, with admin-only destructive controls.<br><strong>Normal use:</strong> Review the relevant tab; change only the intended configuration; verify downstream labels/users/workflows; document consequential changes.<br><strong>Handoff:</strong> Return to the affected operational module and confirm normal use still works.<br><strong>Avoid:</strong> Reset without a rebuild plan, broad “while here” changes, or structure edits without label replacement.</p>
+<h2>24.21 Help Center</h2>
+<p><strong>Purpose:</strong> Provide searchable and contextual product guidance for approved users.<br><strong>Normal users:</strong> Everyone.<br><strong>Normal use:</strong> Open contextual Help from the current module; review key actions and mistakes; search by module, workflow, error, or operational term; follow the current version.<br><strong>Handoff:</strong> Return to the task only when the normal next action is clear; use <code>operational-dead-ends</code> for floor/system disagreement.<br><strong>Avoid:</strong> Following an outdated printout or searching only one exact title.</p>
+<h2>24.22 Setup Wizard</h2>
+<p><strong>Purpose:</strong> Create or extend warehouses, zones, and generated bin locations from a reviewed structure.<br><strong>Normal users:</strong> Admins and warehouse managers; execution/reset controls remain authorization-dependent.<br><strong>Normal use:</strong> Define facilities; define zones; define location-generation rules; review totals/codes; create; print/install labels; verify Warehouse Structure.<br><strong>Handoff:</strong> Products/packaging are prepared and operational work is released only after physical structure matches the system.<br><strong>Avoid:</strong> Running without the physical design, accepting inconsistent codes, or treating the wizard as a routine correction tool after go-live.</p>
+<h2>25. Revision and source map</h2>
+<p>This manual is parallel to the in-app Help Center and expands it into role-based standard work. Product-specific behavior was mapped from:</p>
+<ul>
+<li><code>src/lib/help-content.ts</code> — contextual route guidance and searchable Help articles;</li>
+<li><code>docs/admin-guide.md</code> — setup, master data, operational flow, go-live, and Lean/Six Sigma controls;</li>
+<li><code>README.md</code> — supported routes, roles, and operational workflows;</li>
+<li><code>WW-SOP-Standard-Work-Cards.docx</code> — floor-ready standard work cards.</li>
+</ul>
+<p>When product behavior changes, update the in-app Help article and the matching stable section here in the same release cycle.</p>
+</body></html>

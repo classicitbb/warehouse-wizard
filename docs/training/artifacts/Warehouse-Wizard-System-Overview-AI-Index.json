@@ -1,0 +1,337 @@
+{
+  "documentId": "WW-SO-001",
+  "productVersion": "1.27",
+  "totalMinutes": 45,
+  "modules": [
+    {
+      "id": "dashboard",
+      "title": "Dashboard",
+      "group": "ORIENTATION",
+      "time": 2,
+      "users": "Managers · Supervisors · Clerks · Operators",
+      "purpose": "Start from live inbound, storage, outbound, capacity, and exception signals.",
+      "normal": [
+        "Select active warehouse and Floor, Dock, or Office view",
+        "Read open work and exceptions",
+        "Open the source module for live detail"
+      ],
+      "handoff": "Manager sets priority; operator opens the assigned queue.",
+      "avoid": "Do not use an aggregate tile as evidence for a pallet decision."
+    },
+    {
+      "id": "warehouses",
+      "title": "Warehouses",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Define the top-level physical facilities used by all warehouse activity.",
+      "normal": [
+        "Create one stable unique facility code",
+        "Maintain identity, location context, status, and cool capability",
+        "Confirm the facility exists physically as configured"
+      ],
+      "handoff": "Build zones and locations before releasing work.",
+      "avoid": "Do not duplicate codes or disable a facility with dependent work."
+    },
+    {
+      "id": "clients",
+      "title": "Clients",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Identify who owns 3PL stock and which commercial handling rules apply.",
+      "normal": [
+        "Maintain short stable client codes",
+        "Set ownership, expiry, and mixed-stock controls",
+        "Deactivate rather than delete historical context"
+      ],
+      "handoff": "Products and Receiving select the verified owner.",
+      "avoid": "Never receive stock under a guessed client."
+    },
+    {
+      "id": "zones",
+      "title": "Zones",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Group space by workflow purpose and temperature class.",
+      "normal": [
+        "Separate Receiving, Picking, Dispatch, Quarantine, Bulk, Cool/Frozen uses",
+        "Set temperature and no-normal-stock flags",
+        "Verify zone purpose against the floor"
+      ],
+      "handoff": "Generate exact bin locations and labels.",
+      "avoid": "Do not mix staging, dispatch, and quarantine rules for convenience."
+    },
+    {
+      "id": "bin-locations",
+      "title": "Bin Locations",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Define exact cells used for storage, picks, moves, counts, and capacity.",
+      "normal": [
+        "Maintain aisle, bay, level, position/depth, sequence, and capacity",
+        "Print exact-cell and bay labels",
+        "Keep active status and physical rack aligned"
+      ],
+      "handoff": "Operators consume the labels in execution modules.",
+      "avoid": "Never change a code without replacing the floor label."
+    },
+    {
+      "id": "products",
+      "title": "Products",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Managers · Inventory Clerks",
+      "purpose": "Define SKU identity, owner, rotation, tracking, temperature, and handling.",
+      "normal": [
+        "Create/import verified SKU, name, owner, and barcode",
+        "Set FIFO/FEFO, lot/expiry, and temperature controls",
+        "Hide discontinued items; preserve history"
+      ],
+      "handoff": "Create the correct Packaging Profile before Receiving.",
+      "avoid": "No guessed SKUs, duplicate barcodes, or unknown rotation values."
+    },
+    {
+      "id": "packaging-profiles",
+      "title": "Packaging Profiles",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Managers · Inventory Clerks",
+      "purpose": "Connect each/case/pallet units and barcodes to physical receiving quantities.",
+      "normal": [
+        "Configure pack sizes, dimensions, weights, and barcodes",
+        "Keep one appropriate default profile",
+        "Verify values against the physical pack"
+      ],
+      "handoff": "Receiving interprets scans and quantities from the profile.",
+      "avoid": "Multiple defaults or incorrect units-per-package create downstream defects."
+    },
+    {
+      "id": "receiving",
+      "title": "Receiving",
+      "group": "INBOUND + STORAGE",
+      "time": 3,
+      "users": "Admins · Managers · Inventory Clerks",
+      "purpose": "Create receipt, pallet identity, traceability, labels, and Put-Away work.",
+      "normal": [
+        "Warehouse/container/PO → product scan + commit",
+        "Physical total → qty/pallet → pallets → expiry/lot",
+        "Verify once → receive → print labels → release Put-Away"
+      ],
+      "handoff": "Each labeled pallet has a Put-Away task or identifiable Saved Draft.",
+      "avoid": "Do not guess SKU/count, skip the commit arrow, or post offline."
+    },
+    {
+      "id": "putaway",
+      "title": "Put-Away",
+      "group": "INBOUND + STORAGE",
+      "time": 2,
+      "users": "Admins · Managers · Clerks · Operators",
+      "purpose": "Store one identified pallet in one exact eligible cell and make it available.",
+      "normal": [
+        "Select task and scan pallet",
+        "Scan exact location or select exact bay cell",
+        "Verify safety/capacity/temperature → place → confirm once"
+      ],
+      "handoff": "Task clears and Inventory Search shows the stored location.",
+      "avoid": "A bay code is not final; never force a blocked or stale destination."
+    },
+    {
+      "id": "inventory-search",
+      "title": "Inventory Search",
+      "group": "INVENTORY CONTROL",
+      "time": 2,
+      "users": "All approved operational roles",
+      "purpose": "Provide the live pallet truth: quantity, status, owner, lot, location, and history.",
+      "normal": [
+        "Search pallet, SKU, lot, warehouse, zone, or location",
+        "Open detail and movement history",
+        "Compare the record with the physical floor"
+      ],
+      "handoff": "Verified facts justify the next pick, move, transfer, status, or count action.",
+      "avoid": "Do not act from memory, paper, dashboard totals, or hidden filters."
+    },
+    {
+      "id": "pick-lists",
+      "title": "Pick Lists",
+      "group": "OUTBOUND",
+      "time": 3,
+      "users": "Managers · Supervisors · Operators",
+      "purpose": "Plan, release, assign, and execute outbound whole-pallet work.",
+      "normal": [
+        "Manager verifies demand, stock, staging, owner, and due time",
+        "Release executable whole-pallet tasks",
+        "Operator scans assigned location + pallet → confirms → stages"
+      ],
+      "handoff": "Completed pallets move to the directed outbound lane.",
+      "avoid": "No short release, normal pallet split, or forced quantity mismatch."
+    },
+    {
+      "id": "transfers",
+      "title": "Transfers",
+      "group": "MOVEMENT + HANDOFF",
+      "time": 2,
+      "users": "Managers · Clerks · Supervisors · Dispatch Drivers",
+      "purpose": "Move pallet identity across warehouse boundaries with signed handoffs.",
+      "normal": [
+        "Create and stage the verified pallet/route",
+        "Driver signs after physical departure",
+        "Destination receives and immediately triggers Put-Away"
+      ],
+      "handoff": "Destination Receiving and Put-Away finish the journey.",
+      "avoid": "Do not sign before departure or strand received stock in a lane."
+    },
+    {
+      "id": "location-moves",
+      "title": "Location Moves",
+      "group": "MOVEMENT + HANDOFF",
+      "time": 1,
+      "users": "Managers · Clerks · Supervisors · Operators",
+      "purpose": "Relocate a pallet inside the same warehouse with full movement history.",
+      "normal": [
+        "Scan pallet and verify live state",
+        "Scan/type/Browse bays; select exact eligible cell",
+        "Move physically → confirm once → verify Inventory Search"
+      ],
+      "handoff": "Inventory now points to the exact destination.",
+      "avoid": "Different warehouse means Transfer, not Location Move."
+    },
+    {
+      "id": "cycle-counts",
+      "title": "Cycle Counts",
+      "group": "INVENTORY CONTROL",
+      "time": 2,
+      "users": "Managers · Clerks · Supervisors · Operators",
+      "purpose": "Run blind physical counts and controlled variance review.",
+      "normal": [
+        "Manager scopes and assigns CCT work",
+        "Operator verifies location and submits the true physical count online",
+        "Supervisor reviews threshold variance, notes, and exceptions"
+      ],
+      "handoff": "Approved corrections update stock and produce root-cause work.",
+      "avoid": "Do not count the expected value or approve stale post-reconnect state."
+    },
+    {
+      "id": "statuses",
+      "title": "Statuses",
+      "group": "INVENTORY CONTROL",
+      "time": 2,
+      "users": "Managers · Supervisors · Inventory Clerks",
+      "purpose": "Keep Available, Hold, Quarantine, Damaged, and Missing stock visible and controlled.",
+      "normal": [
+        "Verify pallet and physical condition",
+        "Choose only the justified status and enter a reason",
+        "Add System Log ownership when follow-up is required"
+      ],
+      "handoff": "Status controls availability and the next authorized action.",
+      "avoid": "Do not mark Damaged/Missing on assumption or release without verification."
+    },
+    {
+      "id": "reports",
+      "title": "Reports",
+      "group": "MANAGEMENT + ADMIN",
+      "time": 1,
+      "users": "Admins · Managers · Supervisors · Clerks",
+      "purpose": "Show management snapshots for stock, occupancy, expiry, movement, and variance.",
+      "normal": [
+        "Review the relevant current report",
+        "Identify the material trend or bottleneck",
+        "Drill into the operational module or Inventory Search"
+      ],
+      "handoff": "Assign an action owner and verify later performance.",
+      "avoid": "Reports do not replace live transactional detail."
+    },
+    {
+      "id": "users-roles",
+      "title": "Users & Roles",
+      "group": "MANAGEMENT + ADMIN",
+      "time": 1,
+      "users": "Admins",
+      "purpose": "Create, approve, authorize, badge/PIN-enable, disable, and audit access.",
+      "normal": [
+        "Create/approve the user",
+        "Assign least privilege and issue approved credentials",
+        "Test access; hide role or disable profile non-destructively"
+      ],
+      "handoff": "Reassign open work before access changes.",
+      "avoid": "No shared credentials, excessive roles, deletion, or mid-task disablement."
+    },
+    {
+      "id": "system-log",
+      "title": "System Log",
+      "group": "MANAGEMENT + ADMIN",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Track operational issues, RF alerts, support notes, ownership, and resolution.",
+      "normal": [
+        "Review evidence and severity",
+        "Assign the correct owner and investigate underlying records",
+        "Resolve only after the physical/system condition is corrected"
+      ],
+      "handoff": "Quality, client, IT, or warehouse follow-up reaches accountable closure.",
+      "avoid": "A log note does not replace the required inventory/status transaction."
+    },
+    {
+      "id": "email-log",
+      "title": "Email Log",
+      "group": "MANAGEMENT + ADMIN",
+      "time": 1,
+      "users": "Admins",
+      "purpose": "Show outbound message attempts, recipients, templates, status, and errors.",
+      "normal": [
+        "Find the user/message attempt",
+        "Read recipient, template, delivery state, and error",
+        "Correct the cause; retry or escalate provider/DNS/suppression"
+      ],
+      "handoff": "Confirm delivery before telling the user it succeeded.",
+      "avoid": "Do not retry repeatedly without reading the failure."
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "group": "MANAGEMENT + ADMIN",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Group Warehouse Structure, Users & Roles, release guidance, setup, and controlled administration.",
+      "normal": [
+        "Open the relevant tab only",
+        "Make the narrow intended configuration change",
+        "Verify downstream labels, access, and operational behavior"
+      ],
+      "handoff": "Return to the affected module and prove normal work still works.",
+      "avoid": "No reset without a rebuild plan or structure change without labels."
+    },
+    {
+      "id": "help-center",
+      "title": "Help Center",
+      "group": "ORIENTATION",
+      "time": 1,
+      "users": "All approved users",
+      "purpose": "Provide current contextual and searchable guidance across the system.",
+      "normal": [
+        "Open contextual Help from the current module",
+        "Review key actions, mistakes, and linked articles",
+        "Search by workflow, module, error, or operational term"
+      ],
+      "handoff": "Return only when the normal next action is clear; escalate dead ends.",
+      "avoid": "Do not rely on an outdated printout or one exact search phrase."
+    },
+    {
+      "id": "setup-wizard",
+      "title": "Setup Wizard",
+      "group": "STRUCTURE + MASTER DATA",
+      "time": 1,
+      "users": "Admins · Warehouse Managers",
+      "purpose": "Create or extend facilities, zones, and generated bin locations from a reviewed design.",
+      "normal": [
+        "Define facilities → zones → location rules",
+        "Review totals and codes before creation",
+        "Create → print/install labels → verify Warehouse Structure"
+      ],
+      "handoff": "Prepare products/packaging, then release operational work.",
+      "avoid": "It is not a routine correction tool after go-live; never run without the physical plan."
+    }
+  ]
+}
