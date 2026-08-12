@@ -369,6 +369,7 @@ export function ReceivingPage() {
   const perPalletRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const palletCountRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const expiryRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const shipmentLineRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const perPalletManualProductRefs = useRef<Record<string, string>>({});
   const containerAutoAdvanceRef = useRef("");
   const [palletQtyHints, setPalletQtyHints] = useState<Record<string, PalletQtyHint | null>>({});
@@ -548,6 +549,14 @@ export function ReceivingPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [shipmentOpen, shipmentEntryMode]);
+
+  useEffect(() => {
+    if (!shipmentOpen || !activeShipmentLineId) return;
+    const timer = window.setTimeout(() => {
+      shipmentLineRefs.current[activeShipmentLineId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeShipmentLineId, shipmentOpen]);
 
   useEffect(() => {
     if (!shipmentOpen || !shipmentContainerValidation.valid) return;
@@ -1376,27 +1385,33 @@ export function ReceivingPage() {
                   const productCommitPending = Boolean(pendingProductCommit[line.id] && line.product_id);
                   const isCollapsed = shipmentForm.lines.length > 1 && Boolean(line.product_id) && activeShipmentLineId !== line.id;
                   return (
-                    <div key={line.id} className="grid min-w-0 gap-2 rounded-lg border border-border p-2 sm:gap-3 sm:p-3">
+                    <div ref={(node) => { shipmentLineRefs.current[line.id] = node; }} key={line.id} className="grid min-w-0 scroll-mt-3 gap-2 rounded-lg border border-border p-2 sm:gap-3 sm:p-3">
                       {isCollapsed ? (
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="grid min-w-0 gap-2 text-sm sm:grid-cols-6 sm:gap-3">
-                            <span className="font-medium">SKU line {index + 1}</span>
-                            <span className="truncate font-medium">{selectedProduct?.sku ?? "Unknown SKU"}</span>
-                            <span>Total {line.total_quantity}</span>
-                            <span>Per pallet {line.quantity_per_pallet}</span>
-                            <span>Pallets {line.pallet_count}</span>
-                            <span>Expiry {line.expiry_date || "—"}</span>
+                        <div className="grid min-w-0 gap-2 text-sm">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <p className="flex min-w-0 items-center gap-2 font-medium text-foreground">
+                              <span className="shrink-0">SKU line {index + 1}</span>
+                              <span className="truncate">{selectedProduct?.name ?? selectedProduct?.sku ?? "Unknown product"}</span>
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              title={`Edit SKU line ${index + 1}`}
+                              aria-label={`Edit SKU line ${index + 1}`}
+                              onClick={() => setActiveShipmentLineId(line.id)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0 self-start sm:self-auto"
-                            onClick={() => setActiveShipmentLineId(line.id)}
-                          >
-                            <Pencil data-icon="inline-start" />
-                            Edit
-                          </Button>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-foreground/75 sm:grid-cols-5 sm:gap-3">
+                              <span>SKU {selectedProduct?.sku ?? "—"}</span>
+                              <span>Total {line.total_quantity}</span>
+                              <span>Per pallet {line.quantity_per_pallet}</span>
+                              <span>Pallets {line.pallet_count}</span>
+                              <span>Exp. {line.expiry_date || "—"}</span>
+                            </div>
                         </div>
                       ) : (
                         <>

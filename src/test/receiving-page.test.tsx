@@ -243,17 +243,21 @@ describe("ReceivingPage", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: /add sku line/i }));
 
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
     expect(within(dialog).getByText("SKU line 1")).toBeInTheDocument();
-    expect(within(dialog).getByText("FLOUR")).toBeInTheDocument();
+    expect(within(dialog).getByText("Flour")).toBeInTheDocument();
+    expect(within(dialog).getByText("SKU FLOUR")).toBeInTheDocument();
     expect(within(dialog).getByText("Total 1")).toBeInTheDocument();
     expect(within(dialog).getByText("Per pallet 1")).toBeInTheDocument();
     expect(within(dialog).getByText("Pallets 1")).toBeInTheDocument();
     expect(within(dialog).getByText("SKU line 2")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /edit sku line 1/i })).toBeInTheDocument();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: /^edit$/i }));
+    const scrollCallsBeforeEdit = vi.mocked(Element.prototype.scrollIntoView).mock.calls.length;
+    fireEvent.click(within(dialog).getByRole("button", { name: /edit sku line 1/i }));
 
     expect(await within(dialog).findAllByRole("button", { name: /reset sku line/i })).toHaveLength(2);
+    await waitFor(() => expect(vi.mocked(Element.prototype.scrollIntoView).mock.calls.length).toBeGreaterThan(scrollCallsBeforeEdit));
   });
 
   it("uses the same compact SKU-line handoff in standalone pallet mode", async () => {
@@ -264,9 +268,9 @@ describe("ReceivingPage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /add sku line/i }));
 
     expect(within(dialog).getByText("SKU line 1")).toBeInTheDocument();
-    expect(within(dialog).getByText("FLOUR")).toBeInTheDocument();
+    expect(within(dialog).getByText("Flour")).toBeInTheDocument();
     expect(within(dialog).getByText("SKU line 2")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /edit sku line 1/i })).toBeInTheDocument();
   });
 
   it("uses arrow keys to move through the SKU line fields", async () => {
