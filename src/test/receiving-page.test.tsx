@@ -236,6 +236,39 @@ describe("ReceivingPage", () => {
     expect(commitButton).toHaveAttribute("data-pending-commit", "false");
   });
 
+  it("collapses a completed shipment SKU line when adding the next line and reopens it for editing", async () => {
+    renderReceivingPage();
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /add sku line/i }));
+
+    expect(within(dialog).getByText("SKU line 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("FLOUR")).toBeInTheDocument();
+    expect(within(dialog).getByText("Total 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Per pallet 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Pallets 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("SKU line 2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /^edit$/i }));
+
+    expect(await within(dialog).findAllByRole("button", { name: /reset sku line/i })).toHaveLength(2);
+  });
+
+  it("uses the same compact SKU-line handoff in standalone pallet mode", async () => {
+    renderReceivingPage();
+    const dialog = await openShipmentDialog("pallet");
+    await selectFlourProduct(dialog);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /add sku line/i }));
+
+    expect(within(dialog).getByText("SKU line 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("FLOUR")).toBeInTheDocument();
+    expect(within(dialog).getByText("SKU line 2")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+  });
+
   it("uses arrow keys to move through the SKU line fields", async () => {
     renderReceivingPage();
 

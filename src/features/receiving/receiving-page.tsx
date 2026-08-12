@@ -375,6 +375,7 @@ export function ReceivingPage() {
   const [pendingProductCommit, setPendingProductCommit] = useState<Record<string, boolean>>({});
   const [openExpiryLineId, setOpenExpiryLineId] = useState<string | null>(null);
   const [openShipmentDetails, setOpenShipmentDetails] = useState<Record<string, boolean>>({});
+  const [activeShipmentLineId, setActiveShipmentLineId] = useState<string | null>(null);
   const [shipmentEntryMode, setShipmentEntryMode] = useState<ShipmentEntryMode>("shipment");
   const [shipmentOpen, setShipmentOpen] = useState(false);
   const [showShipmentMore, setShowShipmentMore] = useState(false);
@@ -807,6 +808,7 @@ export function ReceivingPage() {
     setPendingProductCommit({});
     setOpenExpiryLineId(null);
     setOpenShipmentDetails({});
+    setActiveShipmentLineId(null);
     setShipmentForm({
       receipt_type: "po",
       warehouse_id: currentWarehouseId,
@@ -831,6 +833,7 @@ export function ReceivingPage() {
     setPendingProductCommit({});
     setOpenExpiryLineId(null);
     setOpenShipmentDetails({});
+    setActiveShipmentLineId(null);
     setShipmentForm({
       receipt_type: "other",
       warehouse_id: currentWarehouseId,
@@ -857,6 +860,7 @@ export function ReceivingPage() {
     setPendingProductCommit({});
     setOpenExpiryLineId(null);
     setOpenShipmentDetails({});
+    setActiveShipmentLineId(null);
     setShipmentForm({
       receipt_type: values.receipt_type,
       warehouse_id: values.warehouse_id,
@@ -898,7 +902,15 @@ export function ReceivingPage() {
     setPalletQtyHints((current) => ({ ...current, [lineId]: null }));
     setOpenExpiryLineId((current) => (current === lineId ? null : current));
     setOpenShipmentDetails((current) => ({ ...current, [lineId]: false }));
+    setActiveShipmentLineId(lineId);
     delete perPalletManualProductRefs.current[lineId];
+  }
+
+  function addShipmentLine() {
+    const nextLine = newShipmentLine();
+    setShipmentForm((current) => ({ ...current, lines: [...current.lines, nextLine] }));
+    setActiveShipmentLineId(nextLine.id);
+    setTimeout(() => productRefs.current[nextLine.id]?.open(), 40);
   }
 
   function focusFirstProductSearch() {
@@ -1362,8 +1374,32 @@ export function ReceivingPage() {
                   const expiryRequired = productRequiresExpiry(selectedProduct);
                   const allocatedQuantity = Math.max(0, Number(line.quantity_per_pallet || 0) * Number(line.pallet_count || 0));
                   const productCommitPending = Boolean(pendingProductCommit[line.id] && line.product_id);
+                  const isCollapsed = shipmentForm.lines.length > 1 && Boolean(line.product_id) && activeShipmentLineId !== line.id;
                   return (
                     <div key={line.id} className="grid min-w-0 gap-2 rounded-lg border border-border p-2 sm:gap-3 sm:p-3">
+                      {isCollapsed ? (
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="grid min-w-0 gap-2 text-sm sm:grid-cols-6 sm:gap-3">
+                            <span className="font-medium">SKU line {index + 1}</span>
+                            <span className="truncate font-medium">{selectedProduct?.sku ?? "Unknown SKU"}</span>
+                            <span>Total {line.total_quantity}</span>
+                            <span>Per pallet {line.quantity_per_pallet}</span>
+                            <span>Pallets {line.pallet_count}</span>
+                            <span>Expiry {line.expiry_date || "—"}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 self-start sm:self-auto"
+                            onClick={() => setActiveShipmentLineId(line.id)}
+                          >
+                            <Pencil data-icon="inline-start" />
+                            Edit
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">SKU line {index + 1}</p>
                         <div className="flex items-center gap-1">
@@ -1572,6 +1608,8 @@ export function ReceivingPage() {
                           </div>
                         </div>
                       )}
+                        </>
+                      )}
                     </div>
                   );
                 })}
@@ -1582,7 +1620,7 @@ export function ReceivingPage() {
                     variant="outline"
                     disabled={!canAddSkuLine}
                     title={canAddSkuLine ? "Add SKU line" : "Enter a SKU and quantity before adding another line"}
-                    onClick={() => setShipmentForm((cur) => ({ ...cur, lines: [...cur.lines, newShipmentLine()] }))}
+                    onClick={addShipmentLine}
                   >
                     <Plus data-icon="inline-start" />
                     Add SKU line

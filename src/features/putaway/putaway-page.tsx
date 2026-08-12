@@ -1149,7 +1149,7 @@ export function PutawayTasksPage() {
         </DialogContent>
       </Dialog>
       <div className="shrink-0">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="text-2xl font-semibold">Put-Away Tasks</h2>
             <HintButton label="Put-Away guidance" buttonClassName="text-muted-foreground">
@@ -1157,10 +1157,10 @@ export function PutawayTasksPage() {
             </HintButton>
           </div>
           {pendingTasks.length > 0 ? (
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
               {!selectedTask ? (
                 <details
-                  className="group max-w-full rounded-lg border border-border bg-background/60 px-3 py-2"
+                  className="group w-full max-w-full rounded-lg border border-border bg-background/60 px-3 py-2 sm:w-auto"
                   open={openTasksExpanded}
                   onToggle={(event) => setOpenTasksExpanded(event.currentTarget.open)}
                 >
