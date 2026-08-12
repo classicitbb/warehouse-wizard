@@ -393,10 +393,11 @@ export function InventorySearchPage() {
       <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <CardContent className="flex min-h-0 min-w-0 flex-1 p-0">
           <TableFrame className="h-full min-w-0 flex-1">
-            <Table className="min-w-[72rem] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
+            <Table className="min-w-[80rem] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
               <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
                 <TableRow>
                   <TableHead>SKU</TableHead>
+                  <TableHead>Product</TableHead>
                   <TableHead>Pallet</TableHead>
                   <TableHead>Container</TableHead>
                   <TableHead>PO</TableHead>
@@ -410,11 +411,11 @@ export function InventorySearchPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={9}>Searching…</TableCell>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={10}>Searching…</TableCell>
                   </TableRow>
                 ) : tableData.length === 0 ? (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={9}>No inventory matched.</TableCell>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={10}>No inventory matched.</TableCell>
                   </TableRow>
                 ) : (
                   tableData.map((row) => (
@@ -428,6 +429,7 @@ export function InventorySearchPage() {
                       title="Double-click or double-tap to open details"
                     >
                       <TableCell>{row.sku}</TableCell>
+                      <TableCell>{row.product_name ?? "—"}</TableCell>
                       <TableCell>{row.pallet_code}</TableCell>
                       <TableCell>{row.container_number ?? "—"}</TableCell>
                       <TableCell>{row.po_number ?? "—"}</TableCell>
