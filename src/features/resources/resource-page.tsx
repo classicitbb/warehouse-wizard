@@ -440,7 +440,7 @@ export function ResourcePage({
   const filteredData = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
     if (!q) return tableData;
-    return tableData.filter((row) =>
+    return tableData.filter((row: Record<string, unknown>) =>
       resource.fields.some((field) => {
         const val = (row as Record<string, unknown>)[field.name];
         if (val == null) return false;
@@ -768,7 +768,7 @@ export function ResourcePage({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredData.map((row) => (
+                  filteredData.map((row: Record<string, unknown>) => (
                     <TableRow
                       key={(row as { id?: string }).id ?? JSON.stringify(row)}
                       className="even:bg-muted/30 cursor-pointer"

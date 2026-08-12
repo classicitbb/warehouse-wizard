@@ -118,6 +118,13 @@ export type Database = {
             foreignKeyName: "audit_events_pallet_id_fkey"
             columns: ["pallet_id"]
             isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
+          {
+            foreignKeyName: "audit_events_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
             referencedRelation: "pallets"
             referencedColumns: ["id"]
           },
@@ -594,6 +601,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "locations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_count_lines_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
           },
           {
             foreignKeyName: "cycle_count_lines_pallet_id_fkey"
@@ -1296,6 +1310,13 @@ export type Database = {
             foreignKeyName: "inventory_balances_pallet_id_fkey"
             columns: ["pallet_id"]
             isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
+          {
+            foreignKeyName: "inventory_balances_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
             referencedRelation: "pallets"
             referencedColumns: ["id"]
           },
@@ -1386,6 +1407,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "locations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_freezes_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
           },
           {
             foreignKeyName: "inventory_freezes_pallet_id_fkey"
@@ -1727,6 +1755,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "locations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "move_tasks_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
           },
           {
             foreignKeyName: "move_tasks_pallet_id_fkey"
@@ -2213,8 +2248,22 @@ export type Database = {
             foreignKeyName: "pick_tasks_original_pallet_id_fkey"
             columns: ["original_pallet_id"]
             isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_original_pallet_id_fkey"
+            columns: ["original_pallet_id"]
+            isOneToOne: false
             referencedRelation: "pallets"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
           },
           {
             foreignKeyName: "pick_tasks_pallet_id_fkey"
@@ -2243,6 +2292,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "locations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_picked_pallet_id_fkey"
+            columns: ["picked_pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
           },
           {
             foreignKeyName: "pick_tasks_picked_pallet_id_fkey"
@@ -2659,6 +2715,13 @@ export type Database = {
             foreignKeyName: "putaway_tasks_pallet_id_fkey"
             columns: ["pallet_id"]
             isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
+          {
+            foreignKeyName: "putaway_tasks_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
             referencedRelation: "pallets"
             referencedColumns: ["id"]
           },
@@ -2726,6 +2789,13 @@ export type Database = {
           root_cause_code?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "quality_inspections_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
           {
             foreignKeyName: "quality_inspections_pallet_id_fkey"
             columns: ["pallet_id"]
@@ -2838,10 +2908,16 @@ export type Database = {
       receipts: {
         Row: {
           client_id: string | null
+          container_number: string | null
           created_at: string
           created_by: string | null
+          draft_count: number | null
+          draft_group_id: string | null
+          draft_pallet_barcode: string | null
+          draft_sequence: number | null
           id: string
           notes: string | null
+          po_number: string | null
           receipt_number: string
           receipt_type: Database["public"]["Enums"]["receipt_type"]
           reference_number: string | null
@@ -2852,10 +2928,16 @@ export type Database = {
         }
         Insert: {
           client_id?: string | null
+          container_number?: string | null
           created_at?: string
           created_by?: string | null
+          draft_count?: number | null
+          draft_group_id?: string | null
+          draft_pallet_barcode?: string | null
+          draft_sequence?: number | null
           id?: string
           notes?: string | null
+          po_number?: string | null
           receipt_number: string
           receipt_type?: Database["public"]["Enums"]["receipt_type"]
           reference_number?: string | null
@@ -2866,10 +2948,16 @@ export type Database = {
         }
         Update: {
           client_id?: string | null
+          container_number?: string | null
           created_at?: string
           created_by?: string | null
+          draft_count?: number | null
+          draft_group_id?: string | null
+          draft_pallet_barcode?: string | null
+          draft_sequence?: number | null
           id?: string
           notes?: string | null
+          po_number?: string | null
           receipt_number?: string
           receipt_type?: Database["public"]["Enums"]["receipt_type"]
           reference_number?: string | null
@@ -3354,6 +3442,13 @@ export type Database = {
             foreignKeyName: "stock_adjustments_pallet_id_fkey"
             columns: ["pallet_id"]
             isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
             referencedRelation: "pallets"
             referencedColumns: ["id"]
           },
@@ -3565,6 +3660,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "inventory_lots"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_lines_pallet_id_fkey"
+            columns: ["pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
           },
           {
             foreignKeyName: "transfer_lines_pallet_id_fkey"
@@ -3885,19 +3987,16 @@ export type Database = {
           client_id: string | null
           client_name: string | null
           container_number: string | null
-          created_at: string | null
           damaged_quantity: number | null
           expiry_date: string | null
           height: number | null
           held_quantity: number | null
           inventory_balance_id: string | null
-          inventory_lot_id: string | null
           length: number | null
           location_code: string | null
           location_id: string | null
           lot_number: string | null
           manufacture_date: string | null
-          owner_name: string | null
           pallet_barcode: string | null
           pallet_code: string | null
           pallet_id: string | null
@@ -3921,7 +4020,6 @@ export type Database = {
           weight: number | null
           width: number | null
           zone_code: string | null
-          zone_id: string | null
           zone_name: string | null
         }
         Relationships: [
@@ -3930,13 +4028,6 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_balances_inventory_lot_id_fkey"
-            columns: ["inventory_lot_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_lots"
             referencedColumns: ["id"]
           },
           {
@@ -3954,13 +4045,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inventory_balances_pallet_id_fkey"
-            columns: ["pallet_id"]
-            isOneToOne: false
-            referencedRelation: "pallets"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "inventory_balances_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -3972,13 +4056,6 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_balances_zone_id_fkey"
-            columns: ["zone_id"]
-            isOneToOne: false
-            referencedRelation: "zones"
             referencedColumns: ["id"]
           },
         ]
