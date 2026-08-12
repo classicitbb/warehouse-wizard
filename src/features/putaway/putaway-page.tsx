@@ -571,6 +571,9 @@ export function PutawayTasksPage() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [revertedIds, setRevertedIds] = useState<Set<string>>(new Set());
   const [returnTask, setReturnTask] = useState<any | null>(null);
+  const [batchReturnOpen, setBatchReturnOpen] = useState(false);
+  const [selectedBatchReturnTaskIds, setSelectedBatchReturnTaskIds] = useState<Set<string>>(new Set());
+  const [batchReturnErrors, setBatchReturnErrors] = useState<Record<string, string>>({});
 
   const clearSelectedTaskState = useCallback((taskId?: string | null) => {
     if (!taskId) return;
@@ -687,6 +690,52 @@ export function PutawayTasksPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Revert failed"),
   });
 
+  const batchReturnMutation = useMutation({
+    mutationFn: async ({ taskIds, openReceiving }: { taskIds: string[]; openReceiving: boolean }) => {
+      const results = await Promise.allSettled(
+        taskIds.map(async (taskId) => {
+          await revertPutawayToDraft(taskId);
+          return taskId;
+        }),
+      );
+      return { results, taskIds, openReceiving };
+    },
+    onSuccess: async ({ results, taskIds, openReceiving }) => {
+      const returnedTaskIds = results
+        .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+        .map((result) => result.value);
+      const errors = Object.fromEntries(
+        results.flatMap((result, index) => result.status === "rejected"
+          ? [[taskIds[index], result.reason instanceof Error ? result.reason.message : "Return failed"]]
+          : []),
+      );
+
+      setRevertedIds((previous) => new Set([...previous, ...returnedTaskIds]));
+      setSelectedBatchReturnTaskIds((previous) => new Set([...previous].filter((taskId) => !returnedTaskIds.includes(taskId))));
+      setBatchReturnErrors(errors);
+      setResumeNotice(null);
+      if (returnedTaskIds.includes(selectedTaskId ?? "")) resetPutawaySelection(selectedTaskId);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["putaway-task-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
+      ]);
+
+      const failedCount = results.length - returnedTaskIds.length;
+      if (failedCount > 0) {
+        toast.error(`${returnedTaskIds.length} task${returnedTaskIds.length === 1 ? "" : "s"} returned; ${failedCount} failed. Review the selected tasks and try again.`);
+        return;
+      }
+
+      toast.success(`${returnedTaskIds.length} task${returnedTaskIds.length === 1 ? "" : "s"} saved as Receiving drafts`);
+      setBatchReturnOpen(false);
+      setBatchReturnErrors({});
+      if (openReceiving) navigate(toPath("/receiving"));
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not return the selected tasks"),
+  });
+
   const mutation = useMutation({
     mutationFn: async ({ taskId, pallet, location, override, reason }: { taskId: string; pallet: string; location: string; override?: boolean; reason?: string }) => {
       assertOnline();
@@ -734,6 +783,7 @@ export function PutawayTasksPage() {
   const openPutawayStatuses = new Set(["queued", "assigned", "in_progress", "exception"]);
   const pendingTasks = data.filter((task: any) => openPutawayStatuses.has(task.status) && !completedIds.has(task.id) && !revertedIds.has(task.id));
   const selectedTask = selectedTaskId ? pendingTasks.find((task: any) => task.id === selectedTaskId) ?? null : null;
+  const selectedBatchReturnTasks = pendingTasks.filter((task: any) => selectedBatchReturnTaskIds.has(task.id));
 
   useEffect(() => {
     if (!pendingReconnectValidation || !resumeHydrated || !online || !selectedTaskId) return;
@@ -1107,7 +1157,34 @@ export function PutawayTasksPage() {
             </HintButton>
           </div>
           {pendingTasks.length > 0 ? (
-            <Badge variant="secondary" className="shrink-0 text-sm">{pendingTasks.length} pending</Badge>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {!selectedTask ? (
+                <details
+                  className="group max-w-full rounded-lg border border-border bg-background/60 px-3 py-2"
+                  open={openTasksExpanded}
+                  onToggle={(event) => setOpenTasksExpanded(event.currentTarget.open)}
+                >
+                  <summary className="cursor-pointer list-none text-sm text-muted-foreground hover:text-foreground">
+                    <span className="group-open:hidden">Show {pendingTasks.length} open Put-Away task{pendingTasks.length === 1 ? "" : "s"}</span>
+                    <span className="hidden group-open:inline">Hide open Put-Away tasks</span>
+                  </summary>
+                </details>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task) => task.id)));
+                  setBatchReturnErrors({});
+                  setBatchReturnOpen(true);
+                }}
+              >
+                <RotateCcw data-icon="inline-start" />
+                Return tasks to Receiving
+              </Button>
+              <Badge variant="secondary" className="text-sm">{pendingTasks.length} pending</Badge>
+            </div>
           ) : null}
         </div>
       </div>
@@ -1131,18 +1208,6 @@ export function PutawayTasksPage() {
         </div>
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-        {!selectedTask && pendingTasks.length > 0 ? (
-          <details
-            className="group w-fit max-w-full self-start rounded-lg border border-border bg-background/60 px-3 py-2"
-            open={openTasksExpanded}
-            onToggle={(event) => setOpenTasksExpanded(event.currentTarget.open)}
-          >
-            <summary className="cursor-pointer list-none text-sm text-muted-foreground hover:text-foreground">
-              <span className="group-open:hidden">Show {pendingTasks.length} open Put-Away task{pendingTasks.length === 1 ? "" : "s"}</span>
-              <span className="hidden group-open:inline">Hide open Put-Away tasks</span>
-            </summary>
-          </details>
-        ) : null}
         {isLoading ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading putaway tasks…</CardContent></Card>
         ) : visibleTasks.length === 0 ? (
@@ -1486,6 +1551,79 @@ export function PutawayTasksPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={batchReturnOpen} onOpenChange={(open) => {
+        setBatchReturnOpen(open);
+        if (!open) setBatchReturnErrors({});
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Return Put-Away Tasks to Receiving</DialogTitle>
+            <DialogDescription>Select open tasks to save as Receiving drafts after a print or label error.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {Object.keys(batchReturnErrors).length > 0 ? (
+              <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
+                Some tasks could not be returned. They remain selected so you can try again.
+              </p>
+            ) : null}
+            <div className="max-h-[50vh] overflow-y-auto pr-3">
+              <div className="grid gap-2">
+                {pendingTasks.map((task) => {
+                  const pallet = task.pallets;
+                  const product = pallet?.products;
+                  const palletCode = pallet?.pallet_barcode ?? pallet?.pallet_code ?? "No pallet assigned";
+                  const checked = selectedBatchReturnTaskIds.has(task.id);
+                  const error = batchReturnErrors[task.id];
+                  return (
+                    <label key={task.id} className={cn("flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2", error && "border-destructive/60")}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) => {
+                          setSelectedBatchReturnTaskIds((current) => {
+                            const next = new Set(current);
+                            if (value) next.add(task.id); else next.delete(task.id);
+                            return next;
+                          });
+                          setBatchReturnErrors((current) => {
+                            if (!(task.id in current)) return current;
+                            const next = { ...current };
+                            delete next[task.id];
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{palletCode} · {product?.sku ?? "Unknown SKU"}</span>
+                        <span className="block text-xs text-muted-foreground">Task {task.task_number} · {product?.name ?? "Product"} · Qty {pallet?.quantity ?? "?"}</span>
+                        {error ? <span className="block text-xs text-destructive">{error}</span> : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={batchReturnMutation.isPending} onClick={() => setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task) => task.id)))}>Select all shown</Button>
+            <Button variant="outline" disabled={batchReturnMutation.isPending || selectedBatchReturnTaskIds.size === 0} onClick={() => setSelectedBatchReturnTaskIds(new Set())}>Deselect all</Button>
+            <Button
+              variant="outline"
+              disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
+              onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: false })}
+            >
+              {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
+              Return selected as drafts
+            </Button>
+            <Button
+              disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
+              onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: true })}
+            >
+              {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
+              Return selected & open Receiving
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

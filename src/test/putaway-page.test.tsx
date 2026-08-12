@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PutawayTasksPage } from "@/components/wms-ui";
@@ -118,6 +118,7 @@ describe("PutawayTasksPage scan-first flow", () => {
     wmsMocks.getPutawayTasks.mockResolvedValue(openTasks);
     wmsMocks.getPutawayTaskHistory.mockResolvedValue([]);
     wmsMocks.confirmPutaway.mockResolvedValue(undefined);
+    wmsMocks.revertPutawayToDraft.mockResolvedValue(undefined);
   });
 
   function setPointerCoarse(matches: boolean) {
@@ -142,12 +143,23 @@ describe("PutawayTasksPage scan-first flow", () => {
         <MemoryRouter>
           <TooltipProvider>
             <PutawayTasksPage />
+            <LocationIndicator />
           </TooltipProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     );
 
     return { queryClient, invalidateSpy };
+  }
+
+  function LocationIndicator() {
+    const location = useLocation();
+    return <output data-testid="location">{location.pathname}</output>;
+  }
+
+  async function openBatchReturnDialog() {
+    fireEvent.click(await screen.findByRole("button", { name: /return tasks to receiving/i }));
+    return screen.findByRole("dialog", { name: /return put-away tasks to receiving/i });
   }
 
   async function enterPallet(value: string) {
@@ -352,6 +364,71 @@ describe("PutawayTasksPage scan-first flow", () => {
 
     expect(await screen.findByText(/SKU-1/)).toBeInTheDocument();
     expect(screen.getByText(/SKU-2/)).toBeInTheDocument();
+  });
+
+  it("keeps batch return available while open tasks are hidden and selects every scoped task", async () => {
+    renderPutawayPage();
+
+    expect(screen.queryByText(/SKU-1/)).not.toBeInTheDocument();
+    const dialog = await openBatchReturnDialog();
+    const checkboxes = within(dialog).getAllByRole("checkbox");
+
+    expect(within(dialog).getByText(/PLT-1 .* SKU-1/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Task PTA-2 .* Qty 5/i)).toBeInTheDocument();
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes.every((checkbox) => (checkbox as HTMLButtonElement).getAttribute("data-state") === "checked")).toBe(true);
+  });
+
+  it("lets operators select and deselect the batch return task list", async () => {
+    renderPutawayPage();
+    const dialog = await openBatchReturnDialog();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /deselect all/i }));
+    expect(within(dialog).getByRole("button", { name: /return selected as drafts/i })).toBeDisabled();
+    expect(within(dialog).getAllByRole("checkbox").every((checkbox) => (checkbox as HTMLButtonElement).getAttribute("data-state") === "unchecked")).toBe(true);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /select all shown/i }));
+    expect(within(dialog).getByRole("button", { name: /return selected as drafts/i })).toBeEnabled();
+    expect(within(dialog).getAllByRole("checkbox").every((checkbox) => (checkbox as HTMLButtonElement).getAttribute("data-state") === "checked")).toBe(true);
+  });
+
+  it("returns selected tasks as drafts without leaving Put-Away", async () => {
+    const { invalidateSpy } = renderPutawayPage();
+    const dialog = await openBatchReturnDialog();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /return selected as drafts/i }));
+
+    await waitFor(() => expect(wmsMocks.revertPutawayToDraft).toHaveBeenCalledTimes(2));
+    expect(wmsMocks.revertPutawayToDraft).toHaveBeenCalledWith("task-1");
+    expect(wmsMocks.revertPutawayToDraft).toHaveBeenCalledWith("task-2");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["draft-receipts"] }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/");
+  });
+
+  it("returns selected tasks and opens Receiving when requested", async () => {
+    renderPutawayPage();
+    const dialog = await openBatchReturnDialog();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /return selected & open receiving/i }));
+
+    await waitFor(() => expect(wmsMocks.revertPutawayToDraft).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/receiving");
+  });
+
+  it("keeps failed batch returns selected for retry", async () => {
+    wmsMocks.revertPutawayToDraft.mockImplementation(async (taskId: string) => {
+      if (taskId === "task-2") throw new Error("Task is no longer open");
+    });
+    renderPutawayPage();
+    const dialog = await openBatchReturnDialog();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /return selected as drafts/i }));
+
+    await waitFor(() => expect(wmsMocks.revertPutawayToDraft).toHaveBeenCalledTimes(2));
+    expect(await within(dialog).findByText(/some tasks could not be returned/i)).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("checkbox")).toHaveLength(1);
+    expect((within(dialog).getByRole("checkbox") as HTMLButtonElement).getAttribute("data-state")).toBe("checked");
+    expect(within(dialog).getByText("Task is no longer open")).toBeInTheDocument();
   });
 
   it("shows a no-match error without revealing tasks", async () => {
