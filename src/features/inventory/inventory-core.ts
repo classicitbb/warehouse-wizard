@@ -57,9 +57,26 @@ export async function searchInventory(filters: {
   if (loadAll) {
     rawRows = await fetchAllRows<any>((from, to) => query.order("received_at", { ascending: false }).range(from, to));
   } else {
-    const { data, error } = await query.order("received_at", { ascending: false }).limit(Math.max(1, filters.limit ?? 50));
-    if (error) throw error;
-    rawRows = data ?? [];
+    // Keep fetching pages until we have enough *visible* rows (retired/zero-qty rows
+    // are filtered client-side and would otherwise silently shrink the page and hide
+    // the "load more" affordance).
+    const wanted = Math.max(1, filters.limit ?? 50);
+    const pageSize = wanted;
+    rawRows = [];
+    let visibleCount = 0;
+    for (let page = 0; page < 20; page += 1) {
+      const from = page * pageSize;
+      const { data, error } = await query
+        .order("received_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const batch = data ?? [];
+      rawRows.push(...batch);
+      visibleCount += batch.filter(
+        (row: any) => !isRetiredInventoryStatus(row.status) && hasVisibleInventoryQuantity(row),
+      ).length;
+      if (batch.length < pageSize || visibleCount >= wanted) break;
+    }
   }
   let rows = rawRows
     .filter((row) => !isRetiredInventoryStatus(row.status) && hasVisibleInventoryQuantity(row))
