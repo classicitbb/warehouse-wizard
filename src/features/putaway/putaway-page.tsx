@@ -1555,18 +1555,18 @@ export function PutawayTasksPage() {
         setBatchReturnOpen(open);
         if (!open) setBatchReturnErrors({});
       }}>
-        <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Return Put-Away Tasks to Receiving</DialogTitle>
             <DialogDescription>Select open tasks to save as Receiving drafts after a print or label error.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
+          <div className="flex min-h-0 flex-col gap-3">
             {Object.keys(batchReturnErrors).length > 0 ? (
               <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
                 Some tasks could not be returned. They remain selected so you can try again.
               </p>
             ) : null}
-            <div className="max-h-[50vh] overflow-y-auto pr-3">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-3">
               <div className="grid gap-2">
                 {pendingTasks.map((task) => {
                   const pallet = task.pallets;
@@ -1575,7 +1575,7 @@ export function PutawayTasksPage() {
                   const checked = selectedBatchReturnTaskIds.has(task.id);
                   const error = batchReturnErrors[task.id];
                   return (
-                    <label key={task.id} className={cn("flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2", error && "border-destructive/60")}>
+                    <label key={task.id} className={cn("flex cursor-pointer items-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2 shadow-sm transition-colors hover:bg-muted/70 focus-within:ring-1 focus-within:ring-ring", error && "border-destructive/60")}>
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(value) => {
@@ -1593,8 +1593,8 @@ export function PutawayTasksPage() {
                         }}
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{palletCode} · {product?.sku ?? "Unknown SKU"}</span>
-                        <span className="block text-xs text-muted-foreground">Task {task.task_number} · {product?.name ?? "Product"} · Qty {pallet?.quantity ?? "?"}</span>
+                        <span className="block truncate text-sm font-semibold text-foreground">{palletCode} · {product?.sku ?? "Unknown SKU"}</span>
+                        <span className="block text-xs text-foreground/70">Task {task.task_number} · {product?.name ?? "Product"} · Qty {pallet?.quantity ?? "?"}</span>
                         {error ? <span className="block text-xs text-destructive">{error}</span> : null}
                       </span>
                     </label>
@@ -1603,24 +1603,28 @@ export function PutawayTasksPage() {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" disabled={batchReturnMutation.isPending} onClick={() => setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task) => task.id)))}>Select all shown</Button>
-            <Button variant="outline" disabled={batchReturnMutation.isPending || selectedBatchReturnTaskIds.size === 0} onClick={() => setSelectedBatchReturnTaskIds(new Set())}>Deselect all</Button>
-            <Button
-              variant="outline"
-              disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
-              onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: false })}
-            >
-              {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
-              Return selected as drafts
-            </Button>
-            <Button
-              disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
-              onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: true })}
-            >
-              {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
-              Return selected & open Receiving
-            </Button>
+          <DialogFooter className="gap-2 sm:flex-col sm:items-stretch sm:space-x-0">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" disabled={batchReturnMutation.isPending} onClick={() => setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task) => task.id)))}>Select all shown</Button>
+              <Button variant="outline" disabled={batchReturnMutation.isPending || selectedBatchReturnTaskIds.size === 0} onClick={() => setSelectedBatchReturnTaskIds(new Set())}>Deselect all</Button>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
+                onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: false })}
+              >
+                {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
+                Return selected as drafts
+              </Button>
+              <Button
+                disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
+                onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: true })}
+              >
+                {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
+                Return selected & open Receiving
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
