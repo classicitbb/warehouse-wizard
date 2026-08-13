@@ -740,6 +740,7 @@ function applyArchiveFilter(
 // builder can only be awaited once), applying `.range(from, to)` as the last
 // step before returning it.
 const FETCH_ALL_ROWS_PAGE_SIZE = 1000;
+const LOCATION_OCCUPANCY_BATCH_SIZE = 100;
 
 async function fetchAllRows<T = any>(
   buildPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
@@ -780,41 +781,52 @@ export function buildPalletCode(prefix: string) {
 export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<string, number>> {
   if (locationIds.length === 0) return new Map();
 
-  const [balanceResult, palletResult] = await Promise.all([
-    db("inventory_balances")
-      .select("location_id, status")
-      .in("location_id", locationIds)
-      .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
-    db("pallets")
-      .select("current_location_id, status")
-      .in("current_location_id", locationIds)
-      .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
-  ]);
-
-  const balanceCounts = new Map<string, number>();
-  if (!balanceResult.error) {
-    for (const row of balanceResult.data ?? []) {
-      if (isRetiredInventoryStatus(row.status)) continue;
-      const id = row.location_id;
-      if (id) balanceCounts.set(id, (balanceCounts.get(id) ?? 0) + 1);
-    }
-  } else {
-    console.warn("[getStoredPalletCounts] inventory balance count unavailable:", balanceResult.error);
+  const uniqueLocationIds = [...new Set(locationIds)];
+  const batches: string[][] = [];
+  for (let index = 0; index < uniqueLocationIds.length; index += LOCATION_OCCUPANCY_BATCH_SIZE) {
+    batches.push(uniqueLocationIds.slice(index, index + LOCATION_OCCUPANCY_BATCH_SIZE));
   }
 
+  const batchResults = await Promise.all(batches.map(async (batch) => {
+    const [balanceResult, palletResult] = await Promise.all([
+      db("inventory_balances")
+        .select("location_id, status")
+        .in("location_id", batch)
+        .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
+      db("pallets")
+        .select("current_location_id, status")
+        .in("current_location_id", batch)
+        .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
+    ]);
+    return { balanceResult, palletResult };
+  }));
+
+  const balanceCounts = new Map<string, number>();
   const palletCounts = new Map<string, number>();
-  if (!palletResult.error) {
-    for (const row of palletResult.data ?? []) {
-      if (isRetiredInventoryStatus(row.status)) continue;
-      const id = row.current_location_id;
-      if (id) palletCounts.set(id, (palletCounts.get(id) ?? 0) + 1);
+  for (const { balanceResult, palletResult } of batchResults) {
+    if (!balanceResult.error) {
+      for (const row of balanceResult.data ?? []) {
+        if (isRetiredInventoryStatus(row.status)) continue;
+        const id = row.location_id;
+        if (id) balanceCounts.set(id, (balanceCounts.get(id) ?? 0) + 1);
+      }
+    } else {
+      console.warn("[getStoredPalletCounts] inventory balance count unavailable:", balanceResult.error);
     }
-  } else {
-    console.warn("[getStoredPalletCounts] pallet count unavailable:", palletResult.error);
+
+    if (!palletResult.error) {
+      for (const row of palletResult.data ?? []) {
+        if (isRetiredInventoryStatus(row.status)) continue;
+        const id = row.current_location_id;
+        if (id) palletCounts.set(id, (palletCounts.get(id) ?? 0) + 1);
+      }
+    } else {
+      console.warn("[getStoredPalletCounts] pallet count unavailable:", palletResult.error);
+    }
   }
 
   const counts = new Map<string, number>();
-  for (const id of locationIds) {
+  for (const id of uniqueLocationIds) {
     counts.set(id, Math.max(balanceCounts.get(id) ?? 0, palletCounts.get(id) ?? 0));
   }
   return counts;
