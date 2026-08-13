@@ -24,7 +24,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -200,6 +199,7 @@ import {
   normalizeScannerText,
   playBarcodeBeep,
   statusBadgeVariant,
+  alertToast,
 } from "@/features/shared/ui-shared";
 
 export function PickListsPage() {
@@ -221,11 +221,11 @@ export function PickListsPage() {
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) => cancelPickList(id, reason),
     onSuccess: () => {
-      toast.success("Pick list cancelled");
+      alertToast.success("Pick list cancelled");
       queryClient.invalidateQueries({ queryKey: ["pick-lists"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
     },
-    onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Failed to cancel pick list"),
+    onError: (error: unknown) => alertToast.noGo(error instanceof Error ? error.message : "Failed to cancel pick list"),
   });
   const form = useForm<z.infer<typeof pickListSchema>>({
     resolver: zodResolver(pickListSchema),
@@ -262,7 +262,7 @@ export function PickListsPage() {
   const mutation = useMutation({
     mutationFn: async (values: z.infer<typeof pickListSchema>) => createPickListFlow(values),
     onSuccess: async () => {
-      toast.success("Pick list released");
+      alertToast.success("Pick list released");
       form.reset({
         warehouse_id: profile?.default_warehouse_id || undefined,
         client_id: undefined,
@@ -277,7 +277,7 @@ export function PickListsPage() {
       ]);
       setActiveTab("lists");
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Pick list failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Pick list failed"),
   });
 
   const selectedWarehouseId = form.watch("warehouse_id");
@@ -353,7 +353,7 @@ export function PickListsPage() {
     const product = findProductForPickScan(value);
     if (!product) {
       setPickSearch(normalizeScannerText(value));
-      toast.error("No product found for scanned barcode.");
+      alertToast.noGo("No product found for scanned barcode.");
       return;
     }
 
@@ -393,7 +393,7 @@ export function PickListsPage() {
       });
     }
     setActiveTab("create");
-    toast.success(`Added ${product.sku ?? product.name} to pick draft`);
+    alertToast.success(`Added ${product.sku ?? product.name} to pick draft`);
   }
 
   function hasUnreleasedPickDraft() {
@@ -536,7 +536,7 @@ export function PickListsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => toast.warning("Short pick detected — check inventory levels or reassign stock from another location.", {
+                      onClick={() => alertToast.attention("Short pick detected — check inventory levels or reassign stock from another location.", {
                         action: { label: "Inventory", onClick: () => navigate(toPath("/inventory-search")) },
                         duration: 8000,
                       })}

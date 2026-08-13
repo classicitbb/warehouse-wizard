@@ -24,7 +24,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -196,6 +195,7 @@ import {
   SelectField,
   TextField,
   statusBadgeVariant,
+  alertToast,
 } from "@/features/shared/ui-shared";
 
 export function TransfersPage() {
@@ -239,26 +239,26 @@ export function TransfersPage() {
   const createMutation = useMutation({
     mutationFn: async (values: z.infer<typeof transferSchema>) => createTransferFlow(values),
     onSuccess: async () => {
-      toast.success("Transfer request created");
+      alertToast.success("Transfer request created");
       form.reset();
       await queryClient.invalidateQueries({ queryKey: ["transfers"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Create transfer failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Create transfer failed"),
   });
 
   const dispatchMutation = useMutation({
     mutationFn: async (transferId: string) => dispatchTransfer(transferId, signoffCodes[transferId] ?? ""),
     onSuccess: async () => {
-      toast.success("Driver departure signed off — transfer dispatched");
+      alertToast.success("Driver departure signed off — transfer dispatched");
       await queryClient.invalidateQueries({ queryKey: ["transfers"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Transfer dispatch failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Transfer dispatch failed"),
   });
 
   const receiveMutation = useMutation({
     mutationFn: async (transferId: string) => receiveTransfer(transferId),
     onSuccess: async () => {
-      toast.success("Transfer received — putaway task created", {
+      alertToast.success("Transfer received — putaway task created", {
         action: { label: "Go to Put-Away", onClick: () => navigate(toPath("/putaway-tasks")) },
         duration: 8000,
       });
@@ -268,7 +268,7 @@ export function TransfersPage() {
         queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
       ]);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Transfer receive failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Transfer receive failed"),
   });
 
   const cancelMutation = useMutation({
@@ -276,7 +276,7 @@ export function TransfersPage() {
       cancelTransfer(transferId, reason),
     onSuccess: async (_data, variables) => {
       setCancelState((s) => ({ ...s, [variables.transferId]: { open: false, reason: "" } }));
-      toast.warning("Transfer cancelled — stock returned to receiving", {
+      alertToast.attention("Transfer cancelled — stock returned to receiving", {
         action: { label: "Go to Receiving", onClick: () => navigate(toPath("/receiving")) },
         duration: 8000,
       });
@@ -285,7 +285,7 @@ export function TransfersPage() {
         queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
       ]);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Cancel failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Cancel failed"),
   });
 
   const active = (transfers as any[]).filter((t) => !["completed", "cancelled"].includes(t.status));

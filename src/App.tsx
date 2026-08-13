@@ -23,6 +23,7 @@ import { beginActiveWork } from "@/lib/active-work";
 import { clearPickTaskResumeSnapshot, loadPickTaskResumeSnapshot, savePickTaskResumeSnapshot } from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
 import { cn } from "@/lib/utils";
+import { alertToast } from "@/features/shared/ui-shared";
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -301,30 +302,6 @@ function describePickLocation(location: { code?: string | null; aisle?: string |
     fullCode: code,
     goTo: formatPickRackInstruction({ ...location, code }),
   };
-}
-
-function playPickSuccessTone() {
-  try {
-    const ctx = new (window.AudioContext ?? (window as any).webkitAudioContext)();
-    const now = ctx.currentTime;
-    const make = (freq: number, start: number) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + start);
-      gain.gain.setValueAtTime(0.9, now + start);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + start + 0.18);
-      osc.start(now + start);
-      osc.stop(now + start + 0.2);
-    };
-    make(1320, 0);
-    make(1980, 0.12);
-    setTimeout(() => ctx.close(), 500);
-  } catch {
-    // ignore
-  }
 }
 
 function PalletBarcodePreview({ code }: { code?: string | null }) {
@@ -1550,11 +1527,9 @@ function PickExecutionPage() {
         delete next[variables.taskId];
         return next;
       });
-      toast.success(variables.confirmSourceOverride ? "Alternate source picked — task reassigned and movement recorded" : variables.override ? "Pick confirmed with override — anomaly logged for review" : "Pick task confirmed", {
+      alertToast.success(variables.confirmSourceOverride ? "Alternate source picked — task reassigned and movement recorded" : variables.override ? "Pick confirmed with override — anomaly logged for review" : "Pick task confirmed", {
         className: "task-success-toast-rim",
       });
-      try { navigator.vibrate?.([60, 40, 120]); } catch { /* noop */ }
-      playPickSuccessTone();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
         queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
@@ -1582,13 +1557,13 @@ function PickExecutionPage() {
             requestedQuantity: error.requestedQuantity,
           },
         }));
-        toast.warning(
+        alertToast.attention(
           `Only ${error.availableQuantity} available on this pallet (requested ${error.requestedQuantity}). Confirm the pallet and override to complete the pick for ${error.availableQuantity}.`,
           { duration: 8000 },
         );
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Pick confirmation failed");
+      alertToast.noGo(error instanceof Error ? error.message : "Pick confirmation failed");
     },
   });
 
@@ -1610,7 +1585,7 @@ function PickExecutionPage() {
       if (error) throw error;
     },
     onSuccess: async () => {
-      toast.success("Pick list complete — handed to dispatch");
+      alertToast.success("Pick list complete — handed to dispatch");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
         queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
@@ -1619,7 +1594,7 @@ function PickExecutionPage() {
       ]);
       navigate(toPath("/pick-lists"));
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not mark complete"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not mark complete"),
   });
 
   const allTasksClosed = tasks.length > 0 && tasks.every((t) => !PICK_OPEN_STATUSES.has(t.status));
@@ -1931,11 +1906,11 @@ function PickTaskCard({
 
   const handleSubmit = form.handleSubmit((values) => {
     if (!readyToConfirm) {
-      toast.error("Scan the bay/location and pallet before confirming.");
+      alertToast.noGo("Scan the bay/location and pallet before confirming.");
       return;
     }
     if (sourceOverrideScanned) {
-      toast.warning("This pallet or location differs from the task. Use Pick a different pallet to verify and override it.");
+      alertToast.attention("This pallet or location differs from the task. Use Pick a different pallet to verify and override it.");
       return;
     }
     onConfirm({
@@ -1989,7 +1964,7 @@ function PickTaskCard({
         }
         setAlternatePreview(preview);
       })
-      .catch((error) => toast.error(error instanceof Error ? error.message : "Could not verify the alternate pallet."));
+      .catch((error) => alertToast.noGo(error instanceof Error ? error.message : "Could not verify the alternate pallet."));
   }
 
   return (

@@ -351,6 +351,149 @@ export function flashInput(el: HTMLElement | null, colour: "orange" | "blue") {
   setTimeout(() => el.classList.remove(...cls), 700);
 }
 
+// ---------------------------------------------------------------------------
+// Floor alert sounds — loud, distinct tones for noisy warehouse-floor work
+// (put-away, picking, moves, transfers, cycle counts). Synthesized via Web
+// Audio so there are no audio files to bundle or load.
+// ---------------------------------------------------------------------------
+
+let floorAlertCtx: AudioContext | null = null;
+
+function getFloorAlertCtx(): AudioContext {
+  if (!floorAlertCtx) {
+    floorAlertCtx = new (window.AudioContext ?? (window as any).webkitAudioContext)();
+  }
+  if (floorAlertCtx.state === "suspended") {
+    floorAlertCtx.resume();
+  }
+  return floorAlertCtx;
+}
+
+function playFloorTone(freq: number, duration: number, opts: { type?: OscillatorType; volume?: number; delay?: number } = {}) {
+  const { type = "square", volume = 1.0, delay = 0 } = opts;
+  try {
+    const ctx = getFloorAlertCtx();
+    const startTime = ctx.currentTime + delay;
+
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-24, startTime);
+    compressor.knee.setValueAtTime(10, startTime);
+    compressor.ratio.setValueAtTime(12, startTime);
+    compressor.attack.setValueAtTime(0.002, startTime);
+    compressor.release.setValueAtTime(0.1, startTime);
+    compressor.connect(ctx.destination);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(volume, startTime + 0.01);
+    gain.gain.setValueAtTime(volume, startTime + duration - 0.03);
+    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+    gain.connect(compressor);
+
+    const osc1 = ctx.createOscillator();
+    osc1.type = type;
+    osc1.frequency.setValueAtTime(freq, startTime);
+    osc1.connect(gain);
+    osc1.start(startTime);
+    osc1.stop(startTime + duration);
+
+    // Octave-up harmonic layered in at reduced volume for cut-through brightness.
+    const osc2 = ctx.createOscillator();
+    osc2.type = type;
+    osc2.frequency.setValueAtTime(freq * 2, startTime);
+    const gain2 = ctx.createGain();
+    gain2.gain.setValueAtTime(volume * 0.4, startTime);
+    gain2.gain.setValueAtTime(volume * 0.4, startTime + duration - 0.03);
+    gain2.gain.linearRampToValueAtTime(0, startTime + duration);
+    osc2.connect(gain2);
+    gain2.connect(compressor);
+    osc2.start(startTime);
+    osc2.stop(startTime + duration);
+  } catch {
+    // Audio not available — silent fallback
+  }
+}
+
+let floorFlashEl: HTMLDivElement | null = null;
+
+function flashScreen(color: string) {
+  if (typeof document === "undefined") return;
+  if (!floorFlashEl) {
+    floorFlashEl = document.createElement("div");
+    floorFlashEl.style.position = "fixed";
+    floorFlashEl.style.inset = "0";
+    floorFlashEl.style.pointerEvents = "none";
+    floorFlashEl.style.zIndex = "9999";
+    floorFlashEl.style.opacity = "0";
+    floorFlashEl.style.transition = "opacity 0.15s ease-out";
+    document.body.appendChild(floorFlashEl);
+  }
+  const el = floorFlashEl;
+  el.style.background = color;
+  el.style.transition = "none";
+  el.style.opacity = "0.85";
+  requestAnimationFrame(() => {
+    el.style.transition = "opacity 0.15s ease-out";
+    el.style.opacity = "0";
+  });
+}
+
+function floorVibrate(pattern: number | number[]) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // Vibration not supported — ignore
+  }
+}
+
+/** Positive confirmation — task confirmed/completed. Pleasant two-note rise, no flash/vibrate. */
+export function playConfirmTone() {
+  playFloorTone(880, 0.12, { type: "sine", volume: 0.9 });
+  playFloorTone(1318, 0.18, { type: "sine", volume: 0.9, delay: 0.11 });
+}
+
+/** Needs attention — non-blocking issue the user should notice (short pick, cancellation, rule violation). */
+export function playAttentionTone() {
+  for (let i = 0; i < 2; i++) {
+    const base = i * 0.4;
+    playFloorTone(660, 0.15, { type: "sawtooth", volume: 1.0, delay: base });
+    playFloorTone(654, 0.15, { type: "sawtooth", volume: 0.7, delay: base });
+    playFloorTone(440, 0.15, { type: "sawtooth", volume: 1.0, delay: base + 0.18 });
+    playFloorTone(436, 0.15, { type: "sawtooth", volume: 0.7, delay: base + 0.18 });
+  }
+  flashScreen("rgba(217,119,6,0.5)");
+  floorVibrate([150, 80, 150]);
+}
+
+/** No-go — blocking failure that stops the task (scan mismatch, confirm failed). Loudest, rapid-fire. */
+export function playNoGoTone() {
+  for (let i = 0; i < 4; i++) {
+    playFloorTone(1000, 0.18, { type: "sawtooth", volume: 1.0, delay: i * 0.22 });
+  }
+  flashScreen("rgba(220,38,38,0.6)");
+  floorVibrate([200, 100, 200, 100, 200]);
+}
+
+/**
+ * Toast helpers for noisy floor workflows (put-away, picking, moves, transfers,
+ * cycle counts, returning drafts to receiving). Pairs the existing toast with a
+ * loud tone so the outcome is audible over warehouse floor noise.
+ */
+export const alertToast = {
+  success: (message: string, opts?: Parameters<typeof toast.success>[1]) => {
+    playConfirmTone();
+    return toast.success(message, opts);
+  },
+  attention: (message: string, opts?: Parameters<typeof toast.warning>[1]) => {
+    playAttentionTone();
+    return toast.warning(message, opts);
+  },
+  noGo: (message: string, opts?: Parameters<typeof toast.error>[1]) => {
+    playNoGoTone();
+    return toast.error(message, opts);
+  },
+};
+
 export function loadFallbackTileLayout(key: string, defaults: DashboardTileConfig[]) {
   if (typeof window === "undefined") return defaults;
   try {

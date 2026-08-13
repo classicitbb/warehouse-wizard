@@ -24,7 +24,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -195,6 +194,7 @@ import {
   normalizeScannerText,
   playBarcodeBeep,
   flashInput,
+  alertToast,
   statusBadgeVariant,
   BinCapacityBar,
 } from "@/features/shared/ui-shared";
@@ -675,7 +675,7 @@ export function PutawayTasksPage() {
   const revertMutation = useMutation({
     mutationFn: ({ taskId }: { taskId: string; openReceiving?: boolean }) => revertPutawayToDraft(taskId),
     onSuccess: async (_, vars) => {
-      toast.success("Task saved as draft");
+      alertToast.success("Task saved as draft");
       setReturnTask(null);
       setRevertedIds((prev) => new Set([...prev, vars.taskId]));
       setResumeNotice(null);
@@ -687,7 +687,7 @@ export function PutawayTasksPage() {
       ]);
       if (vars.openReceiving) navigate(toPath("/receiving"));
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Revert failed"),
+    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Revert failed"),
   });
 
   const batchReturnMutation = useMutation({
@@ -724,16 +724,16 @@ export function PutawayTasksPage() {
 
       const failedCount = results.length - returnedTaskIds.length;
       if (failedCount > 0) {
-        toast.error(`${returnedTaskIds.length} task${returnedTaskIds.length === 1 ? "" : "s"} returned; ${failedCount} failed. Review the selected tasks and try again.`);
+        alertToast.noGo(`${returnedTaskIds.length} task${returnedTaskIds.length === 1 ? "" : "s"} returned; ${failedCount} failed. Review the selected tasks and try again.`);
         return;
       }
 
-      toast.success(`${returnedTaskIds.length} task${returnedTaskIds.length === 1 ? "" : "s"} saved as Receiving drafts`);
+      alertToast.success(`${returnedTaskIds.length} task${returnedTaskIds.length === 1 ? "" : "s"} saved as Receiving drafts`);
       setBatchReturnOpen(false);
       setBatchReturnErrors({});
       if (openReceiving) navigate(toPath("/receiving"));
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not return the selected tasks"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not return the selected tasks"),
   });
 
   const mutation = useMutation({
@@ -751,7 +751,7 @@ export function PutawayTasksPage() {
     onSuccess: async (_, vars) => {
       playBarcodeBeep();
       setResumeNotice(null);
-      toast.success(vars.override ? "Put-Away locked in with override" : "Put-Away locked in", {
+      alertToast.success(vars.override ? "Put-Away locked in with override" : "Put-Away locked in", {
         description: `Pallet ${vars.pallet} stored at ${vars.location}.`,
         duration: 7000,
         className: "task-success-toast-rim border-emerald-400 bg-emerald-50 text-emerald-950 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-50",
@@ -773,9 +773,9 @@ export function PutawayTasksPage() {
       if (msg.startsWith("RULE_VIOLATION:")) {
         const reason = msg.replace(/^RULE_VIOLATION:\s*/, "");
         setViolations((current) => ({ ...current, [vars.taskId]: reason }));
-        toast.warning(`Location rule violation: ${reason}. Tick "Override" to put away anyway.`);
+        alertToast.attention(`Location rule violation: ${reason}. Tick "Override" to put away anyway.`);
       } else {
-        toast.error(msg || "Put-Away failed");
+        alertToast.noGo(msg || "Put-Away failed");
       }
     },
   });
@@ -807,7 +807,7 @@ export function PutawayTasksPage() {
         if (result.status === "reset-task") {
           setResumeNotice({ mode: "reset-task", summary: result.summary });
           resetPutawaySelection(selectedTaskId);
-          toast.warning(result.summary, { duration: 8000 });
+          alertToast.attention(result.summary, { duration: 8000 });
           return;
         }
         if (result.status === "reselect") {
@@ -825,7 +825,7 @@ export function PutawayTasksPage() {
             delete next[selectedTaskId];
             return next;
           });
-          toast.warning(result.summary, { duration: 8000 });
+          alertToast.attention(result.summary, { duration: 8000 });
           setTimeout(() => locationRefs.current[selectedTaskId]?.focus(), 80);
           return;
         }
@@ -1025,7 +1025,7 @@ export function PutawayTasksPage() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(PUTAWAY_SCANNER_FIRST_KEY, "true");
     }
-    toast.success("Put-Away will open the scanner first on this device.");
+    alertToast.success("Put-Away will open the scanner first on this device.");
   }, []);
 
   const scanPromptWaiting = scanDialogOpen && scanQuery.trim().length === 0;

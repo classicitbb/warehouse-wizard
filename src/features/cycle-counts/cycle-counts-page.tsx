@@ -9,6 +9,7 @@ import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
+import { alertToast } from "@/features/shared/ui-shared";
 import {
   acceptCycleCountExceptionLine,
   archiveCancelledCycleCount,
@@ -241,24 +242,24 @@ export function CycleCountsPage() {
   const createMutation = useMutation({
     mutationFn: (values: z.infer<typeof cycleCountSchema>) => runOnlineCycleCountCommit(() => createCycleCountFlow(values)),
     onSuccess: async (result: any) => {
-      toast.success(`Count created with ${result.claimed_line_count ?? 0} line(s)`);
+      alertToast.success(`Count created with ${result.claimed_line_count ?? 0} line(s)`);
       form.reset({ warehouse_id: activeWarehouseId, scope: "spot", zone_id: "", zone_ids: [], location_id: "", location_ids: [], product_id: "", product_ids: [], variance_threshold_percent: 5, freeze_hours: 4, assigned_user_id: "", assigned_user_ids: [] });
       setCreateOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
       await queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Count creation failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Count creation failed"),
   });
 
   const submitMutation = useMutation({
     mutationFn: ({ lineId, quantity }: { lineId: string; quantity: number }) => runOnlineCycleCountCommit(() => submitCycleCountLine(lineId, quantity)),
     onSuccess: async (_data, variables) => {
       setEntryQty((current) => ({ ...current, [variables.lineId]: "" }));
-      toast.success("Blind count submitted");
+      alertToast.success("Blind count submitted");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
       await queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Submit failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Submit failed"),
   });
 
   const claimMutation = useMutation({
@@ -266,7 +267,7 @@ export function CycleCountsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not claim this count line"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not claim this count line"),
   });
 
   const releaseClaimMutation = useMutation({
@@ -274,28 +275,28 @@ export function CycleCountsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not release this count-line claim"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not release this count-line claim"),
   });
 
   const exceptionMutation = useMutation({
     mutationFn: ({ lineId, reason }: { lineId: string; reason: string }) => runOnlineCycleCountCommit(() => flagCycleCountLineException(lineId, reason)),
     onSuccess: async (_data, variables) => {
       setExceptionReason((current) => ({ ...current, [variables.lineId]: "" }));
-      toast.warning("Line flagged for supervisor review");
+      alertToast.attention("Line flagged for supervisor review");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
       await queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Exception update failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Exception update failed"),
   });
 
   const approveMutation = useMutation({
     mutationFn: ({ lineId, reason }: { lineId: string; reason: string }) => runOnlineCycleCountCommit(() => approveCycleCountLine(lineId, reason)),
     onSuccess: async (_data, variables) => {
       setApprovalReason((current) => ({ ...current, [variables.lineId]: "" }));
-      toast.success("Variance approved and posted");
+      alertToast.success("Variance approved and posted");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Approval failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Approval failed"),
   });
 
   const rejectMutation = useMutation({
@@ -305,17 +306,17 @@ export function CycleCountsPage() {
       toast.info("Line returned for recount");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Reject failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Reject failed"),
   });
 
   const acceptExceptionMutation = useMutation({
     mutationFn: ({ lineId, reason }: { lineId: string; reason: string }) => runOnlineCycleCountCommit(() => acceptCycleCountExceptionLine(lineId, reason)),
     onSuccess: async (_data, variables) => {
       setApprovalReason((current) => ({ ...current, [variables.lineId]: "" }));
-      toast.success("Exception reviewed");
+      alertToast.success("Exception reviewed");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Exception review failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Exception review failed"),
   });
 
   const returnExceptionMutation = useMutation({
@@ -326,34 +327,34 @@ export function CycleCountsPage() {
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
       await queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Return failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Return failed"),
   });
 
   const closeMutation = useMutation({
     mutationFn: (countId: string) => runOnlineCycleCountCommit(() => closeCycleCount(countId)),
     onSuccess: async () => {
-      toast.success("Cycle count closed and freezes released");
+      alertToast.success("Cycle count closed and freezes released");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Close failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Close failed"),
   });
 
   const discardDraftMutation = useMutation({
     mutationFn: (countId: string) => runOnlineCycleCountCommit(() => discardDraftCycleCount(countId)),
     onSuccess: async () => {
-      toast.success("Draft count discarded");
+      alertToast.success("Draft count discarded");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Discard failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Discard failed"),
   });
 
   const archiveCancelledMutation = useMutation({
     mutationFn: (countId: string) => runOnlineCycleCountCommit(() => archiveCancelledCycleCount(countId)),
     onSuccess: async () => {
-      toast.success("Cancelled count archived");
+      alertToast.success("Cancelled count archived");
       await queryClient.invalidateQueries({ queryKey: ["cycle-counts"] });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Archive failed"),
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Archive failed"),
   });
 
   const filteredCounts = useMemo(() => {

@@ -24,7 +24,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -199,6 +198,7 @@ import {
   playBarcodeBeep,
   flashInput,
   WarehouseBayBrowserDialog,
+  alertToast,
 } from "@/features/shared/ui-shared";
 
 export function LocationMovesPage() {
@@ -274,32 +274,32 @@ export function LocationMovesPage() {
     mutationFn: ({ pallet, location, reason }: { pallet: string; location: string; reason?: string }) =>
       completeDirectMove(pallet, location, reason),
     onSuccess: async () => {
-      toast.success("Move confirmed — pallet relocated");
+      alertToast.success("Move confirmed — pallet relocated");
       setNewPallet(""); setNewLocation(""); setNewReason(""); setNewValidation(null);
       await invalidateMoveData();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Move failed"),
+    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Move failed"),
   });
 
   const completeMutation = useMutation({
     mutationFn: ({ taskId, pallet, location }: { taskId: string; pallet: string; location: string }) =>
       completeMoveTask(taskId, pallet, location),
     onSuccess: async (_, vars) => {
-      toast.success("Move confirmed — pallet relocated");
+      alertToast.success("Move confirmed — pallet relocated");
       setCompletedIds((prev) => new Set([...prev, vars.taskId]));
       await invalidateMoveData();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Move failed"),
+    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Move failed"),
   });
 
   const cancelMutation = useMutation({
     mutationFn: (taskId: string) => cancelMoveTask(taskId),
     onSuccess: async (_, taskId) => {
-      toast.warning("Move task cancelled");
+      alertToast.attention("Move task cancelled");
       setCancelledIds((prev) => new Set([...prev, taskId]));
       await invalidateMoveData();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Cancel failed"),
+    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Cancel failed"),
   });
 
   function completeNewMove(pallet = newPallet, location = newLocation) {
@@ -324,7 +324,7 @@ export function LocationMovesPage() {
 
   function applyNewLocationScan(value: unknown) {
     if (!newPallet.trim()) {
-      toast.error("Scan the pallet first.");
+      alertToast.noGo("Scan the pallet first.");
       flashInput(newPalletRef.current, "orange");
       newPalletRef.current?.focus();
       return;
