@@ -384,19 +384,29 @@ function BayOccupancyGrid({
   locationCode,
   selectedLocationCode,
   onSelect,
+  onContentReady,
 }: {
   locationCode: string;
   selectedLocationCode?: string;
   onSelect: (locationCode: string) => void;
+  onContentReady?: () => void;
 }) {
   const isBayScan = isBaySelectorCode(locationCode);
   const selectedLocation = selectedLocationCode?.trim().toUpperCase() ?? "";
+  const onContentReadyRef = useRef(onContentReady);
+  onContentReadyRef.current = onContentReady;
   const { data, error, isLoading } = useQuery({
     queryKey: ["bay-occupancy", locationCode],
     queryFn: () => getBayOccupancy(locationCode),
     enabled: locationCode.length >= 2,
     staleTime: 0,
   });
+
+  useEffect(() => {
+    if (isLoading || (!data && !error)) return;
+    const timer = setTimeout(() => onContentReadyRef.current?.(), 0);
+    return () => clearTimeout(timer);
+  }, [data, error, isLoading, locationCode]);
 
   if (isLoading && !data) {
     return (
@@ -565,6 +575,7 @@ export function PutawayTasksPage() {
   const scanInputRef = useRef<HTMLInputElement | null>(null);
   const palletRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const locationRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const locationSelectorRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const confirmRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const actionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const previousOnlineRef = useRef(online);
@@ -880,6 +891,12 @@ export function PutawayTasksPage() {
     }, 50);
   }
 
+  function scrollLocationSelectorIntoView(taskId: string) {
+    setTimeout(() => {
+      locationSelectorRefs.current[taskId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }
+
   function clearTaskViolation(taskId: string) {
     setViolations((current) => {
       if (!(taskId in current)) return current;
@@ -949,6 +966,7 @@ export function PutawayTasksPage() {
       void logPutawayBaySelection({ taskId: task.id, scannedCode: value });
       playBarcodeBeep();
       flashInput(locationRefs.current[task.id], "orange");
+      scrollLocationSelectorIntoView(task.id);
       return;
     }
     setBayScanState((current) => {
@@ -1241,6 +1259,9 @@ export function PutawayTasksPage() {
             const taskPallet = task.pallets as any;
             const palletBarcode = taskPallet?.pallet_barcode ?? taskPallet?.pallet_code ?? "";
             const overrideActive = Boolean(violation && localState.override);
+            const hasActivePutawayChanges = Boolean(
+              localState.pallet || localState.location || bayScan || localState.override || localState.reason.trim(),
+            );
 
             return (
               <Card key={task.id} className="border-2">
@@ -1384,10 +1405,15 @@ export function PutawayTasksPage() {
                       void logPutawayBaySelection({ taskId: task.id, scannedCode: bayCode });
                       setBayBrowserOpen((s) => ({ ...s, [task.id]: false }));
                       flashInput(locationRefs.current[task.id], "orange");
+                      scrollLocationSelectorIntoView(task.id);
                     }}
                   />
                   {bayOccupancy && (
-                    <>
+                    <div
+                      ref={(el) => { locationSelectorRefs.current[task.id] = el; }}
+                      className="grid gap-3"
+                      data-testid={`putaway-location-selector-${task.id}`}
+                    >
                       {binOccupancy && <BinCapacityBar locationCode={localState.location} taskId={task.id} />}
                       {bayScan && (
                         <div className="rounded-md border border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
@@ -1397,6 +1423,7 @@ export function PutawayTasksPage() {
                       <BayOccupancyGrid
                         locationCode={bayScan || localState.location}
                         selectedLocationCode={localState.location}
+                        onContentReady={() => scrollLocationSelectorIntoView(task.id)}
                         onSelect={(location) => {
                           setScanState((current) => ({ ...current, [task.id]: { ...localState, location, override: false, reason: "" } }));
                           clearTaskViolation(task.id);
@@ -1413,7 +1440,7 @@ export function PutawayTasksPage() {
                           }, 50);
                         }}
                       />
-                    </>
+                    </div>
                   )}
                   {violation && (
                     <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
@@ -1453,23 +1480,37 @@ export function PutawayTasksPage() {
                     ref={(el) => { actionRefs.current[task.id] = el; }}
                     className="grid gap-3"
                   >
-                    <Button
-                      ref={(el) => { confirmRefs.current[task.id] = el; }}
-                      className="min-h-12 w-full text-base"
-                      disabled={mutation.isPending || !localState.pallet || !localState.location}
-                      onClick={() =>
-                        mutation.mutate({
-                          taskId: task.id,
-                          pallet: localState.pallet,
-                          location: localState.location,
-                          override: overrideActive,
-                          reason: overrideActive ? localState.reason : "",
-                        })
-                      }
-                    >
-                      {mutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 data-icon="inline-start" />}
-                      {overrideActive ? "Override & Confirm Put-Away" : "Confirm Put-Away"}
-                    </Button>
+                    <div className="flex items-stretch gap-3">
+                      <Button
+                        ref={(el) => { confirmRefs.current[task.id] = el; }}
+                        className="min-h-12 min-w-0 flex-1 text-base"
+                        disabled={mutation.isPending || !localState.pallet || !localState.location}
+                        onClick={() =>
+                          mutation.mutate({
+                            taskId: task.id,
+                            pallet: localState.pallet,
+                            location: localState.location,
+                            override: overrideActive,
+                            reason: overrideActive ? localState.reason : "",
+                          })
+                        }
+                      >
+                        {mutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 data-icon="inline-start" />}
+                        {overrideActive ? "Override & Confirm Put-Away" : "Confirm Put-Away"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-12 shrink-0 border-amber-400 bg-amber-400 px-5 text-base text-amber-950 hover:bg-amber-500 hover:text-amber-950 dark:border-amber-500 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400"
+                        disabled={!hasActivePutawayChanges}
+                        onClick={() => {
+                          resetPutawaySelection(task.id);
+                          setFlowCancelled(true);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"

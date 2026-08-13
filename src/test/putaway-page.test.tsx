@@ -351,6 +351,39 @@ describe("PutawayTasksPage scan-first flow", () => {
     expect(within(bayDialog).queryByText("Ambient")).not.toBeInTheDocument();
   });
 
+  it("scrolls the full location selector into view after scanning a bay", async () => {
+    renderPutawayPage();
+
+    await enterPallet("PLT-1");
+    await closeLocationScanner();
+
+    fireEvent.change(screen.getByPlaceholderText("Scan location barcode"), {
+      target: { value: "BAY:WH-1:AMB:A1:B1" },
+    });
+
+    const selector = await screen.findByTestId("putaway-location-selector-task-1");
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeEnabled();
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" }));
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.instances).toContain(selector);
+    await waitFor(() => expect(vi.mocked(Element.prototype.scrollIntoView).mock.instances.filter((instance) => instance === selector)).toHaveLength(2));
+  });
+
+  it("scrolls the full location selector into view after choosing a bay", async () => {
+    renderPutawayPage();
+
+    await enterPallet("PLT-1");
+    const scannerDialog = await screen.findByRole("dialog", { name: /scan location barcode/i });
+    fireEvent.click(within(scannerDialog).getByRole("button", { name: /select location manually/i }));
+
+    const bayDialog = await screen.findByRole("dialog", { name: /select a bay/i });
+    fireEvent.click(await within(bayDialog).findByRole("button", { name: /A1-B1/i }));
+
+    const selector = await screen.findByTestId("putaway-location-selector-task-1");
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" }));
+    expect(vi.mocked(Element.prototype.scrollIntoView).mock.instances).toContain(selector);
+    await waitFor(() => expect(vi.mocked(Element.prototype.scrollIntoView).mock.instances.filter((instance) => instance === selector)).toHaveLength(2));
+  });
+
   it("keeps open tasks hidden after cancelling until the section is expanded", async () => {
     renderPutawayPage();
 
@@ -364,6 +397,26 @@ describe("PutawayTasksPage scan-first flow", () => {
 
     expect(await screen.findByText(/SKU-1/)).toBeInTheDocument();
     expect(screen.getByText(/SKU-2/)).toBeInTheDocument();
+  });
+
+  it("enables Cancel only while a task card has active local changes", async () => {
+    renderPutawayPage();
+
+    const scanDialog = await openPalletDialog();
+    fireEvent.click(within(scanDialog).getByRole("button", { name: /^cancel$/i }));
+    fireEvent.click(screen.getByText(/show 2 open put-away tasks/i));
+
+    const firstPallet = (await screen.findAllByPlaceholderText("Scan pallet barcode"))[0];
+    const firstCancel = screen.getAllByRole("button", { name: /^cancel$/i })[0];
+    const firstLocation = screen.getAllByPlaceholderText("Scan location barcode")[0];
+
+    expect(firstCancel).toBeDisabled();
+    fireEvent.change(firstPallet, { target: { value: "PLT-1" } });
+    expect(firstCancel).toBeEnabled();
+    fireEvent.change(firstPallet, { target: { value: "" } });
+    expect(firstCancel).toBeDisabled();
+    fireEvent.change(firstLocation, { target: { value: "LOC-1" } });
+    expect(firstCancel).toBeEnabled();
   });
 
   it("keeps batch return available while open tasks are hidden and selects every scoped task", async () => {
@@ -470,5 +523,27 @@ describe("PutawayTasksPage scan-first flow", () => {
     await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["putaway-tasks"] }));
     expect(await screen.findByRole("button", { name: /^scan pallet$/i })).toBeInTheDocument();
     expect(screen.queryByText(/SKU-1/)).not.toBeInTheDocument();
+  });
+
+  it("cancels the current Put-Away flow without changing the warehouse task", async () => {
+    setPointerCoarse(true);
+    renderPutawayPage();
+
+    await enterPallet("PLT-1");
+    await closeLocationScanner();
+
+    const cancelButton = await screen.findByRole("button", { name: /^cancel$/i });
+    const confirmButton = screen.getByRole("button", { name: /^Confirm Put-Away$/i });
+
+    expect(cancelButton.parentElement).toContainElement(confirmButton);
+    expect(cancelButton).not.toHaveClass("w-full");
+    expect(cancelButton).toHaveClass("bg-amber-400");
+    fireEvent.click(cancelButton);
+
+    expect(await screen.findByRole("button", { name: /^scan pallet$/i })).toBeInTheDocument();
+    expect(screen.queryByText(/SKU-1/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /scan pallet for put-away/i })).not.toBeInTheDocument();
+    expect(wmsMocks.confirmPutaway).not.toHaveBeenCalled();
+    expect(wmsMocks.revertPutawayToDraft).not.toHaveBeenCalled();
   });
 });
