@@ -26,6 +26,23 @@ Today there are two disconnected AI surfaces: the in-app copilot edge function (
 
 Move tool definitions into `src/lib/copilot-tools/` — one file per tool, each declaring: name, description, Zod input schema, `kind` (`read` | `draft` | `ui`), required roles, and a handler that receives `(input, ctx)` where `ctx` gives the caller's Supabase client, user id, roles and active warehouse.
 
+Each tool declares the minimum role that may call it, and the registry filters the catalog per caller — a clerk never even sees a tool they cannot run, so the model cannot offer it. Role checks are re-run server-side at execution time, and RLS still scopes every row on top of them.
+
+| Capability | inventory_clerk | warehouse_supervisor | warehouse_manager | admin / developer |
+| --- | --- | --- | --- | --- |
+| Read: inventory, products, locations, receipts, picks, put-aways, blocked work | own warehouse | own warehouse | all assigned warehouses | all warehouses |
+| Open modules / records / start workflows (`ui`) | screens their role already has | same, plus supervisor screens | plus manager screens | everything |
+| Reports | operational reports for their warehouse | plus productivity and exception reports | plus cross-warehouse and client reports | all reports, including admin/audit |
+| File ingestion (photos, packing lists, PDFs) | yes — drafts only | yes — drafts only | yes | yes |
+| Approve an ingestion draft into Receiving | no — routes to supervisor | yes | yes | yes |
+| Product / client / location imports | propose only | propose + validate | validate + approve small imports | full approve and commit |
+| Cycle-count and adjustment drafts | propose | propose | approve | approve |
+| Settings, users, roles, integrations | no | no | read-only summaries | yes |
+| Voice: read and navigate | yes | yes | yes | yes |
+| Voice: approve a write | never — approval is always an on-screen tap for every role | | | |
+
+`warehouse_operator` and `dispatch_driver` keep a read + navigate subset (their own tasks, stock lookup, module opening) with no drafting or approval. Approval is always a separate human from the model's proposal, and a user can never approve a draft that exceeds their own role's write scope even if another role prepared it.
+
 Two thin adapters consume the registry:
 - The copilot edge function turns them into OpenAI-style function definitions and executes them in its existing tool loop.
 - The MCP entry wraps each one in `defineTool`, so external assistants get the same catalog, minus the `ui` kind (no browser to drive).
