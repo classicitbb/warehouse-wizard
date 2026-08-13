@@ -410,7 +410,7 @@ function FillBar({ stats, disabled = false }: { stats?: FillStats; disabled?: bo
       {hasDisabled && <Ban className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Disabled" />}
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full", hasDisabled ? "bg-muted-foreground" : percent >= 100 ? "bg-destructive" : "bg-primary")}
+          className={cn("h-full rounded-full", percent >= 100 ? "bg-destructive" : "bg-green-500")}
           style={{ width: `${percent}%` }}
         />
       </div>
