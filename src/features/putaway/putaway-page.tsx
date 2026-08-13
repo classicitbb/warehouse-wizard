@@ -1175,7 +1175,7 @@ export function PutawayTasksPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task) => task.id)));
+                  setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task: any) => task.id)));
                   setBatchReturnErrors({});
                   setBatchReturnOpen(true);
                 }}
@@ -1568,7 +1568,7 @@ export function PutawayTasksPage() {
             ) : null}
             <div className="min-h-0 flex-1 overflow-y-auto pr-3">
               <div className="grid gap-2">
-                {pendingTasks.map((task) => {
+                {pendingTasks.map((task: any) => {
                   const pallet = task.pallets;
                   const product = pallet?.products;
                   const palletCode = pallet?.pallet_barcode ?? pallet?.pallet_code ?? "No pallet assigned";
@@ -1605,21 +1605,21 @@ export function PutawayTasksPage() {
           </div>
           <DialogFooter className="gap-2 sm:flex-col sm:items-stretch sm:space-x-0">
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" disabled={batchReturnMutation.isPending} onClick={() => setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task) => task.id)))}>Select all shown</Button>
+              <Button variant="outline" disabled={batchReturnMutation.isPending} onClick={() => setSelectedBatchReturnTaskIds(new Set(pendingTasks.map((task: any) => task.id)))}>Select all shown</Button>
               <Button variant="outline" disabled={batchReturnMutation.isPending || selectedBatchReturnTaskIds.size === 0} onClick={() => setSelectedBatchReturnTaskIds(new Set())}>Deselect all</Button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
                 variant="outline"
                 disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
-                onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: false })}
+                onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task: any) => task.id), openReceiving: false })}
               >
                 {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
                 Return selected as drafts
               </Button>
               <Button
                 disabled={!online || batchReturnMutation.isPending || selectedBatchReturnTasks.length === 0}
-                onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task) => task.id), openReceiving: true })}
+                onClick={() => batchReturnMutation.mutate({ taskIds: selectedBatchReturnTasks.map((task: any) => task.id), openReceiving: true })}
               >
                 {batchReturnMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
                 Return selected & open Receiving
