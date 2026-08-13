@@ -33,7 +33,7 @@ const wmsMocks = vi.hoisted(() => ({
   getBinOccupancy: vi.fn(async () => ({ locationCode: "LOC-1", occupiedPallets: 0, maxPallets: 2 })),
   logPutawayBaySelection: vi.fn(async () => undefined),
   confirmPutaway: vi.fn(async () => undefined),
-  revertPutawayToDraft: vi.fn(async () => undefined),
+  revertPutawayToDraft: vi.fn(async (_taskId: string) => undefined),
 }));
 
 const openTasks = [
