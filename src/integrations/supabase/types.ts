@@ -1951,6 +1951,7 @@ export type Database = {
           quantity: number
           receipt_line_id: string | null
           reserved_quantity: number
+          reused_from_pallet_id: string | null
           stack_height: number | null
           status: Database["public"]["Enums"]["inventory_status"]
           updated_at: string
@@ -1980,6 +1981,7 @@ export type Database = {
           quantity?: number
           receipt_line_id?: string | null
           reserved_quantity?: number
+          reused_from_pallet_id?: string | null
           stack_height?: number | null
           status?: Database["public"]["Enums"]["inventory_status"]
           updated_at?: string
@@ -2009,6 +2011,7 @@ export type Database = {
           quantity?: number
           receipt_line_id?: string | null
           reserved_quantity?: number
+          reused_from_pallet_id?: string | null
           stack_height?: number | null
           status?: Database["public"]["Enums"]["inventory_status"]
           updated_at?: string
@@ -2070,6 +2073,20 @@ export type Database = {
             columns: ["receipt_line_id"]
             isOneToOne: false
             referencedRelation: "receipt_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pallets_reused_from_pallet_id_fkey"
+            columns: ["reused_from_pallet_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_search_view"
+            referencedColumns: ["pallet_id"]
+          },
+          {
+            foreignKeyName: "pallets_reused_from_pallet_id_fkey"
+            columns: ["reused_from_pallet_id"]
+            isOneToOne: false
+            referencedRelation: "pallets"
             referencedColumns: ["id"]
           },
         ]
