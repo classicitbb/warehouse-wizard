@@ -86,6 +86,7 @@ import {
   completeReceiptFromDraft,
   cancelInventoryPalletCorrection,
   completeInventoryPalletCorrection,
+  completeInventoryPalletCorrectionInPlace,
   deleteDraftReceipt,
   listSystemLogs,
   listUserActivities,
@@ -634,6 +635,9 @@ export function ReceivingPage() {
     Number(correctionLine.quantity_per_pallet) !== Number(editingDraftMeta.quantity ?? editingDraft?.quantity ?? 0) ||
     (correctionLine.expiry_date || "") !== String(editingDraftMeta.expiry_date ?? editingDraft?.expiry_date ?? "")
   );
+  const correctionExpiryChanged = isInventoryPalletCorrection && Boolean(correctionLine) &&
+    (correctionLine.expiry_date || "") !== String(editingDraftMeta.expiry_date ?? editingDraft?.expiry_date ?? "");
+  const correctionCanUpdateInPlace = correctionLocationChoice === true && correctionHasChange && !correctionExpiryChanged;
 
   const cancelCorrectionMutation = useMutation({
     mutationFn: () => cancelInventoryPalletCorrection(editingDraft?.id ?? ""),
@@ -680,6 +684,28 @@ export function ReceivingPage() {
       navigate(toPath(`/inventory/${result.inventoryBalanceId}`));
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not receive the replacement pallet."),
+  });
+
+  const completeCorrectionInPlaceMutation = useMutation({
+    mutationFn: () => completeInventoryPalletCorrectionInPlace({
+      draftId: editingDraft?.id ?? "",
+      quantity: Number(correctionLine?.quantity_per_pallet ?? 0),
+    }),
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-detail"] }),
+      ]);
+      setShipmentOpen(false);
+      setEditingDraft(null);
+      setCorrectionLocationChoice(null);
+      setSearchParams({}, { replace: true });
+      toast.success(`Pallet ${result.palletBarcode} updated and correction closed.`);
+      navigate(toPath(`/inventory/${result.inventoryBalanceId}`));
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not update the pallet in place."),
   });
 
   const saveShipmentMutation = useMutation({
@@ -1321,7 +1347,7 @@ export function ReceivingPage() {
             <DialogTitle>{isInventoryPalletCorrection ? `Correct replacement pallet ${correctionReplacementBarcode}` : editingDraft ? "Edit Draft Pallet" : shipmentEntryMode === "pallet" ? "New Pallet" : "New Shipment"}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
               {isInventoryPalletCorrection
-                ? `The original pallet is held out of active Inventory while you correct its replacement. SKU is locked; update quantity per pallet or expiry, then print and receive the new label.`
+                ? "SKU is locked. Same-location quantity-only corrections update the existing pallet without printing; expiry changes or Put-Away corrections print a replacement label."
                 : shipmentEntryMode === "pallet"
                 ? "Standalone pallet receiving keeps warehouse and client fixed to the active context, then uses the SKU lines for quantities and expiry."
                 : "Container and PO come first, then one or more SKU lines with expiry and pallet distribution."}
@@ -1764,6 +1790,10 @@ export function ReceivingPage() {
               correctionLocationChoice === null ? (
                 <Button disabled={!online || !correctionHasChange} onClick={() => setCorrectionLocationPromptOpen(true)}>
                   Print & Receive pallet
+                </Button>
+              ) : correctionCanUpdateInPlace ? (
+                <Button disabled={!online || completeCorrectionInPlaceMutation.isPending} onClick={() => completeCorrectionInPlaceMutation.mutate()}>
+                  {completeCorrectionInPlaceMutation.isPending ? "Updating…" : "Update & Close"}
                 </Button>
               ) : (
                 <PalletLabelPage

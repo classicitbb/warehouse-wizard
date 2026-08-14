@@ -39,6 +39,7 @@ const wmsMocks = vi.hoisted(() => {
     completeReceiptFromDraft: vi.fn(async () => ({ palletBarcode: "PLT-1", putawayTaskNumber: "PTA-1" })),
     cancelInventoryPalletCorrection: vi.fn(async () => undefined),
     completeInventoryPalletCorrection: vi.fn(async (): Promise<any> => ({ inventoryBalanceId: "balance-new", palletId: "pallet-new", palletBarcode: "PLT-NEW", putawayTaskId: null, putawayTaskNumber: null })),
+    completeInventoryPalletCorrectionInPlace: vi.fn(async (): Promise<any> => ({ inventoryBalanceId: "balance-existing", palletId: "pallet-existing", palletBarcode: "PLT-50444387ZNDF", putawayTaskId: null, putawayTaskNumber: null })),
   };
 });
 
@@ -119,6 +120,7 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
     completeReceiptFromDraft: wmsMocks.completeReceiptFromDraft,
     cancelInventoryPalletCorrection: wmsMocks.cancelInventoryPalletCorrection,
     completeInventoryPalletCorrection: wmsMocks.completeInventoryPalletCorrection,
+    completeInventoryPalletCorrectionInPlace: wmsMocks.completeInventoryPalletCorrectionInPlace,
   };
 });
 
@@ -297,13 +299,11 @@ describe("ReceivingPage", () => {
     const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
     expect(prompt).toHaveTextContent("A-01-L01-P1");
     fireEvent.click(within(prompt).getByRole("button", { name: /yes — keep/i }));
-    fireEvent.click(await within(dialog).findByRole("button", { name: /print & receive pallet/i }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: /update & close/i }));
 
-    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrection).toHaveBeenCalledWith({
+    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrectionInPlace).toHaveBeenCalledWith({
       draftId: "correction-1",
       quantity: 2,
-      expiryDate: "2026-12-01",
-      stillAtFormerLocation: true,
     }));
   });
 
@@ -346,6 +346,43 @@ describe("ReceivingPage", () => {
       expiryDate: null,
       stillAtFormerLocation: false,
     }));
+  });
+
+  it("updates a same-location quantity correction in place without printing", async () => {
+    const correctionDraft = {
+      ...wmsMocks.draft,
+      id: "correction-in-place-1",
+      receipt_type: "other",
+      container_number: null,
+      po_number: null,
+      notes: JSON.stringify({
+        _draft: true,
+        source_type: "inventory_pallet_correction",
+        product_id: "prod-1",
+        quantity: 1,
+        expiry_date: null,
+        replacement_pallet_barcode: "PLT-50444387ZNDF",
+        former_location_code: "J-21-D",
+      }),
+    };
+    wmsMocks.listDraftReceipts.mockResolvedValue([correctionDraft]);
+    renderReceivingPage("/receiving?correction=correction-in-place-1");
+
+    const dialog = await screen.findByRole("dialog", { name: /correct replacement pallet/i });
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "96" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /print & receive pallet/i }));
+    const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
+    fireEvent.click(within(prompt).getByRole("button", { name: /yes — keep/i }));
+
+    expect(await within(dialog).findByRole("button", { name: /update & close/i })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /print & receive pallet/i })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /update & close/i }));
+
+    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrectionInPlace).toHaveBeenCalledWith({
+      draftId: "correction-in-place-1",
+      quantity: 96,
+    }));
+    expect(wmsMocks.completeInventoryPalletCorrection).not.toHaveBeenCalled();
   });
 
   it("uses the same compact SKU-line handoff in standalone pallet mode", async () => {

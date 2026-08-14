@@ -671,6 +671,26 @@ export async function completeInventoryPalletCorrection(input: {
   };
 }
 
+export async function completeInventoryPalletCorrectionInPlace(input: {
+  draftId: string;
+  quantity: number;
+}): Promise<InventoryPalletCorrectionResult> {
+  const { data, error } = await (supabase.rpc as any)("complete_inventory_pallet_correction_in_place", {
+    in_draft_id: input.draftId,
+    in_quantity: input.quantity,
+  });
+  if (error) throw new Error(formatSupabaseError(error, "Could not update the pallet in place."));
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.inventory_balance_id || !row?.pallet_id) throw new Error("The pallet could not be updated in place.");
+  return {
+    inventoryBalanceId: row.inventory_balance_id,
+    palletId: row.pallet_id,
+    palletBarcode: row.pallet_barcode,
+    putawayTaskId: null,
+    putawayTaskNumber: null,
+  };
+}
+
 export async function listDraftReceipts(warehouseId: string): Promise<DraftReceipt[]> {
   let { data, error } = await db("receipts")
     .select("id, receipt_number, receipt_type, reference_number, container_number, po_number, draft_group_id, draft_pallet_barcode, draft_sequence, draft_count, warehouse_id, client_id, status, created_at, notes, receipt_lines(id, product_id, quantity, received_quantity, inventory_lots(expiry_date, lot_number, batch_number), pallets(id, pallet_barcode, quantity, status))")
