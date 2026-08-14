@@ -24,6 +24,12 @@ function assertPalletCanMove(status: unknown) {
   }
 }
 
+function assertPalletIsPutAway(pallet: { status?: unknown; current_location_id?: unknown; is_stored?: unknown }) {
+  if (String(pallet.status ?? "").toLowerCase() === "receiving" || pallet.is_stored === false || !pallet.current_location_id) {
+    throw new Error("This pallet needs to be put away before it can be moved.");
+  }
+}
+
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -169,7 +175,7 @@ export async function createMoveTask(palletBarcode: string, toLocationCode: stri
 
 export type MoveValidationResult =
   | { valid: true; warnings: string[] }
-  | { valid: false; reason: string; warnings: string[] };
+  | { valid: false; reason: string; warnings: string[]; requiresPutaway?: boolean };
 
 /**
  * Pre-flight check before moving a pallet to a location.
@@ -193,7 +199,7 @@ export async function validateMoveDestination(
 
   // ── Fetch pallet ──────────────────────────────────────────────────────────
   const { data: pallet, error: palletErr } = await db("pallets")
-    .select("id, product_id, warehouse_id:current_warehouse_id, current_location_id, status")
+    .select("id, product_id, warehouse_id:current_warehouse_id, current_location_id, status, is_stored")
     .eq("pallet_barcode", palletKey)
     .maybeSingle();
   if (palletErr) {
@@ -207,6 +213,11 @@ export async function validateMoveDestination(
     assertPalletCanMove(pallet.status);
   } catch (error) {
     return { valid: false, reason: error instanceof Error ? error.message : "Pallet cannot be moved", warnings };
+  }
+  try {
+    assertPalletIsPutAway(pallet);
+  } catch (error) {
+    return { valid: false, reason: error instanceof Error ? error.message : "This pallet needs to be put away before it can be moved.", warnings, requiresPutaway: true };
   }
 
   // ── Fetch location ────────────────────────────────────────────────────────
@@ -324,11 +335,12 @@ export async function validateMoveDestination(
 
 export async function completeDirectMove(palletBarcode: string, locationCode: string, reason?: string): Promise<void> {
   const { data: pallet, error: palletErr } = await db("pallets")
-    .select("id, current_location_id, warehouse_id:current_warehouse_id, status")
+    .select("id, current_location_id, warehouse_id:current_warehouse_id, status, is_stored")
     .eq("pallet_barcode", palletBarcode)
     .single();
   if (palletErr) throw new Error(`Pallet not found: ${palletBarcode}`);
   assertPalletCanMove(pallet.status);
+  assertPalletIsPutAway(pallet);
 
   const toLocation = await resolveMoveLocation(locationCode);
   if (!toLocation) throw new Error(`Location not found: ${locationCode}`);
@@ -387,11 +399,12 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   }
 
   const { data: pallet, error: palletErr } = await db("pallets")
-    .select("id, pallet_barcode, current_location_id, warehouse_id:current_warehouse_id, status")
+    .select("id, pallet_barcode, current_location_id, warehouse_id:current_warehouse_id, status, is_stored")
     .eq("pallet_barcode", scannedPalletBarcode)
     .single();
   if (palletErr) throw new Error(`Pallet not found: ${scannedPalletBarcode}`);
   assertPalletCanMove(pallet.status);
+  assertPalletIsPutAway(pallet);
   if (task.pallet_id !== pallet.id) {
     throw new Error("Scanned pallet does not match this move task.");
   }

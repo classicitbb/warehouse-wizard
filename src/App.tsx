@@ -1310,7 +1310,7 @@ function InventoryDetailPage() {
     ? "This inventory record has no pallet."
     : data.balance.correction_state || data.pallet.correction_state
       ? "This pallet already has a correction in progress or has been superseded."
-      : data.balance.status !== "available" || Number(data.balance.reserved_quantity ?? 0) > 0
+      : (data.balance.status !== "available" && !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) || Number(data.balance.reserved_quantity ?? 0) > 0
         ? "Clear reserved or allocated stock before correcting this pallet."
         : !data.location?.code
           ? "Only a stored pallet can be corrected from Inventory."

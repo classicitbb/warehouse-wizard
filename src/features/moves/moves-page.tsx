@@ -202,6 +202,7 @@ import {
 } from "@/features/shared/ui-shared";
 
 export function LocationMovesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [newPallet, setNewPallet] = useState("");
   const [newLocation, setNewLocation] = useState("");
@@ -470,9 +471,14 @@ export function LocationMovesPage() {
           {!newValidating && newValidation && !newValidation.valid && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-2">
                 <span className="font-medium">Cannot move here</span>
                 <span>{newValidation.reason}</span>
+                {newValidation.requiresPutaway && (
+                  <Button type="button" size="sm" variant="outline" className="w-fit border-destructive/40" onClick={() => navigate("/putaway-tasks")}>
+                    Go to Put-Away
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -614,9 +620,14 @@ export function LocationMovesPage() {
                   {!local.validating && local.validation && !local.validation.valid && (
                     <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-2">
                         <span className="font-medium">Cannot move here</span>
                         <span>{local.validation.reason}</span>
+                        {local.validation.requiresPutaway && (
+                          <Button type="button" size="sm" variant="outline" className="w-fit border-destructive/40" onClick={() => navigate("/putaway-tasks")}>
+                            Go to Put-Away
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
