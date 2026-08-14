@@ -33,12 +33,12 @@ const wmsMocks = vi.hoisted(() => {
   };
   return {
     draft,
-    listDraftReceipts: vi.fn(async () => []),
+    listDraftReceipts: vi.fn(async (): Promise<any[]> => []),
     saveShipmentDrafts: vi.fn(async () => ({ groupId: "shipment-1", draftIds: ["draft-1"], count: 1 })),
     updateDraftReceipt: vi.fn(async () => undefined),
     completeReceiptFromDraft: vi.fn(async () => ({ palletBarcode: "PLT-1", putawayTaskNumber: "PTA-1" })),
     cancelInventoryPalletCorrection: vi.fn(async () => undefined),
-    completeInventoryPalletCorrection: vi.fn(async () => ({ inventoryBalanceId: "balance-new", palletId: "pallet-new", palletBarcode: "PLT-NEW", putawayTaskId: null, putawayTaskNumber: null })),
+    completeInventoryPalletCorrection: vi.fn(async (): Promise<any> => ({ inventoryBalanceId: "balance-new", palletId: "pallet-new", palletBarcode: "PLT-NEW", putawayTaskId: null, putawayTaskNumber: null })),
   };
 });
 
