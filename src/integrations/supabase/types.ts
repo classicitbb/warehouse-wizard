@@ -1220,6 +1220,7 @@ export type Database = {
         Row: {
           available_quantity: number
           client_id: string | null
+          correction_state: string | null
           created_at: string
           damaged_quantity: number
           expiry_date: string | null
@@ -1240,6 +1241,7 @@ export type Database = {
         Insert: {
           available_quantity?: number
           client_id?: string | null
+          correction_state?: string | null
           created_at?: string
           damaged_quantity?: number
           expiry_date?: string | null
@@ -1260,6 +1262,7 @@ export type Database = {
         Update: {
           available_quantity?: number
           client_id?: string | null
+          correction_state?: string | null
           created_at?: string
           damaged_quantity?: number
           expiry_date?: string | null
@@ -1928,6 +1931,7 @@ export type Database = {
         Row: {
           available_quantity: number
           client_id: string | null
+          correction_state: string | null
           created_at: string
           created_by: string | null
           current_location_id: string | null
@@ -1956,6 +1960,7 @@ export type Database = {
         Insert: {
           available_quantity?: number
           client_id?: string | null
+          correction_state?: string | null
           created_at?: string
           created_by?: string | null
           current_location_id?: string | null
@@ -1984,6 +1989,7 @@ export type Database = {
         Update: {
           available_quantity?: number
           client_id?: string | null
+          correction_state?: string | null
           created_at?: string
           created_by?: string | null
           current_location_id?: string | null
@@ -3987,6 +3993,7 @@ export type Database = {
           client_id: string | null
           client_name: string | null
           container_number: string | null
+          correction_state: string | null
           damaged_quantity: number | null
           expiry_date: string | null
           height: number | null
@@ -3999,6 +4006,7 @@ export type Database = {
           manufacture_date: string | null
           pallet_barcode: string | null
           pallet_code: string | null
+          pallet_correction_state: string | null
           pallet_id: string | null
           po_number: string | null
           product_barcode: string | null
@@ -4110,9 +4118,21 @@ export type Database = {
         Args: { in_location_id: string; in_pallet_id?: string }
         Returns: undefined
       }
+      begin_inventory_pallet_correction: {
+        Args: { in_inventory_balance_id: string }
+        Returns: {
+          draft_id: string
+          former_location_code: string
+          replacement_pallet_barcode: string
+        }[]
+      }
       can_access_warehouse: {
         Args: { target_warehouse_id: string }
         Returns: boolean
+      }
+      cancel_inventory_pallet_correction: {
+        Args: { in_draft_id: string }
+        Returns: undefined
       }
       claim_cycle_count_line: {
         Args: { p_line_id: string }
@@ -4139,6 +4159,21 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      complete_inventory_pallet_correction: {
+        Args: {
+          in_draft_id: string
+          in_expiry_date: string
+          in_quantity: number
+          in_still_at_former_location: boolean
+        }
+        Returns: {
+          inventory_balance_id: string
+          pallet_barcode: string
+          pallet_id: string
+          putaway_task_id: string
+          putaway_task_number: string
+        }[]
       }
       confirm_pick_task: {
         Args: {
@@ -4193,6 +4228,10 @@ export type Database = {
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       has_unrestricted_warehouse_access: { Args: never; Returns: boolean }
+      inventory_correction_code: {
+        Args: { in_prefix: string }
+        Returns: string
+      }
       is_approved: { Args: never; Returns: boolean }
       log_audit_event: {
         Args: {
