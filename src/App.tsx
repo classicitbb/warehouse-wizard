@@ -1446,17 +1446,19 @@ function InventoryDetailPage() {
                     temperatureClass={data.product?.temperature_requirement ?? undefined}
                       trigger={<Button variant="outline">Preview pallet label</Button>}
                     />
-                    {canReceive && (
-                      <Button
-                        variant="outline"
-                        disabled={Boolean(correctionBlockedReason) || correctionMutation.isPending}
-                        title={correctionBlockedReason || "Return this pallet to Receiving for a corrected replacement label"}
-                        onClick={() => correctionMutation.mutate()}
-                      >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        {correctionMutation.isPending ? "Returning…" : "Edit & return to Receiving"}
-                      </Button>
-                    )}
+                  </div>
+                )}
+                {canReceive && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={Boolean(correctionBlockedReason) || correctionMutation.isPending}
+                      title={correctionBlockedReason || "Return this pallet to Receiving for a corrected replacement label"}
+                      onClick={() => correctionMutation.mutate()}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      {correctionMutation.isPending ? "Returning…" : "Edit & return to Receiving"}
+                    </Button>
                   </div>
                 )}
               </>
