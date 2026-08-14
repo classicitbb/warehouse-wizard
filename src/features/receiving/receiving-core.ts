@@ -630,7 +630,7 @@ export async function beginInventoryPalletCorrection(inventoryBalanceId: string)
   const { data, error } = await (supabase.rpc as any)("begin_inventory_pallet_correction", {
     in_inventory_balance_id: inventoryBalanceId,
   });
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error, "The correction draft could not be created."));
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.draft_id) throw new Error("The correction draft could not be created.");
   return {
@@ -644,7 +644,7 @@ export async function cancelInventoryPalletCorrection(draftId: string): Promise<
   const { error } = await (supabase.rpc as any)("cancel_inventory_pallet_correction", {
     in_draft_id: draftId,
   });
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error, "Could not restore the pallet to Inventory."));
 }
 
 export async function completeInventoryPalletCorrection(input: {
@@ -659,7 +659,7 @@ export async function completeInventoryPalletCorrection(input: {
     in_expiry_date: input.expiryDate,
     in_still_at_former_location: input.stillAtFormerLocation,
   });
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error, "Could not receive the replacement pallet."));
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.inventory_balance_id || !row?.pallet_id) throw new Error("The replacement pallet could not be received.");
   return {
