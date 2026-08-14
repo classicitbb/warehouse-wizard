@@ -61,4 +61,19 @@ describe("getStoredPalletCounts", () => {
     expect(counts.get(locationIds[204])).toBe(0);
     expect(counts.size).toBe(locationIds.length);
   });
+
+  it("does not count receiving pallets as stored bin occupancy", async () => {
+    dbMock.rows.inventory_balances = [
+      { location_id: "location-1", status: "available" },
+      { location_id: "location-1", status: "receiving" },
+    ];
+    dbMock.rows.pallets = [
+      { current_location_id: "location-1", status: "available" },
+      { current_location_id: "location-1", status: "receiving" },
+    ];
+
+    const counts = await getStoredPalletCounts(["location-1"]);
+
+    expect(counts.get("location-1")).toBe(1);
+  });
 });

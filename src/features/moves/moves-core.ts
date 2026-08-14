@@ -5,7 +5,6 @@ import {
   getStoredPalletCount,
   validatePutawayAssignment,
   formatSupabaseError,
-  DB_RETIRED_INVENTORY_STATUS_FILTER,
   type TemperatureClass,
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
@@ -15,6 +14,15 @@ import { assertNotFrozen, getActiveFreeze } from "@/features/cycle-counts/freeze
 
 const MOVE_LOCATION_SELECT =
   "id, code, status, max_pallets, temperature_class, mixed_sku_allowed, mixed_lot_allowed, max_height, zone_id, warehouse_id";
+const TERMINAL_PALLET_STATUSES = new Set(["shipped", "cancelled", "retired", "missing"]);
+const DB_TERMINAL_PALLET_STATUS_FILTER = "(shipped,cancelled,retired,missing)";
+
+function assertPalletCanMove(status: unknown) {
+  const normalizedStatus = String(status ?? "").toLowerCase();
+  if (TERMINAL_PALLET_STATUSES.has(normalizedStatus)) {
+    throw new Error(`Pallet is ${normalizedStatus} and cannot be moved`);
+  }
+}
 
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
@@ -195,8 +203,10 @@ export async function validateMoveDestination(
   if (!pallet) {
     return { valid: false, reason: `Pallet "${palletKey}" not found`, warnings };
   }
-  if (["shipped", "cancelled", "retired"].includes(pallet.status ?? "")) {
-    return { valid: false, reason: `Pallet is ${pallet.status} and cannot be moved`, warnings };
+  try {
+    assertPalletCanMove(pallet.status);
+  } catch (error) {
+    return { valid: false, reason: error instanceof Error ? error.message : "Pallet cannot be moved", warnings };
   }
 
   // ── Fetch location ────────────────────────────────────────────────────────
@@ -314,10 +324,11 @@ export async function validateMoveDestination(
 
 export async function completeDirectMove(palletBarcode: string, locationCode: string, reason?: string): Promise<void> {
   const { data: pallet, error: palletErr } = await db("pallets")
-    .select("id, current_location_id, warehouse_id:current_warehouse_id")
+    .select("id, current_location_id, warehouse_id:current_warehouse_id, status")
     .eq("pallet_barcode", palletBarcode)
     .single();
   if (palletErr) throw new Error(`Pallet not found: ${palletBarcode}`);
+  assertPalletCanMove(pallet.status);
 
   const toLocation = await resolveMoveLocation(locationCode);
   if (!toLocation) throw new Error(`Location not found: ${locationCode}`);
@@ -351,7 +362,7 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   const { error: balanceUpdErr } = await db("inventory_balances")
     .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
     .eq("pallet_id", pallet.id)
-    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER);
+    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER);
   if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
 
   await (supabase.rpc as any)("log_audit_event", {
@@ -376,10 +387,11 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   }
 
   const { data: pallet, error: palletErr } = await db("pallets")
-    .select("id, pallet_barcode, current_location_id, warehouse_id:current_warehouse_id")
+    .select("id, pallet_barcode, current_location_id, warehouse_id:current_warehouse_id, status")
     .eq("pallet_barcode", scannedPalletBarcode)
     .single();
   if (palletErr) throw new Error(`Pallet not found: ${scannedPalletBarcode}`);
+  assertPalletCanMove(pallet.status);
   if (task.pallet_id !== pallet.id) {
     throw new Error("Scanned pallet does not match this move task.");
   }
@@ -399,7 +411,7 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   const { error: balanceUpdErr } = await db("inventory_balances")
     .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
     .eq("pallet_id", pallet.id)
-    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER);
+    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER);
   if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
 
   const { error: taskUpdErr } = await db("move_tasks")

@@ -113,13 +113,50 @@ describe("location move helpers", () => {
       {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: null },
-        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,in_transit,missing)"]],
+        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
       },
     ]);
     expect(mockDb.rpcs[0]).toMatchObject({
       name: "log_audit_event",
       args: { in_event_type: "move_task_completed", in_entity_table: "move_tasks", in_entity_id: "move-new" },
     });
+  });
+
+  it("allows a receiving pallet to be moved into a bin", async () => {
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: null, warehouse_id: "wh-1", status: "receiving" }, error: null }],
+      locations: [{ data: { id: "loc-new", warehouse_id: "wh-1", zone_id: "zone-a" }, error: null }],
+    };
+
+    await expect(completeDirectMove("PBC-1", "A-01-01")).resolves.toBeUndefined();
+    expect(mockDb.updates).toContainEqual(expect.objectContaining({
+      table: "pallets",
+      payload: { current_location_id: "loc-new", current_warehouse_id: "wh-1" },
+    }));
+  });
+
+  it("allows a receiving pallet to complete a queued move", async () => {
+    mockDb.selects = {
+      move_tasks: [{ data: { id: "move-1", pallet_id: "pallet-1", status: "queued", warehouse_id: "wh-1" }, error: null }],
+      pallets: [{ data: { id: "pallet-1", pallet_barcode: "PBC-1", current_location_id: null, warehouse_id: "wh-1", status: "receiving" }, error: null }],
+      locations: [{ data: { id: "loc-new", warehouse_id: "wh-1", zone_id: "zone-a" }, error: null }],
+    };
+
+    await expect(completeMoveTask("move-1", "PBC-1", "A-01-01")).resolves.toBeUndefined();
+    expect(mockDb.updates).toContainEqual(expect.objectContaining({
+      table: "pallets",
+      payload: { current_location_id: "loc-new", current_warehouse_id: "wh-1" },
+    }));
+  });
+
+  it("rejects a terminal pallet before recording a direct move", async () => {
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: "loc-old", warehouse_id: "wh-1", status: "shipped" }, error: null }],
+    };
+
+    await expect(completeDirectMove("PBC-1", "A-01-01")).rejects.toThrow("Pallet is shipped and cannot be moved");
+    expect(mockDb.updates).toEqual([]);
+    expect(mockDb.upserts).toEqual([]);
   });
 
   it("resolves legacy full hierarchy location labels to the short rack location code", async () => {
@@ -161,7 +198,7 @@ describe("location move helpers", () => {
       {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: "zone-a" },
-        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,in_transit,missing)"]],
+        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
       },
     ]);
   });

@@ -40,6 +40,10 @@ function isRetiredInventoryStatus(status: unknown): boolean {
   return RETIRED_INVENTORY_STATUSES.has(String(status ?? "").toLowerCase());
 }
 
+function isStoredPalletStatus(status: unknown): boolean {
+  return String(status ?? "").toLowerCase() !== "receiving" && !isRetiredInventoryStatus(status);
+}
+
 function hasVisibleInventoryQuantity(row: Record<string, unknown>): boolean {
   return Number(row.available_quantity ?? 0) > 0 || Number(row.quantity ?? 0) > 0;
 }
@@ -767,7 +771,7 @@ async function fetchAllRows<T = any>(
 
 export { db };
 export { DB_RETIRED_INVENTORY_STATUS_FILTER, RETIRED_INVENTORY_STATUSES };
-export { isRetiredInventoryStatus, hasVisibleInventoryQuantity };
+export { isRetiredInventoryStatus, isStoredPalletStatus, hasVisibleInventoryQuantity };
 export { formatSupabaseError, throwIfSupabaseError, applyArchiveFilter };
 export { fetchAllRows };
 export { PICK_COMPLETED_INVENTORY_STATUS };
@@ -806,7 +810,7 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
   for (const { balanceResult, palletResult } of batchResults) {
     if (!balanceResult.error) {
       for (const row of balanceResult.data ?? []) {
-        if (isRetiredInventoryStatus(row.status)) continue;
+        if (!isStoredPalletStatus(row.status)) continue;
         const id = row.location_id;
         if (id) balanceCounts.set(id, (balanceCounts.get(id) ?? 0) + 1);
       }
@@ -816,7 +820,7 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
 
     if (!palletResult.error) {
       for (const row of palletResult.data ?? []) {
-        if (isRetiredInventoryStatus(row.status)) continue;
+        if (!isStoredPalletStatus(row.status)) continue;
         const id = row.current_location_id;
         if (id) palletCounts.set(id, (palletCounts.get(id) ?? 0) + 1);
       }
