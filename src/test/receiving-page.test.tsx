@@ -37,6 +37,8 @@ const wmsMocks = vi.hoisted(() => {
     saveShipmentDrafts: vi.fn(async () => ({ groupId: "shipment-1", draftIds: ["draft-1"], count: 1 })),
     updateDraftReceipt: vi.fn(async () => undefined),
     completeReceiptFromDraft: vi.fn(async () => ({ palletBarcode: "PLT-1", putawayTaskNumber: "PTA-1" })),
+    cancelInventoryPalletCorrection: vi.fn(async () => undefined),
+    completeInventoryPalletCorrection: vi.fn(async () => ({ inventoryBalanceId: "balance-new", palletId: "pallet-new", palletBarcode: "PLT-NEW", putawayTaskId: null, putawayTaskNumber: null })),
   };
 });
 
@@ -115,6 +117,8 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
     saveShipmentDrafts: wmsMocks.saveShipmentDrafts,
     updateDraftReceipt: wmsMocks.updateDraftReceipt,
     completeReceiptFromDraft: wmsMocks.completeReceiptFromDraft,
+    cancelInventoryPalletCorrection: wmsMocks.cancelInventoryPalletCorrection,
+    completeInventoryPalletCorrection: wmsMocks.completeInventoryPalletCorrection,
   };
 });
 
@@ -127,12 +131,12 @@ describe("ReceivingPage", () => {
     window.localStorage.clear();
   });
 
-  function renderReceivingPage() {
+  function renderReceivingPage(initialEntry = "/receiving") {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <MemoryRouter>
+          <MemoryRouter initialEntries={[initialEntry]}>
             <ReceivingPage />
           </MemoryRouter>
         </TooltipProvider>
@@ -258,6 +262,90 @@ describe("ReceivingPage", () => {
 
     expect(await within(dialog).findAllByRole("button", { name: /reset sku line/i })).toHaveLength(2);
     await waitFor(() => expect(vi.mocked(Element.prototype.scrollIntoView).mock.calls.length).toBeGreaterThan(scrollCallsBeforeEdit));
+  });
+
+  it("opens an Inventory correction as a locked one-pallet editor and only enables receipt after a change", async () => {
+    const correctionDraft = {
+      ...wmsMocks.draft,
+      id: "correction-1",
+      receipt_type: "other",
+      container_number: null,
+      po_number: null,
+      draft_pallet_barcode: "PLT-NEW",
+      notes: JSON.stringify({
+        _draft: true,
+        source_type: "inventory_pallet_correction",
+        product_id: "prod-1",
+        quantity: 1,
+        expiry_date: "2026-12-01",
+        replacement_pallet_barcode: "PLT-NEW",
+        former_location_code: "A-01-L01-P1",
+      }),
+    };
+    wmsMocks.listDraftReceipts.mockResolvedValue([correctionDraft]);
+    renderReceivingPage("/receiving?correction=correction-1");
+
+    const dialog = await screen.findByRole("dialog", { name: /correct replacement pallet plT-new/i });
+    expect(within(dialog).getByLabelText("Locked product")).toHaveValue("FLOUR · Flour");
+    expect(within(dialog).queryByRole("button", { name: /add sku line/i })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /receive & new/i })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /print & receive pallet/i })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "2" } });
+    expect(within(dialog).getByLabelText("Total received")).toHaveValue(2);
+    fireEvent.click(within(dialog).getByRole("button", { name: /print & receive pallet/i }));
+    const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
+    expect(prompt).toHaveTextContent("A-01-L01-P1");
+    fireEvent.click(within(prompt).getByRole("button", { name: /yes — keep/i }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: /print & receive pallet/i }));
+
+    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrection).toHaveBeenCalledWith({
+      draftId: "correction-1",
+      quantity: 2,
+      expiryDate: "2026-12-01",
+      stillAtFormerLocation: true,
+    }));
+  });
+
+  it("queues the replacement for Put-Away when the pallet is no longer at its former location", async () => {
+    const correctionDraft = {
+      ...wmsMocks.draft,
+      id: "correction-no-1",
+      receipt_type: "other",
+      container_number: null,
+      po_number: null,
+      notes: JSON.stringify({
+        _draft: true,
+        source_type: "inventory_pallet_correction",
+        product_id: "prod-1",
+        quantity: 1,
+        replacement_pallet_barcode: "PLT-NEW",
+        former_location_code: "A-01-L01-P1",
+      }),
+    };
+    wmsMocks.listDraftReceipts.mockResolvedValue([correctionDraft]);
+    wmsMocks.completeInventoryPalletCorrection.mockResolvedValue({
+      inventoryBalanceId: "balance-new",
+      palletId: "pallet-new",
+      palletBarcode: "PLT-NEW",
+      putawayTaskId: "task-replacement",
+      putawayTaskNumber: "PTA-NEW",
+    });
+    renderReceivingPage("/receiving?correction=correction-no-1");
+
+    const dialog = await screen.findByRole("dialog", { name: /correct replacement pallet/i });
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "2" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /print & receive pallet/i }));
+    const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
+    fireEvent.click(within(prompt).getByRole("button", { name: /no — send to put-away/i }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: /print & receive pallet/i }));
+
+    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrection).toHaveBeenCalledWith({
+      draftId: "correction-no-1",
+      quantity: 2,
+      expiryDate: null,
+      stillAtFormerLocation: false,
+    }));
   });
 
   it("uses the same compact SKU-line handoff in standalone pallet mode", async () => {

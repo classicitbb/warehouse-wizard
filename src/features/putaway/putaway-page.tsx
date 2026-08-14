@@ -537,6 +537,7 @@ function loadPutawayScannerFirstPreference() {
 export function PutawayTasksPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toPath } = useTenantPath();
   const { user, roles, profile } = useAuth();
   const { online } = useNetworkStatus();
@@ -585,6 +586,7 @@ export function PutawayTasksPage() {
   const [batchReturnOpen, setBatchReturnOpen] = useState(false);
   const [selectedBatchReturnTaskIds, setSelectedBatchReturnTaskIds] = useState<Set<string>>(new Set());
   const [batchReturnErrors, setBatchReturnErrors] = useState<Record<string, string>>({});
+  const correctionTaskId = searchParams.get("correctionTask");
 
   const clearSelectedTaskState = useCallback((taskId?: string | null) => {
     if (!taskId) return;
@@ -794,6 +796,23 @@ export function PutawayTasksPage() {
   const openPutawayStatuses = new Set(["queued", "assigned", "in_progress", "exception"]);
   const pendingTasks = data.filter((task: any) => openPutawayStatuses.has(task.status) && !completedIds.has(task.id) && !revertedIds.has(task.id));
   const selectedTask = selectedTaskId ? pendingTasks.find((task: any) => task.id === selectedTaskId) ?? null : null;
+
+  useEffect(() => {
+    if (!correctionTaskId || isLoading) return;
+    const task = pendingTasks.find((candidate) => candidate.id === correctionTaskId);
+    if (!task) return;
+    setSelectedTaskId(task.id);
+    setTaskSearch(getConfirmPalletCode(task, ""));
+    setScanQuery("");
+    setScanState((current) => ({
+      ...current,
+      [task.id]: { ...(current[task.id] ?? { pallet: "", location: "", override: false, reason: "" }), pallet: "" },
+    }));
+    setFlowCancelled(false);
+    setOpenTasksExpanded(false);
+    setSearchParams({}, { replace: true });
+    setTimeout(() => palletRefs.current[task.id]?.focus(), 120);
+  }, [correctionTaskId, isLoading, pendingTasks, setSearchParams]);
   const selectedBatchReturnTasks = pendingTasks.filter((task: any) => selectedBatchReturnTaskIds.has(task.id));
 
   useEffect(() => {

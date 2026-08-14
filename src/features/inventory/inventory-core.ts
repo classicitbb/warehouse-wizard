@@ -73,13 +73,13 @@ export async function searchInventory(filters: {
       const batch = data ?? [];
       rawRows.push(...batch);
       visibleCount += batch.filter(
-        (row: any) => !isRetiredInventoryStatus(row.status) && hasVisibleInventoryQuantity(row),
+      (row: any) => !isRetiredInventoryStatus(row.status) && !row.correction_state && !row.pallet_correction_state && hasVisibleInventoryQuantity(row),
       ).length;
       if (batch.length < pageSize || visibleCount >= wanted) break;
     }
   }
   let rows = rawRows
-    .filter((row) => !isRetiredInventoryStatus(row.status) && hasVisibleInventoryQuantity(row))
+    .filter((row) => !isRetiredInventoryStatus(row.status) && !row.correction_state && !row.pallet_correction_state && hasVisibleInventoryQuantity(row))
     .map((row) => ({
       ...row,
       location_code: row.location_code ? displayRackLocationCode(row.location_code) : row.location_code,

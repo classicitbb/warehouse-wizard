@@ -18,7 +18,7 @@ import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-import { buildBayOccupancyGrid, confirmPickTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
+import { beginInventoryPalletCorrection, buildBayOccupancyGrid, confirmPickTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
 import { clearPickTaskResumeSnapshot, loadPickTaskResumeSnapshot, savePickTaskResumeSnapshot } from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
@@ -564,6 +564,7 @@ type InventoryDetailData = {
     held_quantity?: number;
     damaged_quantity?: number;
     received_at?: string | null;
+    correction_state?: "pending" | "superseded" | null;
   };
   pallet: {
     pallet_code: string | null;
@@ -572,6 +573,7 @@ type InventoryDetailData = {
     width?: number | null;
     height?: number | null;
     weight?: number | null;
+    correction_state?: "pending" | "superseded" | null;
   } | null;
   product?: {
     sku?: string | null;
@@ -1284,6 +1286,8 @@ function LoginPage() {
 function InventoryDetailPage() {
   const { balanceId = "" } = useParams();
   const navigate = useNavigate();
+  const { toPath } = useTenantPath();
+  const { roles } = useAuth();
   const { data, isLoading } = useQuery<InventoryDetailData>({
     queryKey: ["inventory-detail", balanceId],
     queryFn: async () => (await getInventoryDetail(balanceId)) as unknown as InventoryDetailData,
@@ -1299,6 +1303,26 @@ function InventoryDetailPage() {
   const warehouseLabel = data?.warehouse?.code || data?.warehouse?.name
     ? `${data.warehouse?.code ?? ""}${data.warehouse?.code && data.warehouse?.name ? " · " : ""}${data.warehouse?.name ?? ""}`
     : "—";
+  const canReceive = roles.some((role) => ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"].includes(role));
+  const correctionBlockedReason = !data?.pallet
+    ? "This inventory record has no pallet."
+    : data.balance.correction_state || data.pallet.correction_state
+      ? "This pallet already has a correction in progress or has been superseded."
+      : data.balance.status !== "available" || Number(data.balance.reserved_quantity ?? 0) > 0
+        ? "Clear reserved or allocated stock before correcting this pallet."
+        : !data.location?.code
+          ? "Only a stored pallet can be corrected from Inventory."
+          : "";
+  const correctionMutation = useMutation({
+    mutationFn: () => beginInventoryPalletCorrection(balanceId),
+    onSuccess: (result) => {
+      toast.success(`Pallet returned to Receiving. Replacement ${result.replacementPalletBarcode} is ready to correct.`);
+      void queryClient.invalidateQueries({ queryKey: ["inventory-search"] });
+      void queryClient.invalidateQueries({ queryKey: ["inventory-detail", balanceId] });
+      navigate(`${toPath("/receiving")}?correction=${encodeURIComponent(result.draftId)}`);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not return pallet to Receiving."),
+  });
 
   return (
     <AppShell>
@@ -1401,7 +1425,8 @@ function InventoryDetailPage() {
                   </div>
                 </div>
                 {palletBarcode && (
-                  <PalletLabelPage
+                  <div className="flex flex-wrap gap-2">
+                    <PalletLabelPage
                     barcode={palletBarcode}
                     quantity={Number(data.balance.quantity ?? 0)}
                     productSku={data.product?.sku ?? undefined}
@@ -1419,8 +1444,20 @@ function InventoryDetailPage() {
                     draftSequence={data.receipt?.draft_sequence}
                     draftCount={data.receipt?.draft_count}
                     temperatureClass={data.product?.temperature_requirement ?? undefined}
-                    trigger={<Button variant="outline">Preview pallet label</Button>}
-                  />
+                      trigger={<Button variant="outline">Preview pallet label</Button>}
+                    />
+                    {canReceive && (
+                      <Button
+                        variant="outline"
+                        disabled={Boolean(correctionBlockedReason) || correctionMutation.isPending}
+                        title={correctionBlockedReason || "Return this pallet to Receiving for a corrected replacement label"}
+                        onClick={() => correctionMutation.mutate()}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        {correctionMutation.isPending ? "Returning…" : "Edit & return to Receiving"}
+                      </Button>
+                    )}
+                  </div>
                 )}
               </>
             ) : null}

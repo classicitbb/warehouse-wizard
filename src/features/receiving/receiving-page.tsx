@@ -84,6 +84,8 @@ import {
   saveShipmentDrafts,
   updateDraftReceipt,
   completeReceiptFromDraft,
+  cancelInventoryPalletCorrection,
+  completeInventoryPalletCorrection,
   deleteDraftReceipt,
   listSystemLogs,
   listUserActivities,
@@ -341,6 +343,7 @@ function ShipmentExpiryPicker({
 
 export function ReceivingPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { online } = useNetworkStatus();
@@ -390,6 +393,8 @@ export function ReceivingPage() {
   const shipmentPoInputRef = useRef<HTMLInputElement>(null);
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
   const [editingDraft, setEditingDraft] = useState<DraftReceipt | null>(null);
+  const [correctionLocationChoice, setCorrectionLocationChoice] = useState<boolean | null>(null);
+  const [correctionLocationPromptOpen, setCorrectionLocationPromptOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{ barcode: string; taskNumber: string; qty: number } | null>(null);
   const [printAfterSaveIds, setPrintAfterSaveIds] = useState<string[]>([]);
   const [savingShipmentMode, setSavingShipmentMode] = useState<"receive" | "new" | null>(null);
@@ -527,6 +532,11 @@ export function ReceivingPage() {
   }, [drafts, printContainer]);
 
   const selectedPrintDrafts = printDrafts.filter((draft) => selectedDraftIds.has(draft.id));
+  const correctionDraftId = searchParams.get("correction");
+  const editingDraftMeta = editingDraft ? parseDraftMeta(editingDraft.notes) : {};
+  const isInventoryPalletCorrection = editingDraftMeta.source_type === "inventory_pallet_correction";
+  const correctionFormerLocation = String(editingDraftMeta.former_location_code ?? "its former location");
+  const correctionReplacementBarcode = String(editingDraftMeta.replacement_pallet_barcode ?? editingDraft?.draft_pallet_barcode ?? "replacement pallet");
   const shipmentContainerValidation = useMemo(
     () => validateIso6346ContainerNumber(shipmentForm.container_number),
     [shipmentForm.container_number],
@@ -618,6 +628,59 @@ export function ReceivingPage() {
               : "Enter a SKU and valid quantities before saving."
             : "";
   const canSaveShipment = !saveBlockedReason;
+  const correctionLine = shipmentForm.lines[0];
+  const correctionProduct = productOptions.find((product) => product.id === correctionLine?.product_id);
+  const correctionHasChange = isInventoryPalletCorrection && Boolean(correctionLine) && (
+    Number(correctionLine.quantity_per_pallet) !== Number(editingDraftMeta.quantity ?? editingDraft?.quantity ?? 0) ||
+    (correctionLine.expiry_date || "") !== String(editingDraftMeta.expiry_date ?? editingDraft?.expiry_date ?? "")
+  );
+
+  const cancelCorrectionMutation = useMutation({
+    mutationFn: () => cancelInventoryPalletCorrection(editingDraft?.id ?? ""),
+    onSuccess: async () => {
+      toast.success("Pallet restored to Inventory.");
+      setShipmentOpen(false);
+      setEditingDraft(null);
+      setCorrectionLocationChoice(null);
+      setSearchParams({}, { replace: true });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+      ]);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not restore the pallet to Inventory."),
+  });
+
+  const completeCorrectionMutation = useMutation({
+    mutationFn: () => completeInventoryPalletCorrection({
+      draftId: editingDraft?.id ?? "",
+      quantity: Number(correctionLine?.quantity_per_pallet ?? 0),
+      expiryDate: correctionLine?.expiry_date || null,
+      stillAtFormerLocation: Boolean(correctionLocationChoice),
+    }),
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
+        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-detail"] }),
+      ]);
+      setShipmentOpen(false);
+      setEditingDraft(null);
+      setCorrectionLocationChoice(null);
+      setSearchParams({}, { replace: true });
+      if (result.putawayTaskId) {
+        toast.success(`Replacement ${result.palletBarcode} is queued for Put-Away.`);
+        navigate(`${toPath("/putaway-tasks")}?correctionTask=${encodeURIComponent(result.putawayTaskId)}`);
+        return;
+      }
+      toast.success(`Replacement ${result.palletBarcode} remains at ${correctionFormerLocation}.`);
+      navigate(toPath(`/inventory/${result.inventoryBalanceId}`));
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not receive the replacement pallet."),
+  });
 
   const saveShipmentMutation = useMutation({
     mutationFn: async (mode: "receive" | "new") => {
@@ -857,10 +920,13 @@ export function ReceivingPage() {
 
   function openEditDraft(draft: DraftReceipt) {
     const values = draftToReceivingValues(draft);
-    const draftEntryMode = inferDraftEntryMode(draft);
+    const isCorrection = parseDraftMeta(draft.notes).source_type === "inventory_pallet_correction";
+    const draftEntryMode = isCorrection ? "pallet" : inferDraftEntryMode(draft);
     setShipmentEntryMode(draftEntryMode);
     setShowShipmentMore(false);
     setEditingDraft(draft);
+    setCorrectionLocationChoice(null);
+    setCorrectionLocationPromptOpen(false);
     setShipmentContainerTouched(draftEntryMode === "shipment" && Boolean(values.container_number));
     setShipmentContainerScanWarning(null);
     perPalletManualProductRefs.current = {};
@@ -890,6 +956,13 @@ export function ReceivingPage() {
     });
     setShipmentOpen(true);
   }
+
+  useEffect(() => {
+    if (!correctionDraftId || shipmentOpen) return;
+    const correctionDraft = drafts.find((draft) => draft.id === correctionDraftId);
+    if (!correctionDraft) return;
+    openEditDraft(correctionDraft);
+  }, [correctionDraftId, drafts, shipmentOpen]); // opens the correction draft handed off by Inventory Detail
 
   function updateLine(id: string, patch: Partial<ReceivingShipmentLineState>, changed?: "total" | "perPallet" | "count") {
     setShipmentForm((current) => ({
@@ -1232,15 +1305,24 @@ export function ReceivingPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={shipmentOpen} onOpenChange={(open) => { setShipmentOpen(open); if (!open) setEditingDraft(null); }}>
+      <Dialog open={shipmentOpen} onOpenChange={(open) => {
+        if (!open && isInventoryPalletCorrection) {
+          cancelCorrectionMutation.mutate();
+          return;
+        }
+        setShipmentOpen(open);
+        if (!open) setEditingDraft(null);
+      }}>
         <DialogContent
           className="h-[calc(100dvh-0.75rem)] max-h-[calc(100dvh-0.75rem)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-hidden bg-card p-0 text-card-foreground sm:h-auto sm:max-h-[92vh] sm:max-w-[min(56rem,96vw)]"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <DialogHeader className="border-b border-border px-3 py-2 sm:px-4 sm:py-3">
-            <DialogTitle>{editingDraft ? "Edit Draft Pallet" : shipmentEntryMode === "pallet" ? "New Pallet" : "New Shipment"}</DialogTitle>
+            <DialogTitle>{isInventoryPalletCorrection ? `Correct replacement pallet ${correctionReplacementBarcode}` : editingDraft ? "Edit Draft Pallet" : shipmentEntryMode === "pallet" ? "New Pallet" : "New Shipment"}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              {shipmentEntryMode === "pallet"
+              {isInventoryPalletCorrection
+                ? `The original pallet is held out of active Inventory while you correct its replacement. SKU is locked; update quantity per pallet or expiry, then print and receive the new label.`
+                : shipmentEntryMode === "pallet"
                 ? "Standalone pallet receiving keeps warehouse and client fixed to the active context, then uses the SKU lines for quantities and expiry."
                 : "Container and PO come first, then one or more SKU lines with expiry and pallet distribution."}
             </DialogDescription>
@@ -1418,7 +1500,7 @@ export function ReceivingPage() {
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">SKU line {index + 1}</p>
                         <div className="flex items-center gap-1">
-                          <Button
+                          {!isInventoryPalletCorrection && <Button
                             type="button"
                             size="icon"
                             variant="ghost"
@@ -1428,7 +1510,7 @@ export function ReceivingPage() {
                             onClick={() => resetShipmentLine(line.id)}
                           >
                             <RotateCcw className="h-4 w-4" />
-                          </Button>
+                          </Button>}
                           {!editingDraft && shipmentForm.lines.length > 1 && (
                             <Button size="sm" variant="ghost" onClick={() => setShipmentForm((cur) => ({ ...cur, lines: cur.lines.filter((item) => item.id !== line.id) }))}>
                               <Trash2 className="h-4 w-4" />
@@ -1439,7 +1521,14 @@ export function ReceivingPage() {
                       <div className="grid min-w-0 gap-2 lg:gap-3">
                         <div className="grid min-w-0 gap-1.5">
                           <ShipmentFieldLabel>Product</ShipmentFieldLabel>
-                          <div className="flex min-w-0 max-w-full flex-wrap gap-2 sm:flex-nowrap">
+                          {isInventoryPalletCorrection ? (
+                            <Input
+                              className="h-9 sm:h-10"
+                              aria-label="Locked product"
+                              readOnly
+                              value={selectedProduct ? `${selectedProduct.sku} · ${selectedProduct.name}` : "Locked product"}
+                            />
+                          ) : <div className="flex min-w-0 max-w-full flex-wrap gap-2 sm:flex-nowrap">
                             <BarcodeScanButton
                               className="h-9 shrink-0 self-start sm:h-10"
                               title="Scan product"
@@ -1475,9 +1564,9 @@ export function ReceivingPage() {
                             >
                               <ArrowRight className="h-4 w-4" />
                             </Button>
-                          </div>
+                          </div>}
                         </div>
-                        <div className="grid min-w-0 gap-2 sm:grid-cols-3 md:gap-3">
+                        <div className={cn("grid min-w-0 gap-2 md:gap-3", isInventoryPalletCorrection ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
                           <div className="grid min-w-0 gap-1.5">
                             <ShipmentFieldLabel>Total received</ShipmentFieldLabel>
                             <Input
@@ -1489,9 +1578,10 @@ export function ReceivingPage() {
                               min={0}
                               value={line.total_quantity}
                               aria-label="Total received"
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "total", e)}
-                              onChange={(e) => updateLine(line.id, { total_quantity: e.currentTarget.value })}
+                              readOnly={isInventoryPalletCorrection}
+                              onFocus={(e) => { if (!isInventoryPalletCorrection) e.currentTarget.select(); }}
+                              onKeyDown={(e) => { if (!isInventoryPalletCorrection) handleShipmentFieldKeyDown(line.id, "total", e); }}
+                              onChange={(e) => { if (!isInventoryPalletCorrection) updateLine(line.id, { total_quantity: e.currentTarget.value }); }}
                             />
                           </div>
                           <div className="grid min-w-0 gap-1.5">
@@ -1508,6 +1598,11 @@ export function ReceivingPage() {
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "perPallet", e)}
                               onChange={(e) => {
+                                if (isInventoryPalletCorrection) {
+                                  setCorrectionLocationChoice(null);
+                                  updateLine(line.id, { quantity_per_pallet: e.currentTarget.value, total_quantity: e.currentTarget.value, pallet_count: 1 });
+                                  return;
+                                }
                                 if (line.product_id) perPalletManualProductRefs.current[line.id] = line.product_id;
                                 const nextValue = e.currentTarget.value;
                                 updateLine(
@@ -1523,7 +1618,7 @@ export function ReceivingPage() {
                               </p>
                             ) : null}
                           </div>
-                          <div className="grid min-w-0 gap-1.5">
+                          {!isInventoryPalletCorrection && <div className="grid min-w-0 gap-1.5">
                             <ShipmentFieldLabel>Pallets</ShipmentFieldLabel>
                             <Input
                               ref={(node) => { palletCountRefs.current[line.id] = node; }}
@@ -1538,7 +1633,7 @@ export function ReceivingPage() {
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "count", e)}
                               onChange={(e) => updateLine(line.id, { pallet_count: e.currentTarget.value })}
                             />
-                          </div>
+                          </div>}
                         </div>
                       </div>
                       <div className="grid gap-2">
@@ -1553,12 +1648,13 @@ export function ReceivingPage() {
                             onOpenChange={(open) => setOpenExpiryLineId(open ? line.id : null)}
                             onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "expiry", e)}
                             onChange={(value) => {
+                              if (isInventoryPalletCorrection) setCorrectionLocationChoice(null);
                               updateLine(line.id, { expiry_date: value });
                               setOpenExpiryLineId(null);
                             }}
                           />
                         </div>
-                        <Collapsible open={Boolean(openShipmentDetails[line.id])} onOpenChange={(open) => setOpenShipmentDetails((current) => ({ ...current, [line.id]: open }))}>
+                        {!isInventoryPalletCorrection && <Collapsible open={Boolean(openShipmentDetails[line.id])} onOpenChange={(open) => setOpenShipmentDetails((current) => ({ ...current, [line.id]: open }))}>
                           <CollapsibleTrigger asChild>
                             <Button type="button" variant="ghost" tabIndex={-1} className="h-8 w-fit px-0 text-xs font-medium text-muted-foreground hover:bg-transparent hover:text-foreground">
                               <ChevronDown className="mr-1 h-3.5 w-3.5" />
@@ -1603,7 +1699,7 @@ export function ReceivingPage() {
                               </Select>
                             </div>
                           </CollapsibleContent>
-                        </Collapsible>
+                        </Collapsible>}
                       </div>
                       {remainder > 0 && (
                         <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
@@ -1648,7 +1744,13 @@ export function ReceivingPage() {
             {saveBlockedReason && (
               <p className="mr-auto w-full text-xs font-medium text-amber-500 sm:w-auto sm:self-center">{saveBlockedReason}</p>
             )}
-            <Button variant="outline" onClick={() => setShipmentOpen(false)}>Cancel</Button>
+            <Button variant="outline" disabled={cancelCorrectionMutation.isPending} onClick={() => {
+              if (isInventoryPalletCorrection) {
+                cancelCorrectionMutation.mutate();
+                return;
+              }
+              setShipmentOpen(false);
+            }}>Cancel</Button>
             {!editingDraft && (
               <Button className="relative overflow-hidden" variant="outline" disabled={!online || saveShipmentMutation.isPending || !canSaveShipment} onClick={() => saveShipment("new")}>
                 {saveShipmentMutation.isPending && savingShipmentMode === "new" ? (
@@ -1658,13 +1760,46 @@ export function ReceivingPage() {
                 )}
               </Button>
             )}
-            <Button className="relative overflow-hidden" disabled={!online || saveShipmentMutation.isPending || !canSaveShipment} onClick={() => saveShipment("receive")}>
+            {isInventoryPalletCorrection ? (
+              correctionLocationChoice === null ? (
+                <Button disabled={!online || !correctionHasChange} onClick={() => setCorrectionLocationPromptOpen(true)}>
+                  Print & Receive pallet
+                </Button>
+              ) : (
+                <PalletLabelPage
+                  barcode={correctionReplacementBarcode}
+                  quantity={Number(correctionLine?.quantity_per_pallet ?? 0)}
+                  productSku={correctionProduct?.sku}
+                  productName={correctionProduct?.name}
+                  expiryDate={correctionLine?.expiry_date}
+                  warehouseName={activeWarehouse ? `${activeWarehouse.code ? `${activeWarehouse.code} - ` : ""}${activeWarehouse.name}` : undefined}
+                  trigger={<Button disabled={!online || completeCorrectionMutation.isPending}>Print & Receive pallet</Button>}
+                  onPrinted={async () => { await completeCorrectionMutation.mutateAsync(); }}
+                />
+              )
+            ) : <Button className="relative overflow-hidden" disabled={!online || saveShipmentMutation.isPending || !canSaveShipment} onClick={() => saveShipment("receive")}>
               {saveShipmentMutation.isPending && savingShipmentMode === "receive" ? (
                 <ButtonProgress value={saveReceiveProgress} label={editingDraft ? "Saving" : shipmentEntryMode === "pallet" ? "Receiving" : "Saving"} />
               ) : (
                 editingDraft ? "Save Draft" : shipmentEntryMode === "pallet" ? "Receive pallet" : "Save & Receive"
               )}
-            </Button>
+            </Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={correctionLocationPromptOpen} onOpenChange={setCorrectionLocationPromptOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm pallet location</DialogTitle>
+            <DialogDescription>
+              Is the pallet still in {correctionFormerLocation}? Choosing Yes keeps the replacement there. Choosing No queues it for Put-Away after the label prints.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrectionLocationPromptOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setCorrectionLocationChoice(false); setCorrectionLocationPromptOpen(false); }}>No — send to Put-Away</Button>
+            <Button onClick={() => { setCorrectionLocationChoice(true); setCorrectionLocationPromptOpen(false); }}>Yes — keep at {correctionFormerLocation}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -612,6 +612,65 @@ export async function createReturnedPalletDraft({
   return data.id;
 }
 
+export type InventoryPalletCorrectionStart = {
+  draftId: string;
+  replacementPalletBarcode: string;
+  formerLocationCode: string;
+};
+
+export type InventoryPalletCorrectionResult = {
+  inventoryBalanceId: string;
+  palletId: string;
+  palletBarcode: string;
+  putawayTaskId: string | null;
+  putawayTaskNumber: string | null;
+};
+
+export async function beginInventoryPalletCorrection(inventoryBalanceId: string): Promise<InventoryPalletCorrectionStart> {
+  const { data, error } = await (supabase.rpc as any)("begin_inventory_pallet_correction", {
+    in_inventory_balance_id: inventoryBalanceId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.draft_id) throw new Error("The correction draft could not be created.");
+  return {
+    draftId: row.draft_id,
+    replacementPalletBarcode: row.replacement_pallet_barcode,
+    formerLocationCode: row.former_location_code,
+  };
+}
+
+export async function cancelInventoryPalletCorrection(draftId: string): Promise<void> {
+  const { error } = await (supabase.rpc as any)("cancel_inventory_pallet_correction", {
+    in_draft_id: draftId,
+  });
+  if (error) throw error;
+}
+
+export async function completeInventoryPalletCorrection(input: {
+  draftId: string;
+  quantity: number;
+  expiryDate: string | null;
+  stillAtFormerLocation: boolean;
+}): Promise<InventoryPalletCorrectionResult> {
+  const { data, error } = await (supabase.rpc as any)("complete_inventory_pallet_correction", {
+    in_draft_id: input.draftId,
+    in_quantity: input.quantity,
+    in_expiry_date: input.expiryDate,
+    in_still_at_former_location: input.stillAtFormerLocation,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.inventory_balance_id || !row?.pallet_id) throw new Error("The replacement pallet could not be received.");
+  return {
+    inventoryBalanceId: row.inventory_balance_id,
+    palletId: row.pallet_id,
+    palletBarcode: row.pallet_barcode,
+    putawayTaskId: row.putaway_task_id ?? null,
+    putawayTaskNumber: row.putaway_task_number ?? null,
+  };
+}
+
 export async function listDraftReceipts(warehouseId: string): Promise<DraftReceipt[]> {
   let { data, error } = await db("receipts")
     .select("id, receipt_number, receipt_type, reference_number, container_number, po_number, draft_group_id, draft_pallet_barcode, draft_sequence, draft_count, warehouse_id, client_id, status, created_at, notes, receipt_lines(id, product_id, quantity, received_quantity, inventory_lots(expiry_date, lot_number, batch_number), pallets(id, pallet_barcode, quantity, status))")
