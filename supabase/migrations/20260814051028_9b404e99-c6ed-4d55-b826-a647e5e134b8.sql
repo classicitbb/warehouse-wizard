@@ -1,0 +1,1 @@
+alter table public.pallets add column if not exists reused_from_pallet_id uuid references public.pallets(id);
