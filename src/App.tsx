@@ -1303,7 +1303,9 @@ function InventoryDetailPage() {
   const warehouseLabel = data?.warehouse?.code || data?.warehouse?.name
     ? `${data.warehouse?.code ?? ""}${data.warehouse?.code && data.warehouse?.name ? " · " : ""}${data.warehouse?.name ?? ""}`
     : "—";
-  const canReceive = roles.some((role) => ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"].includes(role));
+  const canReceive = roles.some((role) =>
+    ["developer", "dev", "admin", "warehouse_manager", "warehouse_supervisor", "supervisor", "inventory_clerk"].includes(role),
+  );
   const correctionBlockedReason = !data?.pallet
     ? "This inventory record has no pallet."
     : data.balance.correction_state || data.pallet.correction_state
