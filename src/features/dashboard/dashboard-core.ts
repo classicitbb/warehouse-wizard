@@ -8,6 +8,7 @@ import {
   type DashboardMetrics,
   type DashboardTaskRow,
   type DashboardMetricKey,
+  TRANSFERS_ENABLED,
 } from "@/features/shared/core-types";
 
 const OPEN_CYCLE_COUNT_STATUSES = ["draft", "frozen", "counting", "review", "approved"];
@@ -27,7 +28,9 @@ export async function getDashboardMetrics(warehouseId?: string | null, enabledMo
     db("putaway_tasks").select("id, task_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),
     db("pick_lists").select("id, pick_list_number, warehouse_id, status, created_at").in("status", ["draft", "queued", "assigned", "in_progress", "exception"]),
     db("move_tasks").select("id, task_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),
-    db("transfers").select("id, transfer_number, source_warehouse_id, destination_warehouse_id, status, created_at").in("status", ["draft", "queued", "assigned", "in_progress", "exception"]),
+    TRANSFERS_ENABLED
+      ? db("transfers").select("id, transfer_number, source_warehouse_id, destination_warehouse_id, status, created_at").in("status", ["draft", "queued", "assigned", "in_progress", "exception"])
+      : Promise.resolve({ data: [], error: null }),
     db("cycle_counts").select("id, count_number, warehouse_id, status, created_at").in("status", OPEN_CYCLE_COUNT_STATUSES),
     db("staging_loads").select("id, route_code, status, created_at, pick_lists(warehouse_id)").in("status", ["ready", "called", "loading", "blocked"]),
     db("replenishment_tasks").select("id, task_number, warehouse_id, status, created_at").in("status", ["queued", "assigned", "in_progress", "exception"]),

@@ -289,6 +289,8 @@ export type ModuleKey =
   | "clients" | "packaging" | "cycle-counts" | "reports" | "status"
   | "system-log" | "email-log";
 
+export const TRANSFERS_ENABLED = false;
+
 export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[]; moduleKey?: ModuleKey }> = [
   { label: "Dashboard", to: "/dashboard", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"], moduleKey: "dashboard" },
   { label: "Receiving", to: "/receiving", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "receiving" },

@@ -33,7 +33,7 @@ export const STARTER_MODULES: Record<ModuleKey, boolean> = {
   putaway: true,
   inventory: true,
   "location-moves": true,
-  transfers: true,
+  transfers: false,
   "pick-lists": true,
   products: true,
   warehouses: true,
@@ -49,6 +49,8 @@ export const STARTER_MODULES: Record<ModuleKey, boolean> = {
   "system-log": false,
   "email-log": false,
 };
+
+export const DISABLED_MODULES = new Set<ModuleKey>(["transfers"]);
 
 const MODULE_LABELS: Record<ModuleKey, { label: string; description: string }> = {
   dashboard: { label: "Dashboard", description: "Command Center for live warehouse operations" },
@@ -109,7 +111,7 @@ function saveFlags(flags: Record<ModuleKey, boolean>) {
 export function sanitizeToolbarModules(value: unknown): ModuleKey[] {
   if (!Array.isArray(value)) return [...DEFAULT_TOOLBAR_MODULES];
   const isVersioned = value.includes(TOOLBAR_PREFERENCE_MARKER);
-  const modules = Array.from(new Set(value.filter((key): key is ModuleKey => typeof key === "string" && key in STARTER_MODULES)));
+  const modules = Array.from(new Set(value.filter((key): key is ModuleKey => typeof key === "string" && key in STARTER_MODULES && !DISABLED_MODULES.has(key))));
   if (isVersioned) return modules.slice(0, MAX_TOOLBAR_MODULES);
   return (["dashboard", ...modules.filter((key) => key !== "dashboard")] as ModuleKey[]).slice(0, MAX_TOOLBAR_MODULES);
 }
@@ -173,11 +175,11 @@ export function useFeatureFlagState(): FeatureFlagContextValue {
     };
   }, [user]);
 
-  const isEnabled = useCallback((key: ModuleKey) => flags[key] ?? true, [flags]);
+  const isEnabled = useCallback((key: ModuleKey) => !DISABLED_MODULES.has(key) && (flags[key] ?? true), [flags]);
   const isToolbarModule = useCallback((key: ModuleKey) => toolbarModules.includes(key), [toolbarModules]);
 
   const setModule = useCallback((key: ModuleKey, enabled: boolean) => {
-    if (key === "dashboard") return;
+    if (key === "dashboard" || DISABLED_MODULES.has(key)) return;
     setFlags((prev) => {
       const next = { ...prev, [key]: enabled };
       saveFlags(next);

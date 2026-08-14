@@ -2288,6 +2288,17 @@ function FeatureFlagProvider({ children }: { children: ReactNode }) {
   return <FeatureFlagContext.Provider value={value}>{children}</FeatureFlagContext.Provider>;
 }
 
+function TransfersDisabledPage() {
+  return (
+    <AppShell>
+      <div className="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center gap-3 text-center">
+        <h1 className="text-2xl font-semibold">Transfers are temporarily disabled</h1>
+        <p className="text-sm text-muted-foreground">Inter-warehouse transfers are paused for all users while the workflow and reconnect behavior are being redesigned.</p>
+      </div>
+    </AppShell>
+  );
+}
+
 function ResourceRoutes() {
   const resources = useMemo(
     () => ({
@@ -2319,7 +2330,7 @@ function ResourceRoutes() {
           <Route path="/putaway-tasks" element={<PutawayTasksPage />} />
           <Route path="/inventory-search" element={<InventorySearchPage />} />
           <Route path="/pick-lists" element={<PickListsPage />} />
-          <Route path="/transfers" element={<TransfersPage />} />
+          <Route path="/transfers" element={<TransfersDisabledPage />} />
           <Route path="/location-moves" element={<LocationMovesPage />} />
           <Route path="/cycle-counts" element={<CycleCountsPage />} />
           <Route path="/status" element={<StatusPage />} />
