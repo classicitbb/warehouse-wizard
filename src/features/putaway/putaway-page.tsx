@@ -799,7 +799,7 @@ export function PutawayTasksPage() {
 
   useEffect(() => {
     if (!correctionTaskId || isLoading) return;
-    const task = pendingTasks.find((candidate) => candidate.id === correctionTaskId);
+    const task = pendingTasks.find((candidate: any) => candidate.id === correctionTaskId);
     if (!task) return;
     setSelectedTaskId(task.id);
     setTaskSearch(getConfirmPalletCode(task, ""));
