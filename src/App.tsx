@@ -1303,7 +1303,9 @@ function InventoryDetailPage() {
   const warehouseLabel = data?.warehouse?.code || data?.warehouse?.name
     ? `${data.warehouse?.code ?? ""}${data.warehouse?.code && data.warehouse?.name ? " · " : ""}${data.warehouse?.name ?? ""}`
     : "—";
-  const canReceive = roles.some((role) => ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"].includes(role));
+  const canReceive = roles.some((role) =>
+    ["developer", "dev", "admin", "warehouse_manager", "warehouse_supervisor", "supervisor", "inventory_clerk"].includes(role),
+  );
   const correctionBlockedReason = !data?.pallet
     ? "This inventory record has no pallet."
     : data.balance.correction_state || data.pallet.correction_state
@@ -1446,17 +1448,19 @@ function InventoryDetailPage() {
                     temperatureClass={data.product?.temperature_requirement ?? undefined}
                       trigger={<Button variant="outline">Preview pallet label</Button>}
                     />
-                    {canReceive && (
-                      <Button
-                        variant="outline"
-                        disabled={Boolean(correctionBlockedReason) || correctionMutation.isPending}
-                        title={correctionBlockedReason || "Return this pallet to Receiving for a corrected replacement label"}
-                        onClick={() => correctionMutation.mutate()}
-                      >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        {correctionMutation.isPending ? "Returning…" : "Edit & return to Receiving"}
-                      </Button>
-                    )}
+                  </div>
+                )}
+                {canReceive && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={Boolean(correctionBlockedReason) || correctionMutation.isPending}
+                      title={correctionBlockedReason || "Return this pallet to Receiving for a corrected replacement label"}
+                      onClick={() => correctionMutation.mutate()}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      {correctionMutation.isPending ? "Returning…" : "Edit & return to Receiving"}
+                    </Button>
                   </div>
                 )}
               </>
