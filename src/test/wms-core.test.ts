@@ -15,8 +15,20 @@ import {
   normalizeRackLocationCode,
   parseCsv,
   parseRackLocationCode,
+  resolveLocationCapacity,
   validatePutawayAssignment,
 } from "@/lib/wms-core";
+
+describe("location capacity", () => {
+  it("falls back to depth when a legacy zero max-pallets value masks capacity", () => {
+    expect(resolveLocationCapacity(0, 4)).toBe(4);
+    expect(resolveLocationCapacity(null, 3)).toBe(3);
+  });
+
+  it("prefers a positive max-pallets value", () => {
+    expect(resolveLocationCapacity(6, 4)).toBe(6);
+  });
+});
 
 describe("parseCsv", () => {
   it("maps header names to row values", () => {

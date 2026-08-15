@@ -276,11 +276,11 @@ export async function validateMoveDestination(
   // ── Temperature ───────────────────────────────────────────────────────────
   if (pallet.product_id) {
     const { data: product } = await db("products")
-      .select("temperature_class, sku, pallet_height_cm")
+      .select("temperature_requirement, sku, height")
       .eq("id", pallet.product_id)
       .maybeSingle();
     if (product) {
-      const productTemp = (product.temperature_class ?? "ambient") as TemperatureClass;
+      const productTemp = (product.temperature_requirement ?? "ambient") as TemperatureClass;
       const locTemp = (location.temperature_class ?? "ambient") as TemperatureClass;
       if (productTemp === "cool" && locTemp !== "cool") {
         return {
@@ -294,7 +294,7 @@ export async function validateMoveDestination(
       }
 
       // ── Height ─────────────────────────────────────────────────────────────
-      const palletH = Number(product.pallet_height_cm ?? 0);
+      const palletH = Number(product.height ?? 0);
       const locH = Number((location as any).max_height ?? (location as any).max_pallet_height_cm ?? 0);
       if (palletH > 0 && locH > 0 && palletH > locH) {
         return {

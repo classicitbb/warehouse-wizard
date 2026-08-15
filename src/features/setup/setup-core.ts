@@ -14,6 +14,21 @@ export function createDefaultWarehouseSetupPayload(): WarehouseSetupPayload {
   return { warehouses: [], zones: [], locationTemplates: [] };
 }
 
+/**
+ * Resolve the pallet capacity stored on a location.
+ *
+ * Older location rows can retain a zero max_pallets value while depth still
+ * contains the real capacity. A non-positive max_pallets must not mask that
+ * usable depth value.
+ */
+export function resolveLocationCapacity(maxPallets: unknown, depth: unknown): number {
+  const configuredMax = Number(maxPallets);
+  if (Number.isFinite(configuredMax) && configuredMax > 0) return configuredMax;
+
+  const configuredDepth = Number(depth);
+  return Number.isFinite(configuredDepth) && configuredDepth > 0 ? configuredDepth : 0;
+}
+
 export function createBlankWarehouse(): WarehouseSetupWarehouse {
   return { code: "", name: "", city: "", country: "", hasCoolZone: false };
 }

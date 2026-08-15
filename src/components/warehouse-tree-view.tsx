@@ -39,6 +39,7 @@ import {
   displayRackLocationCode,
   bayCodeFromLocationCode,
   getStoredPalletCounts,
+  resolveLocationCapacity,
   updateRecord, upsertRecord,
 } from "@/lib/wms-core";
 import { LocationLabelPage } from "@/components/location-label-page";
@@ -378,7 +379,7 @@ function emptyFillStats(): FillStats {
 }
 
 function locationFillStats(location: LocationRow, occupied = 0): FillStats {
-  const capacity = Number(location.max_pallets ?? location.depth ?? 0);
+  const capacity = resolveLocationCapacity(location.max_pallets, location.depth);
   return {
     occupied: Number.isFinite(occupied) ? Math.max(0, occupied) : 0,
     capacity: Number.isFinite(capacity) ? Math.max(0, capacity) : 0,
