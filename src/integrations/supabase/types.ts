@@ -4192,6 +4192,14 @@ export type Database = {
           putaway_task_number: string
         }[]
       }
+      complete_inventory_pallet_correction_in_place: {
+        Args: { in_draft_id: string; in_quantity: number }
+        Returns: {
+          inventory_balance_id: string
+          pallet_barcode: string
+          pallet_id: string
+        }[]
+      }
       confirm_pick_task: {
         Args: {
           in_allow_quantity_anomaly?: boolean
