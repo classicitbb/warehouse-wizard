@@ -5,6 +5,7 @@ import {
   getStoredPalletCount,
   validatePutawayAssignment,
   formatSupabaseError,
+  DB_RETIRED_INVENTORY_STATUS_FILTER,
   type TemperatureClass,
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
