@@ -183,8 +183,11 @@ if (!isInIframe && !isPreviewHost) {
   // both the SW unregister and cache deletion have actually completed,
   // and the reload guard is keyed on the current build version so a new
   // deploy is allowed to trigger another cleanup reload.
+  // NOTE: we never reload or rewrite the URL here. Inside the Lovable preview
+  // iframe a programmatic reload / history rewrite makes the preview proxy
+  // re-fetch the (token-bearing) preview URL, which intermittently fails and
+  // shows the generic "cloud" error page instead of the app.
   void (async () => {
-    let removedSomething = false;
     try {
       if ("serviceWorker" in navigator) {
         // Ask any controlling SW to step aside before we unregister it.
@@ -195,51 +198,17 @@ if (!isInIframe && !isPreviewHost) {
         }
         const regs = await navigator.serviceWorker.getRegistrations();
         if (regs.length > 0) {
-          removedSomething = true;
           await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
         }
       }
       if ("caches" in window) {
         const names = await caches.keys();
         if (names.length > 0) {
-          removedSomething = true;
           await Promise.all(names.map((n) => caches.delete(n).catch(() => false)));
         }
       }
     } catch {
       /* no-op */
     }
-    if (removedSomething) {
-      const RELOAD_KEY = `__lovable_sw_reloaded_v_${String(__APP_VERSION__)}`;
-      if (!sessionStorage.getItem(RELOAD_KEY) && !isActiveWorkInProgress()) {
-        sessionStorage.setItem(RELOAD_KEY, "1");
-        window.location.reload();
-      } else if (!sessionStorage.getItem(RELOAD_KEY)) {
-        // Defer reload until operator finishes current scan/confirm flow.
-        const tryReload = () => {
-          if (isActiveWorkInProgress()) return;
-          document.removeEventListener("visibilitychange", tryReload);
-          window.removeEventListener("focus", tryReload);
-          if (sessionStorage.getItem(RELOAD_KEY)) return;
-          sessionStorage.setItem(RELOAD_KEY, "1");
-          window.location.reload();
-        };
-        document.addEventListener("visibilitychange", tryReload);
-        window.addEventListener("focus", tryReload);
-      }
-    }
   })();
-
-  // Bust HTTP cache for the app shell on every preview load by appending
-  // a build/version query to the document URL when missing. This ensures
-  // any intermediate caches treat each preview session as a fresh fetch.
-  try {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("v")) {
-      url.searchParams.set("v", String(__APP_VERSION__) + "-" + Date.now());
-      window.history.replaceState({}, "", url.toString());
-    }
-  } catch {
-    /* no-op */
-  }
 }

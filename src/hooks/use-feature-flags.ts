@@ -111,7 +111,14 @@ function saveFlags(flags: Record<ModuleKey, boolean>) {
 export function sanitizeToolbarModules(value: unknown): ModuleKey[] {
   if (!Array.isArray(value)) return [...DEFAULT_TOOLBAR_MODULES];
   const isVersioned = value.includes(TOOLBAR_PREFERENCE_MARKER);
-  const modules = Array.from(new Set(value.filter((key): key is ModuleKey => typeof key === "string" && key in STARTER_MODULES && !DISABLED_MODULES.has(key))));
+  const modules = Array.from(
+    new Set(
+      value.filter(
+        (key): key is ModuleKey =>
+          typeof key === "string" && key in STARTER_MODULES && !DISABLED_MODULES.has(key as ModuleKey),
+      ),
+    ),
+  );
   if (isVersioned) return modules.slice(0, MAX_TOOLBAR_MODULES);
   return (["dashboard", ...modules.filter((key) => key !== "dashboard")] as ModuleKey[]).slice(0, MAX_TOOLBAR_MODULES);
 }
