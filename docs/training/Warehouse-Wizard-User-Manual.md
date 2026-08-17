@@ -2,8 +2,8 @@
 document_id: WW-UM-001
 title: Warehouse Wizard User Manual
 product_version: "1.27"
-revision: "1.0"
-effective_date: "2026-08-10"
+revision: "1.1"
+effective_date: "2026-08-17"
 audience: [warehouse_operator, inventory_clerk, warehouse_supervisor, warehouse_manager, admin, dispatch_driver]
 canonical_help_source: src/lib/help-content.ts
 retrieval_note: Use the stable HELP and SOP identifiers when citing this manual in an AI answer.
@@ -21,8 +21,9 @@ Warehouse Wizard gives those familiar decisions a shared place to live. It recor
 
 **Document:** WW-UM-001  
 **Product:** Warehouse Wizard 1.27  
-**Revision:** 1.0  
-**Effective:** 10 August 2026  
+**Revision:** 1.1
+
+**Effective:** 17 August 2026
 **Owner:** {{DOCUMENT_OWNER}}  
 **Approved by:** {{APPROVER}}  
 **Support / escalation:** {{SUPPORT_CONTACT}}
@@ -31,7 +32,7 @@ Warehouse Wizard gives those familiar decisions a shared place to live. It recor
 
 ## 1. Purpose and operating principle
 
-Warehouse Wizard controls pallet-level warehouse work from receipt through storage, picking, transfer, counting, status control, and reporting. It is designed around one principle:
+Warehouse Wizard controls pallet-level warehouse work from receipt through storage, picking, same-warehouse moves, counting, status control, and reporting. Cross-warehouse Transfers are temporarily disabled while that workflow is being reviewed. The system is designed around one principle:
 
 > **See the work, confirm the physical pallet or location, record the action once, and leave a clear handoff for the next person.**
 
@@ -65,7 +66,7 @@ Anything outside those conditions is an exception, not an invitation to improvis
 |---|---|---|
 | Warehouse Operator | Execute directed work and stop on exceptions | Put-Away, Pick Execution, Location Moves, Cycle Counts, Inventory Search |
 | Inventory Clerk | Receive stock, maintain product data, investigate inventory, control status | Receiving, Products, Packaging Profiles, Inventory Search, Cycle Counts, Statuses |
-| Dispatch Driver | Confirm transfer departure and destination handoff | Transfers |
+| Dispatch Driver | Support approved dispatch handoffs; cross-warehouse Transfers are currently unavailable | Assigned dispatch procedures |
 | Warehouse Supervisor | Allocate work, resolve exceptions, review counts, coach standard work | Dashboard, operational modules, Cycle Counts, Statuses, System Log |
 | Warehouse Manager | Plan work, release pick lists, monitor flow, manage structure and access | Dashboard, Reports, Pick Lists, Settings, Users & Roles, System Log |
 | Admin | Configure the environment and administer access | All modules, Setup Wizard, Reset, integrations, logs |
@@ -195,7 +196,7 @@ Use short, stable warehouse codes. Keep receiving, put-away/staging, picking, di
 
 ### 6.2 Locations and labels {#help-location-generation}
 
-Location hierarchy is Warehouse > Zone > Aisle > Bay > Level > Depth/Position. A rack label identifies an exact cell, for example `A-05-L05` or `A-05-L05-P1`. A bay label omits level/position and opens the bay grid.
+Location hierarchy is Warehouse > Zone > Aisle > Bay > Level > Position/Depth. A rack label identifies an exact cell, for example `A-05-L05` or `A-05-L05-P1`. A bay label omits level/position and opens the bay grid. **Position** distinguishes side-by-side cells at a bay level; **depth** is how many pallets that location can hold front-to-back and is used as location capacity when an older capacity value is blank or zero.
 
 Sequence locations to match the walking path. Set realistic capacity and mixed-stock rules. Whenever a code changes, print and install the new physical label before releasing work.
 
@@ -269,6 +270,20 @@ Use a draft when the physical shipment is present but the transaction cannot be 
 
 **Done when:** every physical pallet has one matching label/record and a downstream Put-Away task or documented controlled exception.
 
+### 7.5 Correct a stored pallet returned from Inventory
+
+Authorized clerks, supervisors, managers, and admins can start a controlled correction from **Inventory Detail > Edit & return to Receiving**. Use this only after confirming the physical pallet, its live location, and that no quantity is reserved or allocated.
+
+1. Open the pallet in Inventory Detail and select **Edit & return to Receiving**.
+2. The original pallet is held out of active Inventory while its correction draft opens in Receiving. The product is locked so the correction cannot silently change the SKU.
+3. Correct the quantity per pallet and/or expiry date using the verified physical information.
+4. Confirm whether the pallet is still physically at its former stored location.
+5. If only quantity changed and the pallet remains in that exact location, select **Update & Close**. The same pallet identity, barcode, location, and history are preserved; no label is reprinted.
+6. If expiry changed, or the pallet is no longer at the former location, use **Print & Receive pallet**. Attach the replacement label and complete the directed Put-Away task before attempting a Location Move.
+7. If the correction should not continue, select **Cancel**. The original pallet is restored to Inventory.
+
+Do not correct a reserved/allocated pallet, a pallet already in correction, or a pallet whose physical location cannot be confirmed. A quantity-only update is never permission to change product identity or erase movement history.
+
 ## 8. Directed Put-Away {#help-putaway-flow}
 
 **Parallel Help ID:** `putaway-flow`  
@@ -293,6 +308,8 @@ Two confirmations are essential: pallet identity and exact location. A bay code 
 
 If the pallet or receipt needs correction, use **Save as Draft / Return to Receiving** when authorized. The task leaves the active Put-Away queue and creates a Saved Draft in Receiving. Keep the physical pallet in the receiving area and tell the clerk why it was returned.
 
+When several Put-Away tasks from the same receipt need the same correction handoff, use the available batch return selection rather than reopening each task separately. Review every selected pallet before confirming. A returned or cancelled task must no longer remain in the active Put-Away queue.
+
 ### 8.3 Put-Away exceptions
 
 Stop if the cell is inactive, full, blocked, unsafe, or temperature-incompatible. Use another eligible cell only through the provided bay selection/override process and with the required reason. If the device disconnected, refresh the task and destination after reconnect; do not trust a pre-disconnect location.
@@ -304,15 +321,16 @@ Stop if the cell is inactive, full, blocked, unsafe, or temperature-incompatible
 **Parallel Help ID:** `inventory-search`  
 **Normal users:** All approved operational roles.
 
-Search by SKU, pallet, lot, warehouse, zone, or location. Open Inventory Detail to inspect quantity, status, owner, lot/expiry, current location, and movement history.
+Search by SKU, product name, pallet, lot, warehouse, zone, or location. The results identify stock in the practical order **SKU → Product → Pallet**, followed by the remaining stock and location detail. Open Inventory Detail to inspect quantity, status, owner, lot/expiry, current location, and movement history.
 
 Use Inventory Search before:
 
 - substituting or reassigning a pallet;
 - correcting a location;
 - changing status;
+- beginning an authorized pallet correction;
 - investigating a short or missing pick;
-- dispatching a transfer;
+- preparing an approved manual cross-warehouse handoff while Transfers remain disabled;
 - resolving a count variance.
 
 Filters matter: held or quarantined stock may be excluded from normal availability. Never treat a dashboard total or memory as the live pallet record.
@@ -359,7 +377,7 @@ Do not split a pallet or type a smaller quantity simply to finish the task.
 ## 11. Location Moves {#help-location-move-flow}
 
 **Parallel Help ID:** `location-move-flow`  
-Use when a pallet changes location inside the same warehouse. Use Transfers when it changes warehouse.
+Use only when a stored pallet changes location inside the same warehouse. Cross-warehouse Transfers are temporarily disabled; follow the manager-approved manual containment and escalation procedure instead of trying to represent that movement as a Location Move.
 
 1. Verify the active warehouse.
 2. Open Location Moves and scan/type the pallet.
@@ -371,35 +389,31 @@ Use when a pallet changes location inside the same warehouse. Use Transfers when
 
 Cancel queued or in-progress moves when plans change. If a move was posted to the wrong bin, perform a controlled corrective move; do not edit history away.
 
+The system blocks pallets that are still in Receiving or have not completed Put-Away. It also blocks terminal pallet states such as Shipped, Cancelled, Retired, and Missing. Complete the correct upstream workflow or resolve the status with a supervisor; do not create a second pallet or use another screen to bypass the block.
+
 ## 12. Warehouse Transfers {#help-transfer-flow}
 
 **Parallel Help ID:** `transfer-flow`  
-Transfers preserve pallet and lot identity across warehouse boundaries.
+**Current availability:** Temporarily disabled for all users.
 
-### 12.1 Create and stage
+The Transfers module normally preserves pallet and lot identity across warehouse boundaries, but it is not currently available for live operations. Opening the route shows a disabled notice, saved toolbar preferences cannot restore it, and transfer actions are blocked centrally.
 
-1. Manager/clerk confirms source, destination, pallet, lot, route, and destination readiness.
-2. Create the transfer.
-3. Stage the correct pallet in the dispatch area.
-4. Resolve mismatches before loading.
+Until the module is re-enabled through an approved release:
 
-### 12.2 Dispatch and driver sign-off
+1. Do not use Location Moves to imitate a cross-warehouse transfer.
+2. Keep the pallet controlled at its verified source location or designated dispatch holding area.
+3. Notify the warehouse manager and use the site-approved manual movement, paperwork, and reconciliation process.
+4. Reconcile the physical pallet and Inventory Search record before normal system work resumes.
 
-1. Scan/verify the pallet and transfer.
-2. Load the correct vehicle.
-3. Driver scans badge or enters user code.
-4. Confirm departure only after the pallet physically leaves.
-5. Verify status is in-transit.
+### 12.1 What users will see
 
-### 12.3 Receive at destination
+- Transfers is removed from normal enabled-module navigation.
+- Opening `/transfers` directly shows **Transfers are temporarily disabled**.
+- Create, dispatch, receive, cancel, and list operations reject transfer work.
 
-1. Select the destination warehouse.
-2. Open the inbound transfer.
-3. Verify pallet and lot identity and condition.
-4. Receive the pallet.
-5. Immediately hand it to directed Put-Away.
+### 12.2 Manager response
 
-Never leave transferred stock physically in a receiving lane while the system suggests it is stored.
+Keep the physical pallet, paperwork, authorization, departure/arrival evidence, and reconciliation owner explicit. Never leave cross-warehouse stock physically in a receiving or dispatch lane while its system record suggests a different location or availability. Record the exception and obtain an approved reconciliation before releasing dependent picks, counts, or moves.
 
 ## 13. Cycle Counts {#help-cycle-counts}
 
@@ -659,7 +673,8 @@ This section provides the normal orientation for every current application modul
 
 **Purpose:** Define the exact physical cells used by directed Put-Away, picking, moves, counts, and occupancy reporting.  
 **Normal users:** Admins and warehouse managers; operational roles consume the labels.  
-**Normal use:** Maintain aisle, bay, level, position/depth, capacity, sequence, status, and scan code; print exact-cell and bay labels.  
+**Normal use:** Maintain aisle, bay, level, side-by-side position, front-to-back depth/capacity, sequence, status, and scan code; print exact-cell and bay labels. Warehouse Structure occupancy uses the configured capacity and falls back to depth when older capacity data is blank or zero.
+
 **Handoff:** Warehouse Structure verifies the hierarchy; operators scan locations in execution modules.  
 **Avoid:** Releasing work to inactive/full cells or changing a code without replacing the physical label.
 
@@ -683,7 +698,8 @@ This section provides the normal orientation for every current application modul
 
 **Purpose:** Create receipts, shipment drafts, pallet identities, lot/expiry context, labels, and downstream Put-Away work.  
 **Normal users:** Admins, managers, and inventory clerks.  
-**Normal use:** Confirm warehouse/container/PO; scan and commit product; enter physical quantities and trace fields; verify; receive once; print labels; release Put-Away.  
+**Normal use:** Confirm warehouse/container/PO; scan and commit product; enter physical quantities and trace fields; verify; receive once; print labels; release Put-Away. For an authorized Inventory pallet correction, keep the product locked, correct quantity/expiry, confirm the pallet's physical location, then update in place or print a replacement label as directed.
+
 **Handoff:** Labeled pallets and tasks move to Put-Away; incomplete work remains an identifiable Saved Draft in the receiving area.  
 **Avoid:** Skipping the product commit arrow, accepting a learned suggestion without counting, guessed SKUs, or posting offline.
 
@@ -699,7 +715,8 @@ This section provides the normal orientation for every current application modul
 
 **Purpose:** Show the live pallet, quantity, status, ownership, lot, location, and movement record.  
 **Normal users:** All approved operational roles.  
-**Normal use:** Search by pallet, SKU, lot, warehouse, zone, or location; open detail and history; compare with the physical floor before acting.  
+**Normal use:** Search by pallet, SKU, product name, lot, warehouse, zone, or location; read SKU, Product, then Pallet in the results; open detail and history; compare with the physical floor before acting. Authorized users can return an eligible, unreserved stored pallet to Receiving for controlled correction.
+
 **Handoff:** Use the verified record to justify a pick, move, transfer, status change, count, or correction.  
 **Avoid:** Ignoring filters or acting from a dashboard snapshot, memory, or stale paper.
 
@@ -713,17 +730,22 @@ This section provides the normal orientation for every current application modul
 
 ## 24.12 Transfers {#module-transfers}
 
-**Purpose:** Move pallet identity between warehouses with source, in-transit, destination, and driver handoff history.  
-**Normal users:** Admins, managers, clerks, supervisors, and dispatch drivers.  
-**Normal use:** Create and stage; verify pallet/route; obtain driver departure sign-off; dispatch; receive at destination; trigger Put-Away.  
-**Handoff:** Destination Receiving and Put-Away complete the transfer journey.  
-**Avoid:** Using Transfers for a same-warehouse relocation, signing before physical departure, or leaving received stock invisible in a lane.
+**Purpose:** Preserve pallet identity between warehouses with source, in-transit, destination, and driver handoff history.
+
+**Current state:** Temporarily disabled for every role; the route and transfer operations show or enforce that state.
+
+**Current use:** None. Managers must use the approved manual containment, movement, paperwork, and reconciliation process until a release explicitly re-enables the module.
+
+**Handoff:** Reconcile the physical pallet and Inventory Search record before resuming system work.
+
+**Avoid:** Using Location Moves to imitate a transfer or attempting to restore the module through saved navigation preferences.
 
 ## 24.13 Location Moves {#module-location-moves}
 
 **Purpose:** Relocate a pallet inside the same warehouse while preserving identity and audit history.  
 **Normal users:** Admins, managers, inventory clerks, supervisors, and operators.  
-**Normal use:** Scan pallet; verify live state; scan/type/Browse bays; choose exact eligible destination; move; confirm once.  
+**Normal use:** Scan a stored pallet; verify live state; scan/type/Browse bays; choose exact eligible destination; move; confirm once. Pallets still in Receiving/not put away and terminal states are blocked.
+
 **Handoff:** Inventory Search shows the destination; queued/in-progress work may be cancelled when plans change.  
 **Avoid:** Using a Move across warehouses, posting into a disabled/full/incompatible cell, or treating a bay as final.
 
@@ -800,6 +822,15 @@ This section provides the normal orientation for every current application modul
 **Avoid:** Running without the physical design, accepting inconsistent codes, or treating the wizard as a routine correction tool after go-live.
 
 ## 25. Revision and source map
+
+### Revision 1.1 — 17 August 2026
+
+- Added the controlled Inventory pallet correction workflow, including quantity-only **Update & Close**, expiry/relabel handling, cancellation, and Put-Away requirements.
+- Documented batch return from Put-Away to Receiving and removal of returned/cancelled tasks from the active queue.
+- Added Product identification in Inventory Search and the **SKU → Product → Pallet** result order.
+- Documented Location Move blocks for not-yet-put-away and terminal pallets.
+- Marked cross-warehouse Transfers as temporarily disabled and supplied the approved escalation principle.
+- Clarified location position versus depth/capacity and Warehouse Structure occupancy behavior.
 
 This manual is parallel to the in-app Help Center and expands it into role-based standard work. Product-specific behavior was mapped from:
 
