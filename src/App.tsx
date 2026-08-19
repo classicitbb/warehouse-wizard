@@ -18,7 +18,7 @@ import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-import { beginInventoryPalletCorrection, buildBayOccupancyGrid, confirmPickTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
+import { beginInventoryPalletCorrection, buildBayOccupancyGrid, confirmPickTask, createPickShortfallTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
 import { clearPickTaskResumeSnapshot, loadPickTaskResumeSnapshot, savePickTaskResumeSnapshot } from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
