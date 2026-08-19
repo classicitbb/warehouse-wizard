@@ -1884,6 +1884,7 @@ function PickTaskCard({
     quantity: number;
     override?: boolean;
     confirmSourceOverride?: boolean;
+    allowSourceQuantityVariance?: boolean;
     pickListCode: string;
   }) => void;
   isPending: boolean;
@@ -2240,14 +2241,31 @@ function PickTaskCard({
                     />
                     <BarcodeScanButton title="Scan alternate pallet barcode" disabled={isPending} onScan={previewAlternate} />
                   </div>
-                  {alternatePreview ? (
+                  {alternatePreview ? (() => {
+                    const scannedQty = Number(alternatePreview.scanned_available_quantity ?? alternatePreview.requested_quantity);
+                    const variance = Boolean(alternatePreview.quantity_variance);
+                    const delta = scannedQty - Number(alternatePreview.requested_quantity ?? 0);
+                    return (
                     <div className="grid gap-2 rounded-md border border-amber-400 bg-amber-100/70 p-3 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100">
-                      <p><CheckCircle2 className="mr-1 inline h-4 w-4" />SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> and full-pallet quantity <span className="font-mono font-semibold">{formatNumber(alternatePreview.requested_quantity)}</span> match this pick task.</p>
+                      {variance ? (
+                        <p>
+                          <AlertTriangle className="mr-1 inline h-4 w-4" />
+                          SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> matches, but this pallet holds{" "}
+                          <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> versus the requested{" "}
+                          <span className="font-mono font-semibold">{formatNumber(alternatePreview.requested_quantity)}</span>
+                          {" "}({delta > 0 ? `${formatNumber(delta)} over` : `${formatNumber(Math.abs(delta))} short`}). The whole pallet will be
+                          picked and the variance recorded on the task.
+                        </p>
+                      ) : (
+                        <p><CheckCircle2 className="mr-1 inline h-4 w-4" />SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> and full-pallet quantity <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> match this pick task.</p>
+                      )}
                       <p>Directed: <span className="font-mono">{palletBarcode}</span> at <span className="font-mono">{locationCode}</span></p>
                       <p>Found: <span className="font-mono">{alternatePreview.scanned_pallet_barcode}</span> at <span className="font-mono">{alternatePreview.scanned_location_code}</span></p>
                       {!alternateArmed ? (
                         <Button type="button" variant="outline" className="w-fit border-amber-500" onClick={() => setAlternateArmed(true)}>
-                          Override source
+                          {variance
+                            ? `Override & pick ${formatNumber(scannedQty)} (requested ${formatNumber(alternatePreview.requested_quantity)})`
+                            : "Override source"}
                         </Button>
                       ) : (
                         <div className="flex flex-wrap items-center gap-2">
@@ -2259,9 +2277,10 @@ function PickTaskCard({
                               taskId: task.id,
                               locationCode: alternatePreview.scanned_location_code,
                               palletBarcode: alternatePreview.scanned_pallet_barcode,
-                              quantity: alternatePreview.requested_quantity,
+                              quantity: scannedQty,
                               pickListCode,
                               confirmSourceOverride: true,
+                              allowSourceQuantityVariance: variance,
                             })}
                           >
                             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -2270,7 +2289,8 @@ function PickTaskCard({
                         </div>
                       )}
                     </div>
-                  ) : null}
+                    );
+                  })() : null}
                   <Button type="button" variant="ghost" className="w-fit" onClick={() => { setAlternateMode(false); setAlternatePreview(null); setAlternateArmed(false); }}>
                     Cancel alternate pallet
                   </Button>
