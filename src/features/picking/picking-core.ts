@@ -212,6 +212,9 @@ export class PickQuantityAnomalyError extends Error {
 export type PickSourcePreview = {
   sku: string;
   requested_quantity: number;
+  scanned_available_quantity: number;
+  quantity_variance: boolean;
+  variance_delta: number;
   directed_pallet_id: string;
   directed_location_id: string | null;
   scanned_pallet_id: string;
@@ -238,6 +241,7 @@ export async function confirmPickTask(
   confirmedQuantity: number,
   allowQuantityAnomaly = false,
   confirmSourceOverride = false,
+  allowSourceQuantityVariance = false,
 ) {
   const { data, error } = await (supabase.rpc as any)("confirm_pick_task", {
     in_task_id: taskId,
@@ -246,6 +250,7 @@ export async function confirmPickTask(
     in_confirmed_quantity: confirmedQuantity,
     in_allow_quantity_anomaly: allowQuantityAnomaly,
     in_confirm_source_override: confirmSourceOverride,
+    in_allow_source_quantity_variance: allowSourceQuantityVariance,
   });
   if (!error) return data;
 
@@ -259,6 +264,19 @@ export async function confirmPickTask(
     );
   }
   throw new Error(message);
+}
+
+/**
+ * Creates a follow-up pick task on the same order line for the quantity still
+ * outstanding after an operator substituted a smaller alternate pallet.
+ */
+export async function createPickShortfallTask(taskId: string, quantity: number) {
+  const { data, error } = await (supabase.rpc as any)("create_pick_shortfall_task", {
+    in_task_id: taskId,
+    in_quantity: quantity,
+  });
+  if (error) throw new Error(String(error.message ?? error.details ?? "Could not create the follow-up pick task."));
+  return data as { task_id: string; task_number: string; pallet_found: boolean };
 }
 
 export async function cancelPickList(pickListId: string, reason?: string) {

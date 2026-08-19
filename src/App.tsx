@@ -18,7 +18,7 @@ import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-import { beginInventoryPalletCorrection, buildBayOccupancyGrid, confirmPickTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
+import { beginInventoryPalletCorrection, buildBayOccupancyGrid, confirmPickTask, createPickShortfallTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
 import { clearPickTaskResumeSnapshot, loadPickTaskResumeSnapshot, savePickTaskResumeSnapshot } from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
@@ -1520,6 +1520,7 @@ function PickExecutionPage() {
   const taskLocationRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [confirmErrorNonceByTask, setConfirmErrorNonceByTask] = useState<Record<string, number>>({});
   const [pickAnomalyByTask, setPickAnomalyByTask] = useState<Record<string, { availableQuantity: number; requestedQuantity: number } | undefined>>({});
+  const [shortfallPrompt, setShortfallPrompt] = useState<{ taskId: string; quantity: number } | null>(null);
 
   const focusNextOpen = useCallback((justConfirmedId: string) => {
     const list = tasks;
@@ -1541,6 +1542,7 @@ function PickExecutionPage() {
       quantity,
       override,
       confirmSourceOverride,
+      allowSourceQuantityVariance,
       pickListCode,
     }: {
       taskId: string;
@@ -1549,11 +1551,20 @@ function PickExecutionPage() {
       quantity: number;
       override?: boolean;
       confirmSourceOverride?: boolean;
+      allowSourceQuantityVariance?: boolean;
       pickListCode: string;
     }) => {
       assertOnline();
       try {
-        await confirmPickTask(taskId, pickListCode, palletBarcode, quantity, Boolean(override), Boolean(confirmSourceOverride));
+        return await confirmPickTask(
+          taskId,
+          pickListCode,
+          palletBarcode,
+          quantity,
+          Boolean(override),
+          Boolean(confirmSourceOverride),
+          Boolean(allowSourceQuantityVariance),
+        );
       } catch (err) {
         if (isLikelyNetworkError(err)) {
           throw new Error(OFFLINE_WORK_MESSAGE);
@@ -1561,7 +1572,7 @@ function PickExecutionPage() {
         throw err;
       }
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result: any, variables) => {
       setPickAnomalyByTask((current) => {
         if (!(variables.taskId in current)) return current;
         const next = { ...current };
@@ -1581,6 +1592,11 @@ function PickExecutionPage() {
         queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
       ]);
+      const shortfall = Number(result?.shortfall ?? 0);
+      if (shortfall > 0) {
+        setShortfallPrompt({ taskId: variables.taskId, quantity: shortfall });
+        return;
+      }
       setTimeout(() => focusNextOpen(variables.taskId), 300);
     },
     onError: (error, variables) => {
@@ -1636,6 +1652,24 @@ function PickExecutionPage() {
       navigate(toPath("/pick-lists"));
     },
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not mark complete"),
+  });
+
+  const shortfallMutation = useMutation({
+    mutationFn: async ({ taskId, quantity }: { taskId: string; quantity: number }) =>
+      createPickShortfallTask(taskId, quantity),
+    onSuccess: async (result: any) => {
+      setShortfallPrompt(null);
+      if (result?.pallet_found) {
+        alertToast.success(`Follow-up pick task ${result.task_number} created for the shortfall`);
+      } else {
+        alertToast.attention(`No available pallet found — ${result?.task_number ?? "the follow-up task"} was raised as an exception.`);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
+        queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
+      ]);
+    },
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not create the follow-up pick task"),
   });
 
   const allTasksClosed = tasks.length > 0 && tasks.every((t) => !PICK_OPEN_STATUSES.has(t.status));
@@ -1706,6 +1740,29 @@ function PickExecutionPage() {
           </Card>
         )}
       </div>
+      <Dialog open={Boolean(shortfallPrompt)} onOpenChange={(open) => { if (!open) setShortfallPrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Shortfall of {formatNumber(shortfallPrompt?.quantity ?? 0)}</DialogTitle>
+            <DialogDescription>
+              The pallet you picked was smaller than the requested quantity. Pick another pallet to make up the remaining
+              {" "}{formatNumber(shortfallPrompt?.quantity ?? 0)}, or leave the line short as is.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" disabled={shortfallMutation.isPending} onClick={() => setShortfallPrompt(null)}>
+              Leave as is
+            </Button>
+            <Button
+              disabled={shortfallMutation.isPending}
+              onClick={() => shortfallPrompt && shortfallMutation.mutate(shortfallPrompt)}
+            >
+              {shortfallMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Pick another pallet
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
@@ -1827,6 +1884,7 @@ function PickTaskCard({
     quantity: number;
     override?: boolean;
     confirmSourceOverride?: boolean;
+    allowSourceQuantityVariance?: boolean;
     pickListCode: string;
   }) => void;
   isPending: boolean;
@@ -2183,14 +2241,31 @@ function PickTaskCard({
                     />
                     <BarcodeScanButton title="Scan alternate pallet barcode" disabled={isPending} onScan={previewAlternate} />
                   </div>
-                  {alternatePreview ? (
+                  {alternatePreview ? (() => {
+                    const scannedQty = Number(alternatePreview.scanned_available_quantity ?? alternatePreview.requested_quantity);
+                    const variance = Boolean(alternatePreview.quantity_variance);
+                    const delta = scannedQty - Number(alternatePreview.requested_quantity ?? 0);
+                    return (
                     <div className="grid gap-2 rounded-md border border-amber-400 bg-amber-100/70 p-3 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100">
-                      <p><CheckCircle2 className="mr-1 inline h-4 w-4" />SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> and full-pallet quantity <span className="font-mono font-semibold">{formatNumber(alternatePreview.requested_quantity)}</span> match this pick task.</p>
+                      {variance ? (
+                        <p>
+                          <AlertTriangle className="mr-1 inline h-4 w-4" />
+                          SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> matches, but this pallet holds{" "}
+                          <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> versus the requested{" "}
+                          <span className="font-mono font-semibold">{formatNumber(alternatePreview.requested_quantity)}</span>
+                          {" "}({delta > 0 ? `${formatNumber(delta)} over` : `${formatNumber(Math.abs(delta))} short`}). The whole pallet will be
+                          picked and the variance recorded on the task.
+                        </p>
+                      ) : (
+                        <p><CheckCircle2 className="mr-1 inline h-4 w-4" />SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> and full-pallet quantity <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> match this pick task.</p>
+                      )}
                       <p>Directed: <span className="font-mono">{palletBarcode}</span> at <span className="font-mono">{locationCode}</span></p>
                       <p>Found: <span className="font-mono">{alternatePreview.scanned_pallet_barcode}</span> at <span className="font-mono">{alternatePreview.scanned_location_code}</span></p>
                       {!alternateArmed ? (
                         <Button type="button" variant="outline" className="w-fit border-amber-500" onClick={() => setAlternateArmed(true)}>
-                          Override source
+                          {variance
+                            ? `Override & pick ${formatNumber(scannedQty)} (requested ${formatNumber(alternatePreview.requested_quantity)})`
+                            : "Override source"}
                         </Button>
                       ) : (
                         <div className="flex flex-wrap items-center gap-2">
@@ -2202,9 +2277,10 @@ function PickTaskCard({
                               taskId: task.id,
                               locationCode: alternatePreview.scanned_location_code,
                               palletBarcode: alternatePreview.scanned_pallet_barcode,
-                              quantity: alternatePreview.requested_quantity,
+                              quantity: scannedQty,
                               pickListCode,
                               confirmSourceOverride: true,
+                              allowSourceQuantityVariance: variance,
                             })}
                           >
                             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -2213,7 +2289,8 @@ function PickTaskCard({
                         </div>
                       )}
                     </div>
-                  ) : null}
+                    );
+                  })() : null}
                   <Button type="button" variant="ghost" className="w-fit" onClick={() => { setAlternateMode(false); setAlternatePreview(null); setAlternateArmed(false); }}>
                     Cancel alternate pallet
                   </Button>
