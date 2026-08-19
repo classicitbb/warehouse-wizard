@@ -6,7 +6,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc, from: vi.fn() },
 }));
 
-import { confirmPickTask, previewPickSourceOverride } from "@/lib/wms-core";
+import { confirmPickTask, createPickShortfallTask, previewPickSourceOverride } from "@/lib/wms-core";
 
 describe("confirmPickTask", () => {
   beforeEach(() => {
@@ -25,6 +25,32 @@ describe("confirmPickTask", () => {
       in_confirmed_quantity: 10,
       in_allow_quantity_anomaly: false,
       in_confirm_source_override: false,
+      in_allow_source_quantity_variance: false,
+    });
+  });
+
+  it("allows an alternate pallet with a different quantity when the variance is explicitly accepted", async () => {
+    rpc.mockResolvedValue({ data: { confirmed_quantity: 40, quantity_variance: true, shortfall: 20 }, error: null });
+
+    await expect(confirmPickTask("task-1", "PKL-1", "PBC-2", 40, false, true, true)).resolves.toMatchObject({
+      shortfall: 20,
+    });
+
+    expect(rpc).toHaveBeenCalledWith("confirm_pick_task", expect.objectContaining({
+      in_confirmed_quantity: 40,
+      in_confirm_source_override: true,
+      in_allow_source_quantity_variance: true,
+    }));
+  });
+
+  it("creates a follow-up task for the outstanding shortfall", async () => {
+    rpc.mockResolvedValue({ data: { task_id: "task-2", task_number: "PKT-2", pallet_found: true }, error: null });
+
+    await expect(createPickShortfallTask("task-1", 20)).resolves.toMatchObject({ task_number: "PKT-2" });
+
+    expect(rpc).toHaveBeenCalledWith("create_pick_shortfall_task", {
+      in_task_id: "task-1",
+      in_quantity: 20,
     });
   });
 
