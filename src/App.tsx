@@ -1740,6 +1740,29 @@ function PickExecutionPage() {
           </Card>
         )}
       </div>
+      <Dialog open={Boolean(shortfallPrompt)} onOpenChange={(open) => { if (!open) setShortfallPrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Shortfall of {formatNumber(shortfallPrompt?.quantity ?? 0)}</DialogTitle>
+            <DialogDescription>
+              The pallet you picked was smaller than the requested quantity. Pick another pallet to make up the remaining
+              {" "}{formatNumber(shortfallPrompt?.quantity ?? 0)}, or leave the line short as is.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" disabled={shortfallMutation.isPending} onClick={() => setShortfallPrompt(null)}>
+              Leave as is
+            </Button>
+            <Button
+              disabled={shortfallMutation.isPending}
+              onClick={() => shortfallPrompt && shortfallMutation.mutate(shortfallPrompt)}
+            >
+              {shortfallMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Pick another pallet
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
