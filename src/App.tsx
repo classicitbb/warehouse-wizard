@@ -88,6 +88,21 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28",
+    date: "August 2026",
+    changes: [
+      "Pick Execution: alternate-pallet verification now accepts a same-SKU pallet with a different quantity, warning with both numbers before the override is confirmed",
+      "Pick Execution: a short pick now prompts the operator to raise a follow-up task for the remaining quantity or leave the line as is",
+      "Inventory Search: results no longer hide rows behind an unreachable Load more, and long column names are abbreviated with tooltips for narrower columns",
+      "Inventory Detail: Edit & return to Receiving is now available to supervisors and above, and cancelling a pallet correction restores the pallet to its original location",
+      "Location Moves: pallet placement no longer fails on product temperature and height lookups, and receiving-status pallets can be moved",
+      "Receiving: container number and related shipment fields are stored correctly again, and adding or editing products saves without column errors",
+      "Copilot: sessions no longer drop to Not authenticated after a token refresh",
+      "Tables: tighter column padding with fine vertical dividers for denser operational lists",
+      "Platform: preview reload loop fixed, react-router upgraded to 7.18 for security fixes, and anonymous execution revoked on privileged pick database functions",
+    ],
+  },
+  {
     version: "1.27",
     date: "August 2026",
     changes: [
