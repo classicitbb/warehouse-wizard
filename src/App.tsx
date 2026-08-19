@@ -1654,6 +1654,24 @@ function PickExecutionPage() {
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not mark complete"),
   });
 
+  const shortfallMutation = useMutation({
+    mutationFn: async ({ taskId, quantity }: { taskId: string; quantity: number }) =>
+      createPickShortfallTask(taskId, quantity),
+    onSuccess: async (result: any) => {
+      setShortfallPrompt(null);
+      if (result?.pallet_found) {
+        alertToast.success(`Follow-up pick task ${result.task_number} created for the shortfall`);
+      } else {
+        alertToast.attention(`No available pallet found — ${result?.task_number ?? "the follow-up task"} was raised as an exception.`);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
+        queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
+      ]);
+    },
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not create the follow-up pick task"),
+  });
+
   const allTasksClosed = tasks.length > 0 && tasks.every((t) => !PICK_OPEN_STATUSES.has(t.status));
   const listStatus = (data as any)?.pickList?.status ?? (tasks[0] as any)?.pick_lists?.status;
   const listAlreadyClosed = listStatus === "completed" || listStatus === "cancelled";
