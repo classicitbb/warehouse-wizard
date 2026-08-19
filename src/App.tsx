@@ -1520,6 +1520,7 @@ function PickExecutionPage() {
   const taskLocationRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [confirmErrorNonceByTask, setConfirmErrorNonceByTask] = useState<Record<string, number>>({});
   const [pickAnomalyByTask, setPickAnomalyByTask] = useState<Record<string, { availableQuantity: number; requestedQuantity: number } | undefined>>({});
+  const [shortfallPrompt, setShortfallPrompt] = useState<{ taskId: string; quantity: number } | null>(null);
 
   const focusNextOpen = useCallback((justConfirmedId: string) => {
     const list = tasks;
@@ -1541,6 +1542,7 @@ function PickExecutionPage() {
       quantity,
       override,
       confirmSourceOverride,
+      allowSourceQuantityVariance,
       pickListCode,
     }: {
       taskId: string;
@@ -1549,11 +1551,20 @@ function PickExecutionPage() {
       quantity: number;
       override?: boolean;
       confirmSourceOverride?: boolean;
+      allowSourceQuantityVariance?: boolean;
       pickListCode: string;
     }) => {
       assertOnline();
       try {
-        await confirmPickTask(taskId, pickListCode, palletBarcode, quantity, Boolean(override), Boolean(confirmSourceOverride));
+        return await confirmPickTask(
+          taskId,
+          pickListCode,
+          palletBarcode,
+          quantity,
+          Boolean(override),
+          Boolean(confirmSourceOverride),
+          Boolean(allowSourceQuantityVariance),
+        );
       } catch (err) {
         if (isLikelyNetworkError(err)) {
           throw new Error(OFFLINE_WORK_MESSAGE);
@@ -1561,7 +1572,7 @@ function PickExecutionPage() {
         throw err;
       }
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result: any, variables) => {
       setPickAnomalyByTask((current) => {
         if (!(variables.taskId in current)) return current;
         const next = { ...current };
@@ -1581,6 +1592,11 @@ function PickExecutionPage() {
         queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
       ]);
+      const shortfall = Number(result?.shortfall ?? 0);
+      if (shortfall > 0) {
+        setShortfallPrompt({ taskId: variables.taskId, quantity: shortfall });
+        return;
+      }
       setTimeout(() => focusNextOpen(variables.taskId), 300);
     },
     onError: (error, variables) => {
