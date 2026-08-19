@@ -602,6 +602,11 @@ export function formatDate(value: string | null | undefined) {
   return format(new Date(value), "dd MMM yyyy");
 }
 
+export function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  return format(new Date(value), "dd MMM yyyy, HH:mm");
+}
+
 export function formatNumber(value: number | null | undefined) {
   if (value == null) return "0";
   return new Intl.NumberFormat().format(value);

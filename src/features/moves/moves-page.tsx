@@ -73,6 +73,7 @@ import {
   downloadCsvTemplate,
   fetchOptions,
   formatDate,
+  formatDateTime,
   formatNumber,
   getDashboardMetrics,
   getInventoryDetail,
@@ -694,6 +695,8 @@ export function LocationMovesPage() {
                   const toLoc   = displayRackLocationCode((task.to_location   as any)?.code) || "—";
                   const pBarcode = (task.pallets as any)?.pallet_barcode ?? "";
                   const isCancelled = cancelledIds.has(task.id) || task.status === "cancelled";
+                  const performedBy = task.performed_by as string | null;
+                  const performedAt = task.performed_at as string | null;
                   return (
                     <Card key={task.id} className="opacity-60">
                       <CardContent className="flex items-center justify-between gap-4 py-3 px-4">
@@ -705,6 +708,14 @@ export function LocationMovesPage() {
                           <span className="font-mono text-xs">{fromLoc}</span>
                           <ArrowLeftRight className="inline mx-1 h-3 w-3" />
                           <span className="font-mono text-xs">{toLoc}</span>
+                          {(performedBy || performedAt) && (
+                            <>
+                              <span className="mx-2 text-muted-foreground">·</span>
+                              <span className="text-xs text-muted-foreground">
+                                {performedBy ?? "Unknown user"}{performedAt ? ` — ${formatDateTime(performedAt)}` : ""}
+                              </span>
+                            </>
+                          )}
                         </div>
                         <Badge variant={isCancelled ? "destructive" : "default"}>{isCancelled ? "cancelled" : "completed"}</Badge>
                       </CardContent>

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockDb = vi.hoisted(() => ({
   selects: {} as Record<string, Array<{ data: any; error: any }>>,
   updates: [] as Array<{ table: string; payload: Record<string, unknown>; filters: Array<[string, unknown]> }>,
+  updateResults: {} as Record<string, Array<{ data: any; error: any }>>,
   upserts: [] as Array<{ table: string; payload: Record<string, unknown> }>,
   rpcs: [] as Array<{ name: string; args: Record<string, unknown> }>,
 }));
@@ -13,6 +14,10 @@ vi.mock("@/integrations/supabase/client", () => {
       return mockDb.selects[table]?.shift() ?? { data: null, error: null };
     }
     return mockDb.selects[table]?.shift() ?? { data: null, error: new Error(`No ${table} mock`) };
+  }
+
+  function nextUpdateResult(table: string) {
+    return mockDb.updateResults[table]?.shift() ?? { data: [{ id: `${table}-row` }], error: null };
   }
 
   function from(table: string) {
@@ -42,9 +47,13 @@ vi.mock("@/integrations/supabase/client", () => {
           mockDb.updates.push(update);
           return {
             error: null,
+            select: () => nextUpdateResult(table),
             not: (nextColumn: string, operator: string, nextValue: unknown) => {
               update.filters.push([`not:${nextColumn}:${operator}`, nextValue]);
-              return { error: null };
+              return {
+                error: null,
+                select: () => nextUpdateResult(table),
+              };
             },
           };
         },
@@ -80,6 +89,7 @@ describe("location move helpers", () => {
   beforeEach(() => {
     mockDb.selects = {};
     mockDb.updates = [];
+    mockDb.updateResults = {};
     mockDb.upserts = [];
     mockDb.rpcs = [];
   });
@@ -106,20 +116,43 @@ describe("location move helpers", () => {
     });
     expect(mockDb.updates).toEqual([
       {
-        table: "pallets",
-        payload: { current_location_id: "loc-new", current_warehouse_id: "wh-1" },
-        filters: [["id", "pallet-1"]],
-      },
-      {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: null },
         filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
+      },
+      {
+        table: "pallets",
+        payload: { current_location_id: "loc-new", current_warehouse_id: "wh-1" },
+        filters: [["id", "pallet-1"]],
       },
     ]);
     expect(mockDb.rpcs[0]).toMatchObject({
       name: "log_audit_event",
       args: { in_event_type: "move_task_completed", in_entity_table: "move_tasks", in_entity_id: "move-new" },
     });
+  });
+
+  it("throws and leaves the pallet untouched when no inventory balance row matches the move", async () => {
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: "loc-old", warehouse_id: "wh-1" }, error: null }],
+      locations: [{ data: { id: "loc-new" }, error: null }],
+    };
+    mockDb.updateResults = {
+      inventory_balances: [{ data: [], error: null }],
+    };
+
+    await expect(completeDirectMove("PBC-1", "A-01-01")).rejects.toThrow("No active inventory balance found");
+
+    expect(mockDb.updates).toEqual([
+      {
+        table: "inventory_balances",
+        payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: null },
+        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
+      },
+    ]);
+    expect(mockDb.updates.some((update) => update.table === "pallets")).toBe(false);
+    expect(mockDb.upserts).toEqual([]);
+    expect(mockDb.rpcs).toEqual([]);
   });
 
   it("requires a receiving pallet to be put away before it can be moved", async () => {
@@ -185,16 +218,33 @@ describe("location move helpers", () => {
     });
     expect(mockDb.updates).toEqual([
       {
-        table: "pallets",
-        payload: { current_location_id: "loc-new", current_warehouse_id: "wh-1" },
-        filters: [["id", "pallet-1"]],
-      },
-      {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: "zone-a" },
         filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
       },
+      {
+        table: "pallets",
+        payload: { current_location_id: "loc-new", current_warehouse_id: "wh-1" },
+        filters: [["id", "pallet-1"]],
+      },
     ]);
+  });
+
+  it("throws and leaves the task queued when no inventory balance row matches a queued move", async () => {
+    mockDb.selects = {
+      move_tasks: [{ data: { id: "move-1", pallet_id: "pallet-1", status: "queued", warehouse_id: "wh-1" }, error: null }],
+      pallets: [{ data: { id: "pallet-1", pallet_barcode: "PBC-1", current_location_id: "loc-old", warehouse_id: "wh-1", status: "available" }, error: null }],
+      locations: [{ data: { id: "loc-new", warehouse_id: "wh-1", zone_id: "zone-a" }, error: null }],
+    };
+    mockDb.updateResults = {
+      inventory_balances: [{ data: [], error: null }],
+    };
+
+    await expect(completeMoveTask("move-1", "PBC-1", "A-01-01")).rejects.toThrow("No active inventory balance found");
+
+    expect(mockDb.updates.some((update) => update.table === "pallets")).toBe(false);
+    expect(mockDb.updates.some((update) => update.table === "move_tasks")).toBe(false);
+    expect(mockDb.rpcs).toEqual([]);
   });
 
   it("rejects queued completion when the scanned pallet does not match the task", async () => {

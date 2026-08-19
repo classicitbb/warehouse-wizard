@@ -145,7 +145,53 @@ export async function listMoveTasks() {
     .select("*, pallets(pallet_barcode, products(*)), from_location:from_location_id(code, aisle, bay, level, depth), to_location:to_location_id(code, aisle, bay, level, depth)")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return attachMovePerformedBy(data ?? []);
+}
+
+// move_tasks has no completed_by column, but completion/cancellation both write a
+// log_audit_event row (actor_user_id = auth.uid()) — reuse that as the "who" for the
+// completed-moves list instead of adding a redundant column.
+async function attachMovePerformedBy(rows: any[]) {
+  const taskIds = rows.map((row) => row?.id).filter(Boolean);
+  if (taskIds.length === 0) return rows;
+
+  const { data: events, error: eventsError } = await db("audit_events")
+    .select("entity_id, actor_user_id, created_at")
+    .eq("entity_table", "move_tasks")
+    .in("entity_id", taskIds)
+    .in("event_type", ["move_task_completed", "move_task_cancelled"])
+    .order("created_at", { ascending: false });
+  if (eventsError) throw eventsError;
+
+  const latestEventByTask = new Map<string, { actor_user_id: string | null; created_at: string }>();
+  for (const event of (events ?? []) as any[]) {
+    if (!latestEventByTask.has(event.entity_id)) latestEventByTask.set(event.entity_id, event);
+  }
+
+  const actorIds = Array.from(
+    new Set(
+      Array.from(latestEventByTask.values())
+        .map((event) => event.actor_user_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+
+  let profilesById = new Map<string, { full_name: string | null; email: string | null }>();
+  if (actorIds.length > 0) {
+    const { data: profiles, error: profilesError } = await db("profiles").select("id, full_name, email").in("id", actorIds);
+    if (profilesError) throw profilesError;
+    profilesById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+  }
+
+  return rows.map((row: any) => {
+    const event = latestEventByTask.get(row.id);
+    const actor = event?.actor_user_id ? profilesById.get(event.actor_user_id) ?? null : null;
+    return {
+      ...row,
+      performed_by: actor ? actor.full_name || actor.email || null : null,
+      performed_at: event?.created_at ?? row.completed_at ?? null,
+    };
+  });
 }
 
 export async function createMoveTask(palletBarcode: string, toLocationCode: string, reason?: string): Promise<void> {
@@ -350,6 +396,26 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   const warehouseId = getMoveWarehouseId(pallet, toLocation);
   if (!warehouseId) throw new Error("Destination warehouse could not be resolved for this move");
 
+  // Relocate the inventory balance first, and confirm a row actually moved, before
+  // touching the pallet or recording the task as completed. A `.update().eq()` that
+  // matches zero rows returns no error — updating the pallet first let it silently
+  // point at a new location while inventory_balances (what Inventory Search/Detail
+  // reads) stayed behind, so a repeat move to the same spot looked like a no-op.
+  const { data: balanceUpdRows, error: balanceUpdErr } = await db("inventory_balances")
+    .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
+    .eq("pallet_id", pallet.id)
+    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER)
+    .select("id");
+  if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
+  if (!balanceUpdRows?.length) {
+    throw new Error("No active inventory balance found for this pallet — move was not completed. Contact a supervisor to reconcile inventory before retrying.");
+  }
+
+  const { error: palletUpdErr } = await db("pallets")
+    .update({ current_location_id: toLocation.id, current_warehouse_id: warehouseId } as any)
+    .eq("id", pallet.id);
+  if (palletUpdErr) throw moveError(palletUpdErr, "Pallet location update failed");
+
   const completedAt = new Date().toISOString();
   let task;
   try {
@@ -366,17 +432,6 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   } catch (error) {
     throw moveError(error, "Move task creation failed");
   }
-
-  const { error: palletUpdErr } = await db("pallets")
-    .update({ current_location_id: toLocation.id, current_warehouse_id: warehouseId } as any)
-    .eq("id", pallet.id);
-  if (palletUpdErr) throw moveError(palletUpdErr, "Pallet location update failed");
-
-  const { error: balanceUpdErr } = await db("inventory_balances")
-    .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
-    .eq("pallet_id", pallet.id)
-    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER);
-  if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
 
   await (supabase.rpc as any)("log_audit_event", {
     in_event_type: "move_task_completed",
@@ -417,16 +472,23 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   const warehouseId = getMoveWarehouseId(pallet, toLocation, task.warehouse_id);
   if (!warehouseId) throw new Error("Destination warehouse could not be resolved for this move");
 
+  // See completeDirectMove: relocate + verify the inventory balance before the
+  // pallet or task record, so a silently-unmatched update can't leave pallets
+  // and inventory_balances pointing at two different locations.
+  const { data: balanceUpdRows, error: balanceUpdErr } = await db("inventory_balances")
+    .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
+    .eq("pallet_id", pallet.id)
+    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER)
+    .select("id");
+  if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
+  if (!balanceUpdRows?.length) {
+    throw new Error("No active inventory balance found for this pallet — move was not completed. Contact a supervisor to reconcile inventory before retrying.");
+  }
+
   const { error: palletUpdErr } = await db("pallets")
     .update({ current_location_id: toLocation.id, current_warehouse_id: warehouseId } as any)
     .eq("id", pallet.id);
   if (palletUpdErr) throw moveError(palletUpdErr, "Pallet location update failed");
-
-  const { error: balanceUpdErr } = await db("inventory_balances")
-    .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
-    .eq("pallet_id", pallet.id)
-    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER);
-  if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
 
   const { error: taskUpdErr } = await db("move_tasks")
     .update({ status: "completed", to_location_id: toLocation.id, completed_at: new Date().toISOString() } as any)
