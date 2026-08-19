@@ -136,5 +136,7 @@ For UI changes:
 - `2026-05-29` — User-approved Reset All overhaul: requires typed `RESET ALL` challenge, lists implications, and now also removes all non-developer profiles, user_roles, and auth users. Added per-row "Delete permanently" (Trash) action on warehouses/zones/locations/products/clients for admins/developers — guarded by typed `DELETE` challenge and server-side child-reference check that lists blocking tables when blocked.
 - `2026-05-29` — User-approved Setup Wizard audit: wizard now starts from a fully blank payload (no Barbados warehouses, no STG/DSP/QTN/AMB/COOL zones, no location-rule defaults). "Add warehouse / zone / location template" buttons insert truly blank rows. When an existing warehouse environment is detected, the wizard preloads warehouses, zones, and derived location rules for review/extension. Step 5 no longer seeds demo operational data by default — developers can opt in via a switch.
 
+- `2026-08-19` — User-approved v1.28 release: alternate-pallet pick quantity override with shortfall follow-up task, Inventory Search Load more + abbreviated column labels, supervisor access to Edit & return to Receiving, pallet correction cancel restore, Location Moves product-field and receiving-status fixes, receiving container fields, Copilot token-refresh auth fix, denser table padding with vertical dividers, preview reload fix, react-router 7.18 upgrade, and revoked anonymous execute on privileged pick functions.
+
 Append new entries here only when the user explicitly asks to record a UI
 baseline shift.
