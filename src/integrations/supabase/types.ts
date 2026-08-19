@@ -4203,12 +4203,17 @@ export type Database = {
       confirm_pick_task: {
         Args: {
           in_allow_quantity_anomaly?: boolean
+          in_allow_source_quantity_variance?: boolean
           in_confirm_source_override?: boolean
           in_confirmed_quantity: number
           in_pick_list_code: string
           in_scanned_pallet_barcode: string
           in_task_id: string
         }
+        Returns: Json
+      }
+      create_pick_shortfall_task: {
+        Args: { in_quantity: number; in_task_id: string }
         Returns: Json
       }
       delete_client_cascade: { Args: { in_id: string }; Returns: Json }
