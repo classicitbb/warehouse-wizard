@@ -276,10 +276,6 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     }),
   []);
 
-  // The dock is an explicit user opt-in; keep the existing header controls
-  // preview-only until Copilot is generally released.
-  if (variant !== "dock" && !isCopilotPreviewHost()) return null;
->>>>>>> Stashed changes
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
