@@ -170,9 +170,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     [busy, conversationId, messages, pathname, profile?.default_warehouse_id, user?.id],
   );
 
-  // The dock is an explicit user opt-in; keep the existing header controls
-  // preview-only until Copilot is generally released.
-  if (variant !== "dock" && !isCopilotPreviewHost()) return null;
+  // Copilot is generally available on every build and for every signed-in user.
+
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
