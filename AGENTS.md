@@ -61,8 +61,11 @@ When implementing:
    terminology unless changing them is required by the task.
 3. Prefer surgical updates over broad rewrites. If a broader rewrite is truly
    needed, explain why before or while doing it.
-4. Run `bunx tsc --noEmit` (or the harness build) before declaring done when
-   code was changed.
+4. Run `npm run typecheck` (or the harness build) before declaring done when
+   code was changed. Note: plain `tsc --noEmit` compiles **nothing** here — the
+   root `tsconfig.json` is a reference-only project with `"files": []`, so it
+   always exits 0. The `typecheck` script points at `tsconfig.app.json`, which
+   is the config that actually covers `src/**`.
 
 For UI changes:
 

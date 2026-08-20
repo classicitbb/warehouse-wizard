@@ -109,6 +109,8 @@ export function describeInventoryStructureScope(scope: InventoryStructureScope):
   const node = STRUCTURE_NODE_LABELS[scope.node as InventoryStructureNode];
   const prefix = String(scope.locationPrefix ?? "").trim().toUpperCase();
   if (prefix) {
+    // RACK-BAY-LEVEL[-P#]: the fourth segment is the pallet position, which
+    // makes the code a single location rather than the level above it.
     const segments = prefix.split("-").filter(Boolean).length;
     const fallback = segments <= 1 ? "Rack" : segments === 2 ? "Bay" : segments === 3 ? "Level" : "Location";
     return `${node ?? fallback} ${prefix}`;

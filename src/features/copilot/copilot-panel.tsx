@@ -2,13 +2,17 @@
  * copilot-panel.tsx
  *
  * Context-aware side panel for the Warehouse Copilot (draft feature).
- * Read-only: the copilot answers from live records and cites them. It never
- * changes WMS data, and every screen keeps working if this panel errors.
+ *
+ * Read-only over WMS data: the copilot answers from live records and cites
+ * them, and never changes stock, tasks or settings. The one thing it can create
+ * is the operator's own problem report or feedback — it interviews them, then
+ * files a ticket an agent can pick up. Every screen keeps working if this panel
+ * errors.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Bot, History, Loader2, Plus, Send, Sparkle, Square } from "lucide-react";
+import { Bot, History, LifeBuoy, Loader2, MessageSquarePlus, Plus, Send, Sparkle, Square, Ticket } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -23,10 +27,13 @@ import {
   createCopilotConversation,
   loadCopilotConversations,
   loadCopilotMessages,
+  onCopilotReportRequest,
   saveCopilotMessage,
   type CopilotConversation,
   type CopilotMessage,
 } from "@/features/copilot/copilot-core";
+import { recordAction } from "@/lib/habit-tracking";
+import { logErrorTelemetry } from "@/lib/system-telemetry";
 
 const SUGGESTIONS = [
   "What is open for me right now?",
@@ -35,8 +42,42 @@ const SUGGESTIONS = [
   "Give me a shift summary for this warehouse",
 ];
 
+/**
+ * Opening lines for the support flow. They are phrased as the operator, because
+ * that is what actually starts the interview — the copilot's tool descriptions
+ * do the rest. Nothing is filed until the operator confirms.
+ */
+const SUPPORT_PROMPTS = {
+  bug: "Something on this screen is not working right. I want to report it.",
+  feedback: "I want to leave feedback about how this screen works.",
+  mine: "Show me the reports I have filed and where they have got to.",
+} as const;
+
+/** Tool names that mean the copilot touched a report rather than read records. */
+const SUPPORT_TOOLS = new Set([
+  "start_problem_report",
+  "record_report_answer",
+  "submit_problem_report",
+  "list_my_reports",
+]);
+
 function messageId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/**
+ * A dropped transcript write is not worth interrupting the operator over, but
+ * it must not vanish either — a report whose conversation never persisted is
+ * exactly the kind of thing nobody notices until it is needed.
+ */
+function reportSaveFailure(error: unknown, role: "user" | "assistant") {
+  logErrorTelemetry({
+    error,
+    title: "Copilot message was not saved",
+    source: "copilot-panel.saveCopilotMessage",
+    severity: "warning",
+    details: { role },
+  });
 }
 
 export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "mobile" | "dock" }) {
@@ -84,8 +125,26 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       setMessages(await loadCopilotMessages(id));
       setConversationId(id);
       setHistoryOpen(false);
-    } catch {
-      // Keep the current thread intact when a saved conversation cannot be read.
+    } catch (error) {
+      // Keep the current thread intact, but say so — silently doing nothing
+      // reads as a dead button.
+      logErrorTelemetry({
+        error,
+        title: "Copilot conversation could not be opened",
+        source: "copilot-panel.openConversation",
+        severity: "warning",
+        details: { conversationId: id },
+      });
+      setHistoryOpen(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: messageId(),
+          role: "assistant",
+          content: "That saved chat could not be opened. Your current thread is unchanged.",
+          error: true,
+        },
+      ]);
     }
   }, [busy, conversationId]);
 
@@ -93,6 +152,11 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     stoppedRef.current = true;
     abortRef.current?.abort();
   }, []);
+
+  // The report-request listener must always reach the current `send`, but it is
+  // subscribed once — a ref keeps the two apart without re-subscribing on every
+  // keystroke.
+  const sendRef = useRef<(question: string) => Promise<void>>(async () => {});
 
   const send = useCallback(
     async (question: string) => {
@@ -115,8 +179,16 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           activeConversationId = conversation.id;
           setConversationId(conversation.id);
           setConversations((prev) => [conversation, ...prev]);
-        } catch {
-          // The chat still works in preview/demo environments without a persisted session.
+        } catch (error) {
+          // The chat still works in preview/demo environments without a
+          // persisted session, but a report filed in an unsaved thread loses
+          // its transcript — worth knowing about even though it is not fatal.
+          logErrorTelemetry({
+            error,
+            title: "Copilot conversation could not be created",
+            source: "copilot-panel.createConversation",
+            severity: "warning",
+          });
         }
       }
 
@@ -127,7 +199,9 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       const controller = new AbortController();
       abortRef.current = controller;
       if (activeConversationId && user?.id) {
-        void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: userMessage }).catch(() => {});
+        void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: userMessage }).catch(
+          (error: unknown) => reportSaveFailure(error, "user"),
+        );
       }
       try {
         const result = await askCopilot({
@@ -147,7 +221,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
         if (activeConversationId && user?.id) {
           void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: assistantMessage })
             .then(() => loadCopilotConversations(user.id).then(setConversations))
-            .catch(() => {});
+            .catch((error: unknown) => reportSaveFailure(error, "assistant"));
         }
       } catch (error) {
         if (stoppedRef.current || controller.signal.aborted) return;
@@ -169,8 +243,44 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     [busy, conversationId, messages, pathname, profile?.default_warehouse_id, user?.id],
   );
 
+<<<<<<< Updated upstream
   // Copilot is generally available on every build and for every signed-in user.
 
+=======
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
+
+  /** Open the support flow from a button. Starts a fresh thread so the
+   *  interview is not tangled up with whatever was being discussed. */
+  const startSupport = useCallback(
+    (kind: keyof typeof SUPPORT_PROMPTS) => {
+      if (busy) return;
+      recordAction({ action: `copilot.support.${kind}`, route: pathname, outcome: "ok" });
+      setConversationId(null);
+      setMessages([]);
+      setHistoryOpen(false);
+      void sendRef.current(SUPPORT_PROMPTS[kind]);
+    },
+    [busy, pathname],
+  );
+
+  // Anywhere in the app can hand the copilot a problem — the error boundary's
+  // "Report this" button is the main one.
+  useEffect(() =>
+    onCopilotReportRequest((request) => {
+      setOpen(true);
+      setConversationId(null);
+      setMessages([]);
+      setHistoryOpen(false);
+      void sendRef.current(request.message);
+    }),
+  []);
+
+  // The dock is an explicit user opt-in; keep the existing header controls
+  // preview-only until Copilot is generally released.
+  if (variant !== "dock" && !isCopilotPreviewHost()) return null;
+>>>>>>> Stashed changes
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -204,14 +314,25 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             <Badge variant="outline" className="text-[10px] font-medium uppercase">Draft</Badge>
           </SheetTitle>
           <SheetDescription className="text-xs">
-            Read-only. Answers come from live records you have access to and cite them. It never changes data.
+            Answers come from live records you have access to and cite them. It never changes warehouse data —
+            the only thing it files is a report you ask it to file.
           </SheetDescription>
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button type="button" size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs" onClick={() => setHistoryOpen((value) => !value)}>
               <History className="h-3.5 w-3.5" /> History
             </Button>
             <Button type="button" size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs" onClick={startNewChat} disabled={busy}>
               <Plus className="h-3.5 w-3.5" /> New chat
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={() => startSupport("mine")}
+              disabled={busy}
+            >
+              <Ticket className="h-3.5 w-3.5" /> My reports
             </Button>
           </div>
         </SheetHeader>
@@ -238,6 +359,33 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Ask about stock, receipts, put-aways, picks or how a workflow is meant to run.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-auto justify-start gap-2 whitespace-normal py-2 text-left text-xs"
+                  onClick={() => startSupport("bug")}
+                  disabled={busy}
+                >
+                  <LifeBuoy className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                  Report a problem
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-auto justify-start gap-2 whitespace-normal py-2 text-left text-xs"
+                  onClick={() => startSupport("feedback")}
+                  disabled={busy}
+                >
+                  <MessageSquarePlus className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  Send feedback
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                It will ask what went wrong, then file a ticket for repair. Nothing is filed until you confirm.
               </p>
               <div className="flex flex-col gap-2">
                 {SUGGESTIONS.map((suggestion) => (
@@ -276,7 +424,9 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
               {message.trace && message.trace.length > 0 ? (
                 <details className="mt-2 rounded-md border border-border/70 bg-muted/30 px-2 py-1.5">
                   <summary className="cursor-pointer text-[11px] text-muted-foreground">
-                    {message.trace.length} record lookup{message.trace.length === 1 ? "" : "s"}
+                    {message.trace.some((entry) => SUPPORT_TOOLS.has(entry.tool))
+                      ? `${message.trace.length} report step${message.trace.length === 1 ? "" : "s"}`
+                      : `${message.trace.length} record lookup${message.trace.length === 1 ? "" : "s"}`}
                   </summary>
                   <ul className="mt-1 space-y-1">
                     {message.trace.map((entry, index) => (

@@ -34,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 
 import { cn } from "@/lib/utils";
+import { isPartialBatchError, runBatch } from "@/lib/batch-mutation";
 import {
   type CascadeDeleteResult,
   deleteLocationCascade, deleteWarehouseCascade, deleteZoneCascade,
@@ -1510,23 +1511,29 @@ function EditLocationRangeDialog({ zone, onClose }: { zone: ZoneRow; onClose: ()
       if (Object.keys(patch).length === 0) {
         throw new Error("Select at least one field to update");
       }
-      let updated = 0;
-      for (const l of targets) {
-        await updateRecord("locations", l.id, patch);
-        updated += 1;
-      }
-      return updated;
+      // Row-at-a-time: a failure part-way through leaves earlier locations
+      // already patched, so the batch reports the partial write rather than
+      // implying nothing changed.
+      const updated = await runBatch(targets, (l) => updateRecord("locations", l.id, patch), {
+        itemNoun: "location",
+      });
+      return updated.length;
     },
-    onSuccess: async (count) => {
+    onSuccess: (count) => {
       toast.success(`Updated ${count} location${count !== 1 ? "s" : ""}`);
+      onClose();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed", {
+      duration: isPartialBatchError(e) ? 12_000 : undefined,
+    }),
+    // Runs for partial writes too — those rows really did change.
+    onSettled: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["zone-locations", zone.id] }),
         queryClient.invalidateQueries({ queryKey: ["locations"] }),
         queryClient.invalidateQueries({ queryKey: ["tree"] }),
       ]);
-      onClose();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
 
   return (

@@ -50,6 +50,20 @@ const aiMocks = vi.hoisted(() => ({
   ),
 }));
 const networkState = vi.hoisted(() => ({ online: true }));
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+}));
+
+vi.mock("sonner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("sonner")>();
+  const toast = Object.assign(
+    (...args: unknown[]) => (actual.toast as unknown as (...a: unknown[]) => unknown)(...args),
+    actual.toast,
+    { error: toastMocks.error, success: toastMocks.success },
+  );
+  return { ...actual, toast };
+});
 
 class ResizeObserverStub {
   observe() {}
@@ -66,6 +80,8 @@ vi.mock("@/components/pallet-label-page", () => ({
       onClick: () => onPrinted?.(),
     });
   },
+  // `printDraftLabels` writes this into the popup it opens.
+  buildPalletLabelBatchPrintHtml: (labels: unknown[]) => `<html><body>${labels.length} labels</body></html>`,
 }));
 
 vi.mock("@/components/barcode-scan-button", () => ({
@@ -599,5 +615,119 @@ describe("ReceivingPage", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(checkbox).not.toBeChecked();
     expect(printButton).toBeDisabled();
+  });
+
+  describe("batch receive that fails part-way", () => {
+    const drafts = [1, 2, 3].map((index) => ({
+      ...wmsMocks.draft,
+      id: `draft-${index}`,
+      receipt_number: `RCT-${index}`,
+      draft_pallet_barcode: `PLT-${index}`,
+      draft_sequence: index,
+      draft_count: 3,
+      notes: JSON.stringify({
+        _draft: true,
+        product_id: "prod-1",
+        quantity: 1,
+        draft_pallet_barcode: `PLT-${index}`,
+        container_number: "MSKU1234565",
+        po_number: "PO-1",
+      }),
+    }));
+
+    /** jsdom returns null from window.open, which short-circuits printing. */
+    function stubPrintWindow() {
+      const printWindow = { document: { write: vi.fn(), close: vi.fn() } };
+      const open = vi.spyOn(window, "open").mockReturnValue(printWindow as unknown as Window);
+      return () => open.mockRestore();
+    }
+
+    async function runBatchPrint() {
+      fireEvent.click(await screen.findByRole("button", { name: /^print drafts$/i }));
+      const dialog = await screen.findByRole("dialog", { name: /print draft labels/i });
+      await waitFor(() => expect(within(dialog).getAllByRole("checkbox")).toHaveLength(3));
+      fireEvent.click(within(dialog).getByRole("button", { name: /print selected & send to put-away/i }));
+    }
+
+    it("tells the operator exactly how many pallets were received before it stopped", async () => {
+      // Regression: the loop threw on the failing draft, so onSuccess never ran.
+      // The operator saw a bare "Receiving failed", re-ran the whole print job
+      // and received the first pallets a second time.
+      wmsMocks.listDraftReceipts.mockResolvedValue(drafts as never);
+      wmsMocks.completeReceiptFromDraft.mockImplementation((async (draftId: string) => {
+        if (draftId === "draft-3") throw new Error("Location A-08-C is full");
+        return { palletBarcode: draftId.toUpperCase(), putawayTaskNumber: `PTA-${draftId}` };
+      }) as never);
+      const restore = stubPrintWindow();
+      renderReceivingPage();
+
+      await runBatchPrint();
+
+      await waitFor(() => expect(wmsMocks.completeReceiptFromDraft).toHaveBeenCalledTimes(3));
+
+      await waitFor(() => expect(toastMocks.error).toHaveBeenCalled());
+      const message = String(toastMocks.error.mock.calls.at(-1)?.[0] ?? "");
+      expect(message).toContain("2 pallets completed");
+      expect(message).toContain("Location A-08-C is full");
+      expect(message).toContain("Do not repeat");
+      restore();
+    });
+
+    it("refreshes the draft list even though the batch failed", async () => {
+      // The two committed pallets are real. Leaving `draft-receipts` stale is
+      // what invites the duplicate receive.
+      wmsMocks.listDraftReceipts.mockResolvedValue(drafts as never);
+      wmsMocks.completeReceiptFromDraft.mockImplementation((async (draftId: string) => {
+        if (draftId === "draft-3") throw new Error("Location A-08-C is full");
+        return { palletBarcode: draftId.toUpperCase(), putawayTaskNumber: `PTA-${draftId}` };
+      }) as never);
+      const restore = stubPrintWindow();
+      renderReceivingPage();
+
+      await waitFor(() => expect(wmsMocks.listDraftReceipts).toHaveBeenCalled());
+      const callsBefore = wmsMocks.listDraftReceipts.mock.calls.length;
+
+      await runBatchPrint();
+
+      await waitFor(() =>
+        expect(wmsMocks.listDraftReceipts.mock.calls.length).toBeGreaterThan(callsBefore),
+      );
+      restore();
+    });
+
+    it("keeps the original message when the very first pallet fails", async () => {
+      // Nothing committed, so there is no partial work to warn about — the
+      // operator should just see why it would not go.
+      wmsMocks.listDraftReceipts.mockResolvedValue(drafts as never);
+      wmsMocks.completeReceiptFromDraft.mockRejectedValue(new Error("Location A-08-C is full"));
+      const restore = stubPrintWindow();
+      renderReceivingPage();
+
+      await runBatchPrint();
+
+      await waitFor(() => expect(toastMocks.error).toHaveBeenCalled());
+      const message = String(toastMocks.error.mock.calls.at(-1)?.[0] ?? "");
+      expect(message).toBe("Location A-08-C is full");
+      expect(wmsMocks.completeReceiptFromDraft).toHaveBeenCalledTimes(1);
+      restore();
+    });
+
+    it("receives every draft and clears the selection when the batch completes", async () => {
+      wmsMocks.listDraftReceipts.mockResolvedValue(drafts as never);
+      wmsMocks.completeReceiptFromDraft.mockImplementation((async (draftId: string) => ({
+        palletBarcode: draftId.toUpperCase(),
+        putawayTaskNumber: `PTA-${draftId}`,
+      })) as never);
+      const restore = stubPrintWindow();
+      renderReceivingPage();
+
+      await runBatchPrint();
+
+      await waitFor(() => expect(wmsMocks.completeReceiptFromDraft).toHaveBeenCalledTimes(3));
+      await waitFor(() => expect(toastMocks.success).toHaveBeenCalled());
+      expect(String(toastMocks.success.mock.calls.at(-1)?.[0] ?? "")).toContain("3 pallet labels");
+      expect(toastMocks.error).not.toHaveBeenCalled();
+      restore();
+    });
   });
 });

@@ -133,6 +133,7 @@ import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
+import { recordAction } from "@/lib/habit-tracking";
 import { extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
 import { getOrCreateDeviceId } from "@/lib/device-identity";
 import { invalidateWarehouseData } from "@/lib/query-invalidation";
@@ -473,6 +474,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  // Which screens this operator actually lives on. Feeds the habit profile and
+  // gives any problem report they file a trail of where they had just been.
+  useEffect(() => {
+    recordAction({
+      action: "route.view",
+      route: pathname,
+      outcome: "ok",
+      warehouseId: profile?.default_warehouse_id ?? null,
+    });
+  }, [pathname, profile?.default_warehouse_id]);
+
   const items = NAVIGATION
     .filter(
       (item) =>

@@ -4,6 +4,7 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import { AppErrorBoundary } from "@/components/error-boundary";
 import { installConsoleErrorTelemetry, installToastTelemetry, logErrorTelemetry, logSystemTelemetry } from "@/lib/system-telemetry";
+import { installHabitTracking, recordAction } from "@/lib/habit-tracking";
 import { isActiveWorkInProgress } from "@/lib/active-work";
 import "./index.css";
 
@@ -11,6 +12,7 @@ import "./index.css";
 
 installConsoleErrorTelemetry();
 installToastTelemetry();
+installHabitTracking();
 
 // Catch unhandled promise rejections (e.g. fire-and-forget async calls that
 // throw). We log to console and show a toast, but never crash the app.
@@ -21,6 +23,16 @@ window.addEventListener("unhandledrejection", (event) => {
 
   // Skip noisy network errors — the offline banner already covers these.
   const isNetwork = /fetch|network|failed to fetch|load failed/i.test(message);
+
+  // Even a suppressed rejection is a failure the operator lived through, so it
+  // still becomes a breadcrumb. Without this, "it just stopped working" reports
+  // arrive with no trace of the thing that actually broke.
+  recordAction({
+    action: "error.unhandled_rejection",
+    outcome: "error",
+    metadata: { message: message.slice(0, 160), suppressed: isNetwork },
+  });
+
   if (!isNetwork) {
     console.error("[unhandledrejection]", error);
     logErrorTelemetry({
@@ -39,6 +51,11 @@ window.addEventListener("unhandledrejection", (event) => {
 window.addEventListener("error", (event) => {
   if (event.error) {
     console.error("[uncaught error]", event.error);
+    recordAction({
+      action: "error.uncaught",
+      outcome: "error",
+      metadata: { message: String(event.message ?? "").slice(0, 160) },
+    });
     logErrorTelemetry({
       error: event.error,
       title: "Uncaught browser error",

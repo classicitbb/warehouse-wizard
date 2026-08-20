@@ -380,6 +380,9 @@ function UsersRolesPageImpl() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["options"] }),
       queryClient.invalidateQueries({ queryKey: ["user-activities"] }),
+      // Approving/disabling an account changes the pending-access banner; without
+      // this it stays up until its own 60s poll comes round.
+      queryClient.invalidateQueries({ queryKey: ["pending-access-requests"] }),
     ]);
   }, [queryClient]);
 
@@ -401,6 +404,8 @@ function UsersRolesPageImpl() {
       toast.success(variables.hidden ? "Role assignment hidden" : "Role assignment restored");
       await invalidateOptions();
     },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not change this role assignment's visibility"),
   });
 
   const profileMutation = useMutation({
@@ -409,6 +414,12 @@ function UsersRolesPageImpl() {
       toast.success(variables.active ? "Profile enabled" : "Profile disabled");
       await invalidateOptions();
     },
+    onError: (error, variables) =>
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Could not ${variables.active ? "enable" : "disable"} this profile`,
+      ),
   });
 
   const profileEditMutation = useMutation({

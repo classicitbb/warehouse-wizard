@@ -30,6 +30,7 @@ import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
+import { completedFromBatchError, runBatch } from "@/lib/batch-mutation";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
 import {
   NAVIGATION,
@@ -742,23 +743,29 @@ export function ReceivingPage() {
   });
 
   const batchReceiveMutation = useMutation({
-    mutationFn: async (draftsToReceive: DraftReceipt[]) => {
-      assertOnline();
-      const results = [];
-      setBatchReceiveProgress({ completed: 0, total: draftsToReceive.length });
-      try {
-        for (const draft of draftsToReceive) {
-          results.push(await completeReceiptFromDraft(draft.id, draftToReceivingValues(draft)));
-          setBatchReceiveProgress({ completed: results.length, total: draftsToReceive.length });
-        }
-        return results;
-      } catch (error) {
-        if (isLikelyNetworkError(error)) {
-          throw new Error(OFFLINE_WORK_MESSAGE);
-        }
-        throw error;
-      }
-    },
+    // Each draft that completes is a real pallet plus a real put-away task. When
+    // draft 3 of 5 fails, drafts 1-2 are already committed, so the batch reports
+    // what stuck instead of collapsing to a bare "Receiving failed" — otherwise
+    // the operator re-runs the whole print job and receives them twice.
+    mutationFn: async (draftsToReceive: DraftReceipt[]) =>
+      runBatch(
+        draftsToReceive,
+        async (draft) => {
+          assertOnline();
+          try {
+            return await completeReceiptFromDraft(draft.id, draftToReceivingValues(draft));
+          } catch (error) {
+            if (isLikelyNetworkError(error)) {
+              throw new Error(OFFLINE_WORK_MESSAGE);
+            }
+            throw error;
+          }
+        },
+        {
+          itemNoun: "pallet",
+          onProgress: (completed, total) => setBatchReceiveProgress({ completed, total }),
+        },
+      ),
     onSuccess: async (results) => {
       const count = results.length;
       toast.success(`${count} pallet label${count === 1 ? "" : "s"} printed and sent to Put-Away.`);
@@ -769,6 +776,28 @@ export function ReceivingPage() {
       });
       setPrintOpen(false);
       setSelectedDraftIds(new Set());
+    },
+    onError: (error, draftsToReceive) => {
+      const received = completedFromBatchError<{ palletBarcode: string; putawayTaskNumber: string }>(error);
+      if (received.length > 0) {
+        // Drop the drafts that did commit from the selection so a retry only
+        // sends the ones still outstanding.
+        const receivedIds = new Set(draftsToReceive.slice(0, received.length).map((draft) => draft.id));
+        setSelectedDraftIds((current) => new Set([...current].filter((id) => !receivedIds.has(id))));
+        setLastResult({
+          barcode: received.length === 1 ? received[0]?.palletBarcode ?? "Pallet" : `${received.length} pallets`,
+          taskNumber: received.length === 1 ? received[0]?.putawayTaskNumber ?? "queued" : "queued",
+          qty: received.length,
+        });
+      }
+      toast.error(error instanceof Error ? error.message : "Receiving failed", {
+        duration: received.length > 0 ? 12_000 : undefined,
+      });
+    },
+    // Invalidation belongs here, not in onSuccess: a partly-completed batch has
+    // written rows that every one of these caches is now stale against.
+    onSettled: async () => {
+      setBatchReceiveProgress({ completed: 0, total: 0 });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
         queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
@@ -776,8 +805,6 @@ export function ReceivingPage() {
         queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
       ]);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Receiving failed"),
-    onSettled: () => setBatchReceiveProgress({ completed: 0, total: 0 }),
   });
 
   const saveNewProgress = useTimedButtonProgress(saveShipmentMutation.isPending && savingShipmentMode === "new");

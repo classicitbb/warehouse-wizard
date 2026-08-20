@@ -15,11 +15,13 @@
  */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { AlertTriangle, LifeBuoy, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
+import { describeErrorForReport, requestCopilotReport } from "@/features/copilot/copilot-core";
+import { recordAction } from "@/lib/habit-tracking";
 
 // ── Chunk-load detection ──────────────────────────────────────────────────────
 
@@ -67,6 +69,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
     // Always log to console so DevTools shows the full stack.
     console.error("[ErrorBoundary] Uncaught render error:", error, info.componentStack);
+    recordAction({
+      action: "error.render",
+      outcome: "error",
+      metadata: {
+        message: error.message.slice(0, 160),
+        level: this.props.level ?? "route",
+      },
+    });
     logErrorTelemetry({
       error,
       title: "React render error",
@@ -184,6 +194,24 @@ function DefaultFallback({
                   >
                     <Home className="mr-1.5 h-3.5 w-3.5" />
                     Dashboard
+                  </Button>
+                )}
+                {/* Only where the shell (and therefore the copilot panel) is
+                    still standing — at app level the panel has crashed too. */}
+                {level !== "app" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      onReset();
+                      requestCopilotReport({
+                        message: describeErrorForReport(error, window.location.pathname),
+                        route: window.location.pathname,
+                      });
+                    }}
+                  >
+                    <LifeBuoy className="mr-1.5 h-3.5 w-3.5" />
+                    Report this
                   </Button>
                 )}
                 {level === "app" && (

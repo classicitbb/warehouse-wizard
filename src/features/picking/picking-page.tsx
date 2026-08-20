@@ -220,10 +220,15 @@ export function PickListsPage() {
   });
   const cancelMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) => cancelPickList(id, reason),
-    onSuccess: () => {
+    onSuccess: async () => {
       alertToast.success("Pick list cancelled");
-      queryClient.invalidateQueries({ queryKey: ["pick-lists"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+        // Cancelling releases the reservation, so free-to-pick stock changes.
+        queryClient.invalidateQueries({ queryKey: ["pickable-stock-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+      ]);
     },
     onError: (error: unknown) => alertToast.noGo(error instanceof Error ? error.message : "Failed to cancel pick list"),
   });
@@ -274,6 +279,9 @@ export function PickListsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+        // Releasing a list reserves stock — the "available to pick" summary the
+        // create form reads from is stale the moment this succeeds.
+        queryClient.invalidateQueries({ queryKey: ["pickable-stock-summary"] }),
       ]);
       setActiveTab("lists");
     },
