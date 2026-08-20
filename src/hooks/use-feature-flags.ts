@@ -81,11 +81,22 @@ export { MODULE_LABELS };
 const STORAGE_KEY = "wms.modules.v1";
 const TOOLBAR_STORAGE_KEY = "wms.mobile-toolbar.v1";
 export const MAX_TOOLBAR_MODULES = 8;
-export const COPILOT_ACCESS_ROLES = ["developer", "admin", "warehouse_manager", "warehouse_supervisor"] as const;
+export const COPILOT_ACCESS_ROLES = [
+  "developer",
+  "admin",
+  "warehouse_manager",
+  "warehouse_supervisor",
+  "inventory_clerk",
+  "warehouse_operator",
+  "dispatch_driver",
+  "dev",
+] as const;
 
-export function canAccessCopilot(roles: string[]) {
-  return roles.some((role) => COPILOT_ACCESS_ROLES.includes(role as (typeof COPILOT_ACCESS_ROLES)[number]));
+/** Copilot is generally available: every signed-in user may use it. Answers stay RLS-scoped server-side. */
+export function canAccessCopilot(_roles: string[]) {
+  return true;
 }
+
 
 const DEFAULT_TOOLBAR_MODULES: ModuleKey[] = ["dashboard", "receiving", "putaway", "inventory", "pick-lists", "location-moves"];
 const TOOLBAR_PREFERENCE_MARKER = "__toolbar_v2__";
