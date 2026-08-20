@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, Volume2 } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -210,6 +210,10 @@ import {
   WarehouseOption,
   ProfileRow,
   UserActivityRow,
+  playBarcodeBeep,
+  playConfirmTone,
+  playAttentionTone,
+  playNoGoTone,
 } from "@/features/shared/ui-shared";
 
 function AddUserDialog({
@@ -1711,6 +1715,43 @@ function NetSuiteImportCard() {
   );
 }
 
+const AUDIO_TEST_CUES: Array<{
+  id: string;
+  label: string;
+  description: string;
+  icon: typeof Volume2;
+  play: () => void;
+}> = [
+  {
+    id: "barcode-beep",
+    label: "Scan beep",
+    description: "Short confirmation chirp on every successful barcode scan.",
+    icon: QrCode,
+    play: playBarcodeBeep,
+  },
+  {
+    id: "confirm-tone",
+    label: "Confirm",
+    description: "Task confirmed or completed — put-away, picking, moves, transfers, cycle counts.",
+    icon: CheckCircle2,
+    play: playConfirmTone,
+  },
+  {
+    id: "attention-tone",
+    label: "Attention",
+    description: "Needs attention — short pick, cancellation, or rule violation. Flashes the screen and vibrates.",
+    icon: AlertTriangle,
+    play: playAttentionTone,
+  },
+  {
+    id: "no-go-tone",
+    label: "No-go",
+    description: "Blocking failure that stops the task — scan mismatch, confirm failed. Loudest, rapid-fire.",
+    icon: AlertCircle,
+    play: playNoGoTone,
+  },
+];
+
 export function SettingsPage() {
   const { roles } = useAuth();
   const { toPath } = useTenantPath();
@@ -1843,6 +1884,29 @@ export function SettingsPage() {
               </div>
               {!isDeveloperOrAdmin ? <p>Only admins and developers can run Reset All.</p> : null}
               {isDeveloper && <p className="text-xs text-muted-foreground">Delete products is dev-only — removes all products and inventory, preserves warehouse structure.</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Volume2 className="h-4 w-4" />
+                Audio & Alerts
+              </CardTitle>
+              <CardDescription>Every sound cue used across the app, in one place — play each one to test speaker volume and confirm alerts are audible on the warehouse floor.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 sm:grid-cols-2">
+              {AUDIO_TEST_CUES.map((cue) => (
+                <div key={cue.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><cue.icon className="h-3.5 w-3.5 shrink-0" />{cue.label}</p>
+                    <p className="text-xs text-muted-foreground">{cue.description}</p>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={cue.play}>
+                    <Play data-icon="inline-start" />
+                    Play
+                  </Button>
+                </div>
+              ))}
             </CardContent>
           </Card>
           <Dialog open={resetOpen} onOpenChange={(o) => { if (!resetMutation.isPending) setResetOpen(o); }}>
