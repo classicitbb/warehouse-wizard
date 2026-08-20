@@ -243,10 +243,9 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     [busy, conversationId, messages, pathname, profile?.default_warehouse_id, user?.id],
   );
 
-<<<<<<< Updated upstream
   // Copilot is generally available on every build and for every signed-in user.
 
-=======
+
   useEffect(() => {
     sendRef.current = send;
   }, [send]);
