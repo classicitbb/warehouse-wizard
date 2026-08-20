@@ -22,6 +22,60 @@ import {
   type BayOccupancyGridSlot,
 } from "@/features/setup/setup-core";
 
+// ── Persisted search state ────────────────────────────────────────────────
+// Inventory Search previously only reflected filters in the URL's query
+// string, which meant leaving the page via a sidebar link (no query string on
+// that link) and coming back reset the search — even though the operator
+// never asked to clear it. sessionStorage keeps it for the life of the
+// browser tab, matching "remember it until I clear it."
+const INVENTORY_SEARCH_STATE_KEY = "wms:inventory-search-state";
+
+export type InventorySearchPersistedState = {
+  search: string;
+  status: string;
+  warehouseId: string;
+  ageBucket: string;
+  expiryWindow: string;
+};
+
+const DEFAULT_INVENTORY_SEARCH_STATE: InventorySearchPersistedState = {
+  search: "",
+  status: "all",
+  warehouseId: "",
+  ageBucket: "",
+  expiryWindow: "",
+};
+
+export function loadInventorySearchState(): InventorySearchPersistedState {
+  if (typeof window === "undefined") return { ...DEFAULT_INVENTORY_SEARCH_STATE };
+  try {
+    const raw = window.sessionStorage.getItem(INVENTORY_SEARCH_STATE_KEY);
+    if (!raw) return { ...DEFAULT_INVENTORY_SEARCH_STATE };
+    return { ...DEFAULT_INVENTORY_SEARCH_STATE, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_INVENTORY_SEARCH_STATE };
+  }
+}
+
+export function saveInventorySearchState(state: InventorySearchPersistedState): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(INVENTORY_SEARCH_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage can be unavailable (private browsing, quota) — persistence is a
+    // convenience, never a requirement, so fail silently.
+  }
+}
+
+export function clearInventorySearchState(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(INVENTORY_SEARCH_STATE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export async function searchInventory(filters: {
   search?: string;
   warehouseId?: string;

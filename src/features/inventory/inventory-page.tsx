@@ -79,6 +79,9 @@ import {
   getDashboardMetrics,
   getInventoryDetail,
   getPickExecution,
+  loadInventorySearchState,
+  saveInventorySearchState,
+  clearInventorySearchState,
   getBinOccupancy,
   getBayOccupancy,
   getWarehouseBayOccupancy,
@@ -203,10 +206,15 @@ export function InventorySearchPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { roles, profile } = useAuth();
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
-  const [status, setStatus] = useState<string>(searchParams.get("status") ?? "all");
-  const [ageBucket, setAgeBucket] = useState(searchParams.get("age") ?? "");
-  const [expiryWindow, setExpiryWindow] = useState(searchParams.get("expiry") ?? "");
+  // Falls back to the last search saved in this browser tab (see
+  // saveInventorySearchState below) so switching to another screen and back
+  // doesn't lose it — only an explicit "Clear" resets it. A URL query string
+  // (e.g. a deep link with ?q=...) still wins over the remembered search.
+  const persistedInventorySearch = loadInventorySearchState();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? persistedInventorySearch.search);
+  const [status, setStatus] = useState<string>(searchParams.get("status") ?? persistedInventorySearch.status);
+  const [ageBucket, setAgeBucket] = useState(searchParams.get("age") ?? persistedInventorySearch.ageBucket);
+  const [expiryWindow, setExpiryWindow] = useState(searchParams.get("expiry") ?? persistedInventorySearch.expiryWindow);
   const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
   const lastDetailTapRef = useRef<{ id: string; time: number } | null>(null);
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
@@ -214,8 +222,14 @@ export function InventorySearchPage() {
     queryKey: ["options", "inventory", restrictedToDefaultWarehouse, profile?.default_warehouse_id],
     queryFn: () => fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
   });
-  const [warehouseId, setWarehouseId] = useState(searchParams.get("warehouse") ?? (restrictedToDefaultWarehouse ? profile?.default_warehouse_id ?? "" : ""));
+  const [warehouseId, setWarehouseId] = useState(
+    searchParams.get("warehouse") ?? (restrictedToDefaultWarehouse ? profile?.default_warehouse_id ?? "" : persistedInventorySearch.warehouseId),
+  );
   const hasInventoryFilters = Boolean(searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow);
+
+  useEffect(() => {
+    saveInventorySearchState({ search: searchTerm, status, warehouseId, ageBucket, expiryWindow });
+  }, [ageBucket, expiryWindow, searchTerm, status, warehouseId]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow, searchTerm.trim() ? "all" : visibleRecordLimit],
@@ -251,6 +265,7 @@ export function InventorySearchPage() {
     setWarehouseId("");
     setAgeBucket("");
     setExpiryWindow("");
+    clearInventorySearchState();
   }
 
   function openInventoryDetail(balanceId: string) {
@@ -291,7 +306,7 @@ export function InventorySearchPage() {
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:min-w-[17rem]">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input type="search" className="h-11 min-w-0 pl-10 pr-20" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search SKU, pallet, container, PO, or location" />
+                <Input type="search" className="h-11 min-w-0 pl-10 pr-20" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value.toUpperCase())} placeholder="Search SKU, pallet, container, PO, or location" />
                 <Button
                   type="button"
                   className="absolute right-2 top-1/2 h-8 -translate-y-1/2 px-2 text-xs"

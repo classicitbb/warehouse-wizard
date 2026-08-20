@@ -793,25 +793,33 @@ export function PutawayTasksPage() {
     },
   });
 
-  const openPutawayStatuses = new Set(["queued", "assigned", "in_progress", "exception"]);
-  const pendingTasks = data.filter((task: any) => openPutawayStatuses.has(task.status) && !completedIds.has(task.id) && !revertedIds.has(task.id));
+  const openPutawayStatuses = useMemo(() => new Set(["queued", "assigned", "in_progress", "exception"]), []);
+  // Memoized: `data.filter(...)` was rebuilding a new array on every render,
+  // which fed a new reference into the effect below (and others) on every
+  // pass — see the correctionTaskId effect for why that mattered.
+  const pendingTasks = useMemo(
+    () => data.filter((task: any) => openPutawayStatuses.has(task.status) && !completedIds.has(task.id) && !revertedIds.has(task.id)),
+    [data, openPutawayStatuses, completedIds, revertedIds],
+  );
   const selectedTask = selectedTaskId ? pendingTasks.find((task: any) => task.id === selectedTaskId) ?? null : null;
 
+  // A pallet corrected from Inventory is returned to Receiving and, once that
+  // draft is completed, lands back here as a fresh Put-Away task carrying
+  // `?correctionTask=<id>` in the URL. This used to force-select that task and
+  // auto-focus its pallet-barcode field the instant it loaded — jumping the
+  // operator straight into the single-task confirm screen with no way back to
+  // the rest of the page short of a hard refresh. Instead, just let the task
+  // land in the normal open-tasks queue (hidden behind "Show open Put-Away
+  // tasks" like every other queued task) and let the operator pick it up
+  // themselves, with a toast pointing them at it.
   useEffect(() => {
     if (!correctionTaskId || isLoading) return;
+    setSearchParams({}, { replace: true });
     const task = pendingTasks.find((candidate: any) => candidate.id === correctionTaskId);
     if (!task) return;
-    setSelectedTaskId(task.id);
-    setTaskSearch(getConfirmPalletCode(task, ""));
-    setScanQuery("");
-    setScanState((current) => ({
-      ...current,
-      [task.id]: { ...(current[task.id] ?? { pallet: "", location: "", override: false, reason: "" }), pallet: "" },
-    }));
-    setFlowCancelled(false);
-    setOpenTasksExpanded(false);
-    setSearchParams({}, { replace: true });
-    setTimeout(() => palletRefs.current[task.id]?.focus(), 120);
+    alertToast.success(`Corrected pallet ${getConfirmPalletCode(task, "") || "ready"} is back in the Put-Away queue.`, {
+      description: "Open the task list and scan it when you're ready to store it.",
+    });
   }, [correctionTaskId, isLoading, pendingTasks, setSearchParams]);
   const selectedBatchReturnTasks = pendingTasks.filter((task: any) => selectedBatchReturnTaskIds.has(task.id));
 

@@ -416,8 +416,16 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
     .eq("id", pallet.id);
   if (palletUpdErr) throw moveError(palletUpdErr, "Pallet location update failed");
 
+  // From this point on, the pallet has genuinely relocated — inventory_balances
+  // and pallets both agree on the new location, which is what Inventory Search
+  // and bin-occupancy counts read from. The move_tasks row below is history/
+  // audit bookkeeping only. It must NOT throw past this point: a failure here
+  // used to bubble up as "Move failed" even though the relocation had already
+  // committed, so the operator believed nothing happened, put the pallet back
+  // down, and reported a location as full — while the database silently kept
+  // pointing the pallet at the new bin (a "ghost" occupant no one could see).
   const completedAt = new Date().toISOString();
-  let task;
+  let task: any = null;
   try {
     task = await upsertRecord("move_tasks", {
       task_number: buildPalletCode("MOV"),
@@ -430,21 +438,24 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
       completed_at: completedAt,
     });
   } catch (error) {
-    throw moveError(error, "Move task creation failed");
+    console.error("[completeDirectMove] move_tasks record failed after relocation succeeded:", error);
   }
 
-  await (supabase.rpc as any)("log_audit_event", {
-    in_event_type: "move_task_completed",
-    in_entity_table: "move_tasks",
-    in_entity_id: (task as any).id,
-    in_warehouse_id: warehouseId,
-    in_metadata: {
-      task_number: (task as any).task_number,
-      pallet_barcode: palletBarcode,
-      to_location_code: locationCode,
-      reason: reason ?? null,
-    },
-  });
+  if (task?.id) {
+    const audit = await (supabase.rpc as any)("log_audit_event", {
+      in_event_type: "move_task_completed",
+      in_entity_table: "move_tasks",
+      in_entity_id: task.id,
+      in_warehouse_id: warehouseId,
+      in_metadata: {
+        task_number: task.task_number,
+        pallet_barcode: palletBarcode,
+        to_location_code: locationCode,
+        reason: reason ?? null,
+      },
+    });
+    if (audit.error) console.error("[completeDirectMove] log_audit_event failed:", audit.error);
+  }
 }
 
 export async function completeMoveTask(taskId: string, scannedPalletBarcode: string, scannedLocationCode: string): Promise<void> {
@@ -490,18 +501,27 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
     .eq("id", pallet.id);
   if (palletUpdErr) throw moveError(palletUpdErr, "Pallet location update failed");
 
+  // See completeDirectMove: the relocation above already committed and is what
+  // Inventory Search / bin occupancy read from. Marking the move_tasks row
+  // "completed" below is history bookkeeping — if it fails, don't report the
+  // whole move as failed (that used to leave the pallet's real location moved
+  // while the operator was told it wasn't, producing an invisible "ghost"
+  // occupant at the destination bin).
   const { error: taskUpdErr } = await db("move_tasks")
     .update({ status: "completed", to_location_id: toLocation.id, completed_at: new Date().toISOString() } as any)
     .eq("id", taskId);
-  if (taskUpdErr) throw moveError(taskUpdErr, "Move task completion update failed");
-
-  await (supabase.rpc as any)("log_audit_event", {
-    in_event_type: "move_task_completed",
-    in_entity_table: "move_tasks",
-    in_entity_id: taskId,
-    in_warehouse_id: warehouseId,
-    in_metadata: { pallet_barcode: scannedPalletBarcode, to_location: scannedLocationCode },
-  });
+  if (taskUpdErr) {
+    console.error("[completeMoveTask] move_tasks status update failed after relocation succeeded:", taskUpdErr);
+  } else {
+    const audit = await (supabase.rpc as any)("log_audit_event", {
+      in_event_type: "move_task_completed",
+      in_entity_table: "move_tasks",
+      in_entity_id: taskId,
+      in_warehouse_id: warehouseId,
+      in_metadata: { pallet_barcode: scannedPalletBarcode, to_location: scannedLocationCode },
+    });
+    if (audit.error) console.error("[completeMoveTask] log_audit_event failed:", audit.error);
+  }
 }
 
 export async function cancelMoveTask(taskId: string): Promise<void> {
