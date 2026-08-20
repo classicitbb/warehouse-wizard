@@ -110,7 +110,7 @@ export function describeInventoryStructureScope(scope: InventoryStructureScope):
   const prefix = String(scope.locationPrefix ?? "").trim().toUpperCase();
   if (prefix) {
     const segments = prefix.split("-").filter(Boolean).length;
-    const fallback = segments <= 1 ? "Rack" : segments === 2 ? "Bay" : "Level";
+    const fallback = segments <= 1 ? "Rack" : segments === 2 ? "Bay" : segments === 3 ? "Level" : "Location";
     return `${node ?? fallback} ${prefix}`;
   }
   const zoneCode = String(scope.zoneCode ?? "").trim().toUpperCase();
