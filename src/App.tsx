@@ -43,7 +43,7 @@ import { useTenantPath } from "@/hooks/use-tenant-path";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
-bluggy;
+
 
 import {
   buildBayOccupancyGrid,

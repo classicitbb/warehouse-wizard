@@ -4311,6 +4311,23 @@ export type Database = {
         }[]
       }
       reclaim_stale_integration_sync_jobs: { Args: never; Returns: number }
+      recover_missing_pallet_to_draft: {
+        Args: { in_inventory_balance_id: string; in_quantity?: number }
+        Returns: {
+          draft_id: string
+          draft_pallet_barcode: string
+          quantity: number
+        }[]
+      }
+      recover_missing_pallet_to_putaway: {
+        Args: { in_inventory_balance_id: string }
+        Returns: {
+          pallet_barcode: string
+          pallet_id: string
+          putaway_task_id: string
+          putaway_task_number: string
+        }[]
+      }
       refresh_reorder_alerts: { Args: never; Returns: undefined }
       release_cycle_count_line_claim: {
         Args: { p_line_id: string }
