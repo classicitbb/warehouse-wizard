@@ -1,10 +1,36 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RouteErrorBoundary } from "@/components/error-boundary";
-import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowLeft, Camera, CheckCircle2, Eye, EyeOff, HelpCircle, Loader2, LogOut, Mail, RefreshCw, ScanLine, Sparkles, Warehouse } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  Loader2,
+  LogOut,
+  Mail,
+  RefreshCw,
+  ScanLine,
+  Sparkles,
+  Warehouse,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Analytics } from "@vercel/analytics/react";
@@ -18,9 +44,32 @@ import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-import { buildBayOccupancyGrid, confirmPickTask, createPickShortfallTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
+
+import {
+  buildBayOccupancyGrid,
+  confirmPickTask,
+  createPickShortfallTask,
+  formatDate,
+  formatNumber,
+  formatPickRackInstruction,
+  getBayOccupancy,
+  getInventoryDetail,
+  getPickExecution,
+  loginSchema,
+  normalizeRackLocationCode,
+  PickQuantityAnomalyError,
+  previewPickSourceOverride,
+  recordUserSignIn,
+  refreshUserDeviceTrust,
+  signUpSchema,
+  RESOURCE_DEFINITIONS,
+} from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
-import { clearPickTaskResumeSnapshot, loadPickTaskResumeSnapshot, savePickTaskResumeSnapshot } from "@/lib/floor-task-resume";
+import {
+  clearPickTaskResumeSnapshot,
+  loadPickTaskResumeSnapshot,
+  savePickTaskResumeSnapshot,
+} from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
 import { cn } from "@/lib/utils";
 import { alertToast } from "@/features/shared/ui-shared";
@@ -36,7 +85,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { HelpSidebar } from "@/components/help-sidebar";
@@ -56,7 +112,9 @@ function PageSpinner() {
 
 const DashboardPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.DashboardPage })));
 const AppShell = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.AppShell })));
-const InventorySearchPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.InventorySearchPage })));
+const InventorySearchPage = lazy(() =>
+  import("@/components/wms-ui").then((mod) => ({ default: mod.InventorySearchPage })),
+);
 const PickListsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PickListsPage })));
 const PutawayTasksPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PutawayTasksPage })));
 const ReceivingPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReceivingPage })));
@@ -70,7 +128,9 @@ const TransfersPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ 
 const UsersRolesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.UsersRolesPage })));
 const CycleCountsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.CycleCountsPage })));
 const LocationMovesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.LocationMovesPage })));
-const PalletLabelPage = lazy(() => import("@/components/pallet-label-page").then((mod) => ({ default: mod.PalletLabelPage })));
+const PalletLabelPage = lazy(() =>
+  import("@/components/pallet-label-page").then((mod) => ({ default: mod.PalletLabelPage })),
+);
 const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
 const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
 const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
@@ -314,7 +374,9 @@ function flashInput(el: HTMLElement | null, colour: "orange" | "blue" | "red" | 
 }
 
 function normalizeScannerText(value: unknown) {
-  return String(value ?? "").trim().toUpperCase();
+  return String(value ?? "")
+    .trim()
+    .toUpperCase();
 }
 
 function isBaySelectorCode(value: string) {
@@ -325,7 +387,18 @@ function isBaySelectorCode(value: string) {
   return parts.length >= 4 && !parts.some((part) => /^L\d+$/i.test(part));
 }
 
-function describePickLocation(location: { code?: string | null; aisle?: string | number | null; bay?: string | number | null; level?: string | number | null; position?: string | number | null } | null | undefined) {
+function describePickLocation(
+  location:
+    | {
+        code?: string | null;
+        aisle?: string | number | null;
+        bay?: string | number | null;
+        level?: string | number | null;
+        position?: string | number | null;
+      }
+    | null
+    | undefined,
+) {
   const code = normalizeRackLocationCode(String(location?.code ?? ""));
   if (!code) {
     return {
@@ -393,9 +466,17 @@ function friendlyAuthError(error: unknown, context: "login" | "signup" | "code" 
 }
 
 const LOGIN_BARCODE_FORMATS = [
-  "qr_code", "code_128", "code_39", "code_93",
-  "ean_13", "ean_8", "upc_a", "upc_e",
-  "data_matrix", "pdf417", "aztec",
+  "qr_code",
+  "code_128",
+  "code_39",
+  "code_93",
+  "ean_13",
+  "ean_8",
+  "upc_a",
+  "upc_e",
+  "data_matrix",
+  "pdf417",
+  "aztec",
 ];
 const LOGIN_METHOD_STORAGE_KEY = "warehouse-wizard.login.last-method";
 const REMEMBER_ME_STORAGE_KEY = "warehouse-wizard-remember-me";
@@ -459,7 +540,9 @@ function LoginBadgeScanner({
         // Older implementations do not expose getSupportedFormats.
       }
 
-      detectorRef.current = new (window as any).BarcodeDetector({ formats: formats.length ? formats : LOGIN_BARCODE_FORMATS });
+      detectorRef.current = new (window as any).BarcodeDetector({
+        formats: formats.length ? formats : LOGIN_BARCODE_FORMATS,
+      });
 
       const scanFrame = async () => {
         if (!videoRef.current || !detectorRef.current) return;
@@ -567,7 +650,13 @@ function PinKeypadDialog({
           </div>
           <div className="grid grid-cols-3 gap-2">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-              <Button key={digit} type="button" variant="outline" className="h-14 text-xl" onClick={() => appendDigit(digit)}>
+              <Button
+                key={digit}
+                type="button"
+                variant="outline"
+                className="h-14 text-xl"
+                onClick={() => appendDigit(digit)}
+              >
                 {digit}
               </Button>
             ))}
@@ -630,8 +719,20 @@ type InventoryDetailData = {
     draft_count?: number | null;
     created_at?: string | null;
   } | null;
-  receiptLine?: { quantity?: number | null; received_quantity?: number | null; override_length?: number | null; override_width?: number | null; override_height?: number | null; override_weight?: number | null } | null;
-  packaging?: { profile_name?: string | null; name?: string | null; unit_name?: string | null; unit_of_measure?: string | null } | null;
+  receiptLine?: {
+    quantity?: number | null;
+    received_quantity?: number | null;
+    override_length?: number | null;
+    override_width?: number | null;
+    override_height?: number | null;
+    override_weight?: number | null;
+  } | null;
+  packaging?: {
+    profile_name?: string | null;
+    name?: string | null;
+    unit_name?: string | null;
+    unit_of_measure?: string | null;
+  } | null;
   lot: {
     expiry_date: string | null;
     lot_number: string | null;
@@ -673,7 +774,9 @@ function RequireAuth({
     return <Navigate to={toPath("/login")} replace />;
   }
 
-  const developerEmail = auth.profile?.email?.trim().toLowerCase() === "russelljhunte@gmail.com" || auth.user?.email?.trim().toLowerCase() === "russelljhunte@gmail.com";
+  const developerEmail =
+    auth.profile?.email?.trim().toLowerCase() === "russelljhunte@gmail.com" ||
+    auth.user?.email?.trim().toLowerCase() === "russelljhunte@gmail.com";
   const developerUserCode = auth.profile?.user_code?.trim().toUpperCase() === "DEV01";
   const isDeveloper = auth.roles.includes("developer") || developerEmail || developerUserCode;
 
@@ -703,12 +806,13 @@ function PendingAccessShell() {
   const { toPath } = useTenantPath();
   const [checking, setChecking] = useState(false);
   const displayName = auth.profile?.full_name?.trim() || auth.user?.email || "Warehouse User";
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("") || "WU";
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "WU";
 
   const checkAuthorization = async () => {
     setChecking(true);
@@ -734,7 +838,13 @@ function PendingAccessShell() {
           </div>
           <div className="flex items-center gap-2">
             <HelpSidebar pathname={pathname} />
-            <Button className="h-9 w-9" size="icon" variant="outline" onClick={() => void auth.signOut()} aria-label="Sign out">
+            <Button
+              className="h-9 w-9"
+              size="icon"
+              variant="outline"
+              onClick={() => void auth.signOut()}
+              aria-label="Sign out"
+            >
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
@@ -777,11 +887,17 @@ function PendingAccessShell() {
             <div className="flex items-center gap-2">
               <HelpSidebar pathname={pathname} />
               <Button className="h-9 text-xs" variant="outline" onClick={checkAuthorization} disabled={checking}>
-                {checking ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
+                {checking ? (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                )}
                 Refresh authorization
               </Button>
               <div className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm">
-                <div className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{initials}</div>
+                <div className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                  {initials}
+                </div>
                 <span className="hidden truncate text-xs font-medium sm:block">{displayName}</span>
                 <Button className="h-7 shrink-0 text-xs" variant="ghost" size="sm" onClick={() => void auth.signOut()}>
                   <LogOut className="mr-1 h-3 w-3" />
@@ -830,7 +946,9 @@ function LoginPage() {
   const auth = useAuth();
   const { toPath } = useTenantPath();
   const [mode, setMode] = useState<"login" | "reset" | "update">(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("reset") === "1" ? "update" : "login",
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("reset") === "1"
+      ? "update"
+      : "login",
   );
   const [badgeShortcutAvailable, setBadgeShortcutAvailable] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -868,7 +986,11 @@ function LoginPage() {
   }, [rememberMe]);
 
   const loginForm = useForm({
-    resolver: zodResolver(loginSchema.extend({ email: loginSchema.shape.email.or(z.string().min(3, "Enter an email, user code, or badge")) })),
+    resolver: zodResolver(
+      loginSchema.extend({
+        email: loginSchema.shape.email.or(z.string().min(3, "Enter an email, user code, or badge")),
+      }),
+    ),
     defaultValues: { email: "", password: "" },
   });
 
@@ -891,7 +1013,11 @@ function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: async (values: { email: string; password: string }) => {
       const identifier = values.email.trim();
-      const method = identifier.toUpperCase().startsWith("BADGE-") ? "badge" : identifier.includes("@") ? "email" : "code";
+      const method = identifier.toUpperCase().startsWith("BADGE-")
+        ? "badge"
+        : identifier.includes("@")
+          ? "email"
+          : "code";
       if (method === "badge") {
         const { data, error } = await supabase.functions.invoke("badge-login", {
           body: {
@@ -953,14 +1079,17 @@ function LoginPage() {
   });
 
   const selectedBadge = scannedBadge || manualBadge.trim();
-  const rememberLoginMethod = useCallback((method: "badge" | "code") => {
-    if (method === "badge" && !badgeShortcutAvailable) {
-      toast.error("Badge sign-in requires full login on this mobile or tablet first.");
-      return;
-    }
-    setLoginMethod(method);
-    window.localStorage.setItem(LOGIN_METHOD_STORAGE_KEY, method);
-  }, [badgeShortcutAvailable]);
+  const rememberLoginMethod = useCallback(
+    (method: "badge" | "code") => {
+      if (method === "badge" && !badgeShortcutAvailable) {
+        toast.error("Badge sign-in requires full login on this mobile or tablet first.");
+        return;
+      }
+      setLoginMethod(method);
+      window.localStorage.setItem(LOGIN_METHOD_STORAGE_KEY, method);
+    },
+    [badgeShortcutAvailable],
+  );
 
   const submitBadgePin = () => {
     if (!selectedBadge) {
@@ -980,19 +1109,22 @@ function LoginPage() {
     loginMutation.mutate({ email: selectedBadge, password: badgePin });
   };
 
-  const handleBadgeScan = useCallback((value: string) => {
-    setScannedBadge(value);
-    setManualBadge("");
-    setBadgePin("");
-    if (badgeShortcutAvailable) {
-      setPinDialogOpen(true);
-      window.localStorage.setItem(LOGIN_METHOD_STORAGE_KEY, "badge");
-      toast.success("Badge scanned. Enter your PIN.");
-    } else {
-      toast.error("Badge sign-in requires full login on this mobile or tablet first.");
-      setLoginMethod("code");
-    }
-  }, [badgeShortcutAvailable]);
+  const handleBadgeScan = useCallback(
+    (value: string) => {
+      setScannedBadge(value);
+      setManualBadge("");
+      setBadgePin("");
+      if (badgeShortcutAvailable) {
+        setPinDialogOpen(true);
+        window.localStorage.setItem(LOGIN_METHOD_STORAGE_KEY, "badge");
+        toast.success("Badge scanned. Enter your PIN.");
+      } else {
+        toast.error("Badge sign-in requires full login on this mobile or tablet first.");
+        setLoginMethod("code");
+      }
+    },
+    [badgeShortcutAvailable],
+  );
 
   useEffect(() => {
     const available = !isDesktopClient() && hasTrustedDeviceShortcut(getOrCreateDeviceId());
@@ -1004,12 +1136,8 @@ function LoginPage() {
   }, [loginMethod]);
 
   if (auth.session && mode !== "update") {
-    const nextParam = typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("next")
-      : null;
-    const target = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/dashboard";
+    const nextParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+    const target = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
     return <Navigate to={toPath(target)} replace />;
   }
 
@@ -1018,7 +1146,11 @@ function LoginPage() {
       {/* Left branding panel — hidden on small screens */}
       <div className="hidden w-2/5 flex-col justify-between bg-primary p-6 text-primary-foreground lg:flex xl:p-8">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Warehouse Wizard" className="h-[clamp(4.5rem,14vh,8rem)] w-[clamp(4.5rem,14vh,8rem)] rounded-xl bg-background p-1 object-cover" />
+          <img
+            src="/logo.png"
+            alt="Warehouse Wizard"
+            className="h-[clamp(4.5rem,14vh,8rem)] w-[clamp(4.5rem,14vh,8rem)] rounded-xl bg-background p-1 object-cover"
+          />
           <span className="font-semibold text-3xl font-sans xl:text-4xl">Warehouse Wizard</span>
         </div>
         <div className="space-y-3">
@@ -1048,7 +1180,11 @@ function LoginPage() {
         <div className="w-full max-w-sm space-y-3 sm:space-y-4">
           {/* Mobile logo */}
           <div className="flex flex-col items-center gap-2 lg:hidden">
-            <img src="/logo.png" alt="Warehouse Wizard" className="h-[clamp(4.5rem,18vh,7rem)] w-[clamp(4.5rem,18vh,7rem)] rounded-lg object-cover" />
+            <img
+              src="/logo.png"
+              alt="Warehouse Wizard"
+              className="h-[clamp(4.5rem,18vh,7rem)] w-[clamp(4.5rem,18vh,7rem)] rounded-lg object-cover"
+            />
             <span className="font-semibold text-[clamp(1.5rem,7vw,2.25rem)] leading-tight">Warehouse Wizard</span>
           </div>
 
@@ -1058,29 +1194,42 @@ function LoginPage() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground text-center">
               {mode === "reset"
-                  ? "Send yourself a secure recovery link."
-                  : mode === "update"
-                    ? "Choose a new password for your account."
+                ? "Send yourself a secure recovery link."
+                : mode === "update"
+                  ? "Choose a new password for your account."
                   : "Use your approved email or user code. Badge sign-in appears only on trusted mobile/tablet devices."}
             </p>
           </div>
 
           {mode === "login" ? (
-              <div className="flex flex-col gap-3">
-                {loginMethod === "badge" && badgeShortcutAvailable ? (
-                  <div className="flex flex-col gap-3">
-                    <Button type="button" variant="outline" className="w-full" onClick={() => rememberLoginMethod("code")}>
-                      Back to sign in
-                    </Button>
-                    <LoginBadgeScanner onScan={handleBadgeScan} onErrorChange={setBadgeScannerError} scannedCode={selectedBadge} />
-                    <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
-                      <p className="text-sm font-medium text-center">Badge login</p>
-                    <p className="text-xs text-muted-foreground text-center">Scan your badge, then enter your PIN to load the app.</p>
+            <div className="flex flex-col gap-3">
+              {loginMethod === "badge" && badgeShortcutAvailable ? (
+                <div className="flex flex-col gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => rememberLoginMethod("code")}
+                  >
+                    Back to sign in
+                  </Button>
+                  <LoginBadgeScanner
+                    onScan={handleBadgeScan}
+                    onErrorChange={setBadgeScannerError}
+                    scannedCode={selectedBadge}
+                  />
+                  <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
+                    <p className="text-sm font-medium text-center">Badge login</p>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Scan your badge, then enter your PIN to load the app.
+                    </p>
                   </div>
                   {badgeScannerError ? (
                     <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
                       <p className="text-sm font-medium text-center">Badge code</p>
-                      <p className="text-xs text-muted-foreground text-center">Badge codes can only be captured by scanner. Use User code if the camera is unavailable.</p>
+                      <p className="text-xs text-muted-foreground text-center">
+                        Badge codes can only be captured by scanner. Use User code if the camera is unavailable.
+                      </p>
                     </div>
                   ) : null}
                   {selectedBadge ? (
@@ -1097,7 +1246,9 @@ function LoginPage() {
                     onSubmit={submitBadgePin}
                   />
                   <div className="hidden">
-                    <label className="text-sm font-medium" htmlFor="badge-pin">PIN</label>
+                    <label className="text-sm font-medium" htmlFor="badge-pin">
+                      PIN
+                    </label>
                     <div>
                       <Input
                         id="badge-pin"
@@ -1111,50 +1262,74 @@ function LoginPage() {
                 </div>
               ) : (
                 <Form {...loginForm}>
-                  <form className="flex flex-col gap-3" onSubmit={loginForm.handleSubmit((v) => {
-                    window.localStorage.setItem(LOGIN_METHOD_STORAGE_KEY, "code");
-                    loginMutation.mutate(v);
-                  })}>
+                  <form
+                    className="flex flex-col gap-3"
+                    onSubmit={loginForm.handleSubmit((v) => {
+                      window.localStorage.setItem(LOGIN_METHOD_STORAGE_KEY, "code");
+                      loginMutation.mutate(v);
+                    })}
+                  >
                     {badgeShortcutAvailable ? (
-                      <Button type="button" variant="outline" className="w-full" onClick={() => rememberLoginMethod("badge")}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => rememberLoginMethod("badge")}
+                      >
                         <ScanLine className="mr-2 h-4 w-4" />
                         Use badge scan
                       </Button>
                     ) : null}
-                    <FormField control={loginForm.control} name="email" render={({ field }) => (
-                      <FormItem><FormLabel>Login</FormLabel><FormControl><Input {...field} autoComplete="username" className="bg-secondary bg-slate-500" /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={loginForm.control} name="password" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password or PIN</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Input {...field} className="pr-12 bg-secondary bg-slate-500" type={showLoginPassword ? "text" : "password"} autoComplete="current-password" />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground"
-                              onClick={() => setShowLoginPassword((current) => !current)}
-                              aria-label={showLoginPassword ? "Hide password" : "Show password"}
-                              title={showLoginPassword ? "Hide password" : "Show password"}
-                            >
-                              {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </Button>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                    <FormField
+                      control={loginForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Login</FormLabel>
+                          <FormControl>
+                            <Input {...field} autoComplete="username" className="bg-secondary bg-slate-500" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={loginForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password or PIN</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                {...field}
+                                className="pr-12 bg-secondary bg-slate-500"
+                                type={showLoginPassword ? "text" : "password"}
+                                autoComplete="current-password"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground"
+                                onClick={() => setShowLoginPassword((current) => !current)}
+                                aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                                title={showLoginPassword ? "Hide password" : "Show password"}
+                              >
+                                {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <Button type="submit" disabled={loginMutation.isPending}>
                       {loginMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
                       Sign in
                     </Button>
                     <label className="flex items-center gap-2 text-xs text-muted-foreground select-none">
-                      <Checkbox
-                        checked={rememberMe}
-                        onCheckedChange={(value) => setRememberMe(value === true)}
-                      />
+                      <Checkbox checked={rememberMe} onCheckedChange={(value) => setRememberMe(value === true)} />
                       Remember me on this device
                     </label>
                   </form>
@@ -1166,7 +1341,9 @@ function LoginPage() {
               <form className="space-y-3" onSubmit={resetForm.handleSubmit((v) => resetMutation.mutate(v))}>
                 <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
                   <p className="text-sm font-medium text-center">Self-serve recovery</p>
-                  <p className="text-xs text-muted-foreground text-center">Use the email tied to your approved warehouse account.</p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Use the email tied to your approved warehouse account.
+                  </p>
                 </div>
                 <FormField
                   control={resetForm.control}
@@ -1174,23 +1351,40 @@ function LoginPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Email</FormLabel>
-                      <FormControl><Input {...field} type="email" autoComplete="email" placeholder="jane@example.com" className="bg-secondary bg-slate-500" /></FormControl>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="email"
+                          autoComplete="email"
+                          placeholder="jane@example.com"
+                          className="bg-secondary bg-slate-500"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={resetMutation.isPending}>
-                  {resetMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                  {resetMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="mr-2 h-4 w-4" />
+                  )}
                   Send reset link
                 </Button>
               </form>
             </Form>
           ) : mode === "update" ? (
             <Form {...updatePasswordForm}>
-              <form className="space-y-3" onSubmit={updatePasswordForm.handleSubmit((v) => updatePasswordMutation.mutate(v))}>
+              <form
+                className="space-y-3"
+                onSubmit={updatePasswordForm.handleSubmit((v) => updatePasswordMutation.mutate(v))}
+              >
                 <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
                   <p className="text-sm font-medium text-center">Recovery link accepted</p>
-                  <p className="text-xs text-muted-foreground text-center">Enter your replacement password to finish account recovery.</p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Enter your replacement password to finish account recovery.
+                  </p>
                 </div>
                 <FormField
                   control={updatePasswordForm.control}
@@ -1200,7 +1394,13 @@ function LoginPage() {
                       <FormLabel>New password</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Input {...field} className="pr-12 bg-secondary bg-slate-500" type={showSignUpPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 8 characters" />
+                          <Input
+                            {...field}
+                            className="pr-12 bg-secondary bg-slate-500"
+                            type={showSignUpPassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            placeholder="Min 8 characters"
+                          />
                           <Button
                             type="button"
                             variant="ghost"
@@ -1223,7 +1423,9 @@ function LoginPage() {
                   Update password
                 </Button>
                 {!auth.session ? (
-                  <p className="text-center text-xs text-muted-foreground">Open this page from the recovery email link to unlock password update.</p>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Open this page from the recovery email link to unlock password update.
+                  </p>
                 ) : null}
               </form>
             </Form>
@@ -1232,7 +1434,10 @@ function LoginPage() {
           <p className="text-center text-sm text-muted-foreground">
             {mode === "login" ? (
               <span className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-                <button className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => setMode("reset")}>
+                <button
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={() => setMode("reset")}
+                >
                   Reset password
                 </button>
                 <span className="text-muted-foreground/60">|</span>
@@ -1241,7 +1446,10 @@ function LoginPage() {
             ) : mode === "reset" ? (
               <>
                 Remembered it?{" "}
-                <button className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => setMode("login")}>
+                <button
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={() => setMode("login")}
+                >
                   Sign in
                 </button>
               </>
@@ -1253,9 +1461,7 @@ function LoginPage() {
         {showAndroidAppLink ? (
           <>
             <Button variant="outline" size="sm" asChild>
-              <a href={ANDROID_APP_DOWNLOAD_URL}>
-                Android app
-              </a>
+              <a href={ANDROID_APP_DOWNLOAD_URL}>Android app</a>
             </Button>
             <span className="text-muted-foreground/60">|</span>
           </>
@@ -1300,7 +1506,9 @@ function LoginPage() {
                 {RELEASE_HISTORY.map((release) => (
                   <div key={release.version} className="rounded-lg border border-border p-3">
                     <div className="mb-2 flex items-center gap-2">
-                      <Badge variant="secondary" className="font-mono">v{release.version}</Badge>
+                      <Badge variant="secondary" className="font-mono">
+                        v{release.version}
+                      </Badge>
                       <span className="text-xs text-muted-foreground">{release.date}</span>
                     </div>
                     <ul className="grid gap-1 text-sm text-muted-foreground">
@@ -1331,17 +1539,28 @@ function InventoryDetailPage() {
     enabled: Boolean(balanceId),
   });
   const palletBarcode = data?.pallet?.pallet_barcode ?? data?.pallet?.pallet_code ?? "";
-  const productLabel = data?.product?.sku || data?.product?.name
-    ? `${data.product?.sku ?? ""}${data.product?.sku && data.product?.name ? " · " : ""}${data.product?.name ?? ""}`
-    : "—";
-  const clientLabel = data?.client?.code || data?.client?.name
-    ? `${data.client?.code ?? ""}${data.client?.code && data.client?.name ? " · " : ""}${data.client?.name ?? ""}`
-    : "—";
-  const warehouseLabel = data?.warehouse?.code || data?.warehouse?.name
-    ? `${data.warehouse?.code ?? ""}${data.warehouse?.code && data.warehouse?.name ? " · " : ""}${data.warehouse?.name ?? ""}`
-    : "—";
+  const productLabel =
+    data?.product?.sku || data?.product?.name
+      ? `${data.product?.sku ?? ""}${data.product?.sku && data.product?.name ? " · " : ""}${data.product?.name ?? ""}`
+      : "—";
+  const clientLabel =
+    data?.client?.code || data?.client?.name
+      ? `${data.client?.code ?? ""}${data.client?.code && data.client?.name ? " · " : ""}${data.client?.name ?? ""}`
+      : "—";
+  const warehouseLabel =
+    data?.warehouse?.code || data?.warehouse?.name
+      ? `${data.warehouse?.code ?? ""}${data.warehouse?.code && data.warehouse?.name ? " · " : ""}${data.warehouse?.name ?? ""}`
+      : "—";
   const canReceive = roles.some((role) =>
-    ["developer", "dev", "admin", "warehouse_manager", "warehouse_supervisor", "supervisor", "inventory_clerk"].includes(role),
+    [
+      "developer",
+      "dev",
+      "admin",
+      "warehouse_manager",
+      "warehouse_supervisor",
+      "supervisor",
+      "inventory_clerk",
+    ].includes(role),
   );
   // A pending edit is resumable rather than blocked — reopening it picks the
   // same draft back up instead of reserving a second pallet number.
@@ -1351,7 +1570,9 @@ function InventoryDetailPage() {
       ? "This pallet has been superseded by a correction."
       : data.balance.correction_state === "pending" || data.pallet.correction_state === "pending"
         ? ""
-        : (data.balance.status !== "available" && !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) || Number(data.balance.reserved_quantity ?? 0) > 0
+        : (data.balance.status !== "available" &&
+              !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) ||
+            Number(data.balance.reserved_quantity ?? 0) > 0
           ? "Clear reserved or allocated stock before correcting this pallet."
           : !data.location?.code
             ? "Only a stored pallet can be corrected from Inventory."
@@ -1367,12 +1588,19 @@ function InventoryDetailPage() {
         lotNumber: data.lot?.lot_number ?? null,
         batchNumber: data.lot?.batch_number ?? null,
         clientName: data.client?.name ?? data.client?.code ?? null,
-        warehouseName: data.warehouse ? `${data.warehouse.code ? `${data.warehouse.code} - ` : ""}${data.warehouse.name ?? ""}` : null,
+        warehouseName: data.warehouse
+          ? `${data.warehouse.code ? `${data.warehouse.code} - ` : ""}${data.warehouse.name ?? ""}`
+          : null,
         locationCode: data.location?.code ?? null,
         containerNumber: data.receipt?.container_number ?? null,
         poNumber: data.receipt?.po_number ?? null,
         receiptReference: data.receipt?.reference_number ?? data.receipt?.receipt_number ?? null,
-        packaging: data.packaging?.profile_name ?? data.packaging?.name ?? data.packaging?.unit_name ?? data.packaging?.unit_of_measure ?? null,
+        packaging:
+          data.packaging?.profile_name ??
+          data.packaging?.name ??
+          data.packaging?.unit_name ??
+          data.packaging?.unit_of_measure ??
+          null,
         temperatureClass: data.product?.temperature_requirement ?? undefined,
       }
     : null;
@@ -1388,165 +1616,184 @@ function InventoryDetailPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-6">
-      <Button variant="ghost" className="w-fit -ml-1 gap-1.5 text-muted-foreground" onClick={() => navigate(-1)}>
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Button>
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>Inventory Detail</CardTitle>
-            <CardDescription>Pallet, lot, status, and location context.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm">
-            {isLoading ? (
-              <p className="text-muted-foreground">Loading…</p>
-            ) : data ? (
-              <>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Pallet</span>
-                  <span className="font-mono text-right">{data.pallet?.pallet_code ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Pallet barcode</span>
-                  <span className="font-mono text-right">{palletBarcode || "—"}</span>
-                </div>
-                <PalletBarcodePreview code={palletBarcode} />
-                <div className="flex items-center justify-between gap-4">
-                  <span>Product</span>
-                  <span className="text-right">{productLabel}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Product barcode</span>
-                  <span className="font-mono text-right">{data.product?.barcode ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Client</span>
-                  <span className="text-right">{clientLabel}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Warehouse</span>
-                  <span className="text-right">{warehouseLabel}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Location</span>
-                  <span className="font-mono text-right">{data.location?.code ?? "Receiving / not stored"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Status</span>
-                  <Badge>{data.balance.status}</Badge>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Quantity</span>
-                  <span>{formatNumber(data.balance.quantity)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Available</span>
-                  <span>{formatNumber(data.balance.available_quantity)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Received qty</span>
-                  <span>{formatNumber(data.receiptLine?.received_quantity ?? data.receiptLine?.quantity ?? data.balance.quantity)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Receipt</span>
-                  <span className="font-mono text-right">{data.receipt?.receipt_number ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Reference</span>
-                  <span className="text-right">{data.receipt?.reference_number ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Expiry</span>
-                  <span>{formatDate(data.lot?.expiry_date)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Lot</span>
-                  <span>{data.lot?.lot_number ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Batch</span>
-                  <span>{data.lot?.batch_number ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span>Manufactured</span>
-                  <span>{formatDate(data.lot?.manufacture_date)}</span>
-                </div>
-                <div className="grid gap-2 rounded-lg border border-border p-3">
+        <Button variant="ghost" className="w-fit -ml-1 gap-1.5 text-muted-foreground" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </Button>
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <Card className="min-w-0">
+            <CardHeader>
+              <CardTitle>Inventory Detail</CardTitle>
+              <CardDescription>Pallet, lot, status, and location context.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              {isLoading ? (
+                <p className="text-muted-foreground">Loading…</p>
+              ) : data ? (
+                <>
                   <div className="flex items-center justify-between gap-4">
-                    <span>Dimensions</span>
-                    <span className="text-right">
-                      {[data.receiptLine?.override_length ?? data.pallet?.length, data.receiptLine?.override_width ?? data.pallet?.width, data.receiptLine?.override_height ?? data.pallet?.height]
-                        .map((value) => value == null ? "—" : formatNumber(value))
-                        .join(" × ")}
+                    <span>Pallet</span>
+                    <span className="font-mono text-right">{data.pallet?.pallet_code ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Pallet barcode</span>
+                    <span className="font-mono text-right">{palletBarcode || "—"}</span>
+                  </div>
+                  <PalletBarcodePreview code={palletBarcode} />
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Product</span>
+                    <span className="text-right">{productLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Product barcode</span>
+                    <span className="font-mono text-right">{data.product?.barcode ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Client</span>
+                    <span className="text-right">{clientLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Warehouse</span>
+                    <span className="text-right">{warehouseLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Location</span>
+                    <span className="font-mono text-right">{data.location?.code ?? "Receiving / not stored"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Status</span>
+                    <Badge>{data.balance.status}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Quantity</span>
+                    <span>{formatNumber(data.balance.quantity)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Available</span>
+                    <span>{formatNumber(data.balance.available_quantity)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Received qty</span>
+                    <span>
+                      {formatNumber(
+                        data.receiptLine?.received_quantity ?? data.receiptLine?.quantity ?? data.balance.quantity,
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span>Weight</span>
-                    <span>{formatNumber(data.receiptLine?.override_weight ?? data.pallet?.weight)} kg</span>
+                    <span>Receipt</span>
+                    <span className="font-mono text-right">{data.receipt?.receipt_number ?? "—"}</span>
                   </div>
-                </div>
-                {palletBarcode && (
-                  <div className="flex flex-wrap gap-2">
-                    <PalletLabelPage
-                    barcode={palletBarcode}
-                    quantity={Number(data.balance.quantity ?? 0)}
-                    productSku={data.product?.sku ?? undefined}
-                    productName={data.product?.name ?? undefined}
-                    lotNumber={data.lot?.lot_number}
-                    batchNumber={data.lot?.batch_number}
-                    expiryDate={data.lot?.expiry_date}
-                    containerNumber={data.receipt?.container_number}
-                    poNumber={data.receipt?.po_number}
-                    clientName={data.client?.name ?? data.client?.code}
-                    warehouseName={data.warehouse ? `${data.warehouse.code ? `${data.warehouse.code} - ` : ""}${data.warehouse.name ?? ""}` : undefined}
-                    locationCode={data.location?.code}
-                    receiptReference={data.receipt?.reference_number ?? data.receipt?.receipt_number}
-                    packaging={data.packaging?.profile_name ?? data.packaging?.name ?? data.packaging?.unit_name ?? data.packaging?.unit_of_measure}
-                    draftSequence={data.receipt?.draft_sequence}
-                    draftCount={data.receipt?.draft_count}
-                    temperatureClass={data.product?.temperature_requirement ?? undefined}
-                      trigger={<Button variant="outline">Preview pallet label</Button>}
-                    />
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Reference</span>
+                    <span className="text-right">{data.receipt?.reference_number ?? "—"}</span>
                   </div>
-                )}
-                {canReceive && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      disabled={Boolean(correctionBlockedReason)}
-                      title={correctionBlockedReason || "Edit this pallet's quantity or expiry, or send it back to Drafts"}
-                      onClick={() => setEditOpen(true)}
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Edit pallet
-                    </Button>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Expiry</span>
+                    <span>{formatDate(data.lot?.expiry_date)}</span>
                   </div>
-                )}
-              </>
-            ) : null}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>Movement History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[420px]">
-              <div className="grid gap-3">
-                {(data?.audit ?? []).map((event) => (
-                  <div key={event.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Lot</span>
+                    <span>{data.lot?.lot_number ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Batch</span>
+                    <span>{data.lot?.batch_number ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Manufactured</span>
+                    <span>{formatDate(data.lot?.manufacture_date)}</span>
+                  </div>
+                  <div className="grid gap-2 rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="font-medium">{event.event_type}</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(event.created_at)}</span>
+                      <span>Dimensions</span>
+                      <span className="text-right">
+                        {[
+                          data.receiptLine?.override_length ?? data.pallet?.length,
+                          data.receiptLine?.override_width ?? data.pallet?.width,
+                          data.receiptLine?.override_height ?? data.pallet?.height,
+                        ]
+                          .map((value) => (value == null ? "—" : formatNumber(value)))
+                          .join(" × ")}
+                      </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{event.entity_table}</p>
+                    <div className="flex items-center justify-between gap-4">
+                      <span>Weight</span>
+                      <span>{formatNumber(data.receiptLine?.override_weight ?? data.pallet?.weight)} kg</span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+                  {palletBarcode && (
+                    <div className="flex flex-wrap gap-2">
+                      <PalletLabelPage
+                        barcode={palletBarcode}
+                        quantity={Number(data.balance.quantity ?? 0)}
+                        productSku={data.product?.sku ?? undefined}
+                        productName={data.product?.name ?? undefined}
+                        lotNumber={data.lot?.lot_number}
+                        batchNumber={data.lot?.batch_number}
+                        expiryDate={data.lot?.expiry_date}
+                        containerNumber={data.receipt?.container_number}
+                        poNumber={data.receipt?.po_number}
+                        clientName={data.client?.name ?? data.client?.code}
+                        warehouseName={
+                          data.warehouse
+                            ? `${data.warehouse.code ? `${data.warehouse.code} - ` : ""}${data.warehouse.name ?? ""}`
+                            : undefined
+                        }
+                        locationCode={data.location?.code}
+                        receiptReference={data.receipt?.reference_number ?? data.receipt?.receipt_number}
+                        packaging={
+                          data.packaging?.profile_name ??
+                          data.packaging?.name ??
+                          data.packaging?.unit_name ??
+                          data.packaging?.unit_of_measure
+                        }
+                        draftSequence={data.receipt?.draft_sequence}
+                        draftCount={data.receipt?.draft_count}
+                        temperatureClass={data.product?.temperature_requirement ?? undefined}
+                        trigger={<Button variant="outline">Preview pallet label</Button>}
+                      />
+                    </div>
+                  )}
+                  {canReceive && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={Boolean(correctionBlockedReason)}
+                        title={
+                          correctionBlockedReason || "Edit this pallet's quantity or expiry, or send it back to Drafts"
+                        }
+                        onClick={() => setEditOpen(true)}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Edit pallet
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
+          <Card className="min-w-0">
+            <CardHeader>
+              <CardTitle>Movement History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[420px]">
+                <div className="grid gap-3">
+                  {(data?.audit ?? []).map((event) => (
+                    <div key={event.id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-medium">{event.event_type}</span>
+                        <span className="text-xs text-muted-foreground">{formatDate(event.created_at)}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{event.entity_table}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
       </div>
       <PalletEditDialog open={editOpen} onOpenChange={setEditOpen} target={editTarget} />
     </AppShell>
@@ -1579,20 +1826,25 @@ function PickExecutionPage() {
   const expectedPickListCode = String((data as any)?.pickList?.pick_list_number ?? "");
   const taskLocationRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [confirmErrorNonceByTask, setConfirmErrorNonceByTask] = useState<Record<string, number>>({});
-  const [pickAnomalyByTask, setPickAnomalyByTask] = useState<Record<string, { availableQuantity: number; requestedQuantity: number } | undefined>>({});
+  const [pickAnomalyByTask, setPickAnomalyByTask] = useState<
+    Record<string, { availableQuantity: number; requestedQuantity: number } | undefined>
+  >({});
   const [shortfallPrompt, setShortfallPrompt] = useState<{ taskId: string; quantity: number } | null>(null);
 
-  const focusNextOpen = useCallback((justConfirmedId: string) => {
-    const list = tasks;
-    const idx = list.findIndex((t) => t.id === justConfirmedId);
-    const next = list.slice(idx + 1).find((t) => PICK_OPEN_STATUSES.has(t.status));
-    if (!next) return;
-    const el = taskLocationRefs.current[next.id];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      setTimeout(() => el.focus(), 250);
-    }
-  }, [tasks]);
+  const focusNextOpen = useCallback(
+    (justConfirmedId: string) => {
+      const list = tasks;
+      const idx = list.findIndex((t) => t.id === justConfirmedId);
+      const next = list.slice(idx + 1).find((t) => PICK_OPEN_STATUSES.has(t.status));
+      if (!next) return;
+      const el = taskLocationRefs.current[next.id];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => el.focus(), 250);
+      }
+    },
+    [tasks],
+  );
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -1639,9 +1891,16 @@ function PickExecutionPage() {
         delete next[variables.taskId];
         return next;
       });
-      alertToast.success(variables.confirmSourceOverride ? "Alternate source picked — task reassigned and movement recorded" : variables.override ? "Pick confirmed with override — anomaly logged for review" : "Pick task confirmed", {
-        className: "task-success-toast-rim",
-      });
+      alertToast.success(
+        variables.confirmSourceOverride
+          ? "Alternate source picked — task reassigned and movement recorded"
+          : variables.override
+            ? "Pick confirmed with override — anomaly logged for review"
+            : "Pick task confirmed",
+        {
+          className: "task-success-toast-rim",
+        },
+      );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
         queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
@@ -1690,15 +1949,12 @@ function PickExecutionPage() {
         .from("pick_tasks")
         .select("id, status")
         .eq("pick_list_id", pickListId)
-      .in("status", Array.from(PICK_OPEN_STATUSES) as ("queued" | "assigned" | "in_progress")[]);
+        .in("status", Array.from(PICK_OPEN_STATUSES) as ("queued" | "assigned" | "in_progress")[]);
       if (openError) throw openError;
       if ((openTasks ?? []).length > 0) {
         throw new Error("Confirm every pick task before closing the pick list.");
       }
-      const { error } = await supabase
-        .from("pick_lists")
-        .update({ status: "completed" })
-        .eq("id", pickListId);
+      const { error } = await supabase.from("pick_lists").update({ status: "completed" }).eq("id", pickListId);
       if (error) throw error;
     },
     onSuccess: async () => {
@@ -1722,14 +1978,17 @@ function PickExecutionPage() {
       if (result?.pallet_found) {
         alertToast.success(`Follow-up pick task ${result.task_number} created for the shortfall`);
       } else {
-        alertToast.attention(`No available pallet found — ${result?.task_number ?? "the follow-up task"} was raised as an exception.`);
+        alertToast.attention(
+          `No available pallet found — ${result?.task_number ?? "the follow-up task"} was raised as an exception.`,
+        );
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
         queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
       ]);
     },
-    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not create the follow-up pick task"),
+    onError: (error) =>
+      alertToast.noGo(error instanceof Error ? error.message : "Could not create the follow-up pick task"),
   });
 
   const allTasksClosed = tasks.length > 0 && tasks.every((t) => !PICK_OPEN_STATUSES.has(t.status));
@@ -1752,7 +2011,10 @@ function PickExecutionPage() {
         {!online ? (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
             <p className="font-medium">This device is offline. Live pick confirmations are frozen.</p>
-            <p className="mt-1 text-xs sm:text-sm">Your scan position stays on this device. Reconnect before you post the pick so the app can validate against live stock.</p>
+            <p className="mt-1 text-xs sm:text-sm">
+              Your scan position stays on this device. Reconnect before you post the pick so the app can validate
+              against live stock.
+            </p>
           </div>
         ) : null}
         {tasks.map((task) => (
@@ -1794,19 +2056,25 @@ function PickExecutionPage() {
                 {listAlreadyClosed ? "Pick list closed" : "Mark pick list complete"}
               </Button>
               <p className="text-xs text-muted-foreground text-center">
-                Marking complete means pallets have been delivered to the dispatch/staging area and are handed off to the ERP.
+                Marking complete means pallets have been delivered to the dispatch/staging area and are handed off to
+                the ERP.
               </p>
             </CardContent>
           </Card>
         )}
       </div>
-      <Dialog open={Boolean(shortfallPrompt)} onOpenChange={(open) => { if (!open) setShortfallPrompt(null); }}>
+      <Dialog
+        open={Boolean(shortfallPrompt)}
+        onOpenChange={(open) => {
+          if (!open) setShortfallPrompt(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Shortfall of {formatNumber(shortfallPrompt?.quantity ?? 0)}</DialogTitle>
             <DialogDescription>
-              The pallet you picked was smaller than the requested quantity. Pick another pallet to make up the remaining
-              {" "}{formatNumber(shortfallPrompt?.quantity ?? 0)}, or leave the line short as is.
+              The pallet you picked was smaller than the requested quantity. Pick another pallet to make up the
+              remaining {formatNumber(shortfallPrompt?.quantity ?? 0)}, or leave the line short as is.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap justify-end gap-2">
@@ -1860,7 +2128,9 @@ function PickBayGrid({
     );
   }
 
-  const hasAssignedLocation = data.cells.some((cell: { locationCode: string }) => cell.locationCode.toUpperCase() === assigned);
+  const hasAssignedLocation = data.cells.some(
+    (cell: { locationCode: string }) => cell.locationCode.toUpperCase() === assigned,
+  );
 
   return (
     <div className="lg:col-span-4 grid gap-2 rounded-md border border-border bg-secondary/20 p-3">
@@ -1869,7 +2139,8 @@ function PickBayGrid({
           Bay {data.aisle ?? "?"}-{data.bay ?? "?"}
         </span>
         <span>
-          Pick from <span className="font-mono font-semibold text-foreground">{assignedLocationCode || "assigned location"}</span>
+          Pick from{" "}
+          <span className="font-mono font-semibold text-foreground">{assignedLocationCode || "assigned location"}</span>
         </span>
       </div>
       <div className="grid gap-2">
@@ -1910,7 +2181,9 @@ function PickBayGrid({
                   <span className="mt-1 block">
                     {cell.occupiedPallets}/{cell.maxPallets} pallets
                   </span>
-                  <span className="block">{isAssigned ? "Pallet location" : cell.status !== "active" ? cell.status : "Other bin"}</span>
+                  <span className="block">
+                    {isAssigned ? "Pallet location" : cell.status !== "active" ? cell.status : "Other bin"}
+                  </span>
                 </button>
               );
             })}
@@ -1970,7 +2243,9 @@ function PickTaskCard({
   const [bayScan, setBayScan] = useState("");
   const [alternateMode, setAlternateMode] = useState(false);
   const [alternatePalletBarcode, setAlternatePalletBarcode] = useState("");
-  const [alternatePreview, setAlternatePreview] = useState<Awaited<ReturnType<typeof previewPickSourceOverride>> | null>(null);
+  const [alternatePreview, setAlternatePreview] = useState<Awaited<
+    ReturnType<typeof previewPickSourceOverride>
+  > | null>(null);
   const [alternateArmed, setAlternateArmed] = useState(false);
   const pallet = task.pallets as any;
   const product = pallet?.products as any;
@@ -1978,16 +2253,17 @@ function PickTaskCard({
   const locationCode = normalizeRackLocationCode(location?.code ?? "");
   const locationDescriptor = describePickLocation(location);
   const palletBarcode = pallet?.pallet_barcode ?? "";
-  const palletQuantity = task.pick_balance?.available_quantity ?? pallet?.available_quantity ?? pallet?.quantity ?? task.requested_quantity;
+  const palletQuantity =
+    task.pick_balance?.available_quantity ?? pallet?.available_quantity ?? pallet?.quantity ?? task.requested_quantity;
   const wholePalletQuantity = Number(palletQuantity ?? task.requested_quantity ?? 0);
   const isOpen = PICK_OPEN_STATUSES.has(task.status);
   const scannedLocation = String(form.watch("locationCode") ?? "").trim();
   const scannedPallet = String(form.watch("palletBarcode") ?? "").trim();
   const readyToConfirm = Boolean(scannedLocation && scannedPallet);
-  const sourceOverrideScanned = readyToConfirm && (
-    normalizeRackLocationCode(scannedLocation) !== locationCode
-    || scannedPallet.toUpperCase() !== String(palletBarcode).toUpperCase()
-  );
+  const sourceOverrideScanned =
+    readyToConfirm &&
+    (normalizeRackLocationCode(scannedLocation) !== locationCode ||
+      scannedPallet.toUpperCase() !== String(palletBarcode).toUpperCase());
   const lockForConfirm = confirmPrompt && readyToConfirm;
   const pickListId = String(task.pick_list_id ?? "");
 
@@ -2042,15 +2318,24 @@ function PickTaskCard({
             <Badge variant={task.status === "completed" ? "default" : "secondary"}>{task.status}</Badge>
           </CardTitle>
           <CardDescription>
-            {product?.sku ? `${product.sku} · ` : ""}{product?.name ?? "Product"} · {locationCode || "—"} · pallet {palletBarcode || "—"}
+            {product?.sku ? `${product.sku} · ` : ""}
+            {product?.name ?? "Product"} · {locationCode || "—"} · pallet {palletBarcode || "—"}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm sm:grid-cols-3">
-          <div><span className="text-muted-foreground">Requested:</span> {formatNumber(task.requested_quantity)}</div>
-          <div><span className="text-muted-foreground">Confirmed:</span> {formatNumber(task.confirmed_quantity ?? 0)}</div>
+          <div>
+            <span className="text-muted-foreground">Requested:</span> {formatNumber(task.requested_quantity)}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Confirmed:</span> {formatNumber(task.confirmed_quantity ?? 0)}
+          </div>
           {task.short_reason ? (
-            <div className="text-amber-600 sm:col-span-1"><span className="text-muted-foreground">Short:</span> {task.short_reason}</div>
-          ) : <div />}
+            <div className="text-amber-600 sm:col-span-1">
+              <span className="text-muted-foreground">Short:</span> {task.short_reason}
+            </div>
+          ) : (
+            <div />
+          )}
         </CardContent>
       </Card>
     );
@@ -2069,7 +2354,9 @@ function PickTaskCard({
       return;
     }
     if (sourceOverrideScanned) {
-      alertToast.attention("This pallet or location differs from the task. Use Pick a different pallet to verify and override it.");
+      alertToast.attention(
+        "This pallet or location differs from the task. Use Pick a different pallet to verify and override it.",
+      );
       return;
     }
     onConfirm({
@@ -2123,124 +2410,137 @@ function PickTaskCard({
         }
         setAlternatePreview(preview);
       })
-      .catch((error) => alertToast.noGo(error instanceof Error ? error.message : "Could not verify the alternate pallet."));
+      .catch((error) =>
+        alertToast.noGo(error instanceof Error ? error.message : "Could not verify the alternate pallet."),
+      );
   }
 
   return (
     <div ref={cardRef} className="rounded-lg transition-shadow duration-300">
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-4">
-          <span className="min-w-0 break-all">{task.task_number}</span>
-          <Badge>{task.status}</Badge>
-        </CardTitle>
-        <CardDescription>Requested quantity: {formatNumber(task.requested_quantity)}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form
-            className="grid gap-4 lg:grid-cols-4"
-            onSubmit={handleSubmit}
-          >
-            <div
-              className="lg:col-span-4 grid gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-2 font-mono text-sm"
-              aria-label="Pick task instructions"
-            >
-              {instructionRows.map((row) => (
-                <div key={row.label} className="grid gap-1 sm:grid-cols-[7rem_minmax(0,1fr)]">
-                  <span className="font-semibold text-muted-foreground">{row.label}</span>
-                  <span className="min-w-0 break-words text-foreground">{row.value}</span>
-                </div>
-              ))}
-            </div>
-            <FormField
-              control={form.control}
-              name="locationCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Bay/Location Code</FormLabel>
-                  <FormControl>
-                    <div className="flex gap-2">
-                      <Input
-                        {...field}
-                        ref={(el) => {
-                          field.ref(el);
-                          locationRef.current = el;
-                          registerLocationRef(el);
-                        }}
-                        className="min-h-10 min-w-0 flex-1 transition-shadow duration-300"
-                        disabled={lockForConfirm}
-                        placeholder="Scan location barcode"
-                        onChange={(event) => {
-                          const value = normalizeScannerText(event.target.value.replace(/[\r\n]/g, ""));
-                          if (/^BAY:[^:]+:[^:]+:[^:]+:[^:]+$/i.test(value.trim())) {
-                            applyLocationScan(value);
-                            return;
-                          }
-                          if (!value.toUpperCase().startsWith("BAY:")) setBayScan("");
-                          field.onChange(value);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            applyLocationScan(event.currentTarget.value);
-                          }
-                        }}
-                      />
-                      <div ref={locationScanButtonRef} className="rounded-md transition-shadow duration-300">
-                        <BarcodeScanButton
-                          title="Scan Bay/Location Code"
-                          onScan={applyLocationScan}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between gap-4">
+            <span className="min-w-0 break-all">{task.task_number}</span>
+            <Badge>{task.status}</Badge>
+          </CardTitle>
+          <CardDescription>Requested quantity: {formatNumber(task.requested_quantity)}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form className="grid gap-4 lg:grid-cols-4" onSubmit={handleSubmit}>
+              <div
+                className="lg:col-span-4 grid gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-2 font-mono text-sm"
+                aria-label="Pick task instructions"
+              >
+                {instructionRows.map((row) => (
+                  <div key={row.label} className="grid gap-1 sm:grid-cols-[7rem_minmax(0,1fr)]">
+                    <span className="font-semibold text-muted-foreground">{row.label}</span>
+                    <span className="min-w-0 break-words text-foreground">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+              <FormField
+                control={form.control}
+                name="locationCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bay/Location Code</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2">
+                        <Input
+                          {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            locationRef.current = el;
+                            registerLocationRef(el);
+                          }}
+                          className="min-h-10 min-w-0 flex-1 transition-shadow duration-300"
                           disabled={lockForConfirm}
-                          className="w-20"
+                          placeholder="Scan location barcode"
+                          onChange={(event) => {
+                            const value = normalizeScannerText(event.target.value.replace(/[\r\n]/g, ""));
+                            if (/^BAY:[^:]+:[^:]+:[^:]+:[^:]+$/i.test(value.trim())) {
+                              applyLocationScan(value);
+                              return;
+                            }
+                            if (!value.toUpperCase().startsWith("BAY:")) setBayScan("");
+                            field.onChange(value);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              applyLocationScan(event.currentTarget.value);
+                            }
+                          }}
                         />
+                        <div ref={locationScanButtonRef} className="rounded-md transition-shadow duration-300">
+                          <BarcodeScanButton
+                            title="Scan Bay/Location Code"
+                            onScan={applyLocationScan}
+                            disabled={lockForConfirm}
+                            className="w-20"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            {bayScan ? (
-              <PickBayGrid
-                bayCode={bayScan}
-                assignedLocationCode={locationCode}
-                onSelectAssigned={(selectedLocation) => {
-                  setBayScan("");
-                  form.setValue("locationCode", selectedLocation);
-                  setConfirmPrompt(false);
-                  playBarcodeBeep();
-                  flashInput(locationRef.current, "yellow");
-                  setTimeout(() => {
-                    flashInput(palletRef.current, "orange");
-                    palletRef.current?.focus();
-                  }, 50);
-                }}
+                    </FormControl>
+                  </FormItem>
+                )}
               />
-            ) : null}
-            <FormField
-              control={form.control}
-              name="palletBarcode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Pallet barcode</FormLabel>
-                  <FormControl>
-                    <div className="flex gap-2">
-                      <Input
-                        {...field}
-                        ref={(el) => {
-                          field.ref(el);
-                          palletRef.current = el;
-                        }}
-                        className="min-h-10 min-w-0 flex-1 transition-shadow duration-300"
-                        disabled={lockForConfirm}
-                        placeholder="Scan pallet barcode"
-                        onChange={(event) => {
-                          onClearAnomaly?.();
-                          field.onChange(normalizeScannerText(event.target.value.replace(/[\r\n]/g, "")));
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
+              {bayScan ? (
+                <PickBayGrid
+                  bayCode={bayScan}
+                  assignedLocationCode={locationCode}
+                  onSelectAssigned={(selectedLocation) => {
+                    setBayScan("");
+                    form.setValue("locationCode", selectedLocation);
+                    setConfirmPrompt(false);
+                    playBarcodeBeep();
+                    flashInput(locationRef.current, "yellow");
+                    setTimeout(() => {
+                      flashInput(palletRef.current, "orange");
+                      palletRef.current?.focus();
+                    }, 50);
+                  }}
+                />
+              ) : null}
+              <FormField
+                control={form.control}
+                name="palletBarcode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pallet barcode</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2">
+                        <Input
+                          {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            palletRef.current = el;
+                          }}
+                          className="min-h-10 min-w-0 flex-1 transition-shadow duration-300"
+                          disabled={lockForConfirm}
+                          placeholder="Scan pallet barcode"
+                          onChange={(event) => {
+                            onClearAnomaly?.();
+                            field.onChange(normalizeScannerText(event.target.value.replace(/[\r\n]/g, "")));
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              playBarcodeBeep();
+                              flashInput(palletRef.current, "blue");
+                              setConfirmPrompt(true);
+                              setTimeout(() => {
+                                flashInput(confirmRef.current, "yellow");
+                                confirmRef.current?.focus();
+                              }, 50);
+                            }
+                          }}
+                        />
+                        <BarcodeScanButton
+                          title="Scan pallet barcode"
+                          onScan={(value) => {
+                            form.setValue("palletBarcode", normalizeScannerText(value));
                             playBarcodeBeep();
                             flashInput(palletRef.current, "blue");
                             setConfirmPrompt(true);
@@ -2248,160 +2548,199 @@ function PickTaskCard({
                               flashInput(confirmRef.current, "yellow");
                               confirmRef.current?.focus();
                             }, 50);
+                          }}
+                          disabled={lockForConfirm}
+                          className="w-20"
+                        />
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <div className="lg:col-span-2 grid gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-xs font-medium text-muted-foreground">Full pallet qty</span>
+                <span className="font-mono text-base font-semibold">{formatNumber(wholePalletQuantity)}</span>
+              </div>
+              <div className="lg:col-span-4 rounded-md border border-dashed border-amber-400 bg-amber-50/60 p-3 dark:border-amber-600 dark:bg-amber-950/20">
+                {!alternateMode ? (
+                  <Button type="button" variant="outline" disabled={isPending} onClick={() => setAlternateMode(true)}>
+                    Pick a different matching pallet
+                  </Button>
+                ) : (
+                  <div className="grid gap-3">
+                    <div>
+                      <p className="font-medium text-amber-900 dark:text-amber-200">Verify an alternate pallet</p>
+                      <p className="text-xs text-amber-800 dark:text-amber-300">
+                        Scan the pallet. Its live location, SKU, quantity, assignment, and freeze status are checked
+                        before an override can be armed.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={alternatePalletBarcode}
+                        disabled={isPending}
+                        placeholder="Scan alternate pallet barcode"
+                        onChange={(event) =>
+                          setAlternatePalletBarcode(normalizeScannerText(event.target.value.replace(/[\r\n]/g, "")))
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            previewAlternate(event.currentTarget.value);
                           }
                         }}
                       />
                       <BarcodeScanButton
-                        title="Scan pallet barcode"
-                        onScan={(value) => {
-                          form.setValue("palletBarcode", normalizeScannerText(value));
-                          playBarcodeBeep();
-                          flashInput(palletRef.current, "blue");
-                          setConfirmPrompt(true);
-                          setTimeout(() => {
-                            flashInput(confirmRef.current, "yellow");
-                            confirmRef.current?.focus();
-                          }, 50);
-                        }}
-                        disabled={lockForConfirm}
-                        className="w-20"
+                        title="Scan alternate pallet barcode"
+                        disabled={isPending}
+                        onScan={previewAlternate}
                       />
                     </div>
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <div className="lg:col-span-2 grid gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-xs font-medium text-muted-foreground">Full pallet qty</span>
-              <span className="font-mono text-base font-semibold">{formatNumber(wholePalletQuantity)}</span>
-            </div>
-            <div className="lg:col-span-4 rounded-md border border-dashed border-amber-400 bg-amber-50/60 p-3 dark:border-amber-600 dark:bg-amber-950/20">
-              {!alternateMode ? (
-                <Button type="button" variant="outline" disabled={isPending} onClick={() => setAlternateMode(true)}>
-                  Pick a different matching pallet
-                </Button>
-              ) : (
-                <div className="grid gap-3">
-                  <div>
-                    <p className="font-medium text-amber-900 dark:text-amber-200">Verify an alternate pallet</p>
-                    <p className="text-xs text-amber-800 dark:text-amber-300">Scan the pallet. Its live location, SKU, quantity, assignment, and freeze status are checked before an override can be armed.</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={alternatePalletBarcode}
-                      disabled={isPending}
-                      placeholder="Scan alternate pallet barcode"
-                      onChange={(event) => setAlternatePalletBarcode(normalizeScannerText(event.target.value.replace(/[\r\n]/g, "")))}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          previewAlternate(event.currentTarget.value);
-                        }
+                    {alternatePreview
+                      ? (() => {
+                          const scannedQty = Number(
+                            alternatePreview.scanned_available_quantity ?? alternatePreview.requested_quantity,
+                          );
+                          const variance = Boolean(alternatePreview.quantity_variance);
+                          const delta = scannedQty - Number(alternatePreview.requested_quantity ?? 0);
+                          return (
+                            <div className="grid gap-2 rounded-md border border-amber-400 bg-amber-100/70 p-3 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100">
+                              {variance ? (
+                                <p>
+                                  <AlertTriangle className="mr-1 inline h-4 w-4" />
+                                  SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> matches,
+                                  but this pallet holds{" "}
+                                  <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> versus the
+                                  requested{" "}
+                                  <span className="font-mono font-semibold">
+                                    {formatNumber(alternatePreview.requested_quantity)}
+                                  </span>{" "}
+                                  (
+                                  {delta > 0 ? `${formatNumber(delta)} over` : `${formatNumber(Math.abs(delta))} short`}
+                                  ). The whole pallet will be picked and the variance recorded on the task.
+                                </p>
+                              ) : (
+                                <p>
+                                  <CheckCircle2 className="mr-1 inline h-4 w-4" />
+                                  SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> and
+                                  full-pallet quantity{" "}
+                                  <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> match this
+                                  pick task.
+                                </p>
+                              )}
+                              <p>
+                                Directed: <span className="font-mono">{palletBarcode}</span> at{" "}
+                                <span className="font-mono">{locationCode}</span>
+                              </p>
+                              <p>
+                                Found: <span className="font-mono">{alternatePreview.scanned_pallet_barcode}</span> at{" "}
+                                <span className="font-mono">{alternatePreview.scanned_location_code}</span>
+                              </p>
+                              {!alternateArmed ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="w-fit border-amber-500"
+                                  onClick={() => setAlternateArmed(true)}
+                                >
+                                  {variance
+                                    ? `Override & pick ${formatNumber(scannedQty)} (requested ${formatNumber(alternatePreview.requested_quantity)})`
+                                    : "Override source"}
+                                </Button>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">
+                                    The directed pallet will be released from this task. Its inventory stays available.
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() =>
+                                      onConfirm({
+                                        taskId: task.id,
+                                        locationCode: alternatePreview.scanned_location_code,
+                                        palletBarcode: alternatePreview.scanned_pallet_barcode,
+                                        quantity: scannedQty,
+                                        pickListCode,
+                                        confirmSourceOverride: true,
+                                        allowSourceQuantityVariance: variance,
+                                      })
+                                    }
+                                  >
+                                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                    Confirm pick
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-fit"
+                      onClick={() => {
+                        setAlternateMode(false);
+                        setAlternatePreview(null);
+                        setAlternateArmed(false);
                       }}
-                    />
-                    <BarcodeScanButton title="Scan alternate pallet barcode" disabled={isPending} onScan={previewAlternate} />
+                    >
+                      Cancel alternate pallet
+                    </Button>
                   </div>
-                  {alternatePreview ? (() => {
-                    const scannedQty = Number(alternatePreview.scanned_available_quantity ?? alternatePreview.requested_quantity);
-                    const variance = Boolean(alternatePreview.quantity_variance);
-                    const delta = scannedQty - Number(alternatePreview.requested_quantity ?? 0);
-                    return (
-                    <div className="grid gap-2 rounded-md border border-amber-400 bg-amber-100/70 p-3 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100">
-                      {variance ? (
-                        <p>
-                          <AlertTriangle className="mr-1 inline h-4 w-4" />
-                          SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> matches, but this pallet holds{" "}
-                          <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> versus the requested{" "}
-                          <span className="font-mono font-semibold">{formatNumber(alternatePreview.requested_quantity)}</span>
-                          {" "}({delta > 0 ? `${formatNumber(delta)} over` : `${formatNumber(Math.abs(delta))} short`}). The whole pallet will be
-                          picked and the variance recorded on the task.
-                        </p>
-                      ) : (
-                        <p><CheckCircle2 className="mr-1 inline h-4 w-4" />SKU <span className="font-mono font-semibold">{alternatePreview.sku}</span> and full-pallet quantity <span className="font-mono font-semibold">{formatNumber(scannedQty)}</span> match this pick task.</p>
-                      )}
-                      <p>Directed: <span className="font-mono">{palletBarcode}</span> at <span className="font-mono">{locationCode}</span></p>
-                      <p>Found: <span className="font-mono">{alternatePreview.scanned_pallet_barcode}</span> at <span className="font-mono">{alternatePreview.scanned_location_code}</span></p>
-                      {!alternateArmed ? (
-                        <Button type="button" variant="outline" className="w-fit border-amber-500" onClick={() => setAlternateArmed(true)}>
-                          {variance
-                            ? `Override & pick ${formatNumber(scannedQty)} (requested ${formatNumber(alternatePreview.requested_quantity)})`
-                            : "Override source"}
-                        </Button>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">The directed pallet will be released from this task. Its inventory stays available.</span>
-                          <Button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => onConfirm({
-                              taskId: task.id,
-                              locationCode: alternatePreview.scanned_location_code,
-                              palletBarcode: alternatePreview.scanned_pallet_barcode,
-                              quantity: scannedQty,
-                              pickListCode,
-                              confirmSourceOverride: true,
-                              allowSourceQuantityVariance: variance,
-                            })}
-                          >
-                            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                            Confirm pick
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    );
-                  })() : null}
-                  <Button type="button" variant="ghost" className="w-fit" onClick={() => { setAlternateMode(false); setAlternatePreview(null); setAlternateArmed(false); }}>
-                    Cancel alternate pallet
+                )}
+              </div>
+              {anomaly ? (
+                <div className="lg:col-span-4 flex flex-col gap-2 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200">
+                  <p>
+                    <AlertTriangle className="mr-1 inline h-4 w-4" />
+                    This pallet has already been debited — only{" "}
+                    <span className="font-mono font-semibold">{formatNumber(anomaly.availableQuantity)}</span> is
+                    available now (requested{" "}
+                    <span className="font-mono font-semibold">{formatNumber(anomaly.requestedQuantity)}</span>).
+                    Re-check the physical pallet, then override to complete the pick for the actual quantity. This will
+                    log a record-count warning for admins and managers to review.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-fit border-amber-500 text-amber-900 hover:bg-amber-100 dark:text-amber-200"
+                    disabled={isPending || !readyToConfirm}
+                    onClick={() =>
+                      onConfirm({
+                        taskId: task.id,
+                        locationCode: scannedLocation,
+                        palletBarcode: scannedPallet,
+                        quantity: wholePalletQuantity,
+                        override: true,
+                        pickListCode,
+                      })
+                    }
+                  >
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Override & confirm remaining {formatNumber(anomaly.availableQuantity)}
                   </Button>
                 </div>
-              )}
-            </div>
-            {anomaly ? (
-              <div className="lg:col-span-4 flex flex-col gap-2 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200">
-                <p>
-                  <AlertTriangle className="mr-1 inline h-4 w-4" />
-                  This pallet has already been debited — only <span className="font-mono font-semibold">{formatNumber(anomaly.availableQuantity)}</span> is
-                  available now (requested <span className="font-mono font-semibold">{formatNumber(anomaly.requestedQuantity)}</span>). Re-check the physical
-                  pallet, then override to complete the pick for the actual quantity. This will log a record-count warning for admins and managers to review.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-fit border-amber-500 text-amber-900 hover:bg-amber-100 dark:text-amber-200"
-                  disabled={isPending || !readyToConfirm}
-                  onClick={() =>
-                    onConfirm({
-                      taskId: task.id,
-                      locationCode: scannedLocation,
-                      palletBarcode: scannedPallet,
-                      quantity: wholePalletQuantity,
-                      override: true,
-                      pickListCode,
-                    })
-                  }
-                >
-                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Override & confirm remaining {formatNumber(anomaly.availableQuantity)}
-                </Button>
-              </div>
-            ) : null}
-            <Button
-              ref={confirmRef}
-              className={cn(
-                "w-full lg:col-span-4",
-                confirmPrompt && readyToConfirm && "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
-              )}
-              type="submit"
-              disabled={isPending || !readyToConfirm}
-            >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Confirm pick
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+              ) : null}
+              <Button
+                ref={confirmRef}
+                className={cn(
+                  "w-full lg:col-span-4",
+                  confirmPrompt &&
+                    readyToConfirm &&
+                    "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
+                )}
+                type="submit"
+                disabled={isPending || !readyToConfirm}
+              >
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Confirm pick
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -2430,7 +2769,10 @@ function TransfersDisabledPage() {
     <AppShell>
       <div className="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center gap-3 text-center">
         <h1 className="text-2xl font-semibold">Transfers are temporarily disabled</h1>
-        <p className="text-sm text-muted-foreground">Inter-warehouse transfers are paused for all users while the workflow and reconnect behavior are being redesigned.</p>
+        <p className="text-sm text-muted-foreground">
+          Inter-warehouse transfers are paused for all users while the workflow and reconnect behavior are being
+          redesigned.
+        </p>
       </div>
     </AppShell>
   );
