@@ -310,8 +310,18 @@ Deno.serve(async (req) => {
     .select('id, full_name, default_warehouse_id')
     .eq('id', user.id)
     .maybeSingle()
-  const { data: roleRows } = await sb.from('user_roles').select('role').eq('user_id', user.id)
-  const roles = (roleRows ?? []).map((r: Record<string, unknown>) => String(r.role))
+  const { data: roleRows, error: rolesError } = await sb
+    .from('user_roles')
+    .select('role_id, roles!inner(code)')
+    .eq('user_id', user.id)
+  if (rolesError) console.error('[copilot] role lookup failed:', rolesError.message)
+  const roles = (roleRows ?? [])
+    .map((r: Record<string, unknown>) => {
+      const rel = r.roles as { code?: string } | Array<{ code?: string }> | null
+      const code = Array.isArray(rel) ? rel[0]?.code : rel?.code
+      return code ? String(code) : null
+    })
+    .filter((c): c is string => Boolean(c))
   const warehouseId = (profile?.default_warehouse_id as string | null) ?? null
   let warehouseLabel = 'All warehouses'
   if (warehouseId) {
