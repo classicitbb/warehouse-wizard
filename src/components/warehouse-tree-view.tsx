@@ -8,10 +8,11 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTenantPath } from "@/hooks/use-tenant-path";
 import {
   AlertTriangle, Ban, Building2, Boxes, ChevronRight, ChevronsDownUp,
   Layers, LayoutGrid, Loader2, MapPin, MoreHorizontal,
-  Pencil, Plus, Printer, Search, Trash2,
+  Pencil, Plus, Printer, PackageSearch, Search, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -104,6 +105,8 @@ interface TreeCtxValue {
   warehouses: WarehouseRow[];
   zones: ZoneRow[];
   navigate: ReturnType<typeof useNavigate>;
+  /** Deep-link to Inventory Search scoped to a rack / bay / level / location. */
+  viewContents: (scope: { zoneCode?: string; locationPrefix?: string; warehouseId?: string | null }) => void;
   fillStats: {
     byWarehouse: Map<string, FillStats>;
     byZone: Map<string, FillStats>;
@@ -439,9 +442,16 @@ const TEMP_LABEL: Record<string, string> = { cool: "Cool", frozen: "Frozen" };
 
 // ─── Node components ──────────────────────────────────────────────────────────
 
+/** RACK-BAY-LEVEL prefix for a location code — the scope of one level row. */
+function levelPrefixFromLocationCode(code: string | null | undefined): string {
+  const display = displayRackLocationCode(code);
+  return display ? display.replace(/-P\d+$/i, "") : "";
+}
+
 function PositionNode({ location, nodeKey }: { location: LocationRow; nodeKey: string }) {
-  const { activeTreeNodeKey, fillStats, selectTreeNode, setDialog } = useTCtx();
+  const { activeTreeNodeKey, fillStats, selectTreeNode, setDialog, viewContents } = useTCtx();
   const displayCode = displayRackLocationCode(location.code);
+  const showContents = () => viewContents({ locationPrefix: displayCode, warehouseId: location.warehouse_id });
   const locationDisabled = location.status != null && location.status !== "active";
   return (
     <TreeRowFlyout
@@ -450,6 +460,9 @@ function PositionNode({ location, nodeKey }: { location: LocationRow; nodeKey: s
         <>
           <TreeRowFlyoutItem onSelect={() => { setDialog({ type: "edit-location", location }); close(); }}>
             <Pencil className="mr-2 h-3.5 w-3.5" />Edit
+          </TreeRowFlyoutItem>
+          <TreeRowFlyoutItem onSelect={() => { showContents(); close(); }}>
+            <PackageSearch className="mr-2 h-3.5 w-3.5" />View Contents
           </TreeRowFlyoutItem>
           <div className="-mx-1 my-1 h-px bg-border" />
           <TreeRowFlyoutItem
@@ -516,6 +529,9 @@ function PositionNode({ location, nodeKey }: { location: LocationRow; nodeKey: s
             <DropdownMenuItem onSelect={() => setDialog({ type: "edit-location", location })}>
               <Pencil className="mr-2 h-3.5 w-3.5" />Edit
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={showContents}>
+              <PackageSearch className="mr-2 h-3.5 w-3.5" />View Contents
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
@@ -538,17 +554,31 @@ function PositionNode({ location, nodeKey }: { location: LocationRow; nodeKey: s
 }
 
 function LevelNode({ levelGroup, nodeKey, bayItems }: { levelGroup: LevelGroup; nodeKey: string; bayItems: LabelSheetItem[] }) {
-  const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, toggleNode } = useTCtx();
+  const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, toggleNode, viewContents } = useTCtx();
   const isOpen = expandedNodes.has(nodeKey);
   const [printOpen, setPrintOpen] = useState(false);
   const stats = combineFillStats(levelGroup.positions, fillStats.byLocation);
+  const firstLevelLocation = levelGroup.positions[0];
+  // Level scope = the RACK-BAY-LEVEL prefix every position on this level shares.
+  const levelPrefix = levelPrefixFromLocationCode(firstLevelLocation?.code);
   return (
     <TreeRowFlyout
       nodeKey={nodeKey}
       menu={(close) => (
-        <TreeRowFlyoutItem disabled={bayItems.length === 0} onSelect={() => { setPrintOpen(true); close(); }}>
-          <Printer className="mr-2 h-3.5 w-3.5" />Print parent bay label
-        </TreeRowFlyoutItem>
+        <>
+          <TreeRowFlyoutItem
+            disabled={!levelPrefix}
+            onSelect={() => {
+              viewContents({ locationPrefix: levelPrefix, warehouseId: firstLevelLocation?.warehouse_id });
+              close();
+            }}
+          >
+            <PackageSearch className="mr-2 h-3.5 w-3.5" />View Contents
+          </TreeRowFlyoutItem>
+          <TreeRowFlyoutItem disabled={bayItems.length === 0} onSelect={() => { setPrintOpen(true); close(); }}>
+            <Printer className="mr-2 h-3.5 w-3.5" />Print parent bay label
+          </TreeRowFlyoutItem>
+        </>
       )}
     >
       <Collapsible open={isOpen} onOpenChange={() => toggleNode(nodeKey)}>
@@ -592,7 +622,7 @@ function BayNode({
   warehouseName: string;
   aisle: string;
 }) {
-  const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, toggleNode } = useTCtx();
+  const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, toggleNode, viewContents } = useTCtx();
   const isOpen = expandedNodes.has(nodeKey);
   const [printOpen, setPrintOpen] = useState(false);
   const total = bayGroup.levels.reduce((s, l) => s + l.positions.length, 0);
@@ -614,9 +644,20 @@ function BayNode({
     <TreeRowFlyout
       nodeKey={nodeKey}
       menu={(close) => (
-        <TreeRowFlyoutItem disabled={bayItems.length === 0} onSelect={() => { setPrintOpen(true); close(); }}>
-          <Printer className="mr-2 h-3.5 w-3.5" />Print bay label
-        </TreeRowFlyoutItem>
+        <>
+          <TreeRowFlyoutItem
+            disabled={!bayCode}
+            onSelect={() => {
+              viewContents({ locationPrefix: bayCode, warehouseId: zone.warehouse_id });
+              close();
+            }}
+          >
+            <PackageSearch className="mr-2 h-3.5 w-3.5" />View Contents
+          </TreeRowFlyoutItem>
+          <TreeRowFlyoutItem disabled={bayItems.length === 0} onSelect={() => { setPrintOpen(true); close(); }}>
+            <Printer className="mr-2 h-3.5 w-3.5" />Print bay label
+          </TreeRowFlyoutItem>
+        </>
       )}
     >
       <Collapsible open={isOpen} onOpenChange={() => toggleNode(nodeKey)}>
@@ -672,9 +713,10 @@ function ZoneNode({
   warehouseCode: string;
   nodeKey: string;
 }) {
-  const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, setDialog, toggleNode } = useTCtx();
+  const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, setDialog, toggleNode, viewContents } = useTCtx();
   const isOpen = expandedNodes.has(nodeKey);
   const zoneLabelCode = prefixedCode(warehouseCode, zone.code);
+  const showZoneContents = () => viewContents({ zoneCode: zone.code, warehouseId: zone.warehouse_id });
   const [wizardOpen, setWizardOpen] = useState(false);
   const [printBaysOpen, setPrintBaysOpen] = useState(false);
 
@@ -713,6 +755,9 @@ function ZoneNode({
         <>
           <TreeRowFlyoutItem onSelect={() => { setDialog({ type: "edit-zone", zone, warehouseName }); close(); }}>
             <Pencil className="mr-2 h-3.5 w-3.5" />Edit Zone
+          </TreeRowFlyoutItem>
+          <TreeRowFlyoutItem onSelect={() => { showZoneContents(); close(); }}>
+            <PackageSearch className="mr-2 h-3.5 w-3.5" />View Contents
           </TreeRowFlyoutItem>
           <TreeRowFlyoutItem onSelect={() => { setDialog({ type: "wizard-zone", warehouseId: zone.warehouse_id, zoneId: zone.id, zoneCode: zone.code }); close(); }}>
             <Plus className="mr-2 h-3.5 w-3.5" />Add Locations
@@ -785,6 +830,9 @@ function ZoneNode({
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onSelect={() => setDialog({ type: "edit-zone", zone, warehouseName })}>
                   <Pencil className="mr-2 h-3.5 w-3.5" />Edit Zone
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={showZoneContents}>
+                  <PackageSearch className="mr-2 h-3.5 w-3.5" />View Contents
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() =>
@@ -1660,6 +1708,7 @@ function ConfirmDeleteDialog({
 
 export function WarehouseStructureTab() {
   const navigate = useNavigate();
+  const { toPath } = useTenantPath();
   const { profile, roles } = useAuth();
 
   const LS_KEY = "wms-tree-expanded";
@@ -1829,6 +1878,17 @@ export function WarehouseStructureTab() {
     });
     if (exactBay) expandAndTargetLocation(exactBay, "bay");
   }
+  const viewContents = useCallback<TreeCtxValue["viewContents"]>(
+    ({ zoneCode, locationPrefix, warehouseId }) => {
+      const params = new URLSearchParams();
+      if (locationPrefix) params.set("loc", locationPrefix);
+      else if (zoneCode) params.set("zone", zoneCode);
+      if (warehouseId) params.set("warehouse", warehouseId);
+      navigate(toPath(`/inventory?${params.toString()}`));
+    },
+    [navigate, toPath],
+  );
+
   const ctx = useMemo<TreeCtxValue>(
     () => ({
       expandedNodes,
@@ -1839,9 +1899,10 @@ export function WarehouseStructureTab() {
       warehouses,
       zones,
       navigate,
+      viewContents,
       fillStats,
     }),
-    [activeTreeNodeKey, expandedNodes, toggleNode, warehouses, zones, navigate, fillStats],
+    [activeTreeNodeKey, expandedNodes, toggleNode, warehouses, zones, navigate, viewContents, fillStats],
   );
 
   return (

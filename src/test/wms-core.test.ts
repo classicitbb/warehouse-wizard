@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   bayCodeFromLocationCode,
+  describeInventoryStructureScope,
+  locationCodeInScope,
   buildBayOccupancyGrid,
   buildRackLocationCode,
   createBlankLocationTemplate,
@@ -267,5 +269,30 @@ describe("bayCodeFromLocationCode", () => {
     expect(bayCodeFromLocationCode("A-05-C")).toBe("A-05");
     expect(bayCodeFromLocationCode("A-05-C-P2")).toBe("A-05");
     expect(bayCodeFromLocationCode("A-05-L05")).toBe("A-05");
+  });
+});
+
+describe("inventory structure scope", () => {
+  it("matches a location and everything beneath the scope prefix", () => {
+    expect(locationCodeInScope("A-08-C", "A")).toBe(true);
+    expect(locationCodeInScope("A-08-C", "A-08")).toBe(true);
+    expect(locationCodeInScope("A-08-C-P2", "A-08-C")).toBe(true);
+    expect(locationCodeInScope("A-08-C", "A-08-C")).toBe(true);
+  });
+
+  it("does not match sibling racks, bays, or levels", () => {
+    expect(locationCodeInScope("AB-08-C", "A")).toBe(false);
+    expect(locationCodeInScope("A-09-C", "A-08")).toBe(false);
+    expect(locationCodeInScope("A-08-D", "A-08-C")).toBe(false);
+    expect(locationCodeInScope("A-08-C", "")).toBe(false);
+  });
+
+  it("names the scope by how deep the prefix goes", () => {
+    expect(describeInventoryStructureScope({ locationPrefix: "A" })).toBe("Rack A");
+    expect(describeInventoryStructureScope({ locationPrefix: "A-08" })).toBe("Bay A-08");
+    expect(describeInventoryStructureScope({ locationPrefix: "A-08-C" })).toBe("Level A-08-C");
+    expect(describeInventoryStructureScope({ locationPrefix: "A-08-C-P2" })).toBe("Location A-08-C-P2");
+    expect(describeInventoryStructureScope({ zoneCode: "RACK-A" })).toBe("Rack RACK-A");
+    expect(describeInventoryStructureScope({})).toBe("");
   });
 });

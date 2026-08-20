@@ -88,6 +88,14 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28.1",
+    date: "August 2026",
+    changes: [
+      "Warehouse Structure: right-clicking a rack, bay, level, or location now offers View Contents, opening Inventory Search scoped to everything stored under that node",
+      "Inventory Search: a scoped view shows which rack, bay, level, or location it is filtered to and can be cleared in one click",
+    ],
+  },
+  {
     version: "1.28",
     date: "August 2026",
     changes: [

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -79,6 +79,7 @@ import {
   getDashboardMetrics,
   getInventoryDetail,
   getPickExecution,
+  describeInventoryStructureScope,
   loadInventorySearchState,
   saveInventorySearchState,
   clearInventorySearchState,
@@ -210,11 +211,23 @@ export function InventorySearchPage() {
   // saveInventorySearchState below) so switching to another screen and back
   // doesn't lose it — only an explicit "Clear" resets it. A URL query string
   // (e.g. a deep link with ?q=...) still wins over the remembered search.
-  const persistedInventorySearch = loadInventorySearchState();
+  // Structure scope (Settings → Warehouse Structure → "View Contents"). A scoped
+  // deep link starts clean: the remembered search would otherwise silently
+  // narrow the location's contents to whatever was typed last.
+  const [structureZoneCode, setStructureZoneCode] = useState(searchParams.get("zone") ?? "");
+  const [structureLocation, setStructureLocation] = useState(searchParams.get("loc") ?? "");
+  const arrivedWithStructureScope = Boolean(structureZoneCode || structureLocation);
+  const persistedInventorySearch = arrivedWithStructureScope
+    ? { search: "", status: "all", warehouseId: "", ageBucket: "", expiryWindow: "" }
+    : loadInventorySearchState();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? persistedInventorySearch.search);
   const [status, setStatus] = useState<string>(searchParams.get("status") ?? persistedInventorySearch.status);
   const [ageBucket, setAgeBucket] = useState(searchParams.get("age") ?? persistedInventorySearch.ageBucket);
   const [expiryWindow, setExpiryWindow] = useState(searchParams.get("expiry") ?? persistedInventorySearch.expiryWindow);
+  const structureScopeLabel = describeInventoryStructureScope({
+    zoneCode: structureZoneCode,
+    locationPrefix: structureLocation,
+  });
   const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
   const lastDetailTapRef = useRef<{ id: string; time: number } | null>(null);
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
@@ -225,27 +238,35 @@ export function InventorySearchPage() {
   const [warehouseId, setWarehouseId] = useState(
     searchParams.get("warehouse") ?? (restrictedToDefaultWarehouse ? profile?.default_warehouse_id ?? "" : persistedInventorySearch.warehouseId),
   );
-  const hasInventoryFilters = Boolean(searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow);
+  const hasInventoryFilters = Boolean(
+    searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow || structureScopeLabel,
+  );
 
   useEffect(() => {
     saveInventorySearchState({ search: searchTerm, status, warehouseId, ageBucket, expiryWindow });
   }, [ageBucket, expiryWindow, searchTerm, status, warehouseId]);
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow, searchTerm.trim() ? "all" : visibleRecordLimit],
+    queryKey: [
+      "inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow,
+      structureZoneCode, structureLocation,
+      searchTerm.trim() || structureScopeLabel ? "all" : visibleRecordLimit,
+    ],
     queryFn: () => searchInventory({
       search: searchTerm,
       status,
       warehouseId: warehouseId || undefined,
       ageBucket: ageBucket as any,
       expiryWindow: expiryWindow as any,
+      zoneCode: structureZoneCode || undefined,
+      locationPrefix: structureLocation || undefined,
       limit: searchTerm.trim() ? undefined : visibleRecordLimit + 1,
     }),
   });
 
   useEffect(() => {
     setVisibleRecordLimit(50);
-  }, [searchTerm, status, warehouseId, ageBucket, expiryWindow]);
+  }, [searchTerm, status, warehouseId, ageBucket, expiryWindow, structureZoneCode, structureLocation]);
   const hasMoreRecords = !searchTerm.trim() && data.length > visibleRecordLimit;
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
 
@@ -256,8 +277,10 @@ export function InventorySearchPage() {
     if (warehouseId) next.set("warehouse", warehouseId);
     if (ageBucket) next.set("age", ageBucket);
     if (expiryWindow) next.set("expiry", expiryWindow);
+    if (structureZoneCode) next.set("zone", structureZoneCode);
+    if (structureLocation) next.set("loc", structureLocation);
     setSearchParams(next, { replace: true });
-  }, [ageBucket, expiryWindow, searchTerm, setSearchParams, status, warehouseId]);
+  }, [ageBucket, expiryWindow, searchTerm, setSearchParams, status, structureLocation, structureZoneCode, warehouseId]);
 
   function clearInventoryFilters() {
     setSearchTerm("");
@@ -265,7 +288,13 @@ export function InventorySearchPage() {
     setWarehouseId("");
     setAgeBucket("");
     setExpiryWindow("");
+    clearStructureScope();
     clearInventorySearchState();
+  }
+
+  function clearStructureScope() {
+    setStructureZoneCode("");
+    setStructureLocation("");
   }
 
   function openInventoryDetail(balanceId: string) {
@@ -324,6 +353,24 @@ export function InventorySearchPage() {
               />
             </div>
           </div>
+          {structureScopeLabel ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Showing contents of</span>
+              <Badge variant="secondary" className="gap-1 pr-1 font-mono text-xs">
+                {structureScopeLabel}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-4 w-4"
+                  aria-label="Clear structure filter"
+                  onClick={clearStructureScope}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </Badge>
+            </div>
+          ) : null}
           {(options?.warehouses?.length ?? 0) > 1 && !restrictedToDefaultWarehouse ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Warehouse</span>

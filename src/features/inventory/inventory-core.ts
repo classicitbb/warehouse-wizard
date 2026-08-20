@@ -76,12 +76,47 @@ export function clearInventorySearchState(): void {
   }
 }
 
+/**
+ * Structure scope filter — "View Contents" on a Warehouse Structure tree node
+ * deep-links here so an operator can see everything stored under a rack, bay,
+ * level, or single location.
+ *
+ * `zoneCode` scopes to a whole rack/zone; `locationPrefix` is a display location
+ * code (RACK-BAY-LEVEL[-P#]) and matches that code plus everything beneath it.
+ */
+export type InventoryStructureScope = {
+  zoneCode?: string;
+  locationPrefix?: string;
+};
+
+/** Human label for a structure scope, e.g. "Rack A" / "Bay A-08". */
+export function describeInventoryStructureScope(scope: InventoryStructureScope): string {
+  const prefix = String(scope.locationPrefix ?? "").trim().toUpperCase();
+  if (prefix) {
+    const segments = prefix.split("-").filter(Boolean).length;
+    const noun = segments <= 1 ? "Rack" : segments === 2 ? "Bay" : segments === 3 ? "Level" : "Location";
+    return `${noun} ${prefix}`;
+  }
+  const zoneCode = String(scope.zoneCode ?? "").trim().toUpperCase();
+  return zoneCode ? `Rack ${zoneCode}` : "";
+}
+
+/** True when a display location code sits at or beneath the scope prefix. */
+export function locationCodeInScope(locationCode: string | null | undefined, prefix: string): boolean {
+  const scope = String(prefix ?? "").trim().toUpperCase();
+  const code = String(locationCode ?? "").trim().toUpperCase();
+  if (!scope || !code) return false;
+  return code === scope || code.startsWith(`${scope}-`);
+}
+
 export async function searchInventory(filters: {
   search?: string;
   warehouseId?: string;
   status?: InventoryStatus | "all";
   ageBucket?: InventoryAgeBucket | "";
   expiryWindow?: InventoryExpiryWindow | "";
+  zoneCode?: string;
+  locationPrefix?: string;
   limit?: number;
 }) {
   if (filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) return [];
@@ -106,7 +141,11 @@ export async function searchInventory(filters: {
     query = query.gte("expiry_date", today).lte("expiry_date", cutoff);
   }
 
-  const loadAll = Boolean(filters.search?.trim());
+  const scopeZoneCode = String(filters.zoneCode ?? "").trim().toUpperCase();
+  const scopeLocationPrefix = String(filters.locationPrefix ?? "").trim().toUpperCase();
+  // Structure scopes are matched client-side (the view exposes prefixed codes),
+  // so every matching row has to be in hand before filtering — same as search.
+  const loadAll = Boolean(filters.search?.trim()) || Boolean(scopeZoneCode) || Boolean(scopeLocationPrefix);
   let rawRows: any[];
   if (loadAll) {
     rawRows = await fetchAllRows<any>((from, to) => query.order("received_at", { ascending: false }).range(from, to));
@@ -138,6 +177,12 @@ export async function searchInventory(filters: {
       ...row,
       location_code: row.location_code ? displayRackLocationCode(row.location_code) : row.location_code,
     }));
+  if (scopeZoneCode) {
+    rows = rows.filter((row) => String(row.zone_code ?? "").trim().toUpperCase() === scopeZoneCode);
+  }
+  if (scopeLocationPrefix) {
+    rows = rows.filter((row) => locationCodeInScope(row.location_code, scopeLocationPrefix));
+  }
   const searchTokens = (filters.search ?? "")
     .trim()
     .toLowerCase()
