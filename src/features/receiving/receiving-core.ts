@@ -640,11 +640,62 @@ export async function beginInventoryPalletCorrection(inventoryBalanceId: string)
   };
 }
 
-export async function cancelInventoryPalletCorrection(draftId: string): Promise<void> {
+/**
+ * Backing out of a pallet edit. The pallet returns to its pre-edit state; the
+ * only trace is an audit record, which carries whatever the operator had typed
+ * so an abandoned edit is still answerable later.
+ */
+export async function cancelInventoryPalletCorrection(
+  draftId: string,
+  attempted?: { quantity?: number | null; expiryDate?: string | null; changed?: boolean },
+): Promise<void> {
   const { error } = await (supabase.rpc as any)("cancel_inventory_pallet_correction", {
     in_draft_id: draftId,
+    in_attempted: attempted
+      ? {
+          quantity: attempted.quantity ?? null,
+          expiry_date: attempted.expiryDate || null,
+          changed: attempted.changed ?? false,
+        }
+      : null,
   });
   if (error) throw new Error(formatSupabaseError(error, "Could not restore the pallet to Inventory."));
+}
+
+export type InventoryPalletDraftResult = {
+  draftId: string;
+  draftPalletBarcode: string;
+  quantity: number;
+  expiryDate: string | null;
+};
+
+/**
+ * Returns the edited pallet to Receiving > Drafts. The edit may be blank — an
+ * omitted quantity or expiry keeps what the pallet already carried. The stored
+ * pallet is retired here and the draft holds the new pallet number, which only
+ * becomes a real pallet once the draft is printed and received.
+ */
+export async function saveInventoryPalletCorrectionAsDraft(input: {
+  draftId: string;
+  quantity?: number | null;
+  expiryDate?: string | null;
+  expiryProvided?: boolean;
+}): Promise<InventoryPalletDraftResult> {
+  const { data, error } = await (supabase.rpc as any)("save_inventory_pallet_correction_as_draft", {
+    in_draft_id: input.draftId,
+    in_quantity: input.quantity ?? null,
+    in_expiry_date: input.expiryDate || null,
+    in_expiry_provided: Boolean(input.expiryProvided),
+  });
+  if (error) throw new Error(formatSupabaseError(error, "Could not return the pallet to Drafts."));
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.draft_id) throw new Error("The pallet could not be returned to Drafts.");
+  return {
+    draftId: row.draft_id,
+    draftPalletBarcode: row.draft_pallet_barcode,
+    quantity: Number(row.quantity ?? 0),
+    expiryDate: row.expiry_date ?? null,
+  };
 }
 
 export async function completeInventoryPalletCorrection(input: {

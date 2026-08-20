@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RouteErrorBoundary } from "@/components/error-boundary";
-import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,12 +18,13 @@ import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-import { beginInventoryPalletCorrection, buildBayOccupancyGrid, confirmPickTask, createPickShortfallTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
+import { buildBayOccupancyGrid, confirmPickTask, createPickShortfallTask, formatDate, formatNumber, formatPickRackInstruction, getBayOccupancy, getInventoryDetail, getPickExecution, loginSchema, normalizeRackLocationCode, PickQuantityAnomalyError, previewPickSourceOverride, recordUserSignIn, refreshUserDeviceTrust, signUpSchema, RESOURCE_DEFINITIONS } from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
 import { clearPickTaskResumeSnapshot, loadPickTaskResumeSnapshot, savePickTaskResumeSnapshot } from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
 import { cn } from "@/lib/utils";
 import { alertToast } from "@/features/shared/ui-shared";
+import { PalletEditDialog, type PalletEditTarget } from "@/features/inventory/pallet-edit-dialog";
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -87,6 +88,18 @@ const ProtectedShell = lazy(() =>
 );
 
 const RELEASE_HISTORY = [
+  {
+    version: "1.28.2",
+    date: "August 2026",
+    changes: [
+      "Inventory Detail: stored pallets are edited in place from Inventory instead of being pushed over to Receiving, and a pending edit reopens where it was left",
+      "Pallet edit: an edit can be blank — Save as draft returns the pallet to Receiving > Drafts with or without changes",
+      "Pallet edit: Cancel restores the pallet exactly as it was, leaving only an audit record of the attempted edit",
+      "Pallet numbers: a pallet keeps its number unless a committed edit needs a new label or the pallet is returned to Drafts",
+      "Status: a missing pallet found with no location can be sent straight to Put-Away under its own number, or saved as a draft for re-labelling",
+      "Status: pallets superseded by a correction no longer linger in Controlled stock",
+    ],
+  },
   {
     version: "1.28.1",
     date: "August 2026",
@@ -1309,8 +1322,9 @@ function LoginPage() {
 function InventoryDetailPage() {
   const { balanceId = "" } = useParams();
   const navigate = useNavigate();
-  const { toPath } = useTenantPath();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { roles } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
   const { data, isLoading } = useQuery<InventoryDetailData>({
     queryKey: ["inventory-detail", balanceId],
     queryFn: async () => (await getInventoryDetail(balanceId)) as unknown as InventoryDetailData,
@@ -1329,25 +1343,47 @@ function InventoryDetailPage() {
   const canReceive = roles.some((role) =>
     ["developer", "dev", "admin", "warehouse_manager", "warehouse_supervisor", "supervisor", "inventory_clerk"].includes(role),
   );
+  // A pending edit is resumable rather than blocked — reopening it picks the
+  // same draft back up instead of reserving a second pallet number.
   const correctionBlockedReason = !data?.pallet
     ? "This inventory record has no pallet."
-    : data.balance.correction_state || data.pallet.correction_state
-      ? "This pallet already has a correction in progress or has been superseded."
-      : (data.balance.status !== "available" && !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) || Number(data.balance.reserved_quantity ?? 0) > 0
-        ? "Clear reserved or allocated stock before correcting this pallet."
-        : !data.location?.code
-          ? "Only a stored pallet can be corrected from Inventory."
-          : "";
-  const correctionMutation = useMutation({
-    mutationFn: () => beginInventoryPalletCorrection(balanceId),
-    onSuccess: (result) => {
-      toast.success(`Pallet returned to Receiving. Replacement ${result.replacementPalletBarcode} is ready to correct.`);
-      void queryClient.invalidateQueries({ queryKey: ["inventory-search"] });
-      void queryClient.invalidateQueries({ queryKey: ["inventory-detail", balanceId] });
-      navigate(`${toPath("/receiving")}?correction=${encodeURIComponent(result.draftId)}`);
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not return pallet to Receiving."),
-  });
+    : data.balance.correction_state === "superseded" || data.pallet.correction_state === "superseded"
+      ? "This pallet has been superseded by a correction."
+      : data.balance.correction_state === "pending" || data.pallet.correction_state === "pending"
+        ? ""
+        : (data.balance.status !== "available" && !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) || Number(data.balance.reserved_quantity ?? 0) > 0
+          ? "Clear reserved or allocated stock before correcting this pallet."
+          : !data.location?.code
+            ? "Only a stored pallet can be corrected from Inventory."
+            : "";
+  const editTarget: PalletEditTarget | null = data?.pallet
+    ? {
+        balanceId,
+        palletBarcode,
+        quantity: Number(data.balance.quantity ?? 0),
+        expiryDate: data.lot?.expiry_date ?? null,
+        productSku: data.product?.sku ?? null,
+        productName: data.product?.name ?? null,
+        lotNumber: data.lot?.lot_number ?? null,
+        batchNumber: data.lot?.batch_number ?? null,
+        clientName: data.client?.name ?? data.client?.code ?? null,
+        warehouseName: data.warehouse ? `${data.warehouse.code ? `${data.warehouse.code} - ` : ""}${data.warehouse.name ?? ""}` : null,
+        locationCode: data.location?.code ?? null,
+        containerNumber: data.receipt?.container_number ?? null,
+        poNumber: data.receipt?.po_number ?? null,
+        receiptReference: data.receipt?.reference_number ?? data.receipt?.receipt_number ?? null,
+        packaging: data.packaging?.profile_name ?? data.packaging?.name ?? data.packaging?.unit_name ?? data.packaging?.unit_of_measure ?? null,
+        temperatureClass: data.product?.temperature_requirement ?? undefined,
+      }
+    : null;
+
+  // Receiving hands a pending edit back here rather than editing it there.
+  const canOpenEdit = Boolean(editTarget) && !correctionBlockedReason;
+  useEffect(() => {
+    if (searchParams.get("edit") !== "1" || !canOpenEdit) return;
+    setEditOpen(true);
+    setSearchParams({}, { replace: true });
+  }, [canOpenEdit, searchParams, setSearchParams]);
 
   return (
     <AppShell>
@@ -1477,12 +1513,12 @@ function InventoryDetailPage() {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
-                      disabled={Boolean(correctionBlockedReason) || correctionMutation.isPending}
-                      title={correctionBlockedReason || "Return this pallet to Receiving for a corrected replacement label"}
-                      onClick={() => correctionMutation.mutate()}
+                      disabled={Boolean(correctionBlockedReason)}
+                      title={correctionBlockedReason || "Edit this pallet's quantity or expiry, or send it back to Drafts"}
+                      onClick={() => setEditOpen(true)}
                     >
                       <RefreshCw className="mr-2 h-4 w-4" />
-                      {correctionMutation.isPending ? "Returning…" : "Edit & return to Receiving"}
+                      Edit pallet
                     </Button>
                   </div>
                 )}
@@ -1512,6 +1548,7 @@ function InventoryDetailPage() {
         </Card>
       </div>
       </div>
+      <PalletEditDialog open={editOpen} onOpenChange={setEditOpen} target={editTarget} />
     </AppShell>
   );
 }

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReceivingPage } from "@/components/wms-ui";
@@ -124,6 +124,11 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
   };
 });
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>;
+}
+
 describe("ReceivingPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -140,6 +145,7 @@ describe("ReceivingPage", () => {
         <TooltipProvider>
           <MemoryRouter initialEntries={[initialEntry]}>
             <ReceivingPage />
+            <LocationProbe />
           </MemoryRouter>
         </TooltipProvider>
       </QueryClientProvider>,
@@ -266,7 +272,7 @@ describe("ReceivingPage", () => {
     await waitFor(() => expect(vi.mocked(Element.prototype.scrollIntoView).mock.calls.length).toBeGreaterThan(scrollCallsBeforeEdit));
   });
 
-  it("opens an Inventory correction as a locked one-pallet editor and only enables receipt after a change", async () => {
+  it("hands a pending pallet edit back to the Inventory edit screen", async () => {
     const correctionDraft = {
       ...wmsMocks.draft,
       id: "correction-1",
@@ -277,6 +283,7 @@ describe("ReceivingPage", () => {
       notes: JSON.stringify({
         _draft: true,
         source_type: "inventory_pallet_correction",
+        correction_source_balance_id: "balance-7",
         product_id: "prod-1",
         quantity: 1,
         expiry_date: "2026-12-01",
@@ -287,102 +294,8 @@ describe("ReceivingPage", () => {
     wmsMocks.listDraftReceipts.mockResolvedValue([correctionDraft]);
     renderReceivingPage("/receiving?correction=correction-1");
 
-    const dialog = await screen.findByRole("dialog", { name: /correct replacement pallet plT-new/i });
-    expect(within(dialog).getByLabelText("Locked product")).toHaveValue("FLOUR · Flour");
-    expect(within(dialog).queryByRole("button", { name: /add sku line/i })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /receive & new/i })).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /print & receive pallet/i })).toBeDisabled();
-
-    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "2" } });
-    expect(within(dialog).getByLabelText("Total received")).toHaveValue(2);
-    fireEvent.click(within(dialog).getByRole("button", { name: /print & receive pallet/i }));
-    const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
-    expect(prompt).toHaveTextContent("A-01-L01-P1");
-    fireEvent.click(within(prompt).getByRole("button", { name: /yes — keep/i }));
-    fireEvent.click(await within(dialog).findByRole("button", { name: /update & close/i }));
-
-    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrectionInPlace).toHaveBeenCalledWith({
-      draftId: "correction-1",
-      quantity: 2,
-    }));
-  });
-
-  it("queues the replacement for Put-Away when the pallet is no longer at its former location", async () => {
-    const correctionDraft = {
-      ...wmsMocks.draft,
-      id: "correction-no-1",
-      receipt_type: "other",
-      container_number: null,
-      po_number: null,
-      notes: JSON.stringify({
-        _draft: true,
-        source_type: "inventory_pallet_correction",
-        product_id: "prod-1",
-        quantity: 1,
-        replacement_pallet_barcode: "PLT-NEW",
-        former_location_code: "A-01-L01-P1",
-      }),
-    };
-    wmsMocks.listDraftReceipts.mockResolvedValue([correctionDraft]);
-    wmsMocks.completeInventoryPalletCorrection.mockResolvedValue({
-      inventoryBalanceId: "balance-new",
-      palletId: "pallet-new",
-      palletBarcode: "PLT-NEW",
-      putawayTaskId: "task-replacement",
-      putawayTaskNumber: "PTA-NEW",
-    });
-    renderReceivingPage("/receiving?correction=correction-no-1");
-
-    const dialog = await screen.findByRole("dialog", { name: /correct replacement pallet/i });
-    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "2" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /print & receive pallet/i }));
-    const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
-    fireEvent.click(within(prompt).getByRole("button", { name: /no — send to put-away/i }));
-    fireEvent.click(await within(dialog).findByRole("button", { name: /print & receive pallet/i }));
-
-    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrection).toHaveBeenCalledWith({
-      draftId: "correction-no-1",
-      quantity: 2,
-      expiryDate: null,
-      stillAtFormerLocation: false,
-    }));
-  });
-
-  it("updates a same-location quantity correction in place without printing", async () => {
-    const correctionDraft = {
-      ...wmsMocks.draft,
-      id: "correction-in-place-1",
-      receipt_type: "other",
-      container_number: null,
-      po_number: null,
-      notes: JSON.stringify({
-        _draft: true,
-        source_type: "inventory_pallet_correction",
-        product_id: "prod-1",
-        quantity: 1,
-        expiry_date: null,
-        replacement_pallet_barcode: "PLT-50444387ZNDF",
-        former_location_code: "J-21-D",
-      }),
-    };
-    wmsMocks.listDraftReceipts.mockResolvedValue([correctionDraft]);
-    renderReceivingPage("/receiving?correction=correction-in-place-1");
-
-    const dialog = await screen.findByRole("dialog", { name: /correct replacement pallet/i });
-    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "96" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /print & receive pallet/i }));
-    const prompt = await screen.findByRole("dialog", { name: /confirm pallet location/i });
-    fireEvent.click(within(prompt).getByRole("button", { name: /yes — keep/i }));
-
-    expect(await within(dialog).findByRole("button", { name: /update & close/i })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /print & receive pallet/i })).not.toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: /update & close/i }));
-
-    await waitFor(() => expect(wmsMocks.completeInventoryPalletCorrectionInPlace).toHaveBeenCalledWith({
-      draftId: "correction-in-place-1",
-      quantity: 96,
-    }));
-    expect(wmsMocks.completeInventoryPalletCorrection).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("location-probe")).toHaveTextContent("/inventory/balance-7?edit=1"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("uses the same compact SKU-line handoff in standalone pallet mode", async () => {

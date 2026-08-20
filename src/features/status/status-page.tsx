@@ -101,6 +101,8 @@ import {
   listPickLists,
   listRecords,
   listStatusPallets,
+  recoverMissingPalletToDraft,
+  recoverMissingPalletToPutaway,
   listTransfers,
   pickListSchema,
   receivingSchema,
@@ -201,6 +203,8 @@ import {
 export function StatusPage() {
   const queryClient = useQueryClient();
   const { data = [] } = useQuery({ queryKey: ["status-pallets"], queryFn: listStatusPallets });
+  // A missing pallet that has turned up with no location to go back to.
+  const [foundPallet, setFoundPallet] = useState<any | null>(null);
   const form = useForm<z.infer<typeof statusChangeSchema>>({
     resolver: zodResolver(statusChangeSchema),
   });
@@ -213,6 +217,38 @@ export function StatusPage() {
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Status update failed"),
   });
+
+  async function refreshAfterRecovery() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["status-pallets"] }),
+      queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+      queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+    ]);
+  }
+
+  const foundToPutawayMutation = useMutation({
+    mutationFn: () => recoverMissingPalletToPutaway(foundPallet?.inventory_balance_id ?? ""),
+    onSuccess: async (result) => {
+      setFoundPallet(null);
+      await refreshAfterRecovery();
+      toast.success(`${result.palletBarcode} keeps its number and is queued for Put-Away as ${result.putawayTaskNumber ?? "a new task"}.`);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send the found pallet to Put-Away."),
+  });
+
+  const foundToDraftMutation = useMutation({
+    mutationFn: () => recoverMissingPalletToDraft(foundPallet?.inventory_balance_id ?? ""),
+    onSuccess: async (result) => {
+      setFoundPallet(null);
+      await refreshAfterRecovery();
+      toast.success(`Returned to Drafts as ${result.draftPalletBarcode}. Print its label in Receiving to receive it.`);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not return the found pallet to Drafts."),
+  });
+
+  const recovering = foundToPutawayMutation.isPending || foundToDraftMutation.isPending;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
@@ -255,16 +291,48 @@ export function StatusPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           {data.map((row: any) => (
-            <div key={row.inventory_balance_id} className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div key={row.inventory_balance_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
               <div>
                 <p className="font-medium">{row.sku}</p>
                 <p className="text-sm text-muted-foreground">{row.pallet_code} · {row.location_code ?? "No location"}</p>
               </div>
-              <Badge>{row.status}</Badge>
+              <div className="flex items-center gap-2">
+                {row.status === "missing" && !row.location_code && (
+                  <Button size="sm" variant="outline" onClick={() => setFoundPallet(row)}>
+                    Found
+                  </Button>
+                )}
+                <Badge>{row.status}</Badge>
+              </div>
             </div>
           ))}
         </CardContent>
       </Card>
+
+      {/* A found pallet has two honest homes, and they differ on the pallet
+          number: put-away keeps the label that is already on the pallet, drafts
+          retires it and prints a new one. */}
+      <Dialog open={Boolean(foundPallet)} onOpenChange={(open) => { if (!open && !recovering) setFoundPallet(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Found {foundPallet?.pallet_code ?? "pallet"}</DialogTitle>
+            <DialogDescription>
+              This pallet has no location to go back to. Send it to Put-Away if the pallet and its label are intact —
+              it keeps the number {foundPallet?.pallet_code ?? ""}. Save it as a draft if it has to be re-labelled;
+              the stock waits in Receiving &gt; Drafts under a new number.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row flex-wrap justify-end gap-2">
+            <Button variant="outline" disabled={recovering} onClick={() => setFoundPallet(null)}>Cancel</Button>
+            <Button variant="outline" disabled={recovering} onClick={() => foundToDraftMutation.mutate()}>
+              {foundToDraftMutation.isPending ? "Saving…" : "Save as draft"}
+            </Button>
+            <Button disabled={recovering} onClick={() => foundToPutawayMutation.mutate()}>
+              {foundToPutawayMutation.isPending ? "Queueing…" : "Send to Put-Away"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

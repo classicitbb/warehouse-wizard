@@ -32,10 +32,72 @@ export async function listStatusPallets() {
     .in("status", ["hold", "quarantine", "damaged", "missing"])
     .order("received_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    ...row,
-    location_code: row.location_code ? displayRackLocationCode(row.location_code) : row.location_code,
-  }));
+  return (data ?? [])
+    // A pallet that was superseded — returned to Drafts, or replaced by a
+    // correction — is history, not stock anyone still controls.
+    .filter((row: any) => ![row.correction_state, row.pallet_correction_state]
+      .map((state) => String(state ?? "").toLowerCase())
+      .includes("superseded"))
+    .map((row: any) => ({
+      ...row,
+      location_code: row.location_code ? displayRackLocationCode(row.location_code) : row.location_code,
+    }));
+}
+
+/** A found pallet with no home: what the recovery did, for the toast. */
+export type MissingPalletPutawayResult = {
+  palletId: string;
+  palletBarcode: string;
+  putawayTaskId: string | null;
+  putawayTaskNumber: string | null;
+};
+
+export type MissingPalletDraftResult = {
+  draftId: string;
+  draftPalletBarcode: string;
+  quantity: number;
+};
+
+/**
+ * The pallet turned up intact. It keeps its own number — the label on it is
+ * still the truth — and only needs a location, so a Put-Away task is queued.
+ */
+export async function recoverMissingPalletToPutaway(inventoryBalanceId: string): Promise<MissingPalletPutawayResult> {
+  const { data, error } = await (supabase.rpc as any)("recover_missing_pallet_to_putaway", {
+    in_inventory_balance_id: inventoryBalanceId,
+  });
+  if (error) throw new Error(error.message ?? "Could not send the found pallet to Put-Away.");
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.pallet_id) throw new Error("Could not send the found pallet to Put-Away.");
+  return {
+    palletId: row.pallet_id,
+    palletBarcode: row.pallet_barcode,
+    putawayTaskId: row.putaway_task_id ?? null,
+    putawayTaskNumber: row.putaway_task_number ?? null,
+  };
+}
+
+/**
+ * The stock is found but the pallet itself is not fit to go back as-is. The
+ * old pallet is retired and the quantity waits in Receiving > Drafts under a
+ * new number, which becomes real when the draft label is printed and received.
+ */
+export async function recoverMissingPalletToDraft(
+  inventoryBalanceId: string,
+  quantity?: number | null,
+): Promise<MissingPalletDraftResult> {
+  const { data, error } = await (supabase.rpc as any)("recover_missing_pallet_to_draft", {
+    in_inventory_balance_id: inventoryBalanceId,
+    in_quantity: quantity ?? null,
+  });
+  if (error) throw new Error(error.message ?? "Could not return the found pallet to Drafts.");
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.draft_id) throw new Error("Could not return the found pallet to Drafts.");
+  return {
+    draftId: row.draft_id,
+    draftPalletBarcode: row.draft_pallet_barcode,
+    quantity: Number(row.quantity ?? 0),
+  };
 }
 
 export async function changePalletStatus(input: z.infer<typeof statusChangeSchema>) {
