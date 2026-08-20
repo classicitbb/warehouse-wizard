@@ -15,8 +15,7 @@ import { assertNotFrozen, getActiveFreeze } from "@/features/cycle-counts/freeze
 
 const MOVE_LOCATION_SELECT =
   "id, code, status, max_pallets, temperature_class, mixed_sku_allowed, mixed_lot_allowed, max_height, zone_id, warehouse_id";
-const TERMINAL_PALLET_STATUSES = new Set(["shipped", "cancelled", "retired", "missing"]);
-const DB_TERMINAL_PALLET_STATUS_FILTER = "(shipped,cancelled,retired,missing)";
+const TERMINAL_PALLET_STATUSES = new Set(["shipped", "in_transit", "missing"]);
 
 function assertPalletCanMove(status: unknown) {
   const normalizedStatus = String(status ?? "").toLowerCase();
@@ -404,7 +403,7 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   const { data: balanceUpdRows, error: balanceUpdErr } = await db("inventory_balances")
     .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
     .eq("pallet_id", pallet.id)
-    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER)
+    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
     .select("id");
   if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
   if (!balanceUpdRows?.length) {
@@ -489,7 +488,7 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   const { data: balanceUpdRows, error: balanceUpdErr } = await db("inventory_balances")
     .update({ warehouse_id: warehouseId, location_id: toLocation.id, zone_id: toLocation.zone_id ?? null } as any)
     .eq("pallet_id", pallet.id)
-    .not("status", "in", DB_TERMINAL_PALLET_STATUS_FILTER)
+    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
     .select("id");
   if (balanceUpdErr) throw moveError(balanceUpdErr, "Inventory balance update failed");
   if (!balanceUpdRows?.length) {

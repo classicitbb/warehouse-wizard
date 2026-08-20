@@ -118,7 +118,7 @@ describe("location move helpers", () => {
       {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: null },
-        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
+        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,in_transit,missing)"]],
       },
       {
         table: "pallets",
@@ -147,7 +147,7 @@ describe("location move helpers", () => {
       {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: null },
-        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
+        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,in_transit,missing)"]],
       },
     ]);
     expect(mockDb.updates.some((update) => update.table === "pallets")).toBe(false);
@@ -220,7 +220,7 @@ describe("location move helpers", () => {
       {
         table: "inventory_balances",
         payload: { warehouse_id: "wh-1", location_id: "loc-new", zone_id: "zone-a" },
-        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,cancelled,retired,missing)"]],
+        filters: [["pallet_id", "pallet-1"], ["not:status:in", "(shipped,in_transit,missing)"]],
       },
       {
         table: "pallets",
