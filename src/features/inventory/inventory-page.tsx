@@ -80,6 +80,7 @@ import {
   getInventoryDetail,
   getPickExecution,
   describeInventoryStructureScope,
+  HISTORIC_INVENTORY_STATUSES,
   loadInventorySearchState,
   saveInventorySearchState,
   clearInventorySearchState,
@@ -216,17 +217,25 @@ export function InventorySearchPage() {
   // narrow the location's contents to whatever was typed last.
   const [structureZoneCode, setStructureZoneCode] = useState(searchParams.get("zone") ?? "");
   const [structureLocation, setStructureLocation] = useState(searchParams.get("loc") ?? "");
+  const [structureNode, setStructureNode] = useState(searchParams.get("node") ?? "");
   const arrivedWithStructureScope = Boolean(structureZoneCode || structureLocation);
   const persistedInventorySearch = arrivedWithStructureScope
-    ? { search: "", status: "all", warehouseId: "", ageBucket: "", expiryWindow: "" }
+    ? { search: "", status: "all", warehouseId: "", ageBucket: "", expiryWindow: "", includeHistoric: false }
     : loadInventorySearchState();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? persistedInventorySearch.search);
   const [status, setStatus] = useState<string>(searchParams.get("status") ?? persistedInventorySearch.status);
   const [ageBucket, setAgeBucket] = useState(searchParams.get("age") ?? persistedInventorySearch.ageBucket);
   const [expiryWindow, setExpiryWindow] = useState(searchParams.get("expiry") ?? persistedInventorySearch.expiryWindow);
+  // Browsing shows live stock only; this opens the list up to shipped, missing,
+  // corrected and drawn-down pallets. Typing/scanning a term always searches
+  // history regardless — see searchInventory.
+  const [includeHistoric, setIncludeHistoric] = useState(
+    searchParams.get("historic") === "1" || (!searchParams.has("historic") && persistedInventorySearch.includeHistoric),
+  );
   const structureScopeLabel = describeInventoryStructureScope({
     zoneCode: structureZoneCode,
     locationPrefix: structureLocation,
+    node: structureNode,
   });
   const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
   const lastDetailTapRef = useRef<{ id: string; time: number } | null>(null);
@@ -239,16 +248,16 @@ export function InventorySearchPage() {
     searchParams.get("warehouse") ?? (restrictedToDefaultWarehouse ? profile?.default_warehouse_id ?? "" : persistedInventorySearch.warehouseId),
   );
   const hasInventoryFilters = Boolean(
-    searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow || structureScopeLabel,
+    searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow || structureScopeLabel || includeHistoric,
   );
 
   useEffect(() => {
-    saveInventorySearchState({ search: searchTerm, status, warehouseId, ageBucket, expiryWindow });
-  }, [ageBucket, expiryWindow, searchTerm, status, warehouseId]);
+    saveInventorySearchState({ search: searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric });
+  }, [ageBucket, expiryWindow, includeHistoric, searchTerm, status, warehouseId]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: [
-      "inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow,
+      "inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric,
       structureZoneCode, structureLocation,
       searchTerm.trim() || structureScopeLabel ? "all" : visibleRecordLimit,
     ],
@@ -260,13 +269,14 @@ export function InventorySearchPage() {
       expiryWindow: expiryWindow as any,
       zoneCode: structureZoneCode || undefined,
       locationPrefix: structureLocation || undefined,
+      includeHistoric,
       limit: searchTerm.trim() ? undefined : visibleRecordLimit + 1,
     }),
   });
 
   useEffect(() => {
     setVisibleRecordLimit(50);
-  }, [searchTerm, status, warehouseId, ageBucket, expiryWindow, structureZoneCode, structureLocation]);
+  }, [searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric, structureZoneCode, structureLocation]);
   const hasMoreRecords = !searchTerm.trim() && data.length > visibleRecordLimit;
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
 
@@ -277,10 +287,12 @@ export function InventorySearchPage() {
     if (warehouseId) next.set("warehouse", warehouseId);
     if (ageBucket) next.set("age", ageBucket);
     if (expiryWindow) next.set("expiry", expiryWindow);
+    if (includeHistoric) next.set("historic", "1");
     if (structureZoneCode) next.set("zone", structureZoneCode);
     if (structureLocation) next.set("loc", structureLocation);
+    if (structureNode && (structureZoneCode || structureLocation)) next.set("node", structureNode);
     setSearchParams(next, { replace: true });
-  }, [ageBucket, expiryWindow, searchTerm, setSearchParams, status, structureLocation, structureZoneCode, warehouseId]);
+  }, [ageBucket, expiryWindow, includeHistoric, searchTerm, setSearchParams, status, structureLocation, structureNode, structureZoneCode, warehouseId]);
 
   function clearInventoryFilters() {
     setSearchTerm("");
@@ -288,13 +300,22 @@ export function InventorySearchPage() {
     setWarehouseId("");
     setAgeBucket("");
     setExpiryWindow("");
+    setIncludeHistoric(false);
     clearStructureScope();
     clearInventorySearchState();
+  }
+
+  // Historic statuses have no live rows to show, so turning history back off
+  // would otherwise leave the operator staring at an empty table.
+  function setHistoricEnabled(enabled: boolean) {
+    setIncludeHistoric(enabled);
+    if (!enabled && HISTORIC_INVENTORY_STATUSES.includes(status as any)) setStatus("all");
   }
 
   function clearStructureScope() {
     setStructureZoneCode("");
     setStructureLocation("");
+    setStructureNode("");
   }
 
   function openInventoryDetail(balanceId: string) {
@@ -321,11 +342,22 @@ export function InventorySearchPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-semibold">Inventory Search</h2>
           <HintButton label="Inventory Search hints">
             Search by SKU, pallet, container, PO, lot, batch, expiry, owner, or location.
+          </HintButton>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">History</span>
+          <Switch id="inventory-include-historic" checked={includeHistoric} onCheckedChange={setHistoricEnabled} />
+          <label htmlFor="inventory-include-historic" className="cursor-pointer text-xs text-muted-foreground">
+            Show past &amp; missing pallets
+          </label>
+          <HintButton label="History hints">
+            Shows shipped, in-transit, missing, emptied and corrected pallets alongside live stock. Searching by
+            pallet number always finds those, even with this off — the toggle only affects browsing the list.
           </HintButton>
         </div>
       </div>
@@ -420,6 +452,20 @@ export function InventorySearchPage() {
                 {item}
               </Button>
             ))}
+            {includeHistoric
+              ? HISTORIC_INVENTORY_STATUSES.map((item) => (
+                  <Button
+                    key={item}
+                    type="button"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    variant={status === item ? "default" : "outline"}
+                    onClick={() => setStatus(item)}
+                  >
+                    {item.replace("_", " ")}
+                  </Button>
+                ))
+              : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Age</span>
@@ -477,31 +523,56 @@ export function InventorySearchPage() {
                   </TableRow>
                 ) : tableData.length === 0 ? (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={10}>No inventory matched.</TableCell>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={10}>
+                      {searchTerm.trim()
+                        ? `No match for “${searchTerm.trim()}”, including past and missing pallets.`
+                        : "No inventory matched."}
+                    </TableCell>
                   </TableRow>
                 ) : (
-                  tableData.map((row) => (
+                  tableData.map((row) => {
+                    const detailId = row.inventory_balance_id as string | null;
+                    const historic = Boolean(row.is_historic);
+                    return (
                     <TableRow
-                      key={row.inventory_balance_id}
-                      className="cursor-pointer even:bg-muted/30 hover:bg-muted/50"
-                      onMouseEnter={() => prefetchInventoryDetail(row.inventory_balance_id)}
-                      onFocus={() => prefetchInventoryDetail(row.inventory_balance_id)}
-                      onDoubleClick={() => openInventoryDetail(row.inventory_balance_id)}
-                      onPointerUp={() => handleInventoryRowPointerUp(row.inventory_balance_id)}
-                      title="Double-click or double-tap to open details"
+                      key={detailId ?? `pallet:${row.pallet_id}`}
+                      className={cn(
+                        "even:bg-muted/30 hover:bg-muted/50",
+                        detailId ? "cursor-pointer" : "cursor-default",
+                        historic && "text-muted-foreground",
+                      )}
+                      onMouseEnter={() => detailId && prefetchInventoryDetail(detailId)}
+                      onFocus={() => detailId && prefetchInventoryDetail(detailId)}
+                      onDoubleClick={() => detailId && openInventoryDetail(detailId)}
+                      onPointerUp={() => detailId && handleInventoryRowPointerUp(detailId)}
+                      title={detailId ? "Double-click or double-tap to open details" : "This pallet has no inventory record left — history only"}
                     >
-                      <TableCell>{row.sku}</TableCell>
+                      <TableCell>{row.sku ?? "—"}</TableCell>
                       <TableCell>{row.product_name ?? "—"}</TableCell>
-                      <TableCell>{row.pallet_code}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-1.5">
+                          {row.pallet_code}
+                          {historic ? (
+                            <Badge variant="outline" className="border-dashed px-1 py-0 text-[10px] uppercase">
+                              {row.is_orphan_pallet ? "no record" : "past"}
+                            </Badge>
+                          ) : null}
+                        </span>
+                      </TableCell>
                       <TableCell>{row.container_number ?? "—"}</TableCell>
                       <TableCell>{row.po_number ?? "—"}</TableCell>
-                      <TableCell>{row.location_code ?? "Receiving"}</TableCell>
-                      <TableCell>{row.warehouse_code}</TableCell>
-                      <TableCell><Badge variant={row.status === "available" ? "default" : "secondary"}>{row.status}</Badge></TableCell>
+                      <TableCell>{row.location_code ?? (historic ? "—" : "Receiving")}</TableCell>
+                      <TableCell>{row.warehouse_code ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={row.status === "missing" ? "destructive" : row.status === "available" && !historic ? "default" : "secondary"}>
+                          {String(row.status ?? "").replace("_", " ")}
+                        </Badge>
+                      </TableCell>
                       <TableCell>{formatNumber(row.available_quantity)}</TableCell>
                       <TableCell>{formatDate(row.expiry_date)}</TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

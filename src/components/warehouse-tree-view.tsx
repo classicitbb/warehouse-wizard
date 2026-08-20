@@ -39,6 +39,7 @@ import {
   deleteLocationCascade, deleteWarehouseCascade, deleteZoneCascade,
   displayRackLocationCode,
   bayCodeFromLocationCode,
+  type InventoryStructureNode,
   getStoredPalletCounts,
   resolveLocationCapacity,
   updateRecord, upsertRecord,
@@ -106,7 +107,12 @@ interface TreeCtxValue {
   zones: ZoneRow[];
   navigate: ReturnType<typeof useNavigate>;
   /** Deep-link to Inventory Search scoped to a rack / bay / level / location. */
-  viewContents: (scope: { zoneCode?: string; locationPrefix?: string; warehouseId?: string | null }) => void;
+  viewContents: (scope: {
+    node: InventoryStructureNode;
+    zoneCode?: string;
+    locationPrefix?: string;
+    warehouseId?: string | null;
+  }) => void;
   fillStats: {
     byWarehouse: Map<string, FillStats>;
     byZone: Map<string, FillStats>;
@@ -451,7 +457,7 @@ function levelPrefixFromLocationCode(code: string | null | undefined): string {
 function PositionNode({ location, nodeKey }: { location: LocationRow; nodeKey: string }) {
   const { activeTreeNodeKey, fillStats, selectTreeNode, setDialog, viewContents } = useTCtx();
   const displayCode = displayRackLocationCode(location.code);
-  const showContents = () => viewContents({ locationPrefix: displayCode, warehouseId: location.warehouse_id });
+  const showContents = () => viewContents({ node: "location", locationPrefix: displayCode, warehouseId: location.warehouse_id });
   const locationDisabled = location.status != null && location.status !== "active";
   return (
     <TreeRowFlyout
@@ -569,7 +575,7 @@ function LevelNode({ levelGroup, nodeKey, bayItems }: { levelGroup: LevelGroup; 
           <TreeRowFlyoutItem
             disabled={!levelPrefix}
             onSelect={() => {
-              viewContents({ locationPrefix: levelPrefix, warehouseId: firstLevelLocation?.warehouse_id });
+              viewContents({ node: "level", locationPrefix: levelPrefix, warehouseId: firstLevelLocation?.warehouse_id });
               close();
             }}
           >
@@ -648,7 +654,7 @@ function BayNode({
           <TreeRowFlyoutItem
             disabled={!bayCode}
             onSelect={() => {
-              viewContents({ locationPrefix: bayCode, warehouseId: zone.warehouse_id });
+              viewContents({ node: "bay", locationPrefix: bayCode, warehouseId: zone.warehouse_id });
               close();
             }}
           >
@@ -716,7 +722,7 @@ function ZoneNode({
   const { activeTreeNodeKey, expandedNodes, fillStats, selectTreeNode, setDialog, toggleNode, viewContents } = useTCtx();
   const isOpen = expandedNodes.has(nodeKey);
   const zoneLabelCode = prefixedCode(warehouseCode, zone.code);
-  const showZoneContents = () => viewContents({ zoneCode: zone.code, warehouseId: zone.warehouse_id });
+  const showZoneContents = () => viewContents({ node: "rack", zoneCode: zone.code, warehouseId: zone.warehouse_id });
   const [wizardOpen, setWizardOpen] = useState(false);
   const [printBaysOpen, setPrintBaysOpen] = useState(false);
 
@@ -1879,12 +1885,13 @@ export function WarehouseStructureTab() {
     if (exactBay) expandAndTargetLocation(exactBay, "bay");
   }
   const viewContents = useCallback<TreeCtxValue["viewContents"]>(
-    ({ zoneCode, locationPrefix, warehouseId }) => {
+    ({ node, zoneCode, locationPrefix, warehouseId }) => {
       const params = new URLSearchParams();
       if (locationPrefix) params.set("loc", locationPrefix);
       else if (zoneCode) params.set("zone", zoneCode);
+      params.set("node", node);
       if (warehouseId) params.set("warehouse", warehouseId);
-      navigate(toPath(`/inventory?${params.toString()}`));
+      navigate(toPath(`/inventory-search?${params.toString()}`));
     },
     [navigate, toPath],
   );

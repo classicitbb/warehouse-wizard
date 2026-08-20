@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, Camera, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, Camera, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -897,7 +897,24 @@ export function PutawayTasksPage() {
     const release = beginActiveWork();
     return () => release();
   }, [selectedTaskId]);
-  const visibleTasks = selectedTask ? [selectedTask] : openTasksExpanded ? pendingTasks : [];
+  // Free-text filter over the open-task queue: pallet barcode/code, SKU,
+  // product name, or task number. Kept on the already-loaded `pendingTasks`
+  // so it stays instant on the floor (no round-trip per keystroke).
+  const normalizedTaskSearch = taskSearch.trim().toLowerCase();
+  const filteredPendingTasks = useMemo(() => {
+    if (!normalizedTaskSearch) return pendingTasks;
+    return pendingTasks.filter((task: any) => {
+      const pallet = task.pallets as any;
+      return [
+        pallet?.pallet_barcode,
+        pallet?.pallet_code,
+        pallet?.products?.sku,
+        pallet?.products?.name,
+        task.task_number,
+      ].some((value) => String(value ?? "").toLowerCase().includes(normalizedTaskSearch));
+    });
+  }, [normalizedTaskSearch, pendingTasks]);
+  const visibleTasks = selectedTask ? [selectedTask] : openTasksExpanded ? filteredPendingTasks : [];
   const activeTasks = visibleTasks.filter((t: any) => openPutawayStatuses.has(t.status));
 
   function getTaskPalletCodes(task: any) {
@@ -952,7 +969,10 @@ export function PutawayTasksPage() {
     const match = pendingTasks.find((task: any) => getTaskPalletCodes(task).includes(value));
     if (!match) {
       setSelectedTaskId(null);
-      setTaskSearch(value);
+      // `taskSearch` now drives the visible open-task filter, so a failed scan
+      // must not leave a term behind that silently hides the whole queue once
+      // the operator reopens the list. The dialog error is the feedback.
+      setTaskSearch("");
       setScanError(`No open Put-Away task found for pallet ${value}.`);
       return;
     }
@@ -1204,16 +1224,43 @@ export function PutawayTasksPage() {
           {pendingTasks.length > 0 ? (
             <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
               {!selectedTask ? (
-                <details
-                  className="group w-full max-w-full rounded-lg border border-border bg-background/60 px-3 py-2 sm:w-auto"
-                  open={openTasksExpanded}
-                  onToggle={(event) => setOpenTasksExpanded(event.currentTarget.open)}
-                >
-                  <summary className="cursor-pointer list-none text-sm text-muted-foreground hover:text-foreground">
-                    <span className="group-open:hidden">Show {pendingTasks.length} open Put-Away task{pendingTasks.length === 1 ? "" : "s"}</span>
-                    <span className="hidden group-open:inline">Hide open Put-Away tasks</span>
-                  </summary>
-                </details>
+                <>
+                  <details
+                    className="group w-full max-w-full rounded-lg border border-border bg-background/60 px-3 py-2 sm:w-auto"
+                    open={openTasksExpanded}
+                    onToggle={(event) => setOpenTasksExpanded(event.currentTarget.open)}
+                  >
+                    <summary className="cursor-pointer list-none text-sm text-muted-foreground hover:text-foreground">
+                      <span className="group-open:hidden">Show {pendingTasks.length} open Put-Away task{pendingTasks.length === 1 ? "" : "s"}</span>
+                      <span className="hidden group-open:inline">Hide open Put-Away tasks</span>
+                    </summary>
+                  </details>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={taskSearch}
+                      onChange={(event) => {
+                        setTaskSearch(event.target.value);
+                        // Typing is intent to browse the queue — open it so the
+                        // matches are actually visible while filtering.
+                        if (event.target.value.trim()) setOpenTasksExpanded(true);
+                      }}
+                      placeholder="Search pallet, SKU, name, task #"
+                      aria-label="Search open Put-Away tasks"
+                      className="h-9 pl-8 pr-8 text-sm"
+                    />
+                    {taskSearch ? (
+                      <button
+                        type="button"
+                        aria-label="Clear task search"
+                        className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => setTaskSearch("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                </>
               ) : null}
               <Button
                 type="button"
@@ -1228,7 +1275,11 @@ export function PutawayTasksPage() {
                 <RotateCcw data-icon="inline-start" />
                 Return tasks to Receiving
               </Button>
-              <Badge variant="secondary" className="text-sm">{pendingTasks.length} pending</Badge>
+              <Badge variant="secondary" className="text-sm">
+                {!selectedTask && normalizedTaskSearch
+                  ? `${filteredPendingTasks.length} of ${pendingTasks.length} pending`
+                  : `${pendingTasks.length} pending`}
+              </Badge>
             </div>
           ) : null}
         </div>
@@ -1255,6 +1306,17 @@ export function PutawayTasksPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
         {isLoading ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading putaway tasks…</CardContent></Card>
+        ) : openTasksExpanded && !selectedTask && normalizedTaskSearch && filteredPendingTasks.length === 0 ? (
+          <Card className="flex flex-1">
+            <CardContent className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
+              <Search className="h-8 w-8 text-muted-foreground" />
+              <p className="font-medium">No open Put-Away task matches “{taskSearch.trim()}”</p>
+              <p>Search by pallet barcode, SKU, product name, or task number.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => setTaskSearch("")}>
+                Clear search
+              </Button>
+            </CardContent>
+          </Card>
         ) : visibleTasks.length === 0 ? (
           <Card className="flex flex-1">
             <CardContent className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">

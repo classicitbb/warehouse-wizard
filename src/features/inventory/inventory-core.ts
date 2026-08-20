@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   db,
+  escapePostgrestOrValue,
   getStoredPalletCounts,
   getStoredPalletCount,
   isRetiredInventoryStatus,
@@ -36,6 +37,7 @@ export type InventorySearchPersistedState = {
   warehouseId: string;
   ageBucket: string;
   expiryWindow: string;
+  includeHistoric: boolean;
 };
 
 const DEFAULT_INVENTORY_SEARCH_STATE: InventorySearchPersistedState = {
@@ -44,6 +46,7 @@ const DEFAULT_INVENTORY_SEARCH_STATE: InventorySearchPersistedState = {
   warehouseId: "",
   ageBucket: "",
   expiryWindow: "",
+  includeHistoric: false,
 };
 
 export function loadInventorySearchState(): InventorySearchPersistedState {
@@ -84,21 +87,34 @@ export function clearInventorySearchState(): void {
  * `zoneCode` scopes to a whole rack/zone; `locationPrefix` is a display location
  * code (RACK-BAY-LEVEL[-P#]) and matches that code plus everything beneath it.
  */
+export type InventoryStructureNode = "rack" | "bay" | "level" | "location";
+
 export type InventoryStructureScope = {
   zoneCode?: string;
   locationPrefix?: string;
+  /** Which tree node the scope came from — codes alone can't tell a
+   *  single-position location (A-08-A) from the level above it. */
+  node?: string;
+};
+
+const STRUCTURE_NODE_LABELS: Record<InventoryStructureNode, string> = {
+  rack: "Rack",
+  bay: "Bay",
+  level: "Level",
+  location: "Location",
 };
 
 /** Human label for a structure scope, e.g. "Rack A" / "Bay A-08". */
 export function describeInventoryStructureScope(scope: InventoryStructureScope): string {
+  const node = STRUCTURE_NODE_LABELS[scope.node as InventoryStructureNode];
   const prefix = String(scope.locationPrefix ?? "").trim().toUpperCase();
   if (prefix) {
     const segments = prefix.split("-").filter(Boolean).length;
-    const noun = segments <= 1 ? "Rack" : segments === 2 ? "Bay" : segments === 3 ? "Level" : "Location";
-    return `${noun} ${prefix}`;
+    const fallback = segments <= 1 ? "Rack" : segments === 2 ? "Bay" : "Level";
+    return `${node ?? fallback} ${prefix}`;
   }
   const zoneCode = String(scope.zoneCode ?? "").trim().toUpperCase();
-  return zoneCode ? `Rack ${zoneCode}` : "";
+  return zoneCode ? `${node ?? "Rack"} ${zoneCode}` : "";
 }
 
 /** True when a display location code sits at or beneath the scope prefix. */
@@ -107,6 +123,77 @@ export function locationCodeInScope(locationCode: string | null | undefined, pre
   const code = String(locationCode ?? "").trim().toUpperCase();
   if (!scope || !code) return false;
   return code === scope || code.startsWith(`${scope}-`);
+}
+
+// ── Historic pallet numbers ───────────────────────────────────────────────
+// A pallet number never stops being a real thing an operator can hold in their
+// hand: it can ship, go missing, be drawn down to zero, or be replaced by a
+// correction, and the label is still stuck to a pallet somewhere. Inventory
+// Search used to drop all of those rows, so scanning such a label returned
+// "No inventory matched" — indistinguishable from a label that never existed.
+// Every pallet number ever created is now findable; historic ones come back
+// tagged so they can't be mistaken for live stock.
+
+/** Statuses that retire a pallet from live stock but keep its number searchable. */
+export const HISTORIC_INVENTORY_STATUSES = ["picked", "in_transit", "shipped", "missing"] as const;
+
+function correctionStatesOf(row: any): string[] {
+  return [row?.correction_state, row?.pallet_correction_state]
+    .map((value) => String(value ?? "").toLowerCase())
+    .filter(Boolean);
+}
+
+/** True when a row is a past record rather than live, on-hand stock. */
+export function isHistoricInventoryRow(row: any): boolean {
+  return (
+    isRetiredInventoryStatus(row?.status) ||
+    !hasVisibleInventoryQuantity(row ?? {}) ||
+    correctionStatesOf(row).includes("superseded")
+  );
+}
+
+/**
+ * Pallets that carry a number but no inventory balance — the balance row was
+ * removed (cascade, purge, or a data fix) while the pallet record survived.
+ * Without this fallback those numbers are unfindable anywhere in the app.
+ */
+async function findOrphanPalletRows(term: string, knownPalletIds: Set<string>) {
+  const cleaned = term.trim();
+  if (!cleaned) return [];
+  const escaped = escapePostgrestOrValue(`%${cleaned}%`);
+  const { data, error } = await db("pallets")
+    .select(
+      "id, pallet_code, pallet_barcode, status, quantity, available_quantity, created_at, current_warehouse_id, current_location_id, correction_state, products(sku, name), warehouses:current_warehouse_id(code, name), locations:current_location_id(code)",
+    )
+    .or(`pallet_code.ilike.${escaped},pallet_barcode.ilike.${escaped}`)
+    .limit(200);
+  if (error) throw error;
+
+  return (data ?? [])
+    .filter((pallet: any) => !knownPalletIds.has(pallet.id))
+    .map((pallet: any) => ({
+      // No balance row means no detail page to open — the UI keys and gates on this.
+      inventory_balance_id: null,
+      pallet_id: pallet.id,
+      pallet_code: pallet.pallet_code,
+      pallet_barcode: pallet.pallet_barcode,
+      sku: pallet.products?.sku ?? null,
+      product_name: pallet.products?.name ?? null,
+      warehouse_id: pallet.current_warehouse_id ?? null,
+      warehouse_code: pallet.warehouses?.code ?? null,
+      warehouse_name: pallet.warehouses?.name ?? null,
+      location_code: pallet.locations?.code ? displayRackLocationCode(pallet.locations.code) : null,
+      status: pallet.status ?? "unknown",
+      quantity: pallet.quantity ?? 0,
+      available_quantity: pallet.available_quantity ?? 0,
+      received_at: pallet.created_at ?? null,
+      expiry_date: null,
+      container_number: null,
+      po_number: null,
+      correction_state: pallet.correction_state ?? null,
+      is_historic: true,
+      is_orphan_pallet: true,
+    }));
 }
 
 export async function searchInventory(filters: {
@@ -118,8 +205,22 @@ export async function searchInventory(filters: {
   zoneCode?: string;
   locationPrefix?: string;
   limit?: number;
+  /** Include retired/zero-quantity rows while browsing (a search term implies it). */
+  includeHistoric?: boolean;
 }) {
-  if (filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) return [];
+  const searchTokens = (filters.search ?? "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  // A typed or scanned term is a hunt for one specific pallet, so history is
+  // always in scope there. Browsing with no term stays live-stock-only unless
+  // the operator explicitly asks for history.
+  const includeHistoric = Boolean(filters.includeHistoric) || searchTokens.length > 0;
+
+  if (!includeHistoric && filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) {
+    return [];
+  }
   let query = db("inventory_search_view").select("*");
 
   if (filters.warehouseId) {
@@ -141,11 +242,22 @@ export async function searchInventory(filters: {
     query = query.gte("expiry_date", today).lte("expiry_date", cutoff);
   }
 
+  // In-flight corrections ('pending') stay hidden either way — showing them
+  // duplicates the pallet being corrected. 'superseded' rows are history, so
+  // they surface alongside the other historic records.
+  const isVisibleRow = (row: any) => {
+    const corrections = correctionStatesOf(row);
+    if (corrections.includes("pending")) return false;
+    if (includeHistoric) return true;
+    if (corrections.includes("superseded")) return false;
+    return !isRetiredInventoryStatus(row.status) && hasVisibleInventoryQuantity(row);
+  };
+
   const scopeZoneCode = String(filters.zoneCode ?? "").trim().toUpperCase();
   const scopeLocationPrefix = String(filters.locationPrefix ?? "").trim().toUpperCase();
   // Structure scopes are matched client-side (the view exposes prefixed codes),
   // so every matching row has to be in hand before filtering — same as search.
-  const loadAll = Boolean(filters.search?.trim()) || Boolean(scopeZoneCode) || Boolean(scopeLocationPrefix);
+  const loadAll = searchTokens.length > 0 || Boolean(scopeZoneCode) || Boolean(scopeLocationPrefix);
   let rawRows: any[];
   if (loadAll) {
     rawRows = await fetchAllRows<any>((from, to) => query.order("received_at", { ascending: false }).range(from, to));
@@ -165,17 +277,17 @@ export async function searchInventory(filters: {
       if (error) throw error;
       const batch = data ?? [];
       rawRows.push(...batch);
-      visibleCount += batch.filter(
-      (row: any) => !isRetiredInventoryStatus(row.status) && !row.correction_state && !row.pallet_correction_state && hasVisibleInventoryQuantity(row),
-      ).length;
+      visibleCount += batch.filter(isVisibleRow).length;
       if (batch.length < pageSize || visibleCount >= wanted) break;
     }
   }
   let rows = rawRows
-    .filter((row) => !isRetiredInventoryStatus(row.status) && !row.correction_state && !row.pallet_correction_state && hasVisibleInventoryQuantity(row))
+    .filter(isVisibleRow)
     .map((row) => ({
       ...row,
       location_code: row.location_code ? displayRackLocationCode(row.location_code) : row.location_code,
+      is_historic: isHistoricInventoryRow(row),
+      is_orphan_pallet: false,
     }));
   if (scopeZoneCode) {
     rows = rows.filter((row) => String(row.zone_code ?? "").trim().toUpperCase() === scopeZoneCode);
@@ -183,12 +295,6 @@ export async function searchInventory(filters: {
   if (scopeLocationPrefix) {
     rows = rows.filter((row) => locationCodeInScope(row.location_code, scopeLocationPrefix));
   }
-  const searchTokens = (filters.search ?? "")
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-
   if (searchTokens.length > 0) {
     rows = rows.filter((row) => {
       const haystack = [
@@ -215,6 +321,24 @@ export async function searchInventory(filters: {
 
       return searchTokens.every((token) => haystack.includes(token));
     });
+
+    // Last resort: a pallet number that matches nothing above may still exist as
+    // a pallet record with no balance behind it. Only worth the extra round trip
+    // when the operator is searching and the number looks like a pallet code.
+    const rawTerm = (filters.search ?? "").trim();
+    const knownPalletIds = new Set(rows.map((row) => row.pallet_id).filter(Boolean));
+    // Lot/expiry and age filters read fields an orphan pallet no longer has,
+    // so a filtered search legitimately excludes them.
+    const orphanCandidates =
+      filters.expiryWindow || filters.ageBucket ? [] : await findOrphanPalletRows(rawTerm, knownPalletIds);
+    const orphans = orphanCandidates.filter((row: any) => {
+      if (filters.warehouseId && row.warehouse_id !== filters.warehouseId) return false;
+      if (filters.status && filters.status !== "all" && row.status !== filters.status) return false;
+      if (scopeZoneCode) return false;
+      if (scopeLocationPrefix) return locationCodeInScope(row.location_code, scopeLocationPrefix);
+      return true;
+    });
+    rows = [...rows, ...orphans];
   }
   return rows;
 }
