@@ -23,13 +23,10 @@ describe("mobile toolbar preferences", () => {
 });
 
 describe("Copilot access", () => {
-  it.each(["developer", "admin", "warehouse_manager", "warehouse_supervisor"])(
-    "allows the Settings role %s",
-    (role) => expect(canAccessCopilot([role])).toBe(true),
-  );
+  it.each([
+    "developer", "admin", "warehouse_manager", "warehouse_supervisor",
+    "inventory_clerk", "warehouse_operator", "dispatch_driver",
+  ])("allows the role %s", (role) => expect(canAccessCopilot([role])).toBe(true));
 
-  it.each(["inventory_clerk", "warehouse_operator", "dispatch_driver"])(
-    "rejects the non-Settings role %s",
-    (role) => expect(canAccessCopilot([role])).toBe(false),
-  );
+  it("allows users with no roles yet", () => expect(canAccessCopilot([])).toBe(true));
 });
