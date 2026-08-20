@@ -1803,6 +1803,149 @@ export type Database = {
           },
         ]
       }
+      operator_ticket_events: {
+        Row: {
+          actor_id: string | null
+          actor_kind: string
+          created_at: string
+          detail: Json
+          event: string
+          id: string
+          ticket_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_kind?: string
+          created_at?: string
+          detail?: Json
+          event: string
+          id?: string
+          ticket_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_kind?: string
+          created_at?: string
+          detail?: Json
+          event?: string
+          id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_ticket_events_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "operator_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operator_tickets: {
+        Row: {
+          actual_behavior: string | null
+          agent_brief: string | null
+          app_version: string | null
+          assigned_to: string | null
+          clarifications: Json
+          conversation_id: string | null
+          created_at: string
+          expected_behavior: string | null
+          id: string
+          kind: string
+          labels: string[]
+          module: string | null
+          reported_by: string
+          resolution: string | null
+          resolved_at: string | null
+          route: string | null
+          severity: string
+          status: string
+          steps_to_reproduce: string | null
+          submitted_at: string | null
+          summary: string
+          telemetry: Json
+          ticket_number: string | null
+          title: string
+          updated_at: string
+          user_agent: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          actual_behavior?: string | null
+          agent_brief?: string | null
+          app_version?: string | null
+          assigned_to?: string | null
+          clarifications?: Json
+          conversation_id?: string | null
+          created_at?: string
+          expected_behavior?: string | null
+          id?: string
+          kind?: string
+          labels?: string[]
+          module?: string | null
+          reported_by?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          route?: string | null
+          severity?: string
+          status?: string
+          steps_to_reproduce?: string | null
+          submitted_at?: string | null
+          summary?: string
+          telemetry?: Json
+          ticket_number?: string | null
+          title?: string
+          updated_at?: string
+          user_agent?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          actual_behavior?: string | null
+          agent_brief?: string | null
+          app_version?: string | null
+          assigned_to?: string | null
+          clarifications?: Json
+          conversation_id?: string | null
+          created_at?: string
+          expected_behavior?: string | null
+          id?: string
+          kind?: string
+          labels?: string[]
+          module?: string | null
+          reported_by?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          route?: string | null
+          severity?: string
+          status?: string
+          steps_to_reproduce?: string | null
+          submitted_at?: string | null
+          summary?: string
+          telemetry?: Json
+          ticket_number?: string | null
+          title?: string
+          updated_at?: string
+          user_agent?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_tickets_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "copilot_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_tickets_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_lines: {
         Row: {
           allocated_quantity: number
@@ -4285,6 +4428,7 @@ export type Database = {
         }
         Returns: number
       }
+      next_operator_ticket_number: { Args: never; Returns: string }
       notification_email_shell: {
         Args: { in_body_html: string; in_title: string }
         Returns: string
