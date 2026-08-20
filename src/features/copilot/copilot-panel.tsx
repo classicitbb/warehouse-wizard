@@ -21,7 +21,6 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   askCopilot,
   createCopilotConversation,
-  isCopilotPreviewHost,
   loadCopilotConversations,
   loadCopilotMessages,
   saveCopilotMessage,
