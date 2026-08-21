@@ -361,7 +361,7 @@ export async function removeUserRoleAssignment(userRoleId: string) {
 }
 
 export async function fetchOptions(includeHidden = false, scope?: WarehouseVisibilityScope) {
-  const [warehouses, zones, locations, clients, products, packagingProfiles, pallets, profiles, roles, userRoles, permissionFeatures, rolePermissions] = await Promise.all([
+  const [warehouses, zones, locations, clients, products, packagingProfiles, pallets, profiles, roles, permissionFeatures, rolePermissions, userRoles] = await Promise.all([
     listRecords("warehouses", "*", undefined, { includeHidden, archiveField: "active" }),
     listRecords("zones", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
     listRecords("locations", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
