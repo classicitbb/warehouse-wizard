@@ -19,6 +19,14 @@ import {
   type ProfileUpdateInput,
 } from "@/features/shared/core-types";
 
+/** Tables without a single `id` primary key need a different paging
+ *  tiebreaker — ordering by a column that doesn't exist makes PostgREST
+ *  reject the whole request (which used to blank out Users / Access /
+ *  Role matrix together, since they load in one Promise.all). */
+const PAGING_TIEBREAKERS: Record<string, string[]> = {
+  role_permissions: ["role_id", "feature_id"],
+};
+
 export async function listRecords(
   table: string,
   select = "*",
@@ -37,12 +45,15 @@ export async function listRecords(
     // Stable tiebreaker so .range() paging is deterministic even when the
     // orderBy column isn't unique (otherwise rows can be skipped or repeated
     // across pages).
-    query = query.order("id", { ascending: true });
+    for (const column of PAGING_TIEBREAKERS[table] ?? ["id"]) {
+      query = query.order(column, { ascending: true });
+    }
 
     query = applyArchiveFilter(query, options?.archiveField, options?.includeHidden);
 
     return query.range(from, to);
   });
+
   if (table !== "locations") return rows;
   return rows.map((row) => ({
     ...row,
