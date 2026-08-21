@@ -577,18 +577,39 @@ function UsersRolesPageImpl() {
         />
       </div>
 
-      {loadErrorMessage ? (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex-1">
-            <p className="font-medium">Users, access, and role matrix could not be loaded.</p>
-            <p className="text-xs opacity-90">{loadErrorMessage}</p>
+      {loadErrors.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex-1 space-y-1">
+              <p className="font-medium">
+                {loadErrors.map((entry) => SECTION_LABELS[entry.key] ?? entry.table).join(", ")} could not be loaded.
+              </p>
+              {loadErrors.map((entry) => (
+                <p key={entry.correlationId} className="text-xs opacity-90">
+                  <span className="font-mono">{entry.correlationId}</span> · {entry.table}
+                  {entry.code ? ` · ${entry.code}` : ""} · {entry.message}
+                  {entry.hint ? ` · hint: ${entry.hint}` : ""}
+                </p>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" disabled={retrying} onClick={() => void retryFailedSections()}>
+              {retrying ? "Retrying…" : "Retry"}
+            </Button>
           </div>
-          <Button size="sm" variant="outline" onClick={() => void optionsQuery.refetch()}>
-            Retry
-          </Button>
+          <div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => navigate("/system-log?source=settings.users-roles")}
+            >
+              View in System Logs
+            </Button>
+          </div>
         </div>
       ) : null}
+
 
 
 
