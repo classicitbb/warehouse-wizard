@@ -416,6 +416,53 @@ export async function getBinOccupancy(locationCode: string): Promise<{
   };
 }
 
+// ── Location occupancy fix ────────────────────────────────────────────────
+// A bay can keep showing "1/5 pallets" after a stock record loses its physical
+// pallet (a cancelled correction, a deleted pallet, a move that half-applied).
+// Operators can run this check on the spot: it reports what is still claiming
+// the bay and, on confirm, clears it. Cleared stock becomes "missing" rather
+// than being deleted, so Status > Missing pallets is the undo path.
+
+export type LocationOccupancyPhantom = {
+  pallet_barcode?: string | null;
+  quantity?: number | null;
+  reason?: string | null;
+};
+
+export type LocationOccupancyFixResult = {
+  location_code: string;
+  max_pallets: number | null;
+  stored_pallets: number;
+  applied: boolean;
+  cleared: number;
+  phantom_count: number;
+  phantom_balances: LocationOccupancyPhantom[];
+  phantom_pallets: LocationOccupancyPhantom[];
+};
+
+export async function checkLocationOccupancy(
+  locationCode: string,
+  apply = false,
+): Promise<LocationOccupancyFixResult> {
+  const { data, error } = await supabase.rpc("reconcile_location_occupancy", {
+    in_location_code: normalizeRackLocationCode(locationCode),
+    in_apply: apply,
+  } as never);
+  if (error) throw error;
+  const payload = (data ?? {}) as Partial<LocationOccupancyFixResult>;
+  return {
+    location_code: payload.location_code ?? locationCode,
+    max_pallets: payload.max_pallets ?? null,
+    stored_pallets: Number(payload.stored_pallets ?? 0),
+    applied: Boolean(payload.applied),
+    cleared: Number(payload.cleared ?? 0),
+    phantom_count: Number(payload.phantom_count ?? 0),
+    phantom_balances: payload.phantom_balances ?? [],
+    phantom_pallets: payload.phantom_pallets ?? [],
+  };
+}
+
+
 export async function getBayOccupancy(locationCode: string): Promise<{
   anchorCode: string;
   aisle: string | null;
