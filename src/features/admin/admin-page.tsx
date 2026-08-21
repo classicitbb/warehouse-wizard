@@ -391,7 +391,8 @@ function UsersRolesPageImpl() {
       message,
       source: "settings.users-roles",
       details: { includeHidden, error: message },
-    });
+    }).catch((logError) => console.error("system log write failed", logError));
+
   }, [optionsError, includeHidden]);
   useEffect(() => {
     if (!activitiesError) return;
