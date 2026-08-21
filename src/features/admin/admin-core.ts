@@ -544,7 +544,9 @@ export async function fetchLocationCreationOptions(
     userRoles: [],
     permissionFeatures: [],
     rolePermissions: [],
+    loadErrors: [],
   };
+
 }
 
 export async function getWarehouseForLocationBarcode(locationCode: string) {
