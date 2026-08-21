@@ -2285,6 +2285,36 @@ export type Database = {
           },
         ]
       }
+      permission_features: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pick_lists: {
         Row: {
           client_id: string | null
@@ -3518,6 +3548,45 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_permissions: {
+        Row: {
+          can_edit: boolean
+          can_view: boolean
+          feature_id: string
+          role_id: string
+          updated_at: string
+        }
+        Insert: {
+          can_edit?: boolean
+          can_view?: boolean
+          feature_id: string
+          role_id: string
+          updated_at?: string
+        }
+        Update: {
+          can_edit?: boolean
+          can_view?: boolean
+          feature_id?: string
+          role_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "permission_features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
             referencedColumns: ["id"]
           },
         ]
