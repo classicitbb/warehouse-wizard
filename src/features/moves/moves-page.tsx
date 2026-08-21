@@ -249,7 +249,12 @@ export function LocationMovesPage() {
     try {
       const result = await validateMoveDestination(p, l);
       setNewValidation(result);
+      if (!result.valid) {
+        playNoGoTone();
+        alertToast.error(result.reason);
+      }
     } catch { setNewValidation(null); }
+
     finally { setNewValidating(false); }
   }, []);
 
