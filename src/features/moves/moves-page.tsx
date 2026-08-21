@@ -197,6 +197,7 @@ import {
   isBaySelectorCode,
   normalizeScannerText,
   playBarcodeBeep,
+
   flashInput,
   WarehouseBayBrowserDialog,
   alertToast,
@@ -247,7 +248,11 @@ export function LocationMovesPage() {
     try {
       const result = await validateMoveDestination(p, l);
       setNewValidation(result);
+      if (!result.valid) {
+        alertToast.noGo(result.reason ?? "Cannot move here");
+      }
     } catch { setNewValidation(null); }
+
     finally { setNewValidating(false); }
   }, []);
 
@@ -262,6 +267,10 @@ export function LocationMovesPage() {
     try {
       const result = await validateMoveDestination(p, l);
       setScanState((s) => ({ ...s, [taskId]: { ...(s[taskId] ?? { pallet: p, location: l }), validation: result, validating: false } }));
+      if (!result.valid) {
+        alertToast.noGo(result.reason ?? "Cannot move here");
+      }
+
     } catch {
       setScanState((s) => ({ ...s, [taskId]: { ...(s[taskId] ?? { pallet: p, location: l }), validation: null, validating: false } }));
     }

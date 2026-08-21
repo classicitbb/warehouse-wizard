@@ -10,11 +10,12 @@ const mockDb = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => {
   function nextSelect(table: string) {
-    if (table === "inventory_freezes" || table === "cycle_counts") {
+    if (table === "inventory_freezes" || table === "cycle_counts" || table === "putaway_tasks") {
       return mockDb.selects[table]?.shift() ?? { data: null, error: null };
     }
     return mockDb.selects[table]?.shift() ?? { data: null, error: new Error(`No ${table} mock`) };
   }
+
 
   function nextUpdateResult(table: string) {
     return mockDb.updateResults[table]?.shift() ?? { data: [{ id: `${table}-row` }], error: null };
@@ -33,6 +34,10 @@ vi.mock("@/integrations/supabase/client", () => {
             filters.push(["or", value]);
             return chain;
           },
+          not: (column: string, operator: string, value: unknown) => {
+            filters.push([`not:${column}:${operator}`, value]);
+            return chain;
+          },
           order: () => chain,
           limit: () => chain,
           maybeSingle: () => nextSelect(table),
@@ -40,6 +45,7 @@ vi.mock("@/integrations/supabase/client", () => {
         };
         return chain;
       },
+
       update: (payload: Record<string, unknown>) => ({
         eq: (column: string, value: unknown) => {
           filters.push([column, value]);
@@ -274,4 +280,37 @@ describe("location move helpers", () => {
       args: { in_event_type: "move_task_cancelled", in_entity_table: "move_tasks", in_entity_id: "move-1" },
     });
   });
+
+  it("rejects a pallet that still has an open put-away task", async () => {
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: "loc-old", warehouse_id: "wh-1", status: "available", is_stored: true }, error: null }],
+      putaway_tasks: [{ data: { id: "pta-1", task_number: "PTA-1001", status: "queued" }, error: null }],
+      locations: [{ data: { id: "loc-new", code: "A-01-01", status: "active", warehouse_id: "wh-1", zone_id: "zone-a" }, error: null }],
+    };
+
+    const validation = await validateMoveDestination("PBC-1", "A-01-01");
+    expect(validation).toMatchObject({ valid: false, requiresPutaway: true });
+    expect((validation as any).reason).toContain("PTA-1001");
+
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: "loc-old", warehouse_id: "wh-1", status: "available", is_stored: true }, error: null }],
+      putaway_tasks: [{ data: { id: "pta-1", task_number: "PTA-1001", status: "queued" }, error: null }],
+    };
+    await expect(completeDirectMove("PBC-1", "A-01-01")).rejects.toThrow("complete the put-away instead of moving it");
+    expect(mockDb.updates).toEqual([]);
+    expect(mockDb.upserts).toEqual([]);
+  });
+
+  it("allows a move when the pallet has no open put-away task", async () => {
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: "loc-old", warehouse_id: "wh-1", status: "available", is_stored: true }, error: null }],
+      putaway_tasks: [{ data: null, error: null }],
+      locations: [{ data: { id: "loc-new" }, error: null }],
+    };
+
+    await completeDirectMove("PBC-1", "A-01-01");
+
+    expect(mockDb.updates.some((update) => update.table === "pallets")).toBe(true);
+  });
+
 });

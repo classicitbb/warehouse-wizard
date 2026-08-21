@@ -411,6 +411,8 @@ export async function fetchLocationCreationOptions(
     profiles: [],
     roles: [],
     userRoles: [],
+    permissionFeatures: [],
+    rolePermissions: [],
   };
 }
 
