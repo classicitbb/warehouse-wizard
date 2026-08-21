@@ -10,11 +10,12 @@ const mockDb = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => {
   function nextSelect(table: string) {
-    if (table === "inventory_freezes" || table === "cycle_counts") {
+    if (table === "inventory_freezes" || table === "cycle_counts" || table === "putaway_tasks") {
       return mockDb.selects[table]?.shift() ?? { data: null, error: null };
     }
     return mockDb.selects[table]?.shift() ?? { data: null, error: new Error(`No ${table} mock`) };
   }
+
 
   function nextUpdateResult(table: string) {
     return mockDb.updateResults[table]?.shift() ?? { data: [{ id: `${table}-row` }], error: null };
