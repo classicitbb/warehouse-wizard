@@ -369,8 +369,44 @@ function UsersRolesPageImpl() {
   const canOperateRoles = roles.some((r) => ["developer", "admin"].includes(r));
   const canOperateDeveloperRole = roles.includes("developer");
   const [includeHidden, setIncludeHidden] = useState(false);
-  const { data: options } = useQuery({ queryKey: ["options", includeHidden], queryFn: () => fetchOptions(includeHidden) });
-  const { data: activities = [] } = useQuery({ queryKey: ["user-activities"], queryFn: () => listUserActivities() });
+  const optionsQuery = useQuery({ queryKey: ["options", includeHidden], queryFn: () => fetchOptions(includeHidden) });
+  const options = optionsQuery.data;
+  const { data: activities = [], error: activitiesError } = useQuery({ queryKey: ["user-activities"], queryFn: () => listUserActivities() });
+  // Users / Access / Role Matrix all hang off the same query. A silent
+  // rejection used to blank every tab with nothing logged, so surface it.
+  const optionsError = optionsQuery.error;
+  const loadErrorMessage = optionsError
+    ? optionsError instanceof Error
+      ? optionsError.message
+      : String(optionsError)
+    : null;
+  useEffect(() => {
+    if (!optionsError) return;
+    const message = optionsError instanceof Error ? optionsError.message : String(optionsError);
+    toast.error(`Users & roles failed to load: ${message}`);
+    void writeSystemLog({
+      logType: "error",
+      severity: "error",
+      title: "User management data failed to load",
+      message,
+      source: "settings.users-roles",
+      details: { includeHidden, error: message },
+    });
+  }, [optionsError, includeHidden]);
+  useEffect(() => {
+    if (!activitiesError) return;
+    const message = activitiesError instanceof Error ? activitiesError.message : String(activitiesError);
+    toast.error(`User activity failed to load: ${message}`);
+    void writeSystemLog({
+      logType: "error",
+      severity: "error",
+      title: "User activity failed to load",
+      message,
+      source: "settings.users-roles",
+      details: { error: message },
+    });
+  }, [activitiesError]);
+
   const [selectedProfile, setSelectedProfile] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
   const [activeTab, setActiveTab] = useState("users");
