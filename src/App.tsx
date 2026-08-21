@@ -71,6 +71,7 @@ import {
 } from "@/lib/floor-task-resume";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
 import { cn } from "@/lib/utils";
+import { normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { alertToast } from "@/features/shared/ui-shared";
 import { PalletEditDialog, type PalletEditTarget } from "@/features/inventory/pallet-edit-dialog";
 
@@ -2260,7 +2261,9 @@ function PickTaskCard({
   const isOpen = PICK_OPEN_STATUSES.has(task.status);
   const scannedLocation = String(form.watch("locationCode") ?? "").trim();
   const scannedPallet = String(form.watch("palletBarcode") ?? "").trim();
-  const readyToConfirm = Boolean(scannedLocation && scannedPallet);
+  const scannedPalletError = palletBarcodeError(scannedPallet);
+  const alternatePalletError = palletBarcodeError(alternatePalletBarcode);
+  const readyToConfirm = Boolean(scannedLocation && scannedPallet && !scannedPalletError);
   const sourceOverrideScanned =
     readyToConfirm &&
     (normalizeRackLocationCode(scannedLocation) !== locationCode ||
@@ -2397,11 +2400,17 @@ function PickTaskCard({
   }
 
   function previewAlternate(value: string) {
-    const scanned = normalizeScannerText(value);
+    const scanned = normalizePalletBarcode(value);
     if (!scanned) return;
     setAlternatePalletBarcode(scanned);
     setAlternatePreview(null);
     setAlternateArmed(false);
+    const prefixError = palletBarcodeError(scanned);
+    if (prefixError) {
+      alertToast.noGo(prefixError);
+      return;
+    }
+
     void previewPickSourceOverride(task.id, pickListCode, scanned)
       .then((preview) => {
         if (!preview.source_override) {
@@ -2520,10 +2529,10 @@ function PickTaskCard({
                           }}
                           className="min-h-10 min-w-0 flex-1 transition-shadow duration-300"
                           disabled={lockForConfirm}
-                          placeholder="Scan pallet barcode"
+                          placeholder="Scan pallet barcode (PLT-…)"
                           onChange={(event) => {
                             onClearAnomaly?.();
-                            field.onChange(normalizeScannerText(event.target.value.replace(/[\r\n]/g, "")));
+                            field.onChange(normalizePalletBarcode(event.target.value));
                           }}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
@@ -2541,7 +2550,7 @@ function PickTaskCard({
                         <BarcodeScanButton
                           title="Scan pallet barcode"
                           onScan={(value) => {
-                            form.setValue("palletBarcode", normalizeScannerText(value));
+                            form.setValue("palletBarcode", normalizePalletBarcode(value));
                             playBarcodeBeep();
                             flashInput(palletRef.current, "blue");
                             setConfirmPrompt(true);
@@ -2555,9 +2564,13 @@ function PickTaskCard({
                         />
                       </div>
                     </FormControl>
+                    {scannedPalletError ? (
+                      <p className="text-xs text-destructive">{scannedPalletError}</p>
+                    ) : null}
                   </FormItem>
                 )}
               />
+
               <div className="lg:col-span-2 grid gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
                 <span className="text-xs font-medium text-muted-foreground">Full pallet qty</span>
                 <span className="font-mono text-base font-semibold">{formatNumber(wholePalletQuantity)}</span>
@@ -2580,9 +2593,9 @@ function PickTaskCard({
                       <Input
                         value={alternatePalletBarcode}
                         disabled={isPending}
-                        placeholder="Scan alternate pallet barcode"
+                        placeholder="Scan alternate pallet barcode (PLT-…)"
                         onChange={(event) =>
-                          setAlternatePalletBarcode(normalizeScannerText(event.target.value.replace(/[\r\n]/g, "")))
+                          setAlternatePalletBarcode(normalizePalletBarcode(event.target.value))
                         }
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
@@ -2597,6 +2610,9 @@ function PickTaskCard({
                         onScan={previewAlternate}
                       />
                     </div>
+                    {alternatePalletError ? (
+                      <p className="text-xs text-destructive">{alternatePalletError}</p>
+                    ) : null}
                     {alternatePreview
                       ? (() => {
                           const scannedQty = Number(

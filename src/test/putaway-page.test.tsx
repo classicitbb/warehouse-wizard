@@ -487,9 +487,9 @@ describe("PutawayTasksPage scan-first flow", () => {
   it("shows a no-match error without revealing tasks", async () => {
     renderPutawayPage();
 
-    await enterPallet("MISSING");
+    await enterPallet("PLT-MISSING");
 
-    expect(await screen.findByText(/No open Put-Away task found for pallet MISSING/)).toBeInTheDocument();
+    expect(await screen.findByText(/No open Put-Away task found for pallet PLT-MISSING/)).toBeInTheDocument();
     expect(screen.queryByText(/SKU-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/SKU-2/)).not.toBeInTheDocument();
   });
