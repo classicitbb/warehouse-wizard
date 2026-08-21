@@ -229,8 +229,10 @@ export async function recordPlacementObservation(
   locationId: string,
   locationCode: string,
   zoneName: string | null,
+  options?: { rethrow?: boolean },
 ): Promise<void> {
   if (!productId || !warehouseId || !locationId) return;
+
 
   // Fetch existing hint
   const { data: existing } = await db("ai_product_hints")
