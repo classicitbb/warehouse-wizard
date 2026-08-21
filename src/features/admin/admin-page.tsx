@@ -372,28 +372,81 @@ function UsersRolesPageImpl() {
   const optionsQuery = useQuery({ queryKey: ["options", includeHidden], queryFn: () => fetchOptions(includeHidden) });
   const options = optionsQuery.data;
   const { data: activities = [], error: activitiesError } = useQuery({ queryKey: ["user-activities"], queryFn: () => listUserActivities() });
-  // Users / Access / Role Matrix all hang off the same query. A silent
-  // rejection used to blank every tab with nothing logged, so surface it.
+  // Users / Access / Role Matrix all hang off the same query. A single failing
+  // table used to blank every tab with nothing logged, so each table now fails
+  // (and retries) on its own and is surfaced here.
   const optionsError = optionsQuery.error;
-  const loadErrorMessage = optionsError
-    ? optionsError instanceof Error
-      ? optionsError.message
-      : String(optionsError)
-    : null;
-  useEffect(() => {
-    if (!optionsError) return;
-    const message = optionsError instanceof Error ? optionsError.message : String(optionsError);
-    toast.error(`Users & roles failed to load: ${message}`);
-    void writeSystemLog({
-      log_type: "error",
-      severity: "error",
-      title: "User management data failed to load",
-      message,
-      source: "settings.users-roles",
-      details: { includeHidden, error: message },
-    }).catch((logError) => console.error("system log write failed", logError));
+  const loadErrors = useMemo<AdminOptionLoadError[]>(() => {
+    if (optionsError) {
+      const raw = optionsError as { message?: string; code?: string; details?: string; hint?: string };
+      return [
+        {
+          key: "profiles",
+          table: "users & roles",
+          message: optionsError instanceof Error ? optionsError.message : String(optionsError),
+          code: raw?.code,
+          details: raw?.details,
+          hint: raw?.hint,
+          correlationId: buildCorrelationId(),
+        },
+      ];
+    }
+    return options?.loadErrors ?? [];
+  }, [optionsError, options]);
+  const [retrying, setRetrying] = useState(false);
 
-  }, [optionsError, includeHidden]);
+  const retryFailedSections = useCallback(async () => {
+    if (loadErrors.length === 0) return;
+    setRetrying(true);
+    try {
+      const failedKeys = Array.from(new Set(loadErrors.map((entry) => entry.key)));
+      // Refetch only the tables that failed and merge them into the cached
+      // option set so the healthy sections aren't re-downloaded.
+      const partial = await fetchOptions(includeHidden, undefined, failedKeys);
+      queryClient.setQueryData(["options", includeHidden], (previous: any) => {
+        const base = previous ?? partial;
+        const merged = { ...base } as any;
+        for (const key of failedKeys) merged[key] = (partial as any)[key];
+        merged.loadErrors = [
+          ...((base.loadErrors ?? []) as AdminOptionLoadError[]).filter((entry) => !failedKeys.includes(entry.key)),
+          ...partial.loadErrors,
+        ];
+        return merged;
+      });
+      if (optionsError) await optionsQuery.refetch();
+      if (partial.loadErrors.length === 0) toast.success("Reloaded successfully");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Retry failed");
+    } finally {
+      setRetrying(false);
+    }
+  }, [loadErrors, includeHidden, queryClient, optionsError, optionsQuery]);
+
+  const loggedCorrelationIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const entry of loadErrors) {
+      if (loggedCorrelationIds.current.has(entry.correlationId)) continue;
+      loggedCorrelationIds.current.add(entry.correlationId);
+      toast.error(`${SECTION_LABELS[entry.key] ?? entry.table} failed to load: ${entry.message}`);
+      void writeSystemLog({
+        log_type: "error",
+        severity: "error",
+        title: "User management data failed to load",
+        message: `[${entry.correlationId}] ${entry.table}: ${entry.message}`,
+        source: "settings.users-roles",
+        details: {
+          correlation_id: entry.correlationId,
+          table: entry.table,
+          section: SECTION_LABELS[entry.key] ?? entry.key,
+          includeHidden,
+          error: entry.message,
+          code: entry.code ?? null,
+          details: entry.details ?? null,
+          hint: entry.hint ?? null,
+        },
+      }).catch((logError) => console.error("system log write failed", logError));
+    }
+  }, [loadErrors, includeHidden]);
   useEffect(() => {
     if (!activitiesError) return;
     const message = activitiesError instanceof Error ? activitiesError.message : String(activitiesError);
@@ -408,6 +461,7 @@ function UsersRolesPageImpl() {
     }).catch((logError) => console.error("system log write failed", logError));
 
   }, [activitiesError]);
+
 
   const [selectedProfile, setSelectedProfile] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
