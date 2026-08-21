@@ -523,6 +523,21 @@ function UsersRolesPageImpl() {
         />
       </div>
 
+      {loadErrorMessage ? (
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">Users, access, and role matrix could not be loaded.</p>
+            <p className="text-xs opacity-90">{loadErrorMessage}</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => void optionsQuery.refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 sm:w-fit">
           <TabsTrigger value="users" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
