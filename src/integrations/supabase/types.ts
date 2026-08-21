@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_product_hints: {
+        Row: {
+          confidence: number | null
+          hint_type: string
+          hint_value: Json
+          id: string
+          last_observed_at: string
+          product_id: string
+          sample_count: number
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          hint_type: string
+          hint_value?: Json
+          id?: string
+          last_observed_at?: string
+          product_id: string
+          sample_count?: number
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          confidence?: number | null
+          hint_type?: string
+          hint_value?: Json
+          id?: string
+          last_observed_at?: string
+          product_id?: string
+          sample_count?: number
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_product_hints_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_product_hints_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_recommendations: {
         Row: {
           acted_at: string | null
