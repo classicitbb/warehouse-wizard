@@ -519,6 +519,8 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   if (palletErr) throw new Error(`Pallet not found: ${scannedPalletBarcode}`);
   assertPalletCanMove(pallet.status);
   assertPalletIsPutAway(pallet);
+  await assertPalletNotInOpenPutaway(pallet.id, scannedPalletBarcode);
+
   if (task.pallet_id !== pallet.id) {
     throw new Error("Scanned pallet does not match this move task.");
   }
