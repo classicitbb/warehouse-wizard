@@ -289,8 +289,32 @@ export async function recordPlacementObservation(
     { onConflict: "product_id,warehouse_id,hint_type" },
   );
 
-  if (error) console.error("[ai-assist] recordPlacementObservation failed:", error);
+  if (error) {
+    console.error("[ai-assist] recordPlacementObservation failed:", error);
+    if (options?.rethrow) throw error;
+    enqueueFailedAiHint(
+      { kind: "placement", productId, warehouseId, locationId, locationCode, zoneName },
+      error,
+    );
+  }
 }
+
+// Register the retry executor so queued hint jobs can be replayed.
+registerAiHintRunner(async (job) => {
+  if (job.kind === "placement") {
+    await recordPlacementObservation(
+      job.productId,
+      job.warehouseId,
+      job.locationId,
+      job.locationCode,
+      job.zoneName,
+      { rethrow: true },
+    );
+    return;
+  }
+  await recordPalletQtyObservation(job.productId, job.warehouseId, job.qty, { rethrow: true });
+});
+
 
 // ─── Velocity ─────────────────────────────────────────────────────────────────
 
