@@ -101,8 +101,17 @@ import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { HelpSidebar } from "@/components/help-sidebar";
 import { HintButton } from "@/components/hint-button";
 import NotFound from "./pages/NotFound";
+import { APP_REFRESH_EVENT } from "@/lib/preview-env";
 
 const queryClient = createAppQueryClient();
+
+// Soft refresh: inside the preview iframe a hard reload breaks the token-bearing
+// proxy URL, so refresh requests re-fetch data instead of reloading the page.
+if (typeof window !== "undefined") {
+  window.addEventListener(APP_REFRESH_EVENT, () => {
+    void queryClient.invalidateQueries();
+  });
+}
 
 /** Full-page loading spinner shown while lazy chunks are fetched. */
 function PageSpinner() {

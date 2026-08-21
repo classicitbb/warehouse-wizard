@@ -22,6 +22,7 @@ import { useTenantPath } from "@/hooks/use-tenant-path";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 import { describeErrorForReport, requestCopilotReport } from "@/features/copilot/copilot-core";
 import { recordAction } from "@/lib/habit-tracking";
+import { isPreviewEnvironment, navigatePreservingPreviewParams, requestAppRefresh } from "@/lib/preview-env";
 
 // ── Chunk-load detection ──────────────────────────────────────────────────────
 
@@ -90,7 +91,10 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Chunk-load errors mean a stale tab with missing assets — reload once.
-    if (isChunkLoadError(error)) {
+    // Never auto-reload inside the Lovable preview: re-fetching the
+    // token-bearing proxy URL intermittently yields the browser's generic
+    // "page may have moved permanently" error instead of the app.
+    if (isChunkLoadError(error) && !isPreviewEnvironment()) {
       const CHUNK_RELOAD_KEY = "__ww_chunk_reload__";
       if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
         sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
@@ -173,7 +177,7 @@ function DefaultFallback({
 
           <div className="flex flex-wrap gap-2">
             {isChunk ? (
-              <Button size="sm" onClick={() => window.location.reload()}>
+              <Button size="sm" onClick={() => requestAppRefresh()}>
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Reload now
               </Button>
@@ -189,7 +193,7 @@ function DefaultFallback({
                     variant="outline"
                     onClick={() => {
                       onReset();
-                      window.location.replace(toPath("/"));
+                      navigatePreservingPreviewParams(toPath("/"));
                     }}
                   >
                     <Home className="mr-1.5 h-3.5 w-3.5" />
@@ -215,7 +219,7 @@ function DefaultFallback({
                   </Button>
                 )}
                 {level === "app" && (
-                  <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                  <Button size="sm" variant="outline" onClick={() => requestAppRefresh()}>
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                     Reload application
                   </Button>
