@@ -363,9 +363,20 @@ export function MobileActionBar() {
   return null;
 }
 
+const SECTION_LABELS: Partial<Record<AdminOptionKey, string>> = {
+  profiles: "Users",
+  userRoles: "Access",
+  roles: "Access",
+  permissionFeatures: "Role Matrix",
+  rolePermissions: "Role Matrix",
+  warehouses: "Warehouses",
+};
+
 function UsersRolesPageImpl() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { profile: viewerProfile, roles } = useAuth();
+
   const canOperateRoles = roles.some((r) => ["developer", "admin"].includes(r));
   const canOperateDeveloperRole = roles.includes("developer");
   const [includeHidden, setIncludeHidden] = useState(false);
