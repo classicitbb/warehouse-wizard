@@ -184,6 +184,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { requestAppRefresh } from "@/lib/preview-env";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
@@ -949,7 +950,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     ) : null}
-                    <Button className="h-8 w-8 shrink-0" size="icon" variant="outline" onClick={() => window.location.reload()} aria-label="Refresh" title="Refresh">
+                    <Button className="h-8 w-8 shrink-0" size="icon" variant="outline" onClick={() => requestAppRefresh()} aria-label="Refresh" title="Refresh">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                     <CopilotPanel variant="mobile" />
@@ -1026,7 +1027,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 reorderAlerts={reorderAlertsForBell}
                 showReorder={canReceiveReorderNotifications}
               />
-              <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => window.location.reload()} />
+              <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => requestAppRefresh()} />
             </div>
           </div>
           <div

@@ -101,6 +101,7 @@ import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { HelpSidebar } from "@/components/help-sidebar";
 import { HintButton } from "@/components/hint-button";
 import NotFound from "./pages/NotFound";
+import { APP_REFRESH_EVENT } from "@/lib/preview-env";
 
 const queryClient = createAppQueryClient();
 
