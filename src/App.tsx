@@ -152,6 +152,17 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28.3",
+    date: "August 2026",
+    changes: [
+      "Bay grid: any location showing pallets now has a check button — it reports stock records with no physical pallet behind them and clears them on confirm",
+      "Cleared records are marked missing rather than deleted, so Status > Missing pallets remains the undo path",
+      "If a bay looks empty but the check finds nothing wrong, the operator can hand it to the copilot in one tap",
+      "Occupancy is recalculated after every move, put-away, and pick so bay counts never lag behind the floor",
+    ],
+  },
+  {
+
     version: "1.28.2",
     date: "August 2026",
     changes: [

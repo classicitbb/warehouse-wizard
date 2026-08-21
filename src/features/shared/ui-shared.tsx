@@ -140,7 +140,12 @@ import {
   suggestNextRackPosition,
   validateMoveDestination,
   type MoveValidationResult,
+  checkLocationOccupancy,
+  displayRackLocationCode,
+  type LocationOccupancyFixResult,
 } from "@/lib/wms-core";
+import { requestCopilotReport } from "@/features/copilot/copilot-core";
+
 import { ProductSearch } from "@/components/product-search";
 import { buildPalletLabelBatchPrintHtml, PalletLabelPage, type PalletLabelPageProps } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
@@ -5565,6 +5570,146 @@ export function WarehouseBayBrowserDialog({
   );
 }
 
+/**
+ * Operator self-service fix for a bay that shows stock with nothing in it.
+ * Checks the location first and only clears what it can prove is a leftover
+ * record. Cleared stock becomes "missing" (never deleted) so Status > Missing
+ * pallets is the undo. Anything it cannot explain is handed to the copilot.
+ */
+export function LocationOccupancyFixDialog({
+  locationCode,
+  open,
+  onOpenChange,
+  onFixed,
+}: {
+  locationCode: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onFixed?: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [result, setResult] = useState<LocationOccupancyFixResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setResult(null);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setBusy(true);
+    setError(null);
+    checkLocationOccupancy(locationCode, false)
+      .then((res) => { if (!cancelled) setResult(res); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Check failed"); })
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [open, locationCode]);
+
+  async function applyFix() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await checkLocationOccupancy(locationCode, true);
+      setResult(res);
+      toast.success(`${res.cleared} leftover record(s) cleared from ${res.location_code}`, {
+        description: "The pallets are listed as missing — recover them from Status if they turn up.",
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["bay-occupancy"] }),
+        queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
+        queryClient.invalidateQueries({ queryKey: ["pick-bay-occupancy"] }),
+        queryClient.invalidateQueries({ queryKey: ["warehouse-bay-occupancy"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["status-pallets"] }),
+      ]);
+      onFixed?.();
+      onOpenChange(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The location could not be cleared");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const phantoms = [...(result?.phantom_balances ?? []), ...(result?.phantom_pallets ?? [])];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Check {displayRackLocationCode(locationCode)}</DialogTitle>
+          <DialogDescription>
+            Use this when the bay is empty on the floor but the system still shows pallets in it.
+          </DialogDescription>
+        </DialogHeader>
+
+        {busy && !result ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Checking the location…
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        {result ? (
+          <div className="grid gap-3 text-sm">
+            <div className="rounded-md border border-border bg-secondary/20 px-3 py-2">
+              <div>Real pallets found: <strong>{result.stored_pallets}</strong></div>
+              <div>Records with no pallet behind them: <strong>{result.phantom_count}</strong></div>
+            </div>
+
+            {phantoms.length > 0 ? (
+              <ul className="grid gap-1">
+                {phantoms.map((row, index) => (
+                  <li key={`${row.pallet_barcode ?? "row"}-${index}`} className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    <span className="font-mono">{row.pallet_barcode ?? "unknown pallet"}</span>
+                    {row.quantity != null ? <> · qty {row.quantity}</> : null}
+                    {row.reason ? <> · {row.reason}</> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Nothing to clear — every record here has a real pallet behind it. If the bay is empty on the floor,
+                report it so it can be looked at.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          {result && result.phantom_count === 0 ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                requestCopilotReport({
+                  message: `Location ${displayRackLocationCode(locationCode)} shows ${result.stored_pallets} pallet(s) stored, but the bay is empty on the floor. The location check found nothing to clear. Please help me sort it out.`,
+                });
+                onOpenChange(false);
+              }}
+            >
+              <Bot className="mr-2 h-4 w-4" /> Ask the copilot
+            </Button>
+          ) : (
+            <Button disabled={busy || !result || result.phantom_count === 0} onClick={applyFix}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Clear {result?.phantom_count ?? 0} record(s)
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function BayOccupancyGrid({
   locationCode,
   selectedLocationCode,
@@ -5576,12 +5721,14 @@ export function BayOccupancyGrid({
 }) {
   const isBayScan = isBaySelectorCode(locationCode);
   const selectedLocation = selectedLocationCode?.trim().toUpperCase() ?? "";
+  const [fixLocation, setFixLocation] = useState<string | null>(null);
   const { data, error, isLoading } = useQuery({
     queryKey: ["bay-occupancy", locationCode],
     queryFn: () => getBayOccupancy(locationCode),
     enabled: locationCode.length >= 2,
     staleTime: 0,
   });
+
 
   if (isLoading && !data) {
     return (
@@ -5635,32 +5782,55 @@ export function BayOccupancyGrid({
               const available = cell.status === "active" && !cell.isFull;
               const selected = selectedLocation.length > 0 && cell.locationCode.toUpperCase() === selectedLocation;
               return (
-                <button
-                  key={cell.locationId}
-                  type="button"
-                  disabled={!available}
-                  onClick={() => onSelect(cell.locationCode)}
-                  className={cn(
-                    "min-h-16 rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-                    selected
-                      ? "animate-pulse border-cyan-400 bg-cyan-50 text-cyan-950 ring-2 ring-cyan-400 dark:bg-cyan-950/50 dark:text-cyan-50"
-                      : available
-                      ? "border-green-500 bg-green-50 text-green-950 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-100"
-                      : "cursor-not-allowed border-muted bg-muted text-muted-foreground opacity-70",
-                  )}
-                >
-                  <span className="block font-mono font-semibold">{cell.locationCode}</span>
-                  <span className="mt-1 block">{cell.occupiedPallets}/{cell.maxPallets} pallets</span>
-                  <span className="block">{selected && available ? "Selected" : available ? "Available" : cell.status !== "active" ? cell.status : "Full"}</span>
-                </button>
+                <div key={cell.locationId} className="relative">
+                  <button
+                    type="button"
+                    disabled={!available}
+                    onClick={() => onSelect(cell.locationCode)}
+                    className={cn(
+                      "min-h-16 w-full rounded-md border px-2 py-2 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                      selected
+                        ? "animate-pulse border-cyan-400 bg-cyan-50 text-cyan-950 ring-2 ring-cyan-400 dark:bg-cyan-950/50 dark:text-cyan-50"
+                        : available
+                        ? "border-green-500 bg-green-50 text-green-950 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-100"
+                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground opacity-70",
+                    )}
+                  >
+                    <span className="block font-mono font-semibold">{cell.locationCode}</span>
+                    <span className="mt-1 block">{cell.occupiedPallets}/{cell.maxPallets} pallets</span>
+                    <span className="block">{selected && available ? "Selected" : available ? "Available" : cell.status !== "active" ? cell.status : "Full"}</span>
+                  </button>
+                  {cell.occupiedPallets > 0 ? (
+                    <button
+                      type="button"
+                      title="Bay looks empty? Check and clear leftover stock records"
+                      aria-label={`Check occupancy for ${cell.locationCode}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setFixLocation(cell.locationCode);
+                      }}
+                      className="absolute right-1 top-1 rounded p-1 text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </div>
               );
             })}
           </div>
         ))}
       </div>
+      {fixLocation ? (
+        <LocationOccupancyFixDialog
+          locationCode={fixLocation}
+          open={Boolean(fixLocation)}
+          onOpenChange={(next) => { if (!next) setFixLocation(null); }}
+        />
+      ) : null}
     </div>
   );
 }
+
 
 export function incrementOccupancy(occupiedPallets: number, maxPallets: number) {
   return maxPallets > 0 ? Math.min(maxPallets, occupiedPallets + 1) : occupiedPallets + 1;

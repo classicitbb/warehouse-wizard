@@ -4575,6 +4575,10 @@ export type Database = {
         }[]
       }
       reclaim_stale_integration_sync_jobs: { Args: never; Returns: number }
+      reconcile_location_occupancy: {
+        Args: { in_apply?: boolean; in_location_code: string }
+        Returns: Json
+      }
       recover_missing_pallet_to_draft: {
         Args: { in_inventory_balance_id: string; in_quantity?: number }
         Returns: {

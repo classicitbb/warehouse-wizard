@@ -143,3 +143,28 @@ For UI changes:
 
 Append new entries here only when the user explicitly asks to record a UI
 baseline shift.
+
+---
+
+## 6. Versioning and release notes
+
+Whenever a change is a solid, user-visible feature or improvement (not an
+internal refactor or a work-in-progress fix), bump the version on publish and
+update the release notes, What's New copy, and the change log in the same pass:
+
+- `package.json` `version` (exposed to the app as `__APP_VERSION__`)
+- `RELEASE_HISTORY` in `src/App.tsx` (drives both Release Notes and What's New)
+- Help Center topics when behaviour changed
+- Section 5 change log above when the user asks to record a UI baseline shift
+
+### Numbering rule
+
+Patch digits roll over at 10 into the minor digit:
+
+```text
+1.28.8  ->  1.28.9  ->  1.28.10  ->  1.29.0
+1.29.9  ->  1.29.10 ->  1.30.0
+```
+
+So a patch release after `x.y.10` becomes `x.(y+1).0`. Minor versions roll into
+the major digit the same way (`1.9.x` -> `1.10.x` -> `2.0.0`).
