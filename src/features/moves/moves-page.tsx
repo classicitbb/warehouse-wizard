@@ -197,6 +197,8 @@ import {
   isBaySelectorCode,
   normalizeScannerText,
   playBarcodeBeep,
+  playNoGoTone,
+
   flashInput,
   WarehouseBayBrowserDialog,
   alertToast,
