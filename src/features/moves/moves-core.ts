@@ -435,6 +435,8 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   if (palletErr) throw new Error(`Pallet not found: ${palletBarcode}`);
   assertPalletCanMove(pallet.status);
   assertPalletIsPutAway(pallet);
+  await assertPalletNotInOpenPutaway(pallet.id, palletBarcode);
+
 
   const toLocation = await resolveMoveLocation(locationCode);
   if (!toLocation) throw new Error(`Location not found: ${locationCode}`);
