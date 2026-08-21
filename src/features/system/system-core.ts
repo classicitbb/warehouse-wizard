@@ -75,6 +75,7 @@ export type SystemLogEntry = {
 export async function listSystemLogs(filters?: {
   log_type?: string;
   severity?: string;
+  source?: string;
   resolved?: boolean;
   limit?: number;
 }) {
@@ -89,9 +90,13 @@ export async function listSystemLogs(filters?: {
   if (filters?.severity && filters.severity !== "all") {
     query = query.eq("severity", filters.severity);
   }
+  if (filters?.source && filters.source !== "all") {
+    query = query.eq("source", filters.source);
+  }
   if (filters?.resolved !== undefined) {
     query = query.eq("resolved", filters.resolved);
   }
+
 
   const { data, error } = await query;
   if (error) throw new Error(formatSupabaseError(error, "Failed to load system logs"));
