@@ -104,6 +104,14 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = createAppQueryClient();
 
+// Soft refresh: inside the preview iframe a hard reload breaks the token-bearing
+// proxy URL, so refresh requests re-fetch data instead of reloading the page.
+if (typeof window !== "undefined") {
+  window.addEventListener(APP_REFRESH_EVENT, () => {
+    void queryClient.invalidateQueries();
+  });
+}
+
 /** Full-page loading spinner shown while lazy chunks are fetched. */
 function PageSpinner() {
   return (
