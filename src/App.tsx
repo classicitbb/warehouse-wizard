@@ -44,7 +44,6 @@ import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-
 import {
   buildBayOccupancyGrid,
   confirmPickTask,
