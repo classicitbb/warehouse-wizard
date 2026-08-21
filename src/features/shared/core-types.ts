@@ -801,23 +801,31 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
   const batchResults = await Promise.all(batches.map(async (batch) => {
     const [balanceResult, palletResult] = await Promise.all([
       db("inventory_balances")
-        .select("location_id, status")
+        .select("location_id, status, quantity, correction_state")
         .in("location_id", batch)
         .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
       db("pallets")
-        .select("current_location_id, status")
+        .select("current_location_id, status, quantity, correction_state")
         .in("current_location_id", batch)
         .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
     ]);
     return { balanceResult, palletResult };
   }));
 
+  // Superseded correction rows and zeroed-out stock keep a location_id in the
+  // database but no longer represent a physical pallet in the bay — counting
+  // them showed bays as partly occupied when nothing was stored there.
+  const occupiesSlot = (row: { status?: unknown; quantity?: unknown; correction_state?: unknown }) =>
+    isStoredPalletStatus(row.status) &&
+    row.correction_state !== "superseded" &&
+    Number(row.quantity ?? 0) > 0;
+
   const balanceCounts = new Map<string, number>();
   const palletCounts = new Map<string, number>();
   for (const { balanceResult, palletResult } of batchResults) {
     if (!balanceResult.error) {
       for (const row of balanceResult.data ?? []) {
-        if (!isStoredPalletStatus(row.status)) continue;
+        if (!occupiesSlot(row)) continue;
         const id = row.location_id;
         if (id) balanceCounts.set(id, (balanceCounts.get(id) ?? 0) + 1);
       }
@@ -827,7 +835,7 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
 
     if (!palletResult.error) {
       for (const row of palletResult.data ?? []) {
-        if (!isStoredPalletStatus(row.status)) continue;
+        if (!occupiesSlot(row)) continue;
         const id = row.current_location_id;
         if (id) palletCounts.set(id, (palletCounts.get(id) ?? 0) + 1);
       }
@@ -835,6 +843,7 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
       console.warn("[getStoredPalletCounts] pallet count unavailable:", palletResult.error);
     }
   }
+
 
   const counts = new Map<string, number>();
   for (const id of uniqueLocationIds) {
