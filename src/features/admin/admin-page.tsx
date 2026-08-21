@@ -385,7 +385,7 @@ function UsersRolesPageImpl() {
     const message = optionsError instanceof Error ? optionsError.message : String(optionsError);
     toast.error(`Users & roles failed to load: ${message}`);
     void writeSystemLog({
-      logType: "error",
+      log_type: "error",
       severity: "error",
       title: "User management data failed to load",
       message,
@@ -398,7 +398,7 @@ function UsersRolesPageImpl() {
     const message = activitiesError instanceof Error ? activitiesError.message : String(activitiesError);
     toast.error(`User activity failed to load: ${message}`);
     void writeSystemLog({
-      logType: "error",
+      log_type: "error",
       severity: "error",
       title: "User activity failed to load",
       message,
