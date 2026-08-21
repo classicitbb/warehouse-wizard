@@ -2564,9 +2564,7 @@ function PickTaskCard({
                         />
                       </div>
                     </FormControl>
-                    {scannedPalletError ? (
-                      <p className="text-xs text-destructive">{scannedPalletError}</p>
-                    ) : null}
+                    {scannedPalletError ? <p className="text-xs text-destructive">{scannedPalletError}</p> : null}
                   </FormItem>
                 )}
               />
@@ -2594,9 +2592,7 @@ function PickTaskCard({
                         value={alternatePalletBarcode}
                         disabled={isPending}
                         placeholder="Scan alternate pallet barcode (PLT-…)"
-                        onChange={(event) =>
-                          setAlternatePalletBarcode(normalizePalletBarcode(event.target.value))
-                        }
+                        onChange={(event) => setAlternatePalletBarcode(normalizePalletBarcode(event.target.value))}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -2610,9 +2606,7 @@ function PickTaskCard({
                         onScan={previewAlternate}
                       />
                     </div>
-                    {alternatePalletError ? (
-                      <p className="text-xs text-destructive">{alternatePalletError}</p>
-                    ) : null}
+                    {alternatePalletError ? <p className="text-xs text-destructive">{alternatePalletError}</p> : null}
                     {alternatePreview
                       ? (() => {
                           const scannedQty = Number(
@@ -2883,7 +2877,6 @@ const App = () => (
           <RuntimeModeBadge />
           <AiHintFailureAlert />
           <Analytics />
-
         </FeatureFlagProvider>
       </AuthProvider>
     </TooltipProvider>
