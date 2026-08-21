@@ -200,16 +200,19 @@ import {
 
 export function SystemLogPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sourceFilter = searchParams.get("source") ?? "";
   const [view, setView] = useState<"active" | "archived">("active");
   const [logType, setLogType] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [showResolved, setShowResolved] = useState(false);
   const { data: logs = [], error: logsError, isLoading } = useQuery({
-    queryKey: ["system-logs", logType, severity, showResolved],
-    queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, resolved: showResolved ? undefined : false }),
+    queryKey: ["system-logs", logType, severity, sourceFilter, showResolved],
+    queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, source: sourceFilter || undefined, resolved: showResolved ? undefined : false }),
     meta: { suppressGlobalError: true },
     enabled: view === "active",
   });
+
   const { data: archivedLogs = [], error: archivedLogsError, isLoading: archivedLoading } = useQuery({
     queryKey: ["system-logs-archive", logType, severity],
     queryFn: () => listArchivedSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity }),
