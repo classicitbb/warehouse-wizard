@@ -19,6 +19,8 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { enqueueFailedAiHint, registerAiHintRunner } from "@/lib/ai-hint-queue";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
