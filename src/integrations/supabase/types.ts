@@ -4665,6 +4665,7 @@ export type Database = {
         | "missing"
         | "in_transit"
         | "shipped"
+        | "putaway"
       label_type:
         | "pallet"
         | "location"
@@ -4877,6 +4878,7 @@ export const Constants = {
         "missing",
         "in_transit",
         "shipped",
+        "putaway",
       ],
       label_type: [
         "pallet",
