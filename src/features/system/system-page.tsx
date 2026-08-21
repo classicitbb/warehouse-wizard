@@ -323,6 +323,7 @@ export function SystemLogPage() {
       ) : null}
       <Card>
         <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto]">
+          <Select onValueChange={setLogType} value={logType}>
 
             <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
             <SelectContent>
