@@ -33,6 +33,10 @@ vi.mock("@/integrations/supabase/client", () => {
             filters.push(["or", value]);
             return chain;
           },
+          not: (column: string, operator: string, value: unknown) => {
+            filters.push([`not:${column}:${operator}`, value]);
+            return chain;
+          },
           order: () => chain,
           limit: () => chain,
           maybeSingle: () => nextSelect(table),
@@ -40,6 +44,7 @@ vi.mock("@/integrations/supabase/client", () => {
         };
         return chain;
       },
+
       update: (payload: Record<string, unknown>) => ({
         eq: (column: string, value: unknown) => {
           filters.push([column, value]);
