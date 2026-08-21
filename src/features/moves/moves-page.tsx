@@ -269,6 +269,11 @@ export function LocationMovesPage() {
     try {
       const result = await validateMoveDestination(p, l);
       setScanState((s) => ({ ...s, [taskId]: { ...(s[taskId] ?? { pallet: p, location: l }), validation: result, validating: false } }));
+      if (!result.valid) {
+        playNoGoTone();
+        alertToast.error(result.reason);
+      }
+
     } catch {
       setScanState((s) => ({ ...s, [taskId]: { ...(s[taskId] ?? { pallet: p, location: l }), validation: null, validating: false } }));
     }
