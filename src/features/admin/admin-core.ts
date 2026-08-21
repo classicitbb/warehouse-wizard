@@ -360,42 +360,162 @@ export async function removeUserRoleAssignment(userRoleId: string) {
   });
 }
 
-export async function fetchOptions(includeHidden = false, scope?: WarehouseVisibilityScope) {
-  const [warehouses, zones, locations, clients, products, packagingProfiles, pallets, profiles, roles, permissionFeatures, rolePermissions, userRoles] = await Promise.all([
-    listRecords("warehouses", "*", undefined, { includeHidden, archiveField: "active" }),
-    listRecords("zones", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
-    listRecords("locations", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
-    listRecords("clients"),
-    listRecords("products", "*", undefined, { includeHidden, archiveField: "active" }),
-    listRecords("product_packaging_profiles", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
-    listRecords("pallets"),
-    listRecords("profiles", "*", undefined, includeHidden ? undefined : { archiveField: "active" }),
-    listRecords("roles"),
-    listRecords("permission_features", "*", { column: "sort_order" }),
-    listRecords("role_permissions"),
-    applyArchiveFilter(db("user_roles").select("*, roles(code, name)"), "is_hidden", includeHidden).then(({ data, error }: { data: any; error: any }) => {
-      if (error) throw error;
-      return data ?? [];
-    }),
-  ]);
+export type AdminOptionKey =
+  | "warehouses"
+  | "zones"
+  | "locations"
+  | "clients"
+  | "products"
+  | "packagingProfiles"
+  | "pallets"
+  | "profiles"
+  | "roles"
+  | "userRoles"
+  | "permissionFeatures"
+  | "rolePermissions";
 
-  const scopedWarehouseId = scope?.restrictToWarehouse ? scope.warehouseId : null;
+export type AdminOptionLoadError = {
+  key: AdminOptionKey;
+  table: string;
+  message: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+  correlationId: string;
+};
 
+export type AdminOptions = {
+  warehouses: any[];
+  zones: any[];
+  locations: any[];
+  clients: any[];
+  products: any[];
+  packagingProfiles: any[];
+  pallets: any[];
+  profiles: any[];
+  roles: any[];
+  userRoles: any[];
+  permissionFeatures: any[];
+  rolePermissions: any[];
+  loadErrors: AdminOptionLoadError[];
+};
+
+/** Short, human-quotable id so a banner message can be matched against its
+ *  System Logs entry without digging through timestamps. */
+export function buildCorrelationId(prefix = "UR") {
+  return `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+
+const ADMIN_OPTION_TABLES: Record<AdminOptionKey, string> = {
+  warehouses: "warehouses",
+  zones: "zones",
+  locations: "locations",
+  clients: "clients",
+  products: "products",
+  packagingProfiles: "product_packaging_profiles",
+  pallets: "pallets",
+  profiles: "profiles",
+  roles: "roles",
+  userRoles: "user_roles",
+  permissionFeatures: "permission_features",
+  rolePermissions: "role_permissions",
+};
+
+export const ADMIN_OPTION_KEYS = Object.keys(ADMIN_OPTION_TABLES) as AdminOptionKey[];
+
+function emptyAdminOptions(): AdminOptions {
   return {
-    warehouses: scopedWarehouseId ? warehouses.filter((warehouse: any) => warehouse.id === scopedWarehouseId) : warehouses,
-    zones: scopedWarehouseId ? zones.filter((zone: any) => zone.warehouse_id === scopedWarehouseId) : zones,
-    locations: scopedWarehouseId ? locations.filter((location: any) => location.warehouse_id === scopedWarehouseId) : locations,
-    clients,
-    products,
-    packagingProfiles,
-    pallets: scopedWarehouseId ? pallets.filter((pallet: any) => pallet.current_warehouse_id === scopedWarehouseId) : pallets,
-    profiles,
-    roles,
-    userRoles,
-    permissionFeatures,
-    rolePermissions,
+    warehouses: [],
+    zones: [],
+    locations: [],
+    clients: [],
+    products: [],
+    packagingProfiles: [],
+    pallets: [],
+    profiles: [],
+    roles: [],
+    userRoles: [],
+    permissionFeatures: [],
+    rolePermissions: [],
+    loadErrors: [],
   };
 }
+
+/**
+ * Loads the admin option set. Each table is fetched independently so a single
+ * failing table (for example role_permissions) degrades only its own section
+ * instead of blanking Users, Access and the Role Matrix together. Failures are
+ * reported through `loadErrors` with the raw PostgREST message plus a
+ * correlation id, and can be retried on their own via `keys`.
+ */
+export async function fetchOptions(
+  includeHidden = false,
+  scope?: WarehouseVisibilityScope,
+  keys: AdminOptionKey[] = ADMIN_OPTION_KEYS,
+): Promise<AdminOptions> {
+  const loaders: Record<AdminOptionKey, () => Promise<any[]>> = {
+    warehouses: () => listRecords("warehouses", "*", undefined, { includeHidden, archiveField: "active" }),
+    zones: () => listRecords("zones", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
+    locations: () => listRecords("locations", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
+    clients: () => listRecords("clients"),
+    products: () => listRecords("products", "*", undefined, { includeHidden, archiveField: "active" }),
+    packagingProfiles: () =>
+      listRecords("product_packaging_profiles", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
+    pallets: () => listRecords("pallets"),
+    profiles: () => listRecords("profiles", "*", undefined, includeHidden ? undefined : { archiveField: "active" }),
+    roles: () => listRecords("roles"),
+    permissionFeatures: () => listRecords("permission_features", "*", { column: "sort_order" }),
+    rolePermissions: () => listRecords("role_permissions"),
+    userRoles: () =>
+      applyArchiveFilter(db("user_roles").select("*, roles(code, name)"), "is_hidden", includeHidden).then(
+        ({ data, error }: { data: any; error: any }) => {
+          if (error) throw error;
+          return data ?? [];
+        },
+      ),
+  };
+
+  const requested = keys.length ? keys : ADMIN_OPTION_KEYS;
+  const settled = await Promise.all(
+    requested.map(async (key) => {
+      try {
+        return { key, rows: await loaders[key]() };
+      } catch (error) {
+        const raw = error as { message?: string; code?: string; details?: string; hint?: string };
+        return {
+          key,
+          rows: [] as any[],
+          error: {
+            key,
+            table: ADMIN_OPTION_TABLES[key],
+            message: formatSupabaseError(error, "Request failed"),
+            code: raw?.code,
+            details: raw?.details ?? undefined,
+            hint: raw?.hint ?? undefined,
+            correlationId: buildCorrelationId(),
+          } satisfies AdminOptionLoadError,
+        };
+      }
+    }),
+  );
+
+  const result = emptyAdminOptions();
+  for (const entry of settled) {
+    (result as any)[entry.key] = entry.rows;
+    if ((entry as any).error) result.loadErrors.push((entry as any).error);
+  }
+
+  const scopedWarehouseId = scope?.restrictToWarehouse ? scope.warehouseId : null;
+  if (scopedWarehouseId) {
+    result.warehouses = result.warehouses.filter((warehouse: any) => warehouse.id === scopedWarehouseId);
+    result.zones = result.zones.filter((zone: any) => zone.warehouse_id === scopedWarehouseId);
+    result.locations = result.locations.filter((location: any) => location.warehouse_id === scopedWarehouseId);
+    result.pallets = result.pallets.filter((pallet: any) => pallet.current_warehouse_id === scopedWarehouseId);
+  }
+
+  return result;
+}
+
 
 /**
  * The location creation forms only need their warehouse and zone selectors.
