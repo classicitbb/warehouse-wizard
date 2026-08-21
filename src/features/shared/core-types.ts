@@ -818,7 +818,8 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
   const occupiesSlot = (row: { status?: unknown; quantity?: unknown; correction_state?: unknown }) =>
     isStoredPalletStatus(row.status) &&
     row.correction_state !== "superseded" &&
-    Number(row.quantity ?? 0) > 0;
+    (row.quantity == null || Number(row.quantity) > 0);
+
 
   const balanceCounts = new Map<string, number>();
   const palletCounts = new Map<string, number>();
