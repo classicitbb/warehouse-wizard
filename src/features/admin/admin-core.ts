@@ -350,7 +350,7 @@ export async function removeUserRoleAssignment(userRoleId: string) {
 }
 
 export async function fetchOptions(includeHidden = false, scope?: WarehouseVisibilityScope) {
-  const [warehouses, zones, locations, clients, products, packagingProfiles, pallets, profiles, roles, userRoles] = await Promise.all([
+  const [warehouses, zones, locations, clients, products, packagingProfiles, pallets, profiles, roles, userRoles, permissionFeatures, rolePermissions] = await Promise.all([
     listRecords("warehouses", "*", undefined, { includeHidden, archiveField: "active" }),
     listRecords("zones", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
     listRecords("locations", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
@@ -360,6 +360,8 @@ export async function fetchOptions(includeHidden = false, scope?: WarehouseVisib
     listRecords("pallets"),
     listRecords("profiles", "*", undefined, includeHidden ? undefined : { archiveField: "active" }),
     listRecords("roles"),
+    listRecords("permission_features", "*", { column: "sort_order" }),
+    listRecords("role_permissions"),
     applyArchiveFilter(db("user_roles").select("*, roles(code, name)"), "is_hidden", includeHidden).then(({ data, error }: { data: any; error: any }) => {
       if (error) throw error;
       return data ?? [];
@@ -379,6 +381,8 @@ export async function fetchOptions(includeHidden = false, scope?: WarehouseVisib
     profiles,
     roles,
     userRoles,
+    permissionFeatures,
+    rolePermissions,
   };
 }
 

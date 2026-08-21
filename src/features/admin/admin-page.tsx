@@ -116,7 +116,6 @@ import {
   updateProfileDefaultWarehouse,
   statusChangeSchema,
   setResourceVisibility,
-  setUserRoleVisibility,
   submitCycleCountLine,
   transferSchema,
   updateRecord,
@@ -375,6 +374,7 @@ function UsersRolesPageImpl() {
   const [selectedProfile, setSelectedProfile] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
   const [activeTab, setActiveTab] = useState("users");
+  const [permissionSaving, setPermissionSaving] = useState<string | null>(null);
 
   const invalidateOptions = useCallback(async () => {
     await Promise.all([
@@ -395,17 +395,6 @@ function UsersRolesPageImpl() {
       await invalidateOptions();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to assign role"),
-  });
-
-  const visibilityMutation = useMutation({
-    mutationFn: async ({ userRoleId, hidden }: { userRoleId: string; hidden: boolean }) =>
-      setUserRoleVisibility(userRoleId, hidden, hidden ? "Access hidden from user management" : undefined),
-    onSuccess: async (_, variables) => {
-      toast.success(variables.hidden ? "Role assignment hidden" : "Role assignment restored");
-      await invalidateOptions();
-    },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Could not change this role assignment's visibility"),
   });
 
   const profileMutation = useMutation({
@@ -455,6 +444,30 @@ function UsersRolesPageImpl() {
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not sign out sessions"),
   });
+
+  const updatePermission = async (roleId: string, featureId: string, field: "can_view" | "can_edit", value: boolean) => {
+    if (!canOperateRoles) return;
+    const key = `${roleId}:${featureId}:${field}`;
+    setPermissionSaving(key);
+    const current = ((options?.rolePermissions ?? []) as any[]).find(
+      (permission) => permission.role_id === roleId && permission.feature_id === featureId,
+    ) ?? { can_view: false, can_edit: false };
+    const nextView = field === "can_view" ? value : Boolean(current.can_view || value);
+    const nextEdit = field === "can_edit" ? value : Boolean(current.can_edit && value);
+    try {
+      await upsertRecord("role_permissions", {
+        role_id: roleId,
+        feature_id: featureId,
+        can_view: nextView,
+        can_edit: nextEdit,
+      });
+      await invalidateOptions();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Permission update failed");
+    } finally {
+      setPermissionSaving(null);
+    }
+  };
 
   const profiles = (options?.profiles ?? []) as ProfileRow[];
 
@@ -643,9 +656,17 @@ function UsersRolesPageImpl() {
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs"
-                              onClick={() => visibilityMutation.mutate({ userRoleId: userRole.id, hidden: !userRole.is_hidden })}
+                              onClick={async () => {
+                                try {
+                                  await removeUserRoleAssignment(userRole.id);
+                                  toast.success("Role unassigned");
+                                  await invalidateOptions();
+                                } catch (error) {
+                                  toast.error(error instanceof Error ? error.message : "Role unassign failed");
+                                }
+                              }}
                             >
-                              {userRole.is_hidden ? "Restore" : "Revoke"}
+                              Unassign
                             </Button>
                           ) : null}
                         </div>
@@ -661,19 +682,73 @@ function UsersRolesPageImpl() {
           <Card>
             <CardHeader>
               <CardTitle>Role Matrix</CardTitle>
-              <CardDescription>Your current role assignments and their access scope.</CardDescription>
+              <CardDescription>
+                Configure view and edit abilities by role. Users may hold any combination of roles, including no role.
+                Developer abilities are locked to protect the system administrator.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-2">
-              {roles
-                .filter((role) => canOperateRoles || role !== "developer")
-                .map((role) => (
-                  <div key={role} className="rounded-lg border border-border px-3 py-2">
-                    <p className="font-medium">{ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {ROLE_DESCRIPTIONS[role as keyof typeof ROLE_DESCRIPTIONS] ?? "Warehouse system access"}
-                    </p>
-                  </div>
-                ))}
+            <CardContent className="p-0">
+              <div className="overflow-x-auto rounded-b-lg border-t border-border">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 z-10 min-w-[220px] bg-card">Feature</TableHead>
+                      {((options?.roles ?? []) as any[])
+                        .filter((role) => canOperateRoles || role.code !== "developer")
+                        .map((role) => (
+                          <TableHead key={role.id} colSpan={2} className="min-w-[150px] text-center">
+                            <div className="font-semibold">{role.name}</div>
+                            <div className="mt-1 grid grid-cols-2 text-[11px] font-normal text-muted-foreground">
+                              <span>View</span><span>Edit</span>
+                            </div>
+                          </TableHead>
+                        ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {((options?.permissionFeatures ?? []) as any[]).map((feature) => (
+                      <TableRow key={feature.id}>
+                        <TableCell className="sticky left-0 z-[1] bg-card">
+                          <div className="font-medium">{feature.name}</div>
+                          <div className="text-xs text-muted-foreground">{feature.description}</div>
+                        </TableCell>
+                        {((options?.roles ?? []) as any[])
+                          .filter((role) => canOperateRoles || role.code !== "developer")
+                          .flatMap((role) => {
+                            const permission = ((options?.rolePermissions ?? []) as any[]).find(
+                              (item) => item.role_id === role.id && item.feature_id === feature.id,
+                            ) ?? { can_view: false, can_edit: false };
+                            const locked = role.code === "developer" || !canOperateRoles;
+                            return (["can_view", "can_edit"] as const).map((field) => {
+                              const key = `${role.id}:${feature.id}:${field}`;
+                              const checked = Boolean(permission[field]);
+                              return (
+                                <TableCell key={key} className="text-center">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant={checked ? "default" : "outline"}
+                                    className="h-7 w-7 rounded-full"
+                                    aria-label={`${feature.name} ${role.name} ${field === "can_view" ? "view" : "edit"} ${checked ? "enabled" : "disabled"}`}
+                                    disabled={locked || permissionSaving !== null}
+                                    onClick={() => updatePermission(role.id, feature.id, field, !checked)}
+                                  >
+                                    {checked ? <CheckCircle2 className="h-4 w-4" /> : <CircleOff className="h-4 w-4" />}
+                                  </Button>
+                                </TableCell>
+                              );
+                            });
+                          })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {!canOperateRoles && (
+                <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                  Only Admins and Developers can edit the role matrix.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
