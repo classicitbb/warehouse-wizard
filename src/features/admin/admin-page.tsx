@@ -405,7 +405,8 @@ function UsersRolesPageImpl() {
       message,
       source: "settings.users-roles",
       details: { error: message },
-    });
+    }).catch((logError) => console.error("system log write failed", logError));
+
   }, [activitiesError]);
 
   const [selectedProfile, setSelectedProfile] = useState("");
