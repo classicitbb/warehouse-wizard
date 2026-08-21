@@ -14,4 +14,7 @@ The table was defined in an older migration file that was never applied to this 
 
 ## Notes
 
-No UI changes. The AI-assist writes stay fire-and-forget, so if anything else fails later, put-away still completes normally.
+No UI changes. The AI-assist writes stay fire-and-forget, so if anything else fails later, put-away still completes normally.  
+  
+Note  
+A pallet in a putaway task cannot be used in location moves, transfers, status update, cyclecounts. 
