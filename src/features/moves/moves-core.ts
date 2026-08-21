@@ -242,6 +242,8 @@ export async function createMoveTask(palletBarcode: string, toLocationCode: stri
     .eq("pallet_barcode", palletBarcode)
     .single();
   if (palletErr) throw new Error(`Pallet not found: ${palletBarcode}`);
+  await assertPalletNotInOpenPutaway(pallet.id, palletBarcode);
+
 
   const toLocation = await resolveMoveLocation(toLocationCode);
   if (!toLocation) throw new Error(`Location not found: ${toLocationCode}`);
