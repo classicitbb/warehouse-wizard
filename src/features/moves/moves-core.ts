@@ -30,6 +30,49 @@ function assertPalletIsPutAway(pallet: { status?: unknown; current_location_id?:
   }
 }
 
+/**
+ * A pallet that still has an open put-away task must be completed through
+ * Put-Away — moving it from Location Moves would leave the task pointing at a
+ * stale destination. Lookup failures are non-blocking (logged, treated as "no
+ * open task") so a transient read error can't stall the floor.
+ */
+async function findOpenPutawayTask(
+  palletId: string,
+): Promise<{ id: string; task_number?: string | null; status?: string | null } | null> {
+  try {
+    const { data, error } = await db("putaway_tasks")
+      .select("id, task_number, status")
+      .eq("pallet_id", palletId)
+      .not("status", "in", "(completed,cancelled)")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.warn("[moves] open put-away task lookup failed", error);
+      return null;
+    }
+    return (data as any) ?? null;
+  } catch (error) {
+    console.warn("[moves] open put-away task lookup threw", error);
+    return null;
+  }
+}
+
+function openPutawayMoveReason(
+  palletBarcode: string,
+  task: { task_number?: string | null; status?: string | null },
+) {
+  const taskLabel = task.task_number ? ` ${task.task_number}` : "";
+  const statusLabel = task.status ? ` (${String(task.status).replace(/_/g, " ")})` : "";
+  return `Pallet ${String(palletBarcode ?? "").trim().toUpperCase()} is on put-away task${taskLabel}${statusLabel} — complete the put-away instead of moving it.`;
+}
+
+async function assertPalletNotInOpenPutaway(palletId: string, palletBarcode: string) {
+  const task = await findOpenPutawayTask(palletId);
+  if (task) throw new Error(openPutawayMoveReason(palletBarcode, task));
+}
+
+
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
