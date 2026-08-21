@@ -2863,7 +2863,9 @@ const App = () => (
             </RouteErrorBoundary>
           </BrowserRouter>
           <RuntimeModeBadge />
+          <AiHintFailureAlert />
           <Analytics />
+
         </FeatureFlagProvider>
       </AuthProvider>
     </TooltipProvider>
