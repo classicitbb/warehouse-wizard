@@ -145,8 +145,10 @@ export async function recordPalletQtyObservation(
   productId: string,
   warehouseId: string,
   qty: number,
+  options?: { rethrow?: boolean },
 ): Promise<void> {
   if (!productId || !warehouseId || qty <= 0) return;
+
 
   // Fetch existing hint to update rolling samples
   const { data: existing } = await db("ai_product_hints")
