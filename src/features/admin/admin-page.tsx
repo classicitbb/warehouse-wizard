@@ -134,6 +134,9 @@ import {
   suggestNextRackPosition,
   validateMoveDestination,
   type MoveValidationResult,
+  buildCorrelationId,
+  type AdminOptionKey,
+  type AdminOptionLoadError,
 } from "@/lib/wms-core";
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
@@ -363,37 +366,101 @@ export function MobileActionBar() {
   return null;
 }
 
+const SECTION_LABELS: Partial<Record<AdminOptionKey, string>> = {
+  profiles: "Users",
+  userRoles: "Access",
+  roles: "Access",
+  permissionFeatures: "Role Matrix",
+  rolePermissions: "Role Matrix",
+  warehouses: "Warehouses",
+};
+
 function UsersRolesPageImpl() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { profile: viewerProfile, roles } = useAuth();
+
   const canOperateRoles = roles.some((r) => ["developer", "admin"].includes(r));
   const canOperateDeveloperRole = roles.includes("developer");
   const [includeHidden, setIncludeHidden] = useState(false);
   const optionsQuery = useQuery({ queryKey: ["options", includeHidden], queryFn: () => fetchOptions(includeHidden) });
   const options = optionsQuery.data;
   const { data: activities = [], error: activitiesError } = useQuery({ queryKey: ["user-activities"], queryFn: () => listUserActivities() });
-  // Users / Access / Role Matrix all hang off the same query. A silent
-  // rejection used to blank every tab with nothing logged, so surface it.
+  // Users / Access / Role Matrix all hang off the same query. A single failing
+  // table used to blank every tab with nothing logged, so each table now fails
+  // (and retries) on its own and is surfaced here.
   const optionsError = optionsQuery.error;
-  const loadErrorMessage = optionsError
-    ? optionsError instanceof Error
-      ? optionsError.message
-      : String(optionsError)
-    : null;
-  useEffect(() => {
-    if (!optionsError) return;
-    const message = optionsError instanceof Error ? optionsError.message : String(optionsError);
-    toast.error(`Users & roles failed to load: ${message}`);
-    void writeSystemLog({
-      log_type: "error",
-      severity: "error",
-      title: "User management data failed to load",
-      message,
-      source: "settings.users-roles",
-      details: { includeHidden, error: message },
-    }).catch((logError) => console.error("system log write failed", logError));
+  const loadErrors = useMemo<AdminOptionLoadError[]>(() => {
+    if (optionsError) {
+      const raw = optionsError as { message?: string; code?: string; details?: string; hint?: string };
+      return [
+        {
+          key: "profiles",
+          table: "users & roles",
+          message: optionsError instanceof Error ? optionsError.message : String(optionsError),
+          code: raw?.code,
+          details: raw?.details,
+          hint: raw?.hint,
+          correlationId: buildCorrelationId(),
+        },
+      ];
+    }
+    return options?.loadErrors ?? [];
+  }, [optionsError, options]);
+  const [retrying, setRetrying] = useState(false);
 
-  }, [optionsError, includeHidden]);
+  const retryFailedSections = useCallback(async () => {
+    if (loadErrors.length === 0) return;
+    setRetrying(true);
+    try {
+      const failedKeys = Array.from(new Set(loadErrors.map((entry) => entry.key)));
+      // Refetch only the tables that failed and merge them into the cached
+      // option set so the healthy sections aren't re-downloaded.
+      const partial = await fetchOptions(includeHidden, undefined, failedKeys);
+      queryClient.setQueryData(["options", includeHidden], (previous: any) => {
+        const base = previous ?? partial;
+        const merged = { ...base } as any;
+        for (const key of failedKeys) merged[key] = (partial as any)[key];
+        merged.loadErrors = [
+          ...((base.loadErrors ?? []) as AdminOptionLoadError[]).filter((entry) => !failedKeys.includes(entry.key)),
+          ...partial.loadErrors,
+        ];
+        return merged;
+      });
+      if (optionsError) await optionsQuery.refetch();
+      if (partial.loadErrors.length === 0) toast.success("Reloaded successfully");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Retry failed");
+    } finally {
+      setRetrying(false);
+    }
+  }, [loadErrors, includeHidden, queryClient, optionsError, optionsQuery]);
+
+  const loggedCorrelationIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const entry of loadErrors) {
+      if (loggedCorrelationIds.current.has(entry.correlationId)) continue;
+      loggedCorrelationIds.current.add(entry.correlationId);
+      toast.error(`${SECTION_LABELS[entry.key] ?? entry.table} failed to load: ${entry.message}`);
+      void writeSystemLog({
+        log_type: "error",
+        severity: "error",
+        title: "User management data failed to load",
+        message: `[${entry.correlationId}] ${entry.table}: ${entry.message}`,
+        source: "settings.users-roles",
+        details: {
+          correlation_id: entry.correlationId,
+          table: entry.table,
+          section: SECTION_LABELS[entry.key] ?? entry.key,
+          includeHidden,
+          error: entry.message,
+          code: entry.code ?? null,
+          details: entry.details ?? null,
+          hint: entry.hint ?? null,
+        },
+      }).catch((logError) => console.error("system log write failed", logError));
+    }
+  }, [loadErrors, includeHidden]);
   useEffect(() => {
     if (!activitiesError) return;
     const message = activitiesError instanceof Error ? activitiesError.message : String(activitiesError);
@@ -408,6 +475,7 @@ function UsersRolesPageImpl() {
     }).catch((logError) => console.error("system log write failed", logError));
 
   }, [activitiesError]);
+
 
   const [selectedProfile, setSelectedProfile] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
@@ -523,18 +591,39 @@ function UsersRolesPageImpl() {
         />
       </div>
 
-      {loadErrorMessage ? (
-        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex-1">
-            <p className="font-medium">Users, access, and role matrix could not be loaded.</p>
-            <p className="text-xs opacity-90">{loadErrorMessage}</p>
+      {loadErrors.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex-1 space-y-1">
+              <p className="font-medium">
+                {loadErrors.map((entry) => SECTION_LABELS[entry.key] ?? entry.table).join(", ")} could not be loaded.
+              </p>
+              {loadErrors.map((entry) => (
+                <p key={entry.correlationId} className="text-xs opacity-90">
+                  <span className="font-mono">{entry.correlationId}</span> · {entry.table}
+                  {entry.code ? ` · ${entry.code}` : ""} · {entry.message}
+                  {entry.hint ? ` · hint: ${entry.hint}` : ""}
+                </p>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" disabled={retrying} onClick={() => void retryFailedSections()}>
+              {retrying ? "Retrying…" : "Retry"}
+            </Button>
           </div>
-          <Button size="sm" variant="outline" onClick={() => void optionsQuery.refetch()}>
-            Retry
-          </Button>
+          <div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => navigate("/system-log?source=settings.users-roles")}
+            >
+              View in System Logs
+            </Button>
+          </div>
         </div>
       ) : null}
+
 
 
 

@@ -200,16 +200,19 @@ import {
 
 export function SystemLogPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sourceFilter = searchParams.get("source") ?? "";
   const [view, setView] = useState<"active" | "archived">("active");
   const [logType, setLogType] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [showResolved, setShowResolved] = useState(false);
   const { data: logs = [], error: logsError, isLoading } = useQuery({
-    queryKey: ["system-logs", logType, severity, showResolved],
-    queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, resolved: showResolved ? undefined : false }),
+    queryKey: ["system-logs", logType, severity, sourceFilter, showResolved],
+    queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, source: sourceFilter || undefined, resolved: showResolved ? undefined : false }),
     meta: { suppressGlobalError: true },
     enabled: view === "active",
   });
+
   const { data: archivedLogs = [], error: archivedLogsError, isLoading: archivedLoading } = useQuery({
     queryKey: ["system-logs-archive", logType, severity],
     queryFn: () => listArchivedSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity }),
@@ -300,9 +303,28 @@ export function SystemLogPage() {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+      {sourceFilter ? (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Filtered to source</span>
+          <Badge variant="outline" className="font-mono">{sourceFilter}</Badge>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("source");
+              setSearchParams(next, { replace: true });
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+      ) : null}
       <Card>
         <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto]">
           <Select onValueChange={setLogType} value={logType}>
+
             <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
