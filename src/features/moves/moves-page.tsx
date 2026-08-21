@@ -40,6 +40,8 @@ import {
   type FailedWorkItem,
 } from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
+import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
+import { knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -313,10 +315,15 @@ export function LocationMovesPage() {
     onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Cancel failed"),
   });
 
+  const knownCodes = useKnownLocationCodes();
+  const newPalletError = palletBarcodeError(newPallet);
+  const newLocationError = knownCodeError(knownCodes, newLocation);
+
   function completeNewMove(pallet = newPallet, location = newLocation) {
     const trimmedPallet = pallet.trim();
     const trimmedLocation = location.trim().toUpperCase();
     if (!trimmedPallet || !trimmedLocation || directMoveMutation.isPending) return;
+    if (palletBarcodeError(trimmedPallet) || knownCodeError(knownCodes, trimmedLocation)) return;
     directMoveMutation.mutate({
       pallet: trimmedPallet,
       location: trimmedLocation,
@@ -325,13 +332,14 @@ export function LocationMovesPage() {
   }
 
   function applyNewPalletScan(value: unknown) {
-    const pallet = normalizeScannerText(value);
+    const pallet = normalizePalletBarcode(value);
     setNewPallet(pallet);
     setNewValidation(null);
     playBarcodeBeep();
     flashInput(newPalletRef.current, "blue");
     setTimeout(() => newLocationRef.current?.focus(), 50);
   }
+
 
   function applyNewLocationScan(value: unknown) {
     if (!newPallet.trim()) {
@@ -377,85 +385,93 @@ export function LocationMovesPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex gap-2">
-              <Input
-                ref={newPalletRef}
-                className="flex-1"
-                placeholder="Pallet barcode"
-                value={newPallet}
-                onChange={(e) => setNewPallet(normalizeScannerText(e.target.value))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    newLocationRef.current?.focus();
-                  }
-                }}
-              />
-              <BarcodeScanButton title="Scan pallet" onScan={applyNewPalletScan} />
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-2">
+                <Input
+                  ref={newPalletRef}
+                  className="flex-1"
+                  placeholder="Pallet barcode (PLT-…)"
+                  value={newPallet}
+                  onChange={(e) => setNewPallet(normalizePalletBarcode(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      newLocationRef.current?.focus();
+                    }
+                  }}
+                />
+                <BarcodeScanButton title="Scan pallet" onScan={applyNewPalletScan} />
+              </div>
+              {newPalletError ? <p className="text-xs text-destructive">{newPalletError}</p> : null}
             </div>
-            <div className="flex gap-2">
-              <Input
-                ref={newLocationRef}
-                className="flex-1"
-                placeholder="Bay (e.g. A-01) or location (e.g. A-01-01)"
-                value={newLocation}
-                disabled={!newPallet.trim()}
-                onChange={(e) => {
-                  const val = normalizeScannerText(e.target.value);
-                  setNewLocation(val);
-                  setNewBaySelectorOpen(isBaySelectorCode(val));
-                  setNewValidation(null);
-                  if (val.trim() && newPallet.trim() && !isBaySelectorCode(val)) {
-                    void runNewValidation(newPallet, val);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (newValidation && !newValidation.valid) return; // block on hard error
-                    completeNewMove();
-                  }
-                }}
-              />
-              <BarcodeScanButton
-                title="Scan target location"
-                onScan={applyNewLocationScan}
-              />
-              {warehousesForBrowse.length <= 1 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 self-stretch"
-                  disabled={!newPallet.trim() || warehousesForBrowse.length === 0}
-                  onClick={() => openBayBrowser(warehousesForBrowse[0]?.id ?? "")}
-                >
-                  Browse bays
-                </Button>
-              ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 self-stretch"
-                      disabled={!newPallet.trim()}
-                    >
-                      Browse bays
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {warehousesForBrowse.map((wh) => (
-                      <DropdownMenuItem key={wh.id} onClick={() => openBayBrowser(wh.id)}>
-                        {wh.code} — {wh.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-2">
+                <Input
+                  ref={newLocationRef}
+                  className="flex-1"
+                  placeholder="Bay (e.g. A-01) or location (e.g. A-01-01)"
+                  value={newLocation}
+                  disabled={!newPallet.trim()}
+                  onChange={(e) => {
+                    const val = normalizeScannerText(e.target.value);
+                    setNewLocation(val);
+                    setNewBaySelectorOpen(isBaySelectorCode(val));
+                    setNewValidation(null);
+                    if (val.trim() && newPallet.trim() && !isBaySelectorCode(val)) {
+                      void runNewValidation(newPallet, val);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (newValidation && !newValidation.valid) return; // block on hard error
+                      if (newPalletError || knownCodeError(knownCodes, newLocation)) return;
+                      completeNewMove();
+                    }
+                  }}
+                />
+                <BarcodeScanButton
+                  title="Scan target location"
+                  onScan={applyNewLocationScan}
+                />
+                {warehousesForBrowse.length <= 1 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 self-stretch"
+                    disabled={!newPallet.trim() || warehousesForBrowse.length === 0}
+                    onClick={() => openBayBrowser(warehousesForBrowse[0]?.id ?? "")}
+                  >
+                    Browse bays
+                  </Button>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 self-stretch"
+                        disabled={!newPallet.trim()}
+                      >
+                        Browse bays
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {warehousesForBrowse.map((wh) => (
+                        <DropdownMenuItem key={wh.id} onClick={() => openBayBrowser(wh.id)}>
+                          {wh.code} — {wh.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+              {newLocationError ? <p className="text-xs text-destructive">{newLocationError}</p> : null}
             </div>
           </div>
+
           <WarehouseBayBrowserDialog
             open={bayBrowserOpen && Boolean(bayBrowserWarehouseId)}
             warehouseId={bayBrowserWarehouseId ?? ""}
@@ -515,7 +531,7 @@ export function LocationMovesPage() {
           />
           <Button
             className="w-full"
-            disabled={directMoveMutation.isPending || !newPallet || !newLocation || newValidating || (!!newValidation && !newValidation.valid)}
+            disabled={directMoveMutation.isPending || !newPallet || !newLocation || newValidating || (!!newValidation && !newValidation.valid) || Boolean(newPalletError) || Boolean(newLocationError)}
             onClick={() => completeNewMove()}
           >
             {directMoveMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
@@ -564,62 +580,74 @@ export function LocationMovesPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <div className="grid gap-3 lg:grid-cols-2">
-                    <div className="flex gap-2">
-                      <Input
-                        className="min-h-12 flex-1 text-base"
-                        placeholder={`Scan pallet (${pBarcode})`}
-                        value={local.pallet}
-                        onChange={(e) => {
-                          const p = normalizeScannerText(e.target.value);
-                          setScanState((s) => ({ ...s, [task.id]: { ...local, pallet: p, validation: null } }));
-                          if (p.trim() && local.location.trim() && !isBaySelectorCode(local.location)) {
-                            void runTaskValidation(task.id, p, local.location);
-                          }
-                        }}
-                      />
-                      <BarcodeScanButton
-                        title="Scan pallet barcode"
-                        onScan={(v) => {
-                          const p = normalizeScannerText(v);
-                          playBarcodeBeep();
-                          setScanState((s) => ({ ...s, [task.id]: { ...local, pallet: p, validation: null } }));
-                          if (local.location.trim() && !isBaySelectorCode(local.location)) {
-                            void runTaskValidation(task.id, p, local.location);
-                          }
-                        }}
-                      />
+                    <div className="flex flex-col gap-1">
+                      <div className="flex gap-2">
+                        <Input
+                          className="min-h-12 flex-1 text-base"
+                          placeholder={`Scan pallet (${pBarcode})`}
+                          value={local.pallet}
+                          onChange={(e) => {
+                            const p = normalizePalletBarcode(e.target.value);
+                            setScanState((s) => ({ ...s, [task.id]: { ...local, pallet: p, validation: null } }));
+                            if (p.trim() && local.location.trim() && !isBaySelectorCode(local.location)) {
+                              void runTaskValidation(task.id, p, local.location);
+                            }
+                          }}
+                        />
+                        <BarcodeScanButton
+                          title="Scan pallet barcode"
+                          onScan={(v) => {
+                            const p = normalizePalletBarcode(v);
+                            playBarcodeBeep();
+                            setScanState((s) => ({ ...s, [task.id]: { ...local, pallet: p, validation: null } }));
+                            if (local.location.trim() && !isBaySelectorCode(local.location)) {
+                              void runTaskValidation(task.id, p, local.location);
+                            }
+                          }}
+                        />
+                      </div>
+                      {palletBarcodeError(local.pallet) ? (
+                        <p className="text-xs text-destructive">{palletBarcodeError(local.pallet)}</p>
+                      ) : null}
                     </div>
-                    <div className="flex gap-2">
-                      <Input
-                        className="min-h-12 flex-1 text-base"
-                        placeholder={`Any bay or location (suggested: ${toLoc})`}
-                        value={local.location}
-                        onChange={(e) => {
-                          const l = normalizeScannerText(e.target.value);
-                          setScanState((s) => ({ ...s, [task.id]: { ...local, location: l, validation: null } }));
-                          if (l.trim() && local.pallet.trim() && !isBaySelectorCode(l)) {
-                            void runTaskValidation(task.id, local.pallet, l);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && local.validation?.valid !== false) {
-                            completeMutation.mutate({ taskId: task.id, pallet: local.pallet, location: local.location });
-                          }
-                        }}
-                      />
-                      <BarcodeScanButton
-                        title="Scan target location"
-                        onScan={(v) => {
-                          const l = normalizeScannerText(v);
-                          playBarcodeBeep();
-                          setScanState((s) => ({ ...s, [task.id]: { ...local, location: l, validation: null } }));
-                          if (local.pallet.trim() && !isBaySelectorCode(l)) {
-                            void runTaskValidation(task.id, local.pallet, l);
-                          }
-                        }}
-                      />
+                    <div className="flex flex-col gap-1">
+                      <div className="flex gap-2">
+                        <Input
+                          className="min-h-12 flex-1 text-base"
+                          placeholder={`Any bay or location (suggested: ${toLoc})`}
+                          value={local.location}
+                          onChange={(e) => {
+                            const l = normalizeScannerText(e.target.value);
+                            setScanState((s) => ({ ...s, [task.id]: { ...local, location: l, validation: null } }));
+                            if (l.trim() && local.pallet.trim() && !isBaySelectorCode(l)) {
+                              void runTaskValidation(task.id, local.pallet, l);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && local.validation?.valid !== false) {
+                              if (palletBarcodeError(local.pallet) || knownCodeError(knownCodes, local.location)) return;
+                              completeMutation.mutate({ taskId: task.id, pallet: local.pallet, location: local.location });
+                            }
+                          }}
+                        />
+                        <BarcodeScanButton
+                          title="Scan target location"
+                          onScan={(v) => {
+                            const l = normalizeScannerText(v);
+                            playBarcodeBeep();
+                            setScanState((s) => ({ ...s, [task.id]: { ...local, location: l, validation: null } }));
+                            if (local.pallet.trim() && !isBaySelectorCode(l)) {
+                              void runTaskValidation(task.id, local.pallet, l);
+                            }
+                          }}
+                        />
+                      </div>
+                      {knownCodeError(knownCodes, local.location) ? (
+                        <p className="text-xs text-destructive">{knownCodeError(knownCodes, local.location)}</p>
+                      ) : null}
                     </div>
                   </div>
+
                   {/* Validation feedback for task */}
                   {local.validating && (
                     <div className="flex items-center gap-2 rounded-md border border-muted bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
@@ -658,7 +686,7 @@ export function LocationMovesPage() {
                   )}
                   <Button
                     className="min-h-12 w-full text-base"
-                    disabled={completeMutation.isPending || !local.pallet || !local.location || local.validating || (!!local.validation && !local.validation.valid)}
+                    disabled={completeMutation.isPending || !local.pallet || !local.location || local.validating || (!!local.validation && !local.validation.valid) || Boolean(palletBarcodeError(local.pallet)) || Boolean(knownCodeError(knownCodes, local.location))}
                     onClick={() => completeMutation.mutate({ taskId: task.id, pallet: local.pallet, location: local.location })}
                   >
                     {completeMutation.isPending ? <Loader2 className="animate-spin" /> : <ArrowLeftRight data-icon="inline-start" />}

@@ -187,6 +187,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
+import { knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 
 
 import {
@@ -959,12 +961,29 @@ export function PutawayTasksPage() {
     }, 50);
   }
 
+  const knownCodes = useKnownLocationCodes();
+
+  // Bay-selector payloads ("BAY:…") are structured scanner codes, not location
+  // codes, so they bypass the known-code check.
+  function putawayLocationError(value: string) {
+    if (String(value ?? "").trim().toUpperCase().startsWith("BAY:")) return null;
+    return knownCodeError(knownCodes, value);
+  }
+
+
   function commitPalletScan(rawValue: string) {
-    const value = normalizeScannerText(rawValue);
+    const value = normalizePalletBarcode(rawValue);
     if (!value) {
       setScanError("Scan or enter a pallet number.");
       return;
     }
+    const prefixError = palletBarcodeError(value);
+    if (prefixError) {
+      setScanError(prefixError);
+      return;
+    }
+
+
 
     const match = pendingTasks.find((task: any) => getTaskPalletCodes(task).includes(value));
     if (!match) {
@@ -1139,7 +1158,7 @@ export function PutawayTasksPage() {
                   className={cn("min-h-12 pl-9 font-mono text-base", scanPromptWaiting && "scan-prompt-input")}
                   value={scanQuery}
                   onChange={(event) => {
-                    setScanQuery(event.target.value.toUpperCase());
+                    setScanQuery(normalizePalletBarcode(event.target.value));
                     setScanError("");
                   }}
                   onKeyDown={(event) => {
@@ -1383,17 +1402,12 @@ export function PutawayTasksPage() {
                           placeholder="Scan pallet barcode"
                           value={localState.pallet}
                           onChange={(event) => {
-                            const val = normalizeScannerText(event.target.value);
+                            const val = normalizePalletBarcode(event.target.value);
                             setScanState((current) => ({
                               ...current,
                               [task.id]: { ...localState, pallet: val },
                             }));
-                            if (val.endsWith("\n") || val.endsWith("\r")) {
-                              const trimmed = normalizeScannerText(val);
-                              setScanState((current) => ({
-                                ...current,
-                                [task.id]: { ...localState, pallet: trimmed },
-                              }));
+                            if (event.target.value.endsWith("\n") || event.target.value.endsWith("\r")) {
                               playBarcodeBeep();
                               flashInput(palletRefs.current[task.id], "blue");
                               setTimeout(() => {
@@ -1417,13 +1431,16 @@ export function PutawayTasksPage() {
                         <BarcodeScanButton
                           title="Scan pallet barcode"
                           onScan={(v) => {
-                            setScanState((cur) => ({ ...cur, [task.id]: { ...localState, pallet: normalizeScannerText(v) } }));
+                            setScanState((cur) => ({ ...cur, [task.id]: { ...localState, pallet: normalizePalletBarcode(v) } }));
                             playBarcodeBeep();
                             flashInput(palletRefs.current[task.id], "blue");
                             openLocationScannerForTask(task.id);
                           }}
                         />
                       </div>
+                      {palletBarcodeError(localState.pallet) ? (
+                        <p className="text-xs text-destructive">{palletBarcodeError(localState.pallet)}</p>
+                      ) : null}
                     </div>
                     <div className="grid gap-1.5">
                       <p className="text-xs text-muted-foreground">Confirm location</p>
@@ -1479,6 +1496,9 @@ export function PutawayTasksPage() {
                           Browse bays
                         </Button>
                       </div>
+                      {putawayLocationError(localState.location) ? (
+                        <p className="text-xs text-destructive">{putawayLocationError(localState.location)}</p>
+                      ) : null}
                     </div>
                   </div>
                   <WarehouseBayBrowserDialog
@@ -1573,7 +1593,7 @@ export function PutawayTasksPage() {
                       <Button
                         ref={(el) => { confirmRefs.current[task.id] = el; }}
                         className="min-h-12 min-w-0 flex-1 text-base"
-                        disabled={mutation.isPending || !localState.pallet || !localState.location}
+                        disabled={mutation.isPending || !localState.pallet || !localState.location || Boolean(palletBarcodeError(localState.pallet)) || Boolean(putawayLocationError(localState.location))}
                         onClick={() =>
                           mutation.mutate({
                             taskId: task.id,
