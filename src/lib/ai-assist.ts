@@ -177,8 +177,13 @@ export async function recordPalletQtyObservation(
     { onConflict: "product_id,warehouse_id,hint_type" },
   );
 
-  if (error) console.error("[ai-assist] recordPalletQtyObservation failed:", error);
+  if (error) {
+    console.error("[ai-assist] recordPalletQtyObservation failed:", error);
+    if (options?.rethrow) throw error;
+    enqueueFailedAiHint({ kind: "pallet_qty", productId, warehouseId, qty }, error);
+  }
 }
+
 
 // ─── Product Placement ────────────────────────────────────────────────────────
 
