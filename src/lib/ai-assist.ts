@@ -19,6 +19,8 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { enqueueFailedAiHint, registerAiHintRunner } from "@/lib/ai-hint-queue";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -145,8 +147,10 @@ export async function recordPalletQtyObservation(
   productId: string,
   warehouseId: string,
   qty: number,
+  options?: { rethrow?: boolean },
 ): Promise<void> {
   if (!productId || !warehouseId || qty <= 0) return;
+
 
   // Fetch existing hint to update rolling samples
   const { data: existing } = await db("ai_product_hints")
@@ -177,8 +181,13 @@ export async function recordPalletQtyObservation(
     { onConflict: "product_id,warehouse_id,hint_type" },
   );
 
-  if (error) console.error("[ai-assist] recordPalletQtyObservation failed:", error);
+  if (error) {
+    console.error("[ai-assist] recordPalletQtyObservation failed:", error);
+    if (options?.rethrow) throw error;
+    enqueueFailedAiHint({ kind: "pallet_qty", productId, warehouseId, qty }, error);
+  }
 }
+
 
 // ─── Product Placement ────────────────────────────────────────────────────────
 
@@ -222,8 +231,10 @@ export async function recordPlacementObservation(
   locationId: string,
   locationCode: string,
   zoneName: string | null,
+  options?: { rethrow?: boolean },
 ): Promise<void> {
   if (!productId || !warehouseId || !locationId) return;
+
 
   // Fetch existing hint
   const { data: existing } = await db("ai_product_hints")
@@ -280,8 +291,32 @@ export async function recordPlacementObservation(
     { onConflict: "product_id,warehouse_id,hint_type" },
   );
 
-  if (error) console.error("[ai-assist] recordPlacementObservation failed:", error);
+  if (error) {
+    console.error("[ai-assist] recordPlacementObservation failed:", error);
+    if (options?.rethrow) throw error;
+    enqueueFailedAiHint(
+      { kind: "placement", productId, warehouseId, locationId, locationCode, zoneName },
+      error,
+    );
+  }
 }
+
+// Register the retry executor so queued hint jobs can be replayed.
+registerAiHintRunner(async (job) => {
+  if (job.kind === "placement") {
+    await recordPlacementObservation(
+      job.productId,
+      job.warehouseId,
+      job.locationId,
+      job.locationCode,
+      job.zoneName,
+      { rethrow: true },
+    );
+    return;
+  }
+  await recordPalletQtyObservation(job.productId, job.warehouseId, job.qty, { rethrow: true });
+});
+
 
 // ─── Velocity ─────────────────────────────────────────────────────────────────
 

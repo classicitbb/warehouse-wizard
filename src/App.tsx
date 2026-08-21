@@ -76,6 +76,8 @@ import { PalletEditDialog, type PalletEditTarget } from "@/features/inventory/pa
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
+import { AiHintFailureAlert } from "@/components/ai-hint-alert";
+
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2863,7 +2865,9 @@ const App = () => (
             </RouteErrorBoundary>
           </BrowserRouter>
           <RuntimeModeBadge />
+          <AiHintFailureAlert />
           <Analytics />
+
         </FeatureFlagProvider>
       </AuthProvider>
     </TooltipProvider>
