@@ -308,6 +308,11 @@ export async function validateMoveDestination(
   } catch (error) {
     return { valid: false, reason: error instanceof Error ? error.message : "This pallet needs to be put away before it can be moved.", warnings, requiresPutaway: true };
   }
+  const openPutaway = await findOpenPutawayTask(pallet.id);
+  if (openPutaway) {
+    return { valid: false, reason: openPutawayMoveReason(palletKey, openPutaway), warnings, requiresPutaway: true };
+  }
+
 
   // ── Fetch location ────────────────────────────────────────────────────────
   const location = await resolveMoveLocation(locationKey);
