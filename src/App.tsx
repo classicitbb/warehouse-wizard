@@ -161,6 +161,16 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28.4",
+    date: "August 2026",
+    changes: [
+      "New sitewide brand icon: an isometric pallet cube that works on dark and light backgrounds, from favicon to PWA home-screen icons and email headers",
+      "Icon set ships as SVG master, maskable variants, and multi-size PNG/ICO so it stays sharp on phones, desktops, and warehouse tablets",
+      "Preview/host hard-reloads are now handled as a soft data refresh, so the app no longer breaks out of the Lovable preview proxy",
+      "Error boundary chunk failures in preview no longer force a full page reload",
+    ],
+  },
+  {
     version: "1.28.3",
     date: "August 2026",
     changes: [
