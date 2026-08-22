@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Warehouse Wizard mark">
+  <path d="M256 112 408 200 256 288 104 200Z" fill="#3ee0c0"/>
+  <path d="M104 200 256 288v152L104 352Z" fill="#1ed2b0"/>
+  <path d="M408 200 256 288v152l152-88Z" fill="#0b7f6e"/>
+  <path d="M256 112 408 200 256 288 104 200Z" fill="none" stroke="#06463d" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M104 200v152l152 88 152-88V200" fill="none" stroke="#06463d" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M256 288v152" stroke="#06463d" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="396" cy="130" r="34" fill="#f4b63b" stroke="#06463d" stroke-width="12"/>
+</svg>

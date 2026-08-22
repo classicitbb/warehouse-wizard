@@ -1,18 +1,25 @@
 {
   "name": "Warehouse Wizard",
   "short_name": "WW Wizard",
-  "description": "Enterprise Warehouse Management System — scan-first operations, role-gated workflows, and a complete audit trail for modern warehouse teams.",
+  "description": "Enterprise Warehouse Management System \u2014 scan-first operations, role-gated workflows, and a complete audit trail for modern warehouse teams.",
   "id": "/",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#1ed2b0",
   "theme_color": "#1a2932",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["business", "productivity", "utilities"],
+  "categories": [
+    "business",
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/logo.png",
@@ -22,13 +29,19 @@
     },
     {
       "src": "/icon.svg",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icon-maskable.svg",
+      "src": "/icon-maskable.png",
       "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
     }

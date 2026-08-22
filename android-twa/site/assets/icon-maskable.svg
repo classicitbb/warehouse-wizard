@@ -1,8 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="160" fill="#0f171e"/>
-  <circle cx="256" cy="256" r="188" fill="#1a2932"/>
-  <path d="M132 198 256 128l124 70v116l-124 70-124-70V198Z" fill="#1ed2b0"/>
-  <path d="M256 128v256" stroke="#0f171e" stroke-width="18" stroke-linecap="round"/>
-  <path d="M132 198l124 70 124-70" stroke="#0f171e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="344" cy="164" r="30" fill="#f4b63b"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Warehouse Wizard">
+  <rect width="512" height="512" fill="#0f171e"/>
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <path d="M256 112 408 200 256 288 104 200Z" fill="#3ee0c0"/>
+    <path d="M104 200 256 288v152L104 352Z" fill="#1ed2b0"/>
+    <path d="M408 200 256 288v152l152-88Z" fill="#0e9b86"/>
+    <path d="M256 112 408 200 256 288 104 200Z" fill="none" stroke="#0f171e" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M104 200v152l152 88 152-88V200" fill="none" stroke="#0f171e" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M256 288v152" stroke="#0f171e" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="396" cy="130" r="34" fill="#f4b63b" stroke="#0f171e" stroke-width="12"/>
+  </g>
 </svg>
