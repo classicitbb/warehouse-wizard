@@ -8,7 +8,7 @@
  * offline support.
  */
 
-const CACHE_VERSION = "ww-shell-v1";
+const CACHE_VERSION = "ww-shell-v2";
 const SHELL_ASSETS = ["/", "/manifest.json", "/favicon.png", "/logo.png"];
 
 // Never cache these path prefixes, even opportunistically.
