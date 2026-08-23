@@ -162,7 +162,7 @@ async function fetchProfileBundle(userId: string) {
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, approved, created_at, updated_at, active, default_warehouse_id, user_code, badge_code"
+        "id, full_name, email, phone, approved, created_at, updated_at, active, default_warehouse_id, user_code"
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -185,7 +185,7 @@ async function fetchProfileBundle(userId: string) {
     .filter((value, index, values) => values.indexOf(value) === index);
 
   return {
-    profile: profile ? { ...profile, pin_hash: null } : null,
+    profile: profile ? { ...profile, badge_code: null, pin_hash: null } : null,
     roles,
   };
 }
