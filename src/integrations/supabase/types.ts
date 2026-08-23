@@ -738,6 +738,9 @@ export type Database = {
           archived_at: string | null
           archived_by: string | null
           assigned_user_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           count_number: string
           created_at: string
           created_by: string | null
@@ -762,6 +765,9 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           assigned_user_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           count_number: string
           created_at?: string
           created_by?: string | null
@@ -786,6 +792,9 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           assigned_user_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           count_number?: string
           created_at?: string
           created_by?: string | null
@@ -4409,6 +4418,10 @@ export type Database = {
       can_access_warehouse: {
         Args: { target_warehouse_id: string }
         Returns: boolean
+      }
+      cancel_cycle_count: {
+        Args: { p_count_id: string; p_reason: string }
+        Returns: Json
       }
       cancel_inventory_pallet_correction: {
         Args: { in_draft_id: string }
