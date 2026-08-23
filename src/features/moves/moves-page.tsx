@@ -250,7 +250,9 @@ export function LocationMovesPage() {
   }, [queryClient]);
 
 
-  const runNewValidation = useCallback(async (pallet: string, location: string) => {
+  // `announce` gates the audible no-go alarm: scans, bay picks and blur announce,
+  // but typing keystroke-by-keystroke only updates the inline feedback block.
+  const runNewValidation = useCallback(async (pallet: string, location: string, announce = true) => {
     const p = pallet.trim();
     const l = location.trim();
     if (!p || !l || isBaySelectorCode(l)) { setNewValidation(null); return; }
@@ -258,7 +260,7 @@ export function LocationMovesPage() {
     try {
       const result = await validateMoveDestination(p, l);
       setNewValidation(result);
-      if (!result.valid) {
+      if (!result.valid && announce) {
         alertToast.noGo(result.reason ?? "Cannot move here");
       }
     } catch { setNewValidation(null); }
@@ -266,7 +268,7 @@ export function LocationMovesPage() {
     finally { setNewValidating(false); }
   }, []);
 
-  const runTaskValidation = useCallback(async (taskId: string, pallet: string, location: string) => {
+  const runTaskValidation = useCallback(async (taskId: string, pallet: string, location: string, announce = true) => {
     const p = pallet.trim();
     const l = location.trim();
     if (!p || !l || isBaySelectorCode(l)) {
@@ -277,7 +279,7 @@ export function LocationMovesPage() {
     try {
       const result = await validateMoveDestination(p, l);
       setScanState((s) => ({ ...s, [taskId]: { ...(s[taskId] ?? { pallet: p, location: l }), validation: result, validating: false } }));
-      if (!result.valid) {
+      if (!result.valid && announce) {
         alertToast.noGo(result.reason ?? "Cannot move here");
       }
 
@@ -285,6 +287,7 @@ export function LocationMovesPage() {
       setScanState((s) => ({ ...s, [taskId]: { ...(s[taskId] ?? { pallet: p, location: l }), validation: null, validating: false } }));
     }
   }, []);
+
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["move-tasks"],
