@@ -429,7 +429,7 @@ export function LocationMovesPage() {
                     setNewBaySelectorOpen(isBaySelectorCode(val));
                     setNewValidation(null);
                     if (val.trim() && newPallet.trim() && !isBaySelectorCode(val)) {
-                      void runNewValidation(newPallet, val);
+                      void runNewValidation(newPallet, val, false);
                     }
                   }}
                   onKeyDown={(e) => {
@@ -601,7 +601,7 @@ export function LocationMovesPage() {
                             const p = normalizePalletBarcode(e.target.value);
                             setScanState((s) => ({ ...s, [task.id]: { ...local, pallet: p, validation: null } }));
                             if (p.trim() && local.location.trim() && !isBaySelectorCode(local.location)) {
-                              void runTaskValidation(task.id, p, local.location);
+                              void runTaskValidation(task.id, p, local.location, false);
                             }
                           }}
                         />
@@ -631,7 +631,7 @@ export function LocationMovesPage() {
                             const l = normalizeScannerText(e.target.value);
                             setScanState((s) => ({ ...s, [task.id]: { ...local, location: l, validation: null } }));
                             if (l.trim() && local.pallet.trim() && !isBaySelectorCode(l)) {
-                              void runTaskValidation(task.id, local.pallet, l);
+                              void runTaskValidation(task.id, local.pallet, l, false);
                             }
                           }}
                           onKeyDown={(e) => {
