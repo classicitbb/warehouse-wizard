@@ -161,6 +161,15 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28.5",
+    date: "August 2026",
+    changes: [
+      "Cycle Counts: warehouse managers can cancel draft, frozen, counting, review, or approved counts with a required audit reason",
+      "Cycle-count cancellation now stops assigned work, clears active line claims, and releases inventory freezes in one database transaction",
+      "Closed, already-cancelled, and archived counts remain immutable; adjustments posted before cancellation remain in inventory history",
+    ],
+  },
+  {
     version: "1.28.4",
     date: "August 2026",
     changes: [

@@ -46,6 +46,10 @@ const preventSelfDisableMigration = readFileSync(
   path.resolve(process.cwd(), "supabase/migrations/20260708184500_prevent_self_disable.sql"),
   "utf8",
 );
+const cancelCycleCountMigration = readFileSync(
+  path.resolve(process.cwd(), "supabase/migrations/20260823142641_cancel_cycle_count.sql"),
+  "utf8",
+);
 
 describe("init_wms migration", () => {
   it("creates the core warehouse tables", () => {
@@ -119,6 +123,36 @@ describe("demo seed", () => {
     expect(demoSeed).toContain("TRF-INTRA-0509");
     expect(demoSeed).toContain("APPT-IN-0509");
     expect(demoSeed).toContain("FULL-FLOW-DEMO-RECEIVE");
+  });
+});
+
+describe("cycle-count cancellation migration", () => {
+  it("authorizes managers and defines every cancellable lifecycle state", () => {
+    expect(cancelCycleCountMigration).toContain("public.has_min_role(v_actor_id, 'warehouse_manager')");
+    expect(cancelCycleCountMigration).toContain("('draft', 'frozen', 'counting', 'review', 'approved')");
+    expect(cancelCycleCountMigration).toContain("Archived cycle counts are immutable");
+  });
+
+  it("atomically releases inventory, clears claims, and records an audit event", () => {
+    expect(cancelCycleCountMigration).toContain("update public.inventory_balances");
+    expect(cancelCycleCountMigration).toContain("update public.pallets");
+    expect(cancelCycleCountMigration).toContain("update public.inventory_freezes");
+    expect(cancelCycleCountMigration).toContain("set claimed_by_user_id = null");
+    expect(cancelCycleCountMigration).toContain("'cycle_count_cancelled'");
+  });
+
+  it("prevents creation from adding work after a concurrent cancellation", () => {
+    expect(cancelCycleCountMigration).toContain("function private.assert_cycle_count_accepts_work");
+    expect(cancelCycleCountMigration).toContain("for key share");
+    expect(cancelCycleCountMigration).toContain("cycle_count_lines_require_active_header");
+    expect(cancelCycleCountMigration).toContain("inventory_freezes_require_active_header");
+  });
+
+  it("keeps the privileged implementation private and exposes an invoker wrapper", () => {
+    expect(cancelCycleCountMigration).toContain("function private.cancel_cycle_count");
+    expect(cancelCycleCountMigration).toContain("function public.cancel_cycle_count");
+    expect(cancelCycleCountMigration).toContain("security invoker");
+    expect(cancelCycleCountMigration).toContain("revoke execute on function public.cancel_cycle_count(uuid, text) from public, anon");
   });
 });
 

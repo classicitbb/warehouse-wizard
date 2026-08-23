@@ -13,7 +13,12 @@ import { releaseCycleCountFreezes } from "@/features/cycle-counts/freeze-core";
 
 const TERMINAL_LINE_STATUSES = new Set(["adjusted", "reconciled", "exception"]);
 const CANCELLED_ARCHIVE_NOTE = "[archived] Cancelled count archived by supervisor.";
+const CANCELLABLE_COUNT_STATUSES = new Set(["draft", "frozen", "counting", "review", "approved"]);
 const CYCLE_COUNT_NUMBER_TIMESTAMP_DIGITS = 14;
+
+export function canCancelCycleCount(status: unknown) {
+  return CANCELLABLE_COUNT_STATUSES.has(String(status ?? "").toLowerCase());
+}
 
 function addHours(date: Date, hours: number) {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
@@ -342,17 +347,23 @@ export async function createCycleCountFlow(input: z.infer<typeof cycleCountSchem
 
   if (lineCount === 0) {
     await db("cycle_counts").update({ status: "cancelled", notes: "No eligible bins were claimed for this count." } as any).eq("id", count.id);
+    await releaseCycleCountFreezes(count.id);
     throw new Error(skippedLocations.length > 0
       ? "No bins were claimed. Every matching bin is already frozen in another open count."
       : "No available stock matched this count scope.");
   }
 
-  await db("cycle_counts")
+  const activateCount = await db("cycle_counts")
     .update({
       status: "counting",
       notes: skippedLocations.length > 0 ? `${skippedLocations.length} frozen bin(s) skipped because another count already claimed them.` : null,
     } as any)
-    .eq("id", count.id);
+    .eq("id", count.id)
+    .eq("status", "frozen")
+    .select("id")
+    .maybeSingle();
+  throwIfSupabaseError(activateCount, "Could not activate cycle count.");
+  if (!activateCount.data) throw new Error("This cycle count was cancelled while it was being created.");
 
   await createLabelRecord("count_sheet", count.id, count.count_number);
   return { ...count, status: "counting", claimed_line_count: lineCount, skipped_location_count: skippedLocations.length };
@@ -412,10 +423,18 @@ export async function listMyCycleCountLines() {
       .in("line_status", ["queued", "recount"])
       .order("created_at", { ascending: true });
     if (legacyError) throw new Error(formatSupabaseError(legacyError, "Failed to load assigned count lines."));
-    return (legacyData ?? []).map((line: any) => ({ ...line, claim_support_unavailable: true }));
+    return (legacyData ?? [])
+      .filter(hasActiveCycleCountHeader)
+      .map((line: any) => ({ ...line, claim_support_unavailable: true }));
   }
   if (error) throw new Error(formatSupabaseError(error, "Failed to load assigned count lines."));
-  return data ?? [];
+  return (data ?? []).filter(hasActiveCycleCountHeader);
+}
+
+function hasActiveCycleCountHeader(line: unknown) {
+  const record = line as { cycle_counts?: { status?: unknown } | Array<{ status?: unknown }> };
+  const count = Array.isArray(record.cycle_counts) ? record.cycle_counts[0] : record.cycle_counts;
+  return !["closed", "cancelled"].includes(String(count?.status ?? "").toLowerCase());
 }
 
 export async function claimCycleCountLine(lineId: string) {
@@ -691,6 +710,31 @@ export async function discardDraftCycleCount(countId: string) {
     .eq("id", countId)
     .eq("status", "draft");
   throwIfSupabaseError(update, "Could not discard draft count.");
+}
+
+export async function cancelCycleCount(countId: string, reason: string) {
+  const normalizedReason = reason.trim();
+  if (normalizedReason.length < 4) {
+    throw new Error("A cancellation reason of at least 4 characters is required.");
+  }
+  if (normalizedReason.length > 500) {
+    throw new Error("Cancellation reason must be 500 characters or fewer.");
+  }
+
+  const { data, error } = await supabase.rpc("cancel_cycle_count" as never, {
+    p_count_id: countId,
+    p_reason: normalizedReason,
+  } as never);
+  if (error) throw new Error(formatSupabaseError(error, "Could not cancel cycle count."));
+  return data as {
+    count_id: string;
+    previous_status: string;
+    status: "cancelled";
+    freezes_released: number;
+    claims_cleared: number;
+    adjustments_retained: number;
+    cancelled_at: string;
+  };
 }
 
 export async function archiveCancelledCycleCount(countId: string) {

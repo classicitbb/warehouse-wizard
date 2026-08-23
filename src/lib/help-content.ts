@@ -235,8 +235,8 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     id: "cycle-counts",
     title: "Cycle Counts",
     summary: "Cycle counts generate count work and record variances against expected stock, with local entry preserved while live posts are frozen offline.",
-    keyActions: ["Generate count sheets", "Submit counted quantities", "Reconnect and refresh live state before submit or approval after signal loss", "Investigate exceptions"],
-    commonMistakes: ["Counting from memory instead of live location verification", "Ignoring variance thresholds", "Posting a count after reconnect without reloading the live assignment state"],
+    keyActions: ["Generate count sheets", "Submit counted quantities", "Cancel active counts with a manager reason", "Reconnect and refresh live state before submit or approval after signal loss", "Investigate exceptions"],
+    commonMistakes: ["Counting from memory instead of live location verification", "Ignoring variance thresholds", "Cancelling without confirming whether approved adjustments were already posted", "Posting a count after reconnect without reloading the live assignment state"],
     permissions: "Used by admins, managers, clerks, and operators.",
     wikiArticleIds: ["cycle-counts"],
   },
@@ -594,6 +594,7 @@ export const helpArticles: HelpArticle[] = [
     keywords: ["cycle count", "variance", "count sheet", "stock check"],
     sections: [
       { title: "Counting Rules", content: ["Cycle counts can target a location, zone, SKU, or spot check. High-value, high-risk, and high-velocity stock should be counted more often than slow, stable stock.", "Entered quantities update stock and create adjustment records when variances exist. Variance is evidence of a broken handoff somewhere in receiving, put-away, picking, transfer, or status control."] },
+      { title: "Cancellation", content: ["Warehouse managers can cancel counts in draft, frozen, counting, review, or approved status. A reason is required; cancellation clears active line claims and releases the count's inventory freezes.", "Closed, already-cancelled, and archived counts cannot be cancelled. Adjustments posted before an approved count is cancelled remain in inventory and audit history; cancellation does not reverse them."] },
       { title: "Connectivity Safety", content: ["If signal drops during blind entry or supervisor review, keep the typed quantities and reasons on the device but do not submit, approve, reject, or close counts offline.", "After reconnect, refresh live cycle-count state first, then submit or approve from the current assignment so the post uses the latest freeze and variance status."] },
       { title: "Six Sigma View", content: ["DPMO is a defect-per-million-opportunities signal. In WMS terms, a defect can be a wrong location, wrong quantity, missing pallet, or wrong status.", "Use DMAIC thinking: define the defect, measure where it happens, analyze the cause, improve the process, and control it with scans, roles, labels, and standard work."] },
     ],

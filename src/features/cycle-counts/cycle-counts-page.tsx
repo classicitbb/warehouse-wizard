@@ -13,6 +13,8 @@ import { alertToast } from "@/features/shared/ui-shared";
 import {
   acceptCycleCountExceptionLine,
   archiveCancelledCycleCount,
+  canCancelCycleCount,
+  cancelCycleCount,
   claimCycleCountLine,
   approveCycleCountLine,
   closeCycleCount,
@@ -52,6 +54,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 const supervisorRoles = new Set(["developer", "admin", "warehouse_manager", "warehouse_supervisor"]);
+const managerRoles = new Set(["developer", "admin", "warehouse_manager"]);
 const rolePreviewOptions: RoleCode[] = [
   "developer",
   "admin",
@@ -63,6 +66,7 @@ const rolePreviewOptions: RoleCode[] = [
 ];
 const countStatusFilters = ["all", "active", "draft", "frozen", "counting", "review", "approved", "closed", "cancelled", "archived"] as const;
 type CountStatusFilter = (typeof countStatusFilters)[number];
+type CycleCountCancellationTarget = { id: string; count_number: string; status: string };
 
 function lineStatus(line: any) {
   return line.line_status ?? line.status ?? "queued";
@@ -92,8 +96,11 @@ export function CycleCountsPage() {
   const [rolePreview, setRolePreview] = useState<RoleCode>("developer");
   const effectiveRoles = isDeveloper ? [rolePreview] : auth.roles;
   const isSupervisor = effectiveRoles.some((role) => supervisorRoles.has(role));
+  const isManager = effectiveRoles.some((role) => managerRoles.has(role));
   const [activeTab, setActiveTab] = useState(actualIsSupervisor ? "manage" : "entry");
   const [createOpen, setCreateOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<CycleCountCancellationTarget | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [statusFilter, setStatusFilter] = useState<CountStatusFilter>("active");
   const [entryQty, setEntryQty] = useState<Record<string, string>>({});
   const [exceptionReason, setExceptionReason] = useState<Record<string, string>>({});
@@ -357,6 +364,24 @@ export function CycleCountsPage() {
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Archive failed"),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: ({ countId, reason }: { countId: string; reason: string }) =>
+      runOnlineCycleCountCommit(() => cancelCycleCount(countId, reason)),
+    onSuccess: async (result) => {
+      setCancelTarget(null);
+      setCancellationReason("");
+      const retainedAdjustmentMessage = result.adjustments_retained > 0
+        ? ` ${result.adjustments_retained} posted adjustment(s) were retained.`
+        : "";
+      alertToast.success(`Cycle count cancelled and ${result.freezes_released} freeze(s) released.${retainedAdjustmentMessage}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["cycle-counts"] }),
+        queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] }),
+      ]);
+    },
+    onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Cancellation failed"),
+  });
+
   const filteredCounts = useMemo(() => {
     return (counts as any[]).filter((count) => {
       const archived = isCountArchived(count);
@@ -518,10 +543,24 @@ export function CycleCountsPage() {
                             Close and release freezes
                           </Button>
                         )}
-                        {count.status === "draft" && (
+                        {count.status === "draft" && !isManager && (
                           <Button size="sm" variant="outline" onClick={() => discardDraftMutation.mutate(count.id)} disabled={!online || discardDraftMutation.isPending}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Discard draft
+                          </Button>
+                        )}
+                        {isManager && canCancelCycleCount(count.status) && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              setCancelTarget(count);
+                              setCancellationReason("");
+                            }}
+                            disabled={!online || cancelMutation.isPending}
+                          >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Cancel count
                           </Button>
                         )}
                         {count.status === "cancelled" && !isCountArchived(count) && (
@@ -791,6 +830,59 @@ export function CycleCountsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(cancelTarget)}
+        onOpenChange={(open) => {
+          if (open || cancelMutation.isPending) return;
+          setCancelTarget(null);
+          setCancellationReason("");
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cancel cycle count {cancelTarget?.count_number}</DialogTitle>
+            <DialogDescription>
+              This stops further counting and review, clears active line claims, and releases every active inventory freeze for this count.
+              {cancelTarget?.status === "approved" && " Stock adjustments already posted during approval are permanent and will not be reversed."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="cycle-count-cancellation-reason">Cancellation reason</Label>
+            <Textarea
+              id="cycle-count-cancellation-reason"
+              value={cancellationReason}
+              onChange={(event) => setCancellationReason(event.target.value)}
+              maxLength={500}
+              placeholder="Explain why this count is being stopped"
+              disabled={cancelMutation.isPending}
+            />
+            <p className="text-xs text-muted-foreground">Required. This reason is saved with the count and audit event.</p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCancelTarget(null);
+                setCancellationReason("");
+              }}
+              disabled={cancelMutation.isPending}
+            >
+              Keep count active
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => cancelTarget && cancelMutation.mutate({ countId: cancelTarget.id, reason: cancellationReason })}
+              disabled={!online || cancelMutation.isPending || cancellationReason.trim().length < 4}
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              {cancelMutation.isPending ? "Cancelling…" : "Cancel and release freezes"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

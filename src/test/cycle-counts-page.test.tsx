@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -46,6 +46,15 @@ const cycleCountMocks = vi.hoisted(() => ({
   closeCycleCount: vi.fn(async () => undefined),
   discardDraftCycleCount: vi.fn(async () => undefined),
   archiveCancelledCycleCount: vi.fn(async () => undefined),
+  cancelCycleCount: vi.fn(async () => ({
+    count_id: "count-1",
+    previous_status: "counting",
+    status: "cancelled" as const,
+    freezes_released: 2,
+    claims_cleared: 1,
+    adjustments_retained: 0,
+    cancelled_at: "2026-08-23T12:00:00.000Z",
+  })),
 }));
 
 vi.mock("@/hooks/use-auth", () => ({
@@ -89,6 +98,7 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
     closeCycleCount: cycleCountMocks.closeCycleCount,
     discardDraftCycleCount: cycleCountMocks.discardDraftCycleCount,
     archiveCancelledCycleCount: cycleCountMocks.archiveCancelledCycleCount,
+    cancelCycleCount: cycleCountMocks.cancelCycleCount,
   };
 });
 
@@ -197,6 +207,34 @@ describe("CycleCountsPage", () => {
 
     expect(await screen.findByRole("button", { name: /new count/i })).toBeInTheDocument();
     expect(screen.queryByText("Developer")).not.toBeInTheDocument();
+  });
+
+  it("lets warehouse managers cancel every non-terminal lifecycle state with a recorded reason", async () => {
+    authState.roles = ["warehouse_manager"];
+    const statuses = ["draft", "frozen", "counting", "review", "approved", "closed", "cancelled"];
+    cycleCountMocks.listCycleCounts.mockResolvedValue(statuses.map((status, index) => ({
+      id: `count-${index + 1}`,
+      count_number: `CCT-STATE-${status}`,
+      status,
+      scope: "zone",
+      freeze_expires_at: "2026-08-23T18:00:00.000Z",
+      cycle_count_lines: [],
+      inventory_freezes: [],
+    })) as never);
+
+    renderCycleCountsPage();
+
+    expect(await screen.findAllByRole("button", { name: /cancel count/i })).toHaveLength(5);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /cancel count/i })[2]);
+    expect(await screen.findByRole("dialog", { name: /cancel cycle count CCT-STATE-counting/i })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/cancellation reason/i), { target: { value: "Count area is unsafe" } });
+    fireEvent.click(screen.getByRole("button", { name: /cancel and release freezes/i }));
+
+    await waitFor(() => {
+      expect(cycleCountMocks.cancelCycleCount).toHaveBeenCalledWith("count-3", "Count area is unsafe");
+    });
   });
 
   it("shows exception lines in approvals for supervisor action", async () => {
