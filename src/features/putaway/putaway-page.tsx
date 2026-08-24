@@ -188,7 +188,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
-import { knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
+import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 
 
 import {
@@ -1451,7 +1451,11 @@ export function PutawayTasksPage() {
                           placeholder="Scan location barcode"
                           value={localState.location}
                           onChange={(event) => {
-                            const val = normalizeScannerText(event.target.value.replace(/[\r\n]/g, ""));
+                            const raw = normalizeScannerText(event.target.value.replace(/[\r\n]/g, ""));
+                            const val = raw.toUpperCase().startsWith("BAY:")
+                              ? raw
+                              : applyCodeAutocorrect(knownCodes, raw, localState.location);
+
                             if (/^BAY:[^:]+:[^:]+:[^:]+:[^:]+$/i.test(val.trim())) {
                               applyLocationScan(task, val);
                               return;

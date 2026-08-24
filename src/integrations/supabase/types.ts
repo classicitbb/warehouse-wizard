@@ -4147,18 +4147,21 @@ export type Database = {
       user_mobile_toolbar_preferences: {
         Row: {
           created_at: string
+          module_flags: Json
           module_keys: Json
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          module_flags?: Json
           module_keys?: Json
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          module_flags?: Json
           module_keys?: Json
           updated_at?: string
           user_id?: string

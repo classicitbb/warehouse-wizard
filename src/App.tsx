@@ -161,6 +161,16 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28.6",
+    date: "August 2026",
+    changes: [
+      "Bay and location fields autocomplete the separators: type A01A and the field corrects itself to A-01-A as soon as the code is recognised",
+      "Separators are only inserted when every matching code agrees, and backspacing still removes them, so typed entry never fights the operator",
+      "Module visibility switches now save to your account alongside pinned favourites, so the same workspace follows you to any device you sign in on",
+    ],
+  },
+  {
+
     version: "1.28.5",
     date: "August 2026",
     changes: [
