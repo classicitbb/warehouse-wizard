@@ -49,16 +49,28 @@ export function assertPalletBarcode(value: unknown): string {
 export type KnownCodeIndex = {
   /** Sorted, de-duplicated list of every acceptable full code. */
   codes: string[];
+  /**
+   * Dash-free lookup so operators can type `A01A` and get `A-01-A`. Maps every
+   * separator-stripped code *and* prefix to its canonical dashed form, or to
+   * `null` when more than one code shares that stripped prefix (ambiguous, so
+   * nothing is auto-corrected).
+   */
+  looseIndex: Record<string, string | null>;
   ready: boolean;
 };
 
-export const EMPTY_KNOWN_CODE_INDEX: KnownCodeIndex = { codes: [], ready: false };
+export const EMPTY_KNOWN_CODE_INDEX: KnownCodeIndex = { codes: [], looseIndex: {}, ready: false };
 
 export type KnownLocationRow = {
   code?: string | null;
   zone_code?: string | null;
   warehouse_code?: string | null;
 };
+
+/** Drop the separators operators skip when typing (`A-01-A` -> `A01A`). */
+export function stripCodeSeparators(value: unknown): string {
+  return normalizeCodeInput(value).replace(/[-_\s./]/g, "");
+}
 
 /**
  * Builds the acceptable-code list from location rows. Both shapes a label can
@@ -77,7 +89,34 @@ export function buildKnownCodeIndex(rows: KnownLocationRow[]): KnownCodeIndex {
     if (warehouse && zone) codes.add(`${warehouse}-${zone}-${code}`);
     if (warehouse) codes.add(`${warehouse}-${code}`);
   }
-  return { codes: Array.from(codes).sort(), ready: codes.size > 0 };
+  const sorted = Array.from(codes).sort();
+  const looseIndex: Record<string, string | null> = {};
+  for (const code of sorted) {
+    const stripped = stripCodeSeparators(code);
+    for (let length = 1; length <= stripped.length; length += 1) {
+      const key = stripped.slice(0, length);
+      // The canonical value is the dashed code truncated to the same number of
+      // meaningful characters, so partial typing corrects as it goes.
+      const canonical = truncateToStrippedLength(code, length);
+      if (!(key in looseIndex)) looseIndex[key] = canonical;
+      else if (looseIndex[key] !== canonical) looseIndex[key] = null;
+    }
+  }
+  return { codes: sorted, looseIndex, ready: codes.size > 0 };
+}
+
+/** Slice a dashed code so it contains `length` non-separator characters. */
+function truncateToStrippedLength(code: string, length: number): string {
+  let seen = 0;
+  let end = 0;
+  for (let i = 0; i < code.length; i += 1) {
+    end = i + 1;
+    if (!/[-_\s./]/.test(code[i])) {
+      seen += 1;
+      if (seen === length) break;
+    }
+  }
+  return code.slice(0, end);
 }
 
 /** Binary search: is `prefix` the start of (or equal to) any indexed code? */
@@ -97,6 +136,27 @@ export function matchesKnownCode(index: KnownCodeIndex, value: unknown): boolean
   return false;
 }
 
+/** True when the dash-free form of `value` can still lead to a real code. */
+export function matchesKnownCodeLoosely(index: KnownCodeIndex, value: unknown): boolean {
+  const stripped = stripCodeSeparators(value);
+  if (!stripped) return true;
+  return stripped in index.looseIndex;
+}
+
+/**
+ * Autocorrects typed input towards the canonical dashed code. Returns the value
+ * to put back in the field: the canonical form when the dash-free text resolves
+ * to exactly one code, otherwise the value as typed (uppercased/trimmed).
+ */
+export function resolveKnownCode(index: KnownCodeIndex, value: unknown): { value: string; corrected: boolean } {
+  const typed = normalizeCodeInput(value);
+  if (!index.ready || !typed) return { value: typed, corrected: false };
+  const stripped = stripCodeSeparators(typed);
+  const canonical = index.looseIndex[stripped];
+  if (!canonical || canonical === typed) return { value: typed, corrected: false };
+  return { value: canonical, corrected: true };
+}
+
 /**
  * Inline field error for a bay/location input. While the index is still
  * loading (or empty, e.g. a brand new warehouse) nothing is flagged so the
@@ -106,5 +166,7 @@ export function knownCodeError(index: KnownCodeIndex, value: unknown): string | 
   if (!index.ready) return null;
   const normalized = normalizeCodeInput(value);
   if (!normalized) return null;
-  return matchesKnownCode(index, normalized) ? null : UNKNOWN_LOCATION_CODE_MESSAGE;
+  if (matchesKnownCode(index, normalized)) return null;
+  return matchesKnownCodeLoosely(index, normalized) ? null : UNKNOWN_LOCATION_CODE_MESSAGE;
 }
+
