@@ -900,9 +900,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 />
               ) : null}
             </span>
-            <span className="mt-0.5 truncate pl-9 text-[11px] text-muted-foreground">
-              {buildBreadcrumbTrail(pathname).map((crumb) => crumb.label).join(" / ")}
-            </span>
           </Link>
 
           <div className="flex items-center gap-2">
