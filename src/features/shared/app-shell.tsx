@@ -998,31 +998,54 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
           {/* Desktop top bar — landscape only */}
           <div className="hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
-            <div className="min-w-0">
-              <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-                <span className="truncate">{items.find((item) => item.to === pathname)?.label ?? "Warehouse Wizard Enterprise WMS"}</span>
-                {roles.includes("developer") ? (
-                  <a
-                    href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf"
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Edit with Lovable"
-                    className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium underline-offset-2 hover:underline hover:text-primary"
-                  >
-                    v{__APP_VERSION__}
-                  </a>
-                ) : (
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
-                )}
-                {reconnectRefreshing ? (
-                  <Loader2
-                    role="status"
-                    aria-label="Refreshing live warehouse state"
-                    className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
-                  />
-                ) : null}
-              </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <Link
+                to={toPath("/dashboard")}
+                className="flex shrink-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label="Go to dashboard"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black p-0.5">
+                  <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
+                </span>
+                <span className="text-sm font-semibold">Warehouse Wizard</span>
+              </Link>
+              {roles.includes("developer") ? (
+                <a
+                  href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf"
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Edit with Lovable"
+                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+                >
+                  {__APP_VERSION__}
+                </a>
+              ) : (
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{__APP_VERSION__}</span>
+              )}
+              {reconnectRefreshing ? (
+                <Loader2
+                  role="status"
+                  aria-label="Refreshing live warehouse state"
+                  className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                />
+              ) : null}
+              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+                {buildBreadcrumbTrail(pathname).map((crumb, index, all) => (
+                  <span key={`${crumb.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
+                    {index > 0 ? <span aria-hidden>/</span> : null}
+                    {crumb.to && index < all.length - 1 ? (
+                      <Link to={toPath(crumb.to)} className="truncate hover:text-foreground">
+                        {crumb.label}
+                      </Link>
+                    ) : (
+                      <span className={cn("truncate", index === all.length - 1 && "font-medium text-foreground")}>{crumb.label}</span>
+                    )}
+                  </span>
+                ))}
+              </nav>
             </div>
+
             <div className="flex items-center gap-2">
               {canSwitchWarehouses ? (
                 <Select
