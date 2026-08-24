@@ -1896,6 +1896,13 @@ export type Database = {
             foreignKeyName: "operator_ticket_events_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "operator_ticket_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_ticket_events_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "operator_tickets"
             referencedColumns: ["id"]
           },
@@ -4046,6 +4053,97 @@ export type Database = {
           },
         ]
       }
+      user_action_events: {
+        Row: {
+          action: string
+          duration_ms: number | null
+          id: number
+          metadata: Json
+          occurred_at: string
+          outcome: string
+          route: string
+          target: string | null
+          user_id: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          action: string
+          duration_ms?: number | null
+          id?: number
+          metadata?: Json
+          occurred_at?: string
+          outcome?: string
+          route?: string
+          target?: string | null
+          user_id?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          action?: string
+          duration_ms?: number | null
+          id?: number
+          metadata?: Json
+          occurred_at?: string
+          outcome?: string
+          route?: string
+          target?: string | null
+          user_id?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_action_events_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_habit_profiles: {
+        Row: {
+          active_hours: Json
+          friction_points: Json
+          sample_size: number
+          top_actions: Json
+          top_routes: Json
+          updated_at: string
+          user_id: string
+          warehouse_id: string | null
+          window_days: number
+        }
+        Insert: {
+          active_hours?: Json
+          friction_points?: Json
+          sample_size?: number
+          top_actions?: Json
+          top_routes?: Json
+          updated_at?: string
+          user_id: string
+          warehouse_id?: string | null
+          window_days?: number
+        }
+        Update: {
+          active_hours?: Json
+          friction_points?: Json
+          sample_size?: number
+          top_actions?: Json
+          top_routes?: Json
+          updated_at?: string
+          user_id?: string
+          warehouse_id?: string | null
+          window_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_habit_profiles_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_mobile_toolbar_preferences: {
         Row: {
           created_at: string
@@ -4373,6 +4471,89 @@ export type Database = {
         }
         Relationships: []
       }
+      operator_ticket_queue: {
+        Row: {
+          actual_behavior: string | null
+          agent_brief: string | null
+          app_version: string | null
+          assigned_to: string | null
+          created_at: string | null
+          event_count: number | null
+          expected_behavior: string | null
+          id: string | null
+          kind: string | null
+          labels: string[] | null
+          module: string | null
+          reported_by: string | null
+          route: string | null
+          severity: string | null
+          status: string | null
+          steps_to_reproduce: string | null
+          submitted_at: string | null
+          summary: string | null
+          ticket_number: string | null
+          title: string | null
+          updated_at: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          actual_behavior?: string | null
+          agent_brief?: string | null
+          app_version?: string | null
+          assigned_to?: string | null
+          created_at?: string | null
+          event_count?: never
+          expected_behavior?: string | null
+          id?: string | null
+          kind?: string | null
+          labels?: string[] | null
+          module?: string | null
+          reported_by?: string | null
+          route?: string | null
+          severity?: string | null
+          status?: string | null
+          steps_to_reproduce?: string | null
+          submitted_at?: string | null
+          summary?: string | null
+          ticket_number?: string | null
+          title?: string | null
+          updated_at?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          actual_behavior?: string | null
+          agent_brief?: string | null
+          app_version?: string | null
+          assigned_to?: string | null
+          created_at?: string | null
+          event_count?: never
+          expected_behavior?: string | null
+          id?: string | null
+          kind?: string | null
+          labels?: string[] | null
+          module?: string | null
+          reported_by?: string | null
+          route?: string | null
+          severity?: string | null
+          status?: string | null
+          steps_to_reproduce?: string | null
+          submitted_at?: string | null
+          summary?: string | null
+          ticket_number?: string | null
+          title?: string | null
+          updated_at?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_tickets_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _delete_guard_check: { Args: never; Returns: boolean }
@@ -4566,6 +4747,10 @@ export type Database = {
         Args: { in_body_html: string; in_title: string }
         Returns: string
       }
+      operator_ticket_fallback_brief: {
+        Args: { t: Database["public"]["Tables"]["operator_tickets"]["Row"] }
+        Returns: string
+      }
       pallet_in_accessible_transfer: {
         Args: { target_pallet_id: string }
         Returns: boolean
@@ -4592,6 +4777,7 @@ export type Database = {
         Args: { in_apply?: boolean; in_location_code: string }
         Returns: Json
       }
+      record_user_action_events: { Args: { in_events: Json }; Returns: number }
       recover_missing_pallet_to_draft: {
         Args: { in_inventory_balance_id: string; in_quantity?: number }
         Returns: {
@@ -4610,6 +4796,26 @@ export type Database = {
         }[]
       }
       refresh_reorder_alerts: { Args: never; Returns: undefined }
+      refresh_user_habit_profile: {
+        Args: { in_user_id?: string; in_window_days?: number }
+        Returns: {
+          active_hours: Json
+          friction_points: Json
+          sample_size: number
+          top_actions: Json
+          top_routes: Json
+          updated_at: string
+          user_id: string
+          warehouse_id: string | null
+          window_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_habit_profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       release_cycle_count_line_claim: {
         Args: { p_line_id: string }
         Returns: undefined
@@ -4623,6 +4829,20 @@ export type Database = {
         }[]
       }
       reset_wms_data: { Args: never; Returns: Json }
+      save_inventory_pallet_correction_as_draft: {
+        Args: {
+          in_draft_id: string
+          in_expiry_date?: string
+          in_expiry_provided?: boolean
+          in_quantity?: number
+        }
+        Returns: {
+          draft_id: string
+          draft_pallet_barcode: string
+          expiry_date: string
+          quantity: number
+        }[]
+      }
       write_system_log: {
         Args: {
           in_details?: Json
