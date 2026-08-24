@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 260" width="640" height="260">
+  <style>
+    text { font-family: var(--font-sans, ui-sans-serif); fill: hsl(var(--foreground)); font-size: 12px; }
+    .m { fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .quiet { fill: hsl(var(--muted)); }
+    .tag { fill: hsl(var(--border)); font-size: 11px; }
+  </style>
+
+  <text x="8" y="14" class="m">now</text>
+  <rect x="8" y="22" width="90" height="110" rx="8" class="box"/>
+  <rect x="106" y="22" width="180" height="26" rx="8" class="quiet"/>
+  <rect x="106" y="56" width="180" height="76" rx="8" class="box"/>
+  <text x="20" y="42">sidebar</text>
+  <text x="118" y="39" class="m">top bar</text>
+  <text x="118" y="98" class="m">content</text>
+
+  <text x="352" y="14" class="m">after</text>
+  <rect x="352" y="22" width="280" height="26" rx="8" fill="hsl(var(--accent))"/>
+  <text x="362" y="39" style="fill: hsl(var(--accent-foreground))">top bar — full viewport width</text>
+  <rect x="352" y="56" width="90" height="76" rx="8" class="box"/>
+  <rect x="450" y="56" width="182" height="76" rx="8" class="box"/>
+  <text x="364" y="76">Dashboard</text>
+  <text x="364" y="94" class="m">Receiving</text>
+  <text x="364" y="112" class="m">Put-Away</text>
+  <text x="462" y="98" class="m">content</text>
+
+  <circle cx="18" cy="180" r="9" fill="hsl(var(--accent))"/>
+  <text x="14" y="184" style="font-size:11px; fill: hsl(var(--accent-foreground))">1</text>
+  <text x="36" y="184" class="m">Top bar moves out of the content column and spans the window</text>
+
+  <circle cx="18" cy="206" r="9" fill="hsl(var(--accent))"/>
+  <text x="14" y="210" style="font-size:11px; fill: hsl(var(--accent-foreground))">2</text>
+  <text x="36" y="210" class="m">Sidebar column begins below the header; its fill stops at the header line</text>
+
+  <circle cx="18" cy="232" r="9" fill="hsl(var(--accent))"/>
+  <text x="14" y="236" style="font-size:11px; fill: hsl(var(--accent-foreground))">3</text>
+  <text x="36" y="236" class="m">Sidebar logo tile and title removed — Dashboard is the first button</text>
+</svg>
