@@ -788,22 +788,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           collapsed ? "items-center bg-teal-500 px-1.5 py-3" : compactTop ? "px-2.5 py-0" : "px-2.5 py-3"
         )}
       >
-      {/* Logo area */}
-      {!compactTop ? (
-        <div className={cn(
-          "mb-4 flex items-center justify-between gap-2 px-2",
-          collapsed && "justify-center px-0"
-        )}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black p-1">
-              <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
-            </div>
-            {!collapsed && (
-              <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
-            )}
-          </div>
-        </div>
-      ) : null}
+
+
 
       <nav className={cn("flex-1 overflow-y-auto", compactTop && "pt-0")}>
         <div className="flex flex-col gap-0.0">
