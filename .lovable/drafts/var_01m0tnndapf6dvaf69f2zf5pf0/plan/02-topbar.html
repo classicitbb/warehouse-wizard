@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" width="640" height="180">
+  <style>
+    text { font-family: var(--font-sans, ui-sans-serif); fill: hsl(var(--foreground)); }
+    .m { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .mono { font-family: var(--font-mono, ui-monospace); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .rail { stroke: hsl(var(--border)); stroke-width: 1; }
+    .quiet { fill: hsl(var(--muted)); }
+  </style>
+
+  <rect x="8" y="16" width="624" height="44" rx="8" class="box"/>
+  <line x1="8" y1="60" x2="632" y2="60" class="rail"/>
+
+  <rect x="20" y="28" width="20" height="20" rx="5" fill="hsl(var(--accent))"/>
+  <text x="48" y="43" class="lbl">Warehouse Wizard</text>
+  <text x="172" y="43" class="mono">1.28.5</text>
+
+  <line x1="218" y1="26" x2="218" y2="50" class="rail"/>
+
+  <text x="232" y="43" class="m">Operations</text>
+  <text x="298" y="43" class="m">/</text>
+  <text x="310" y="43" class="m">Put-Away</text>
+  <text x="368" y="43" class="m">/</text>
+  <text x="380" y="43" class="lbl" style="font-size:12px">PTA-1043</text>
+
+  <rect x="470" y="26" width="86" height="24" rx="8" class="box"/>
+  <text x="480" y="42" class="m">Warehouse</text>
+  <rect x="564" y="26" width="24" height="24" rx="8" class="quiet"/>
+  <rect x="596" y="26" width="24" height="24" rx="8" class="quiet"/>
+
+  <circle cx="26" cy="96" r="9" fill="hsl(var(--accent))"/>
+  <text x="22" y="100" style="font-size:11px; fill: hsl(var(--accent-foreground))">1</text>
+  <text x="44" y="100" class="m">Mark + title + version, one line, links to the dashboard</text>
+
+  <circle cx="26" cy="122" r="9" fill="hsl(var(--accent))"/>
+  <text x="22" y="126" style="font-size:11px; fill: hsl(var(--accent-foreground))">2</text>
+  <text x="44" y="126" class="m">Divider, then the breadcrumb trail — last crumb is the current place</text>
+
+  <circle cx="26" cy="148" r="9" fill="hsl(var(--accent))"/>
+  <text x="22" y="152" style="font-size:11px; fill: hsl(var(--accent-foreground))">3</text>
+  <text x="44" y="152" class="m">Right cluster unchanged: warehouse switcher, Copilot, Help, alerts, profile</text>
+</svg>
