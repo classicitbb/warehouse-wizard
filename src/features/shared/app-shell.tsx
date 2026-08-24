@@ -923,7 +923,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="top" className="left-auto right-4 top-3 flex max-h-[calc(100svh-1.5rem)] w-[min(24rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] origin-top-right flex-col overflow-hidden rounded-2xl border border-border bg-card/95 p-0 shadow-2xl backdrop-blur data-[state=closed]:duration-75 data-[state=open]:duration-100 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+              <SheetContent side="top" className="left-1/2 top-3 flex max-h-[calc(100svh-1.5rem)] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 origin-top flex-col overflow-hidden rounded-2xl border border-border bg-card/95 p-0 shadow-2xl backdrop-blur data-[state=closed]:duration-75 data-[state=open]:duration-100 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
