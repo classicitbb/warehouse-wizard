@@ -889,7 +889,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className={cn(
           // Mobile + portrait-desktop: top header + content. Landscape-desktop: sidebar + content.
           "grid h-full w-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden",
-          "lg:landscape:grid-rows-1 lg:landscape:grid-cols-[minmax(11rem,max-content)_minmax(0,1fr)]",
+          "lg:landscape:grid-cols-[minmax(11rem,max-content)_minmax(0,1fr)]",
           sidebarCollapsed && "lg:landscape:grid-cols-[64px_minmax(0,1fr)]",
         )}
       >
