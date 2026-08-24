@@ -1083,8 +1083,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
               <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => requestAppRefresh()} />
             </div>
-          </div>
+        </div>
+
+        <aside className="hidden h-full overflow-hidden border-r border-border lg:landscape:block">{renderNavigation()}</aside>
+
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
           <div
+
             className={cn(
               "flex-1 min-h-0 min-w-0",
               pathname === "/help"
