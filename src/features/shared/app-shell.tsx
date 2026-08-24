@@ -897,22 +897,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="col-span-full flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:landscape:hidden">
           <Link
             to={toPath("/dashboard")}
-            className="flex min-w-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex min-w-0 flex-col rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Go to dashboard"
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black p-1">
-              <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
-            </div>
-            <span className="truncate text-sm font-semibold">{appTitle}</span>
-            <span className="hidden text-[10px] font-medium text-muted-foreground sm:inline">v{__APP_VERSION__}</span>
-            {reconnectRefreshing ? (
-              <Loader2
-                role="status"
-                aria-label="Refreshing live warehouse state"
-                className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
-              />
-            ) : null}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black p-1">
+                <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
+              </span>
+              <span className="truncate text-sm font-semibold">{appTitle}</span>
+              <span className="text-[10px] font-medium text-muted-foreground">{__APP_VERSION__}</span>
+              {reconnectRefreshing ? (
+                <Loader2
+                  role="status"
+                  aria-label="Refreshing live warehouse state"
+                  className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                />
+              ) : null}
+            </span>
+            <span className="mt-0.5 truncate pl-9 text-[11px] text-muted-foreground">
+              {buildBreadcrumbTrail(pathname).map((crumb) => crumb.label).join(" / ")}
+            </span>
           </Link>
+
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-1.5 py-1">
               <Avatar className="h-6 w-6">
