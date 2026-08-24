@@ -170,3 +170,15 @@ export function knownCodeError(index: KnownCodeIndex, value: unknown): string | 
   return matchesKnownCodeLoosely(index, normalized) ? null : UNKNOWN_LOCATION_CODE_MESSAGE;
 }
 
+
+/**
+ * Field-level autocorrect for typed bay/location codes. Only fires while the
+ * operator is adding characters, so backspacing over an inserted dash still
+ * works.
+ */
+export function applyCodeAutocorrect(index: KnownCodeIndex, next: unknown, previous: unknown): string {
+  const typed = normalizeCodeInput(next);
+  const before = normalizeCodeInput(previous);
+  if (typed.length < before.length) return typed;
+  return resolveKnownCode(index, typed).value;
+}
