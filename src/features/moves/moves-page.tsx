@@ -41,7 +41,7 @@ import {
 } from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
-import { knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
+import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -424,7 +424,8 @@ export function LocationMovesPage() {
                   value={newLocation}
                   disabled={!newPallet.trim()}
                   onChange={(e) => {
-                    const val = normalizeScannerText(e.target.value);
+                    const typed = normalizeScannerText(e.target.value);
+                    const val = applyCodeAutocorrect(knownCodes, typed, newLocation);
                     setNewLocation(val);
                     setNewBaySelectorOpen(isBaySelectorCode(val));
                     setNewValidation(null);
@@ -432,6 +433,7 @@ export function LocationMovesPage() {
                       void runNewValidation(newPallet, val, false);
                     }
                   }}
+
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -628,12 +630,13 @@ export function LocationMovesPage() {
                           placeholder={`Any bay or location (suggested: ${toLoc})`}
                           value={local.location}
                           onChange={(e) => {
-                            const l = normalizeScannerText(e.target.value);
+                            const l = applyCodeAutocorrect(knownCodes, normalizeScannerText(e.target.value), local.location);
                             setScanState((s) => ({ ...s, [task.id]: { ...local, location: l, validation: null } }));
                             if (l.trim() && local.pallet.trim() && !isBaySelectorCode(l)) {
                               void runTaskValidation(task.id, local.pallet, l, false);
                             }
                           }}
+
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && local.validation?.valid !== false) {
                               if (palletBarcodeError(local.pallet) || knownCodeError(knownCodes, local.location)) return;
