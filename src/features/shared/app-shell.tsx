@@ -999,11 +999,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <aside className="hidden h-full overflow-hidden border-r border-border lg:landscape:block">{renderNavigation()}</aside>
+        {/* Desktop top bar — landscape only, spans the full viewport width */}
+        <div className="col-span-full hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
 
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-          {/* Desktop top bar — landscape only */}
-          <div className="hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
             <div className="flex min-w-0 items-center gap-3">
               <Link
                 to={toPath("/dashboard")}
