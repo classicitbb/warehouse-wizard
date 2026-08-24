@@ -788,22 +788,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           collapsed ? "items-center bg-teal-500 px-1.5 py-3" : compactTop ? "px-2.5 py-0" : "px-2.5 py-3"
         )}
       >
-      {/* Logo area */}
-      {!compactTop ? (
-        <div className={cn(
-          "mb-4 flex items-center justify-between gap-2 px-2",
-          collapsed && "justify-center px-0"
-        )}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black p-1">
-              <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
-            </div>
-            {!collapsed && (
-              <span className="truncate text-sm font-semibold text-foreground">Warehouse Wizard</span>
-            )}
-          </div>
-        </div>
-      ) : null}
+
+
 
       <nav className={cn("flex-1 overflow-y-auto", compactTop && "pt-0")}>
         <div className="flex flex-col gap-0.0">
@@ -889,7 +875,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className={cn(
           // Mobile + portrait-desktop: top header + content. Landscape-desktop: sidebar + content.
           "grid h-full w-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden",
-          "lg:landscape:grid-rows-1 lg:landscape:grid-cols-[minmax(11rem,max-content)_minmax(0,1fr)]",
+          "lg:landscape:grid-cols-[minmax(11rem,max-content)_minmax(0,1fr)]",
           sidebarCollapsed && "lg:landscape:grid-cols-[64px_minmax(0,1fr)]",
         )}
       >
@@ -999,11 +985,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <aside className="hidden h-full overflow-hidden border-r border-border lg:landscape:block">{renderNavigation()}</aside>
+        {/* Desktop top bar — landscape only, spans the full viewport width */}
+        <div className="col-span-full hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
 
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-          {/* Desktop top bar — landscape only */}
-          <div className="hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
             <div className="flex min-w-0 items-center gap-3">
               <Link
                 to={toPath("/dashboard")}
@@ -1085,8 +1069,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
               <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => requestAppRefresh()} />
             </div>
-          </div>
+        </div>
+
+        <aside className="hidden h-full overflow-hidden border-r border-border lg:landscape:block">{renderNavigation()}</aside>
+
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
           <div
+
             className={cn(
               "flex-1 min-h-0 min-w-0",
               pathname === "/help"
