@@ -106,6 +106,19 @@ export function serializeToolbarModules(keys: ModuleKey[]): string[] {
   return [TOOLBAR_PREFERENCE_MARKER, ...keys.slice(0, MAX_TOOLBAR_MODULES)];
 }
 
+export function sanitizeModuleFlags(value: unknown): Record<ModuleKey, boolean> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value as Record<string, unknown>).filter(
+    ([key, enabled]) => key in STARTER_MODULES && typeof enabled === "boolean",
+  );
+  if (entries.length === 0) return null;
+  return {
+    ...STARTER_MODULES,
+    ...(Object.fromEntries(entries) as Record<ModuleKey, boolean>),
+    dashboard: true,
+  };
+}
+
 function loadFlags(): Record<ModuleKey, boolean> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -119,6 +132,7 @@ function loadFlags(): Record<ModuleKey, boolean> {
 function saveFlags(flags: Record<ModuleKey, boolean>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...flags, dashboard: true }));
 }
+
 
 export function sanitizeToolbarModules(value: unknown): ModuleKey[] {
   if (!Array.isArray(value)) return [...DEFAULT_TOOLBAR_MODULES];
