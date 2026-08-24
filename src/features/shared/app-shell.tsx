@@ -202,6 +202,33 @@ const OFFLINE_SYSTEM_LOG_SOURCE = "rf.offline_disconnect";
 const OFFLINE_ALERT_CHALLENGE = "ACK";
 const OFFLINE_ALERT_SESSION_KEY = "warehouseWizard.offlineAlert.current";
 
+/** Section grouping used by the top-bar breadcrumb trail. */
+const BREADCRUMB_SECTIONS: Array<{ label: string; routes: string[] }> = [
+  {
+    label: "Operations",
+    routes: ["/dashboard", "/receiving", "/putaway-tasks", "/inventory-search", "/pick-lists", "/location-moves", "/cycle-counts", "/transfers"],
+  },
+  {
+    label: "Warehouse",
+    routes: ["/warehouses", "/zones", "/locations", "/products", "/clients", "/packaging-profiles"],
+  },
+  {
+    label: "Admin",
+    routes: ["/settings", "/status", "/reports", "/system-log", "/email-log", "/users"],
+  },
+];
+
+export function buildBreadcrumbTrail(pathname: string): Array<{ label: string; to?: string }> {
+  const item = NAVIGATION.find((entry) => entry.to === pathname);
+  const section = BREADCRUMB_SECTIONS.find((group) => group.routes.includes(pathname));
+  const trail: Array<{ label: string; to?: string }> = [];
+  if (section) trail.push({ label: section.label });
+  if (item) trail.push({ label: item.label });
+  if (trail.length === 0) trail.push({ label: "Warehouse Wizard Enterprise WMS" });
+  return trail;
+}
+
+
 type OfflineSupervisorAlert = {
   id: string;
   title: string;
