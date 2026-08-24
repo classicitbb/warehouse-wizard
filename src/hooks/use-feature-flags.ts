@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
-import { loadMobileToolbarPreferences, saveMobileToolbarPreferences } from "@/lib/mobile-toolbar-preferences";
+import { loadWorkspacePreferences, saveWorkspacePreferences } from "@/lib/mobile-toolbar-preferences";
+
 
 export type ModuleKey =
   | "dashboard"
