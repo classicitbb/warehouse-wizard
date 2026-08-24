@@ -19,7 +19,7 @@ Search boxes stay untouched (Inventory Search, Receiving draft search, Put-Away 
 
 Applies to the destination/location fields in Location Moves (new move + per-task) and Put-Away.
 
-The value must be a prefix of, or exactly equal to, a code that actually exists — so `A`, `A-0`, `A-04`, `A-04-A` are all accepted while `A-99` or `X-01` are not. Both code shapes are accepted: the short rack code (`A-04-A`) and the full hierarchy code printed on labels (`WH3-A-1-04-L03-P1`), matching what move validation already resolves.
+The value must be a prefix of, or exactly equal to, a code that actually exists — so `A`, `A-0`, `A-04`, `A-04-A` are all accepted while `A-99` or `X-01` are not. Both code shapes are accepted: the short rack code (`A-04-A`) and the full hierarchy code printed on labels (`WH3-A-1-04-L03-P1`), matching what move validation already resolves. Also, it would be nice for operators not to have to type the '-' in between the code letters in bay/location selection instead, if they type A01A the field would autocorrect to A-01-A after they type a known code. It would be a form of autocomplete.
 
 Behaviour: non-matching text shows "No bay or location matches this code" under the field and disables the action. A bay-shaped value (for example `A-04`) keeps its current behaviour of opening the bay selector rather than being treated as a final destination. Browse-bays and scanner input are unaffected because they always insert real codes.
 
