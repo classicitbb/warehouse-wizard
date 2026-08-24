@@ -34,11 +34,12 @@ describe("dash-free location entry", () => {
   });
 
   it("corrects partial typing as it goes", () => {
-    expect(resolveKnownCode(index, "J08").value).toBe("J-08-");
+    expect(resolveKnownCode(index, "J08").value).toBe("J-08");
   });
 
-  it("leaves ambiguous prefixes as typed", () => {
-    expect(resolveKnownCode(index, "A0")).toEqual({ value: "A0", corrected: false });
+  it("only inserts separators that every candidate code shares", () => {
+    // A-01-A and A-02-A both start "A-0", so the dash is safe to insert.
+    expect(resolveKnownCode(index, "A0")).toEqual({ value: "A-0", corrected: true });
   });
 
   it("leaves already-canonical codes untouched", () => {
