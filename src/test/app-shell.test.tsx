@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -187,6 +187,16 @@ describe("AppShell", () => {
     expect(mobileBar).toHaveTextContent("Products");
     expect(mobileBar).toHaveTextContent("Warehouses");
     expect(mobileBar.querySelectorAll("a")).toHaveLength(8);
+  });
+
+  it("keeps the mobile menu navigation flush with its toolbar", () => {
+    const { container } = renderShell();
+
+    const menuTrigger = container.querySelector("svg.lucide-menu")?.closest("button");
+    expect(menuTrigger).toBeDefined();
+    fireEvent.click(menuTrigger!);
+
+    expect(screen.getByRole("dialog", { name: "Navigation" }).className).toContain("gap-0");
   });
 
   it("suppresses the dock context menu", () => {
