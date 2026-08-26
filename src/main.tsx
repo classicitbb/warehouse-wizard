@@ -145,12 +145,16 @@ if (!isInIframe && !isPreviewHost) {
       }, 30 * 60 * 1000);
     },
     onNeedRefresh() {
+      // Users who granted notification permission get an OS-level heads-up
+      // that a new build was pushed, even if the tab is in the background.
+      void notifyNewBuildAvailable(`${String(__APP_VERSION__)}@${new Date().toISOString().slice(0, 13)}`);
       // If the tab is already in the background AND no work is in progress,
       // apply silently — no disruption.
       if (document.hidden && !isActiveWorkInProgress()) {
         updateSW(true);
         return;
       }
+
       // Show a non-intrusive toast. Also auto-apply the next time the user
       // backgrounds the tab AND no active scan/confirm flow is in progress.
       const applyWhenHidden = () => {
