@@ -6,6 +6,8 @@
  * waiting service worker doesn't spam the operator.
  */
 
+import { isBuildNotificationEnabled } from "@/lib/notification-preferences";
+
 const NOTIFIED_BUILD_KEY = "warehouseWizard.build.notifiedTag";
 
 function alreadyNotified(tag: string): boolean {
