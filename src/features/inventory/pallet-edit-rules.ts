@@ -4,8 +4,10 @@
 // label and re-direct the pallet, so it only runs from Put-Away Staging
 // (STG-01-A) and the receiving staging spots — never from a rack location.
 
+export const PUTAWAY_STAGING_LOCATION_CODE = "STG-01-A";
+
 export const STAGING_EDIT_HINT =
-  "A pallet can only be edited from Put-Away Staging (STG-01-A). Move it there first.";
+  `A pallet can only be edited from Put-Away Staging (${PUTAWAY_STAGING_LOCATION_CODE}). Move it there first.`;
 
 export type PalletEditBlockInput = {
   hasPallet: boolean;

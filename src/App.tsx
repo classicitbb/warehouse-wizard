@@ -76,7 +76,7 @@ import { cn } from "@/lib/utils";
 import { normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { alertToast } from "@/features/shared/ui-shared";
 import { PalletEditDialog, type PalletEditTarget } from "@/features/inventory/pallet-edit-dialog";
-import { palletEditBlockedReason, palletOutsideStaging, STAGING_EDIT_HINT } from "@/features/inventory/pallet-edit-rules";
+import { palletEditBlockedReason, palletOutsideStaging, PUTAWAY_STAGING_LOCATION_CODE, STAGING_EDIT_HINT } from "@/features/inventory/pallet-edit-rules";
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
