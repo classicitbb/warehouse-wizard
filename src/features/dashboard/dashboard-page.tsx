@@ -472,8 +472,8 @@ export function DashboardPage() {
           <Button size="sm" variant="outline" onClick={() => setFitToScreen((v) => !v)} aria-pressed={fitToScreen}>
             {fitToScreen ? "Reset fit" : "Fit to screen"}
           </Button>
-          <Button size="sm" variant="outline" onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          <Button size="sm" variant="outline" onClick={toggleFullscreen} aria-label={immersiveMode ? "Exit fullscreen" : "Enter fullscreen"} aria-pressed={immersiveMode}>
+            {immersiveMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         </div>
       </div>
