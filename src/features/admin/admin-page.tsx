@@ -2083,6 +2083,10 @@ export function SettingsPage() {
           <ModulesSettingsPanel isAdmin={isDeveloperOrAdmin} />
         </TabsContent>
 
+        <TabsContent value="notifications" className="mt-4 max-w-2xl">
+          <NotificationSettingsPanel />
+        </TabsContent>
+
         <TabsContent value="environment" className="mt-4 grid gap-6 xl:grid-cols-2">
           <Card>
             <CardHeader>
