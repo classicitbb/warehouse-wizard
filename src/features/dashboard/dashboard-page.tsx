@@ -247,6 +247,7 @@ export function DashboardPage() {
   const [officeVisibility, setOfficeVisibility] = useState<DashboardVisibilityMap>({});
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [simulatedFullscreen, setSimulatedFullscreen] = useState(false);
   const [fitToScreen, setFitToScreen] = useState(false);
 
   useEffect(() => {
@@ -256,16 +257,26 @@ export function DashboardPage() {
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
+    // Mobile/tablet browsers (notably iOS Safari) lack the Fullscreen API —
+    // fall back to a fixed-position immersive view so the button works everywhere.
+    const fullscreenSupported =
+      typeof document !== "undefined" && document.fullscreenEnabled && dashboardRef.current?.requestFullscreen;
+    if (!fullscreenSupported) {
+      setSimulatedFullscreen((value) => !value);
+      return;
+    }
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       } else if (dashboardRef.current) {
         await dashboardRef.current.requestFullscreen();
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Fullscreen unavailable");
+    } catch {
+      setSimulatedFullscreen((value) => !value);
     }
   }, []);
+
+  const immersiveMode = isFullscreen || simulatedFullscreen;
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["dashboard-metrics", profile?.default_warehouse_id, flags],
