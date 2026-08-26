@@ -40,33 +40,35 @@ Fix: only auto-focus the first pallet field when the task list identity actually
 ## 5. Notification settings
 
 New "Notifications" section in Settings with:
+
 - Per-device/browser toggle for new-build notifications (stored locally per browser).
 - Permission state readout: granted / not asked / denied / unsupported.
 - A friendly "Enable notifications" button that triggers the browser prompt.
 - When permission is denied, show fallback instructions for unblocking the site
-  (browser site-settings steps for desktop and Android), plus a note that in-app toasts
-  still work.
+(browser site-settings steps for desktop and Android), plus a note that in-app toasts
+still work.
 
 `notifyNewBuildAvailable` will respect the per-device toggle.
 
 ## 6. What's New popup after a version update
 
-After the app reloads onto a newer version, automatically open a "What's new in
-vX.Y.Z" dialog with the release-notes summary for that version. Shown once per version
-per browser (stored locally), dismissible, and suppressed while an active scan/confirm
-flow is in progress so it never interrupts floor work.
+After the app reloads onto a newer version, automatically open a "What's new in  
+vX.Y.Z" dialog with the release-notes summary for that version. Shown once per version  
+per browser (stored locally), dismissible, and suppressed while an active scan/confirm  
+flow is in progress so it never interrupts floor work.   
+for non developer users, tapping or clicking the version number in desktop or mobile on the app screen takes them to Settings > About.
 
 ## Technical notes
 
 - `src/hooks/use-network-status.ts` — backoff probe loop while offline, recovery event
-  that triggers session refresh + query refetch.
+that triggers session refresh + query refetch.
 - `src/index.css` — simplify `themed-loader-spin` keyframes.
 - `src/components/warehouse-tree-view.tsx` — `fetchLocationFillStats` and
-  `fetchTreeSearchLocations` paged via `fetchAllRows`; `fetchZoneLocations` cap raised.
+`fetchTreeSearchLocations` paged via `fetchAllRows`; `fetchZoneLocations` cap raised.
 - `src/features/putaway/putaway-page.tsx` — guard the auto-focus effect.
 - `src/lib/build-notification.ts` + new settings panel in
-  `src/features/admin/admin-page.tsx` — per-device preference and permission UX, reusing
-  `use-notification-permission`.
+`src/features/admin/admin-page.tsx` — per-device preference and permission UX, reusing
+`use-notification-permission`.
 - `src/App.tsx` — version-change What's New dialog driven by `RELEASE_HISTORY[0]`.
 - Version bump to 1.28.8 with release notes, What's New copy, and a Help Center topic for
-  notification settings.
+notification settings.
