@@ -7,7 +7,7 @@
 //     the attempted edit survives.
 //   * The pallet number never changes on the way in. It changes only when a
 //     committed edit needs a new label, or when the pallet goes back to Drafts.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, Loader2, X } from "lucide-react";
@@ -92,7 +92,7 @@ export function PalletEditDialog({
   const [expiryOpen, setExpiryOpen] = useState(false);
   const [locationPromptOpen, setLocationPromptOpen] = useState(false);
   const [stillAtLocation, setStillAtLocation] = useState<boolean | null>(null);
-  const beganForRef = useRef("");
+  const [preparingCommit, setPreparingCommit] = useState(false);
 
   const originalQuantity = Number(target?.quantity ?? 0);
   const originalExpiry = target?.expiryDate ?? "";
@@ -119,7 +119,7 @@ export function PalletEditDialog({
     setExpiryOpen(false);
     setLocationPromptOpen(false);
     setStillAtLocation(null);
-    beganForRef.current = "";
+    setPreparingCommit(false);
   }
 
   async function refreshInventory() {
@@ -131,28 +131,33 @@ export function PalletEditDialog({
     ]);
   }
 
-  const beginMutation = useMutation({
-    mutationFn: (balanceId: string) => beginInventoryPalletCorrection(balanceId),
-    onSuccess: (result) => {
-      setDraftId(result.draftId);
-      setReplacementBarcode(result.replacementPalletBarcode);
-      void queryClient.invalidateQueries({ queryKey: ["inventory-detail"] });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Could not open this pallet for editing.");
-      onOpenChange(false);
-      resetSession();
-    },
-  });
+  // The correction draft is created lazily — only when the operator commits to
+  // an action (Save changes / Save as draft). Opening the dialog changes
+  // nothing on the pallet: no RPC, no hold, no reserved pallet number.
+  const ensureDraft = useCallback(async () => {
+    if (draftId) return { draftId, replacementPalletBarcode: replacementBarcode };
+    if (!target?.balanceId) throw new Error("No pallet selected.");
+    const result = await beginInventoryPalletCorrection(target.balanceId);
+    setDraftId(result.draftId);
+    setReplacementBarcode(result.replacementPalletBarcode);
+    void queryClient.invalidateQueries({ queryKey: ["inventory-detail"] });
+    return result;
+  }, [draftId, replacementBarcode, target?.balanceId, queryClient]);
 
-  // The hold on the pallet is taken when the screen opens and released by
-  // whichever button closes it.
-  useEffect(() => {
-    if (!open || !target?.balanceId) return;
-    if (beganForRef.current === target.balanceId) return;
-    beganForRef.current = target.balanceId;
-    beginMutation.mutate(target.balanceId);
-  }, [open, target?.balanceId]);
+  // Begin the correction as the operator commits to the save path — the
+  // answer to this prompt decides which label flow comes next.
+  async function answerLocationPrompt(stillThere: boolean) {
+    setPreparingCommit(true);
+    try {
+      await ensureDraft();
+      setStillAtLocation(stillThere);
+      setLocationPromptOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open this pallet for editing.");
+    } finally {
+      setPreparingCommit(false);
+    }
+  }
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelInventoryPalletCorrection(draftId, {
@@ -170,12 +175,15 @@ export function PalletEditDialog({
   });
 
   const saveDraftMutation = useMutation({
-    mutationFn: () => saveInventoryPalletCorrectionAsDraft({
-      draftId,
-      quantity: quantityEntered ? Number(quantity) : null,
-      expiryDate: expiryTouched ? expiry || null : null,
-      expiryProvided: expiryTouched,
-    }),
+    mutationFn: async () => {
+      const session = await ensureDraft();
+      return saveInventoryPalletCorrectionAsDraft({
+        draftId: session.draftId,
+        quantity: quantityEntered ? Number(quantity) : null,
+        expiryDate: expiryTouched ? expiry || null : null,
+        expiryProvided: expiryTouched,
+      });
+    },
     onSuccess: async (result) => {
       onOpenChange(false);
       resetSession();
@@ -187,7 +195,10 @@ export function PalletEditDialog({
   });
 
   const updateInPlaceMutation = useMutation({
-    mutationFn: () => completeInventoryPalletCorrectionInPlace({ draftId, quantity: effectiveQuantity }),
+    mutationFn: async () => {
+      const session = await ensureDraft();
+      return completeInventoryPalletCorrectionInPlace({ draftId: session.draftId, quantity: effectiveQuantity });
+    },
     onSuccess: async (result) => {
       onOpenChange(false);
       resetSession();
@@ -198,12 +209,15 @@ export function PalletEditDialog({
   });
 
   const replaceMutation = useMutation({
-    mutationFn: () => completeInventoryPalletCorrection({
-      draftId,
-      quantity: effectiveQuantity,
-      expiryDate: effectiveExpiry || null,
-      stillAtFormerLocation: stillAtLocation === true,
-    }),
+    mutationFn: async () => {
+      const session = await ensureDraft();
+      return completeInventoryPalletCorrection({
+        draftId: session.draftId,
+        quantity: effectiveQuantity,
+        expiryDate: effectiveExpiry || null,
+        stillAtFormerLocation: stillAtLocation === true,
+      });
+    },
     onSuccess: async (result) => {
       onOpenChange(false);
       resetSession();
@@ -220,9 +234,8 @@ export function PalletEditDialog({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not receive the replacement pallet."),
   });
 
-  const busy = beginMutation.isPending || cancelMutation.isPending || saveDraftMutation.isPending ||
+  const busy = preparingCommit || cancelMutation.isPending || saveDraftMutation.isPending ||
     updateInPlaceMutation.isPending || replaceMutation.isPending;
-  const preparing = beginMutation.isPending || !draftId;
 
   function handleCancel() {
     if (!draftId) {
@@ -269,7 +282,6 @@ export function PalletEditDialog({
               <Input
                 id="pallet-edit-quantity"
                 inputMode="numeric"
-                disabled={preparing}
                 placeholder={String(originalQuantity)}
                 value={quantity}
                 onFocus={(event) => event.currentTarget.select()}
@@ -288,7 +300,6 @@ export function PalletEditDialog({
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={preparing}
                       className={cn("h-10 flex-1 justify-start px-3 text-left font-normal", !effectiveExpiry && "text-muted-foreground")}
                       aria-label="Expiry"
                     >
@@ -315,7 +326,6 @@ export function PalletEditDialog({
                     type="button"
                     variant="outline"
                     className="h-10"
-                    disabled={preparing}
                     title="Clear expiry"
                     onClick={() => { setExpiry(""); setExpiryTouched(true); }}
                   >
@@ -342,18 +352,18 @@ export function PalletEditDialog({
             </Button>
             <Button
               variant="outline"
-              disabled={!online || preparing || busy || quantityInvalid}
+              disabled={!online || busy || quantityInvalid}
               title="Retire this pallet and hold the edit in Receiving > Drafts under a new pallet number"
               onClick={() => saveDraftMutation.mutate()}
             >
               {saveDraftMutation.isPending ? "Saving…" : "Save as draft"}
             </Button>
             <Button
-              disabled={!online || preparing || busy || quantityInvalid || !hasChange}
+              disabled={!online || busy || quantityInvalid || !hasChange}
               title={hasChange ? "Commit this edit" : "Change quantity or expiry to save, or send the pallet back to Drafts"}
               onClick={() => setLocationPromptOpen(true)}
             >
-              {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -368,11 +378,12 @@ export function PalletEditDialog({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={() => setLocationPromptOpen(false)}>Back</Button>
-            <Button variant="outline" onClick={() => { setStillAtLocation(false); setLocationPromptOpen(false); }}>
+            <Button variant="outline" disabled={preparingCommit} onClick={() => setLocationPromptOpen(false)}>Back</Button>
+            <Button variant="outline" disabled={preparingCommit} onClick={() => void answerLocationPrompt(false)}>
               No — send to Put-Away
             </Button>
-            <Button onClick={() => { setStillAtLocation(true); setLocationPromptOpen(false); }}>
+            <Button disabled={preparingCommit} onClick={() => void answerLocationPrompt(true)}>
+              {preparingCommit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Yes — keep at {locationCode}
             </Button>
           </DialogFooter>

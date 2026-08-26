@@ -75,6 +75,7 @@ import { cn } from "@/lib/utils";
 import { normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { alertToast } from "@/features/shared/ui-shared";
 import { PalletEditDialog, type PalletEditTarget } from "@/features/inventory/pallet-edit-dialog";
+import { palletEditBlockedReason, palletOutsideStaging, STAGING_EDIT_HINT } from "@/features/inventory/pallet-edit-rules";
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -760,7 +761,7 @@ type InventoryDetailData = {
   } | null;
   client?: { code?: string | null; name?: string | null } | null;
   warehouse?: { code?: string | null; name?: string | null } | null;
-  location?: { code?: string | null; aisle?: string | null; bay?: string | null; level?: string | null } | null;
+  location?: { code?: string | null; aisle?: string | null; bay?: string | null; level?: string | null; location_type?: string | null } | null;
   receipt?: {
     receipt_number?: string | null;
     receipt_type?: string | null;
@@ -1616,19 +1617,28 @@ function InventoryDetailPage() {
   );
   // A pending edit is resumable rather than blocked — reopening it picks the
   // same draft back up instead of reserving a second pallet number.
-  const correctionBlockedReason = !data?.pallet
-    ? "This inventory record has no pallet."
-    : data.balance.correction_state === "superseded" || data.pallet.correction_state === "superseded"
-      ? "This pallet has been superseded by a correction."
-      : data.balance.correction_state === "pending" || data.pallet.correction_state === "pending"
-        ? ""
-        : (data.balance.status !== "available" &&
-              !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) ||
-            Number(data.balance.reserved_quantity ?? 0) > 0
-          ? "Clear reserved or allocated stock before correcting this pallet."
-          : !data.location?.code
-            ? "Only a stored pallet can be corrected from Inventory."
-            : "";
+  const correctionBlockedReason = data
+    ? palletEditBlockedReason({
+        hasPallet: Boolean(data.pallet),
+        balanceCorrectionState: data.balance.correction_state ?? null,
+        palletCorrectionState: data.pallet?.correction_state ?? null,
+        balanceStatus: data.balance.status,
+        reservedQuantity: data.balance.reserved_quantity ?? 0,
+        availableQuantity: data.balance.available_quantity ?? 0,
+        locationCode: data.location?.code ?? null,
+        locationType: data.location?.location_type ?? null,
+      })
+    : "";
+  const outsideStaging = palletOutsideStaging({
+    locationCode: data?.location?.code ?? null,
+    locationType: data?.location?.location_type ?? null,
+  });
+  const showStagingHint = Boolean(
+    correctionBlockedReason &&
+    outsideStaging &&
+    data?.balance.correction_state !== "pending" &&
+    data?.pallet?.correction_state !== "pending",
+  );
   const editTarget: PalletEditTarget | null = data?.pallet
     ? {
         balanceId,
@@ -1807,9 +1817,10 @@ function InventoryDetailPage() {
                     </div>
                   )}
                   {canReceive && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-2">
                       <Button
                         variant="outline"
+                        className="w-fit"
                         disabled={Boolean(correctionBlockedReason)}
                         title={
                           correctionBlockedReason || "Edit this pallet's quantity or expiry, or send it back to Drafts"
@@ -1819,6 +1830,18 @@ function InventoryDetailPage() {
                         <RefreshCw className="mr-2 h-4 w-4" />
                         Edit pallet
                       </Button>
+                      {showStagingHint && data?.pallet && data.location?.code ? (
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+                          <p className="text-amber-700 dark:text-amber-400">{STAGING_EDIT_HINT}</p>
+                          <Button size="sm" variant="link" className="mt-1 h-auto px-0 text-xs" asChild>
+                            <Link
+                              to={`/location-moves?pallet=${encodeURIComponent(palletBarcode)}&bay=${encodeURIComponent(data.location.code ?? "")}`}
+                            >
+                              Go to Location Moves
+                            </Link>
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </>
