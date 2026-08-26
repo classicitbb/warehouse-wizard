@@ -68,27 +68,19 @@
 
 @layer utilities {
   @keyframes themed-loader-spin {
-    0% {
-      color: hsl(var(--primary));
-      transform: rotate(0deg) scale(1);
-      filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.35));
+    from {
+      transform: rotate(0deg);
     }
 
-    50% {
-      color: hsl(var(--accent));
-      transform: rotate(180deg) scale(1.08);
-      filter: drop-shadow(0 0 10px hsl(var(--accent) / 0.4));
-    }
-
-    100% {
-      color: hsl(var(--primary));
-      transform: rotate(360deg) scale(1);
-      filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.35));
+    to {
+      transform: rotate(360deg);
     }
   }
 
+  /* Single monochrome spinner used for every loading state. */
   .animate-themed-loader {
-    animation: themed-loader-spin 1.05s linear infinite;
+    color: hsl(var(--muted-foreground));
+    animation: themed-loader-spin 1s linear infinite;
   }
 
   @keyframes scan-prompt-pulse {
