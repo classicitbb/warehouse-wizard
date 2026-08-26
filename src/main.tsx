@@ -6,6 +6,8 @@ import { AppErrorBoundary } from "@/components/error-boundary";
 import { installConsoleErrorTelemetry, installToastTelemetry, logErrorTelemetry, logSystemTelemetry } from "@/lib/system-telemetry";
 import { installHabitTracking, recordAction } from "@/lib/habit-tracking";
 import { isActiveWorkInProgress } from "@/lib/active-work";
+import { notifyNewBuildAvailable } from "@/lib/build-notification";
+
 import "./index.css";
 
 // ── Global error telemetry ────────────────────────────────────────────────────
