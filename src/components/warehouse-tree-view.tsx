@@ -254,19 +254,24 @@ async function fetchZoneLocations(zoneId: string): Promise<LocationRow[]> {
     .eq("zone_id", zoneId)
     .eq("is_hidden", false)
     .order("aisle").order("bay").order("level").order("position")
-    .limit(201);
+    .limit(2000);
   if (error) throw error;
   return (data ?? []) as LocationRow[];
 }
 
-async function fetchLocationFillStats() {
-  const { data, error } = await supabase
-    .from("locations")
-    .select("id, warehouse_id, zone_id, max_pallets, depth, status")
-    .eq("is_hidden", false);
-  if (error) throw error;
+type FillStatsRow = Pick<LocationRow, "id" | "warehouse_id" | "zone_id" | "max_pallets" | "depth" | "status">;
 
-  const rows = (data ?? []) as Array<Pick<LocationRow, "id" | "warehouse_id" | "zone_id" | "max_pallets" | "depth" | "status">>;
+async function fetchLocationFillStats() {
+  // Paged: the unbounded select was capped at 1000 rows by the data API, so
+  // racks past that cut-off (e.g. Rack J) rendered with no capacity stats.
+  const rows = await fetchAllRows<FillStatsRow>((from, to) =>
+    supabase
+      .from("locations")
+      .select("id, warehouse_id, zone_id, max_pallets, depth, status")
+      .eq("is_hidden", false)
+      .order("id", { ascending: true })
+      .range(from, to) as any,
+  );
   const storedCounts = await getStoredPalletCounts(rows.map((row) => row.id));
   const byWarehouse = new Map<string, FillStats>();
   const byZone = new Map<string, FillStats>();
