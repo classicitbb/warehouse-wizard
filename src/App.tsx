@@ -2959,6 +2959,8 @@ const App = () => (
             </RouteErrorBoundary>
           </BrowserRouter>
           <RuntimeModeBadge />
+          <ConnectionRecovery />
+          <WhatsNewOnUpdate release={RELEASE_HISTORY[0]} />
           <AiHintFailureAlert />
           <Analytics />
         </FeatureFlagProvider>
