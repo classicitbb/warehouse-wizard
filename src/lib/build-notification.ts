@@ -27,8 +27,9 @@ function rememberNotified(tag: string) {
 }
 
 /**
- * @param buildTag Stable identifier for the pending build (app version, or a
- *   fallback marker). Used for dedupe and as the notification tag.
+ * @param buildTag Stable identifier for the pending build (usually the version
+ *   currently running, since the waiting bundle's version isn't readable yet).
+ *   Used for dedupe and as the notification tag.
  */
 export async function notifyNewBuildAvailable(buildTag: string): Promise<void> {
   if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -38,11 +39,12 @@ export async function notifyNewBuildAvailable(buildTag: string): Promise<void> {
 
   const title = "New Warehouse Wizard build";
   const options: NotificationOptions = {
-    body: `Version ${buildTag} is ready. It installs automatically — reopen the app to use it now.`,
+    body: "A newer version was just pushed. It installs automatically — reload to use it now.",
     tag: `ww-build-${buildTag}`,
     icon: "/favicon.png",
     badge: "/favicon.png",
   };
+
 
   try {
     if ("serviceWorker" in navigator) {
