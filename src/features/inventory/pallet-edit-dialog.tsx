@@ -7,7 +7,7 @@
 //     the attempted edit survives.
 //   * The pallet number never changes on the way in. It changes only when a
 //     committed edit needs a new label, or when the pallet goes back to Drafts.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, Loader2, X } from "lucide-react";
@@ -92,7 +92,7 @@ export function PalletEditDialog({
   const [expiryOpen, setExpiryOpen] = useState(false);
   const [locationPromptOpen, setLocationPromptOpen] = useState(false);
   const [stillAtLocation, setStillAtLocation] = useState<boolean | null>(null);
-  const beganForRef = useRef("");
+  const [preparingCommit, setPreparingCommit] = useState(false);
 
   const originalQuantity = Number(target?.quantity ?? 0);
   const originalExpiry = target?.expiryDate ?? "";
@@ -119,7 +119,7 @@ export function PalletEditDialog({
     setExpiryOpen(false);
     setLocationPromptOpen(false);
     setStillAtLocation(null);
-    beganForRef.current = "";
+    setPreparingCommit(false);
   }
 
   async function refreshInventory() {
@@ -131,28 +131,33 @@ export function PalletEditDialog({
     ]);
   }
 
-  const beginMutation = useMutation({
-    mutationFn: (balanceId: string) => beginInventoryPalletCorrection(balanceId),
-    onSuccess: (result) => {
-      setDraftId(result.draftId);
-      setReplacementBarcode(result.replacementPalletBarcode);
-      void queryClient.invalidateQueries({ queryKey: ["inventory-detail"] });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Could not open this pallet for editing.");
-      onOpenChange(false);
-      resetSession();
-    },
-  });
+  // The correction draft is created lazily — only when the operator commits to
+  // an action (Save changes / Save as draft). Opening the dialog changes
+  // nothing on the pallet: no RPC, no hold, no reserved pallet number.
+  const ensureDraft = useCallback(async () => {
+    if (draftId) return { draftId, replacementPalletBarcode: replacementBarcode };
+    if (!target?.balanceId) throw new Error("No pallet selected.");
+    const result = await beginInventoryPalletCorrection(target.balanceId);
+    setDraftId(result.draftId);
+    setReplacementBarcode(result.replacementPalletBarcode);
+    void queryClient.invalidateQueries({ queryKey: ["inventory-detail"] });
+    return result;
+  }, [draftId, replacementBarcode, target?.balanceId, queryClient]);
 
-  // The hold on the pallet is taken when the screen opens and released by
-  // whichever button closes it.
-  useEffect(() => {
-    if (!open || !target?.balanceId) return;
-    if (beganForRef.current === target.balanceId) return;
-    beganForRef.current = target.balanceId;
-    beginMutation.mutate(target.balanceId);
-  }, [open, target?.balanceId]);
+  // Begin the correction as the operator commits to the save path — the
+  // answer to this prompt decides which label flow comes next.
+  async function answerLocationPrompt(stillThere: boolean) {
+    setPreparingCommit(true);
+    try {
+      await ensureDraft();
+      setStillAtLocation(stillThere);
+      setLocationPromptOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open this pallet for editing.");
+    } finally {
+      setPreparingCommit(false);
+    }
+  }
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelInventoryPalletCorrection(draftId, {
@@ -170,12 +175,15 @@ export function PalletEditDialog({
   });
 
   const saveDraftMutation = useMutation({
-    mutationFn: () => saveInventoryPalletCorrectionAsDraft({
-      draftId,
-      quantity: quantityEntered ? Number(quantity) : null,
-      expiryDate: expiryTouched ? expiry || null : null,
-      expiryProvided: expiryTouched,
-    }),
+    mutationFn: async () => {
+      const session = await ensureDraft();
+      return saveInventoryPalletCorrectionAsDraft({
+        draftId: session.draftId,
+        quantity: quantityEntered ? Number(quantity) : null,
+        expiryDate: expiryTouched ? expiry || null : null,
+        expiryProvided: expiryTouched,
+      });
+    },
     onSuccess: async (result) => {
       onOpenChange(false);
       resetSession();
