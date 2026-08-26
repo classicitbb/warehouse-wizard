@@ -887,7 +887,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="flex min-w-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Go to dashboard"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black p-1">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
                 <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
               </span>
               <span className="truncate text-sm font-semibold">{appTitle}</span>
@@ -997,7 +997,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className="flex shrink-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 aria-label="Go to dashboard"
               >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black p-0.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md">
                   <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
                 </span>
                 <span className="text-sm font-semibold">Warehouse Wizard</span>

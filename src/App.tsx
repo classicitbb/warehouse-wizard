@@ -1227,7 +1227,7 @@ function LoginPage() {
           <img
             src="/logo.png"
             alt="Warehouse Wizard"
-            className="h-[clamp(4.5rem,14vh,8rem)] w-[clamp(4.5rem,14vh,8rem)] rounded-xl bg-background p-1 object-cover"
+            className="h-[clamp(4.5rem,14vh,8rem)] w-[clamp(4.5rem,14vh,8rem)] object-contain"
           />
           <span className="font-semibold text-3xl font-sans xl:text-4xl">Warehouse Wizard</span>
         </div>
