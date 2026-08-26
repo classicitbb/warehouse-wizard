@@ -40,6 +40,7 @@ import {
   deleteLocationCascade, deleteWarehouseCascade, deleteZoneCascade,
   displayRackLocationCode,
   bayCodeFromLocationCode,
+  fetchAllRows,
   type InventoryStructureNode,
   getStoredPalletCounts,
   resolveLocationCapacity,
