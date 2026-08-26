@@ -7,7 +7,7 @@ Three related changes: the scanner reticle and acceptance timing, and tightening
 Today the scan window is a fixed 256x144 rectangle inside a 16:9 camera frame. For pallet (`PLT-`) and bay/location scanning that shape encourages operators to frame QR codes badly.
 
 - The default reticle becomes a square (equal width and height, sized to fit the shorter side of the camera frame) for all non-container scan modes.
-- Container-number scanning keeps its existing wide crop regions — that mode reads a text band across a container door and needs the rectangle.
+- Container-number scanning uses a vertical (portrait) reticle so the camera frames the full container door height rather than a horizontal text band.
 - Corner markers, dim mask, and the green "found" state stay exactly as they are, just on the square frame.
 
 ## 2. One-second dwell before a code is accepted
