@@ -903,7 +903,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Loader2
                 role="status"
                 aria-label="Refreshing live warehouse state"
-                className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                className="h-3.5 w-3.5 shrink-0 animate-themed-loader"
               />
             ) : null}
           </div>
@@ -1025,7 +1025,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Loader2
                   role="status"
                   aria-label="Refreshing live warehouse state"
-                  className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+                  className="h-3.5 w-3.5 shrink-0 animate-themed-loader"
                 />
               ) : null}
               <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
