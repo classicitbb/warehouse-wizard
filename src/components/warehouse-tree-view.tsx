@@ -294,12 +294,17 @@ async function fetchLocationFillStats() {
 }
 
 async function fetchTreeSearchLocations(): Promise<TreeSearchLocation[]> {
-  const { data, error } = await supabase
-    .from("locations")
-    .select("id, code, aisle, bay, level, position, zone_id, warehouse_id")
-    .eq("is_hidden", false);
-  if (error) throw error;
-  return (data ?? []) as TreeSearchLocation[];
+  // Paged: an unbounded select is capped at 1000 rows by the data API, which
+  // silently hid whole racks from tree search on larger warehouses.
+  const rows = await fetchAllRows<TreeSearchLocation>((from, to) =>
+    supabase
+      .from("locations")
+      .select("id, code, aisle, bay, level, position, zone_id, warehouse_id")
+      .eq("is_hidden", false)
+      .order("id", { ascending: true })
+      .range(from, to) as any,
+  );
+  return rows;
 }
 
 function numComp(a: string, b: string) {
