@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { supabase } from "@/integrations/supabase/client";
 import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type ContainerScannerSuccessSample } from "@/lib/container-scanner-learning";
 import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
+import { updateScanDwell, type ScanDwellState } from "@/lib/scan-dwell";
 import { cn } from "@/lib/utils";
 
 export type ScanValidationResult = {
@@ -217,7 +218,9 @@ export function BarcodeScanButton({
   const [pendingScan, setPendingScan] = useState<PendingScan | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [activeScanRegion, setActiveScanRegion] = useState<NormalizedScanRegion | null>(null);
+  const [dwellProgress, setDwellProgress] = useState<number | null>(null);
   const pendingScanRef = useRef<PendingScan | null>(null);
+  const dwellStateRef = useRef<ScanDwellState>(null);
   const acceptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -467,6 +470,8 @@ export function BarcodeScanButton({
       setScanMessage(null);
       setActiveScanRegion(null);
       pendingScanRef.current = null;
+      dwellStateRef.current = null;
+      setDwellProgress(null);
       ocrBusyRef.current = false;
       scanStartedAtRef.current = 0;
       attemptCountRef.current = 0;
@@ -540,8 +545,21 @@ export function BarcodeScanButton({
             if (codes.length > 0) {
               if (cancelled) return;
               const detectedCode = codes[0];
+              // A code must hold steady for a full second before it counts —
+              // a passing glimpse of a neighbouring label never inserts itself.
+              const dwell = updateScanDwell(dwellStateRef.current, detectedCode.rawValue, Date.now());
+              dwellStateRef.current = dwell.state;
+              setDwellProgress(dwell.progress);
+              if (!dwell.ready) {
+                rafRef.current = requestAnimationFrame(scan);
+                return;
+              }
+              setDwellProgress(null);
               const detectedRegion = getDetectedRegion(detectedCode, videoRef.current);
               if (handleScanValue(detectedCode.rawValue, "barcode", detectedRegion ?? undefined)) return;
+            } else if (dwellStateRef.current) {
+              dwellStateRef.current = null;
+              setDwellProgress(null);
             }
 
             const now = Date.now();
@@ -658,17 +676,34 @@ export function BarcodeScanButton({
                 "pointer-events-none absolute inset-0",
                 !activeRegionStyle && "flex items-center justify-center",
               )}>
-                <div className={cn("relative transition-all duration-200 ease-out", !activeRegionStyle && "h-36 w-64")} style={activeRegionStyle}>
+                <div
+                  className={cn(
+                    "relative transition-all duration-200 ease-out",
+                    !activeRegionStyle && (scanMode === "containerNumber" ? "h-[82%] aspect-[3/4]" : "h-[68%] aspect-square"),
+                  )}
+                  style={activeRegionStyle}
+                >
                   <div className={cn(
                     "absolute inset-0 rounded border border-white/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] transition-all duration-200 ease-out",
                     pendingScan && "shadow-[0_0_0_9999px_rgba(22,163,74,0.25)]",
                   )} />
-                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
-                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
-                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
-                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan && "border-green-400")} />
+                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
                 </div>
               </div>
+              {dwellProgress != null && !pendingScan && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/75 px-3 py-2">
+                  <p className="mb-1 text-xs font-medium text-amber-300">Hold steady…</p>
+                  <div className="h-1.5 w-full overflow-hidden rounded bg-white/20">
+                    <div
+                      className="h-full bg-amber-400 transition-[width] duration-100"
+                      style={{ width: `${Math.round(dwellProgress * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               {pendingScan && (
                 <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 bg-black/75 px-3 py-2">
                   <div className="min-w-0 flex-1">
