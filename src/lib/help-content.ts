@@ -359,6 +359,18 @@ export const helpArticles: HelpArticle[] = [
     ],
   },
   {
+    id: "notifications-settings",
+    title: "Notifications and Update Alerts",
+    module: "settings",
+    audience: "All users",
+    keywords: ["notifications", "alerts", "permission", "build", "update", "whats new", "blocked"],
+    sections: [
+      { title: "Per-Device Controls", content: ["Settings > Notifications controls alerts for the device and browser you are signed in on, not for your account. A shared floor tablet can stay silent while an office desktop receives alerts.", "Turn on New build alerts to get a notification whenever a newer version of Warehouse Wizard is pushed, even when the tab is in the background."] },
+      { title: "Granting Permission", content: ["Use Enable notifications to raise the browser prompt. Once allowed, use Send test to confirm the device actually displays and sounds the alert on the floor.", "If notifications were blocked earlier, the panel lists the unblock steps for desktop Chrome/Edge, Android Chrome, the installed app, and Safari. Until they are unblocked, in-app toasts still show the same alerts while the app is open."] },
+      { title: "What's New After An Update", content: ["When the app updates, a What's New window opens once for that version with the release summary. It never opens during an active scan or confirm flow — it waits until the task is finished.", "Tap the version number in the header at any time to open Settings > About for full version details."] },
+    ],
+  },
+  {
     id: "settings-reset",
     title: "Reset All and Rebuild",
     module: "settings",

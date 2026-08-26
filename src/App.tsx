@@ -81,6 +81,7 @@ import { palletEditBlockedReason, palletOutsideStaging, PUTAWAY_STAGING_LOCATION
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { AiHintFailureAlert } from "@/components/ai-hint-alert";
+import { ConnectionRecovery, WhatsNewOnUpdate } from "@/features/shared/app-runtime";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -162,6 +163,19 @@ const ProtectedShell = lazy(() =>
 );
 
 const RELEASE_HISTORY = [
+  {
+    version: "1.28.8",
+    date: "August 2026",
+    changes: [
+      "Dropped connections now heal themselves: the app retries every few seconds, refreshes your session, and reloads live data in place — no forced page reload, signed in or not",
+      "All loading indicators are now one calm monochrome spinner",
+      "Warehouse tree fill levels now cover every rack: bay, location, and capacity stats no longer stop after the first 1,000 bins (Rack J and beyond were showing blank)",
+      "Typing in the Put-Away task search keeps the cursor in the search box instead of jumping to the first pallet field",
+      "New Settings > Notifications tab: per-device build alerts, a permission prompt, a test notification, and unblock instructions if notifications were denied",
+      "After an update, a What's New popup shows the release summary once per version — never during an active scan or confirm flow",
+      "Tapping the version number opens Settings > About",
+    ],
+  },
   {
     version: "1.28.7",
     date: "August 2026",
@@ -2959,6 +2973,8 @@ const App = () => (
             </RouteErrorBoundary>
           </BrowserRouter>
           <RuntimeModeBadge />
+          <ConnectionRecovery />
+          <WhatsNewOnUpdate release={RELEASE_HISTORY[0]} />
           <AiHintFailureAlert />
           <Analytics />
         </FeatureFlagProvider>

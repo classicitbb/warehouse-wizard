@@ -881,26 +881,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {/* Mobile header */}
         <header className="col-span-full flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:landscape:hidden">
-          <Link
-            to={toPath("/dashboard")}
-            className="flex min-w-0 flex-col rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            aria-label="Go to dashboard"
-          >
-            <span className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              to={toPath("/dashboard")}
+              className="flex min-w-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="Go to dashboard"
+            >
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black p-1">
                 <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
               </span>
               <span className="truncate text-sm font-semibold">{appTitle}</span>
-              <span className="text-[10px] font-medium text-muted-foreground">{__APP_VERSION__}</span>
-              {reconnectRefreshing ? (
-                <Loader2
-                  role="status"
-                  aria-label="Refreshing live warehouse state"
-                  className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
-                />
-              ) : null}
-            </span>
-          </Link>
+            </Link>
+            <Link
+              to={`${toPath("/settings")}?tab=about`}
+              title="Version details"
+              className="shrink-0 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+            >
+              {__APP_VERSION__}
+            </Link>
+            {reconnectRefreshing ? (
+              <Loader2
+                role="status"
+                aria-label="Refreshing live warehouse state"
+                className="h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+              />
+            ) : null}
+          </div>
 
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-1.5 py-1">
@@ -1007,7 +1013,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {__APP_VERSION__}
                 </a>
               ) : (
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{__APP_VERSION__}</span>
+                <Link
+                  to={`${toPath("/settings")}?tab=about`}
+                  title="Version details"
+                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+                >
+                  {__APP_VERSION__}
+                </Link>
               )}
               {reconnectRefreshing ? (
                 <Loader2

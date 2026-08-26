@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, Volume2 } from "lucide-react";
+import { NotificationSettingsPanel } from "@/features/shared/notification-settings";
+import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, Volume2 } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -1994,6 +1995,7 @@ export function SettingsPage() {
     "warehouse-structure",
     ...(canViewUsersRoles ? ["users-roles"] : []),
     "modules",
+    "notifications",
     "environment",
     ...(isDeveloperOrAdmin ? ["integrations"] : []),
     ...(isEnabled("clients") ? ["client-vars"] : []),
@@ -2067,6 +2069,7 @@ export function SettingsPage() {
             <TabsTrigger value="users-roles" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Users className="h-3.5 w-3.5" />Users & Roles</TabsTrigger>
           )}
           <TabsTrigger value="modules" className="min-h-9 flex-1 sm:flex-none">Modules</TabsTrigger>
+          <TabsTrigger value="notifications" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Bell className="h-3.5 w-3.5" />Notifications</TabsTrigger>
           <TabsTrigger value="environment" className="min-h-9 flex-1 sm:flex-none">Environment</TabsTrigger>
           {isDeveloperOrAdmin && (
             <TabsTrigger value="integrations" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Network className="h-3.5 w-3.5" />Integrations</TabsTrigger>
@@ -2080,6 +2083,10 @@ export function SettingsPage() {
 
         <TabsContent value="modules" className="mt-4">
           <ModulesSettingsPanel isAdmin={isDeveloperOrAdmin} />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="mt-4 max-w-2xl">
+          <NotificationSettingsPanel />
         </TabsContent>
 
         <TabsContent value="environment" className="mt-4 grid gap-6 xl:grid-cols-2">
