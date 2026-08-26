@@ -247,6 +247,7 @@ export function DashboardPage() {
   const [officeVisibility, setOfficeVisibility] = useState<DashboardVisibilityMap>({});
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [simulatedFullscreen, setSimulatedFullscreen] = useState(false);
   const [fitToScreen, setFitToScreen] = useState(false);
 
   useEffect(() => {
@@ -256,16 +257,26 @@ export function DashboardPage() {
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
+    // Mobile/tablet browsers (notably iOS Safari) lack the Fullscreen API —
+    // fall back to a fixed-position immersive view so the button works everywhere.
+    const fullscreenSupported =
+      typeof document !== "undefined" && document.fullscreenEnabled && dashboardRef.current?.requestFullscreen;
+    if (!fullscreenSupported) {
+      setSimulatedFullscreen((value) => !value);
+      return;
+    }
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       } else if (dashboardRef.current) {
         await dashboardRef.current.requestFullscreen();
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Fullscreen unavailable");
+    } catch {
+      setSimulatedFullscreen((value) => !value);
     }
   }, []);
+
+  const immersiveMode = isFullscreen || simulatedFullscreen;
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["dashboard-metrics", profile?.default_warehouse_id, flags],
@@ -425,7 +436,8 @@ export function DashboardPage() {
       ref={dashboardRef}
       className={cn(
         "cc-grid-bg flex min-h-0 flex-col gap-6 overflow-y-auto overflow-x-hidden lg:h-full lg:gap-3",
-        (isFullscreen || fitToScreen) && "h-screen overflow-auto bg-background p-4",
+        (immersiveMode || fitToScreen) && "h-screen overflow-auto bg-background p-4",
+        simulatedFullscreen && "fixed inset-0 z-50",
       )}
     >
       <div className="flex shrink-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -460,8 +472,8 @@ export function DashboardPage() {
           <Button size="sm" variant="outline" onClick={() => setFitToScreen((v) => !v)} aria-pressed={fitToScreen}>
             {fitToScreen ? "Reset fit" : "Fit to screen"}
           </Button>
-          <Button size="sm" variant="outline" onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          <Button size="sm" variant="outline" onClick={toggleFullscreen} aria-label={immersiveMode ? "Exit fullscreen" : "Enter fullscreen"} aria-pressed={immersiveMode}>
+            {immersiveMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         </div>
       </div>
