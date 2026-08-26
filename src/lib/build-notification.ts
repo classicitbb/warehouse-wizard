@@ -34,6 +34,7 @@ function rememberNotified(tag: string) {
 export async function notifyNewBuildAvailable(buildTag: string): Promise<void> {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
+  if (!isBuildNotificationEnabled()) return;
   if (alreadyNotified(buildTag)) return;
   rememberNotified(buildTag);
 
