@@ -1995,6 +1995,7 @@ export function SettingsPage() {
     "warehouse-structure",
     ...(canViewUsersRoles ? ["users-roles"] : []),
     "modules",
+    "notifications",
     "environment",
     ...(isDeveloperOrAdmin ? ["integrations"] : []),
     ...(isEnabled("clients") ? ["client-vars"] : []),
