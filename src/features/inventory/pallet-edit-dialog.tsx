@@ -195,7 +195,10 @@ export function PalletEditDialog({
   });
 
   const updateInPlaceMutation = useMutation({
-    mutationFn: () => completeInventoryPalletCorrectionInPlace({ draftId, quantity: effectiveQuantity }),
+    mutationFn: async () => {
+      const session = await ensureDraft();
+      return completeInventoryPalletCorrectionInPlace({ draftId: session.draftId, quantity: effectiveQuantity });
+    },
     onSuccess: async (result) => {
       onOpenChange(false);
       resetSession();
@@ -206,12 +209,15 @@ export function PalletEditDialog({
   });
 
   const replaceMutation = useMutation({
-    mutationFn: () => completeInventoryPalletCorrection({
-      draftId,
-      quantity: effectiveQuantity,
-      expiryDate: effectiveExpiry || null,
-      stillAtFormerLocation: stillAtLocation === true,
-    }),
+    mutationFn: async () => {
+      const session = await ensureDraft();
+      return completeInventoryPalletCorrection({
+        draftId: session.draftId,
+        quantity: effectiveQuantity,
+        expiryDate: effectiveExpiry || null,
+        stillAtFormerLocation: stillAtLocation === true,
+      });
+    },
     onSuccess: async (result) => {
       onOpenChange(false);
       resetSession();
@@ -228,9 +234,8 @@ export function PalletEditDialog({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not receive the replacement pallet."),
   });
 
-  const busy = beginMutation.isPending || cancelMutation.isPending || saveDraftMutation.isPending ||
+  const busy = preparingCommit || cancelMutation.isPending || saveDraftMutation.isPending ||
     updateInPlaceMutation.isPending || replaceMutation.isPending;
-  const preparing = beginMutation.isPending || !draftId;
 
   function handleCancel() {
     if (!draftId) {
