@@ -162,6 +162,16 @@ const ProtectedShell = lazy(() =>
 
 const RELEASE_HISTORY = [
   {
+    version: "1.28.7",
+    date: "August 2026",
+    changes: [
+      "Scanner targets are now square for pallet and bay codes, and portrait-shaped for container doors, so the reticle matches what you are aiming at",
+      "Scans now require a 1-second dwell: a code must hold steady in the reticle before it is accepted, so a passing glimpse of a neighbouring label never inserts itself",
+      "Pallet edits from Inventory are now staging-only: outside Put-Away Staging (STG-01-A) the Edit pallet button is disabled with a hint and a Go to Location Moves shortcut that pre-fills the pallet and bay",
+      "Opening the pallet edit dialog no longer changes the pallet: the correction draft is only created when you commit to Save, and Cancel now just closes the dialog untouched",
+    ],
+  },
+  {
     version: "1.28.6",
     date: "August 2026",
     changes: [
