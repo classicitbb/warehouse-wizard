@@ -92,13 +92,15 @@ describe("PalletEditDialog", () => {
   async function openedDialog() {
     renderDialog();
     const dialog = await screen.findByRole("dialog", { name: /edit pallet plt-old/i });
-    await waitFor(() => expect(wmsMocks.beginInventoryPalletCorrection).toHaveBeenCalledWith("balance-1"));
     return dialog;
   }
 
-  it("keeps the pallet's own number on screen and never shows the reserved one up front", async () => {
+  it("keeps the pallet's own number on screen and reserves nothing up front", async () => {
     const dialog = await openedDialog();
 
+    // Opening the dialog must not touch the pallet — no correction begins
+    // until the operator commits to a save action.
+    expect(wmsMocks.beginInventoryPalletCorrection).not.toHaveBeenCalled();
     expect(within(dialog).getAllByText("PLT-OLD").length).toBeGreaterThan(0);
     expect(within(dialog).queryByText("PLT-NEW")).not.toBeInTheDocument();
   });
@@ -111,6 +113,8 @@ describe("PalletEditDialog", () => {
     expect(saveDraft).toBeEnabled();
     fireEvent.click(saveDraft);
 
+    // Saving lazily begins the correction, then writes the draft.
+    await waitFor(() => expect(wmsMocks.beginInventoryPalletCorrection).toHaveBeenCalledWith("balance-1"));
     await waitFor(() => expect(wmsMocks.saveInventoryPalletCorrectionAsDraft).toHaveBeenCalledWith({
       draftId: "draft-1",
       quantity: null,
@@ -135,17 +139,17 @@ describe("PalletEditDialog", () => {
     }));
   });
 
-  it("restores the pallet on cancel and records what was attempted", async () => {
+  it("cancel before any save leaves the pallet untouched — no RPCs at all", async () => {
     const dialog = await openedDialog();
 
     fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "96" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
 
-    await waitFor(() => expect(wmsMocks.cancelInventoryPalletCorrection).toHaveBeenCalledWith("draft-1", {
-      quantity: 96,
-      expiryDate: null,
-      changed: true,
-    }));
+    // No draft was ever created, so cancel is a pure dismiss — give any
+    // stray async work a beat, then confirm nothing hit the backend.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(wmsMocks.beginInventoryPalletCorrection).not.toHaveBeenCalled();
+    expect(wmsMocks.cancelInventoryPalletCorrection).not.toHaveBeenCalled();
     expect(wmsMocks.saveInventoryPalletCorrectionAsDraft).not.toHaveBeenCalled();
     expect(wmsMocks.completeInventoryPalletCorrection).not.toHaveBeenCalled();
     expect(wmsMocks.completeInventoryPalletCorrectionInPlace).not.toHaveBeenCalled();
