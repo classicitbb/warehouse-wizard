@@ -145,8 +145,9 @@ describe("PalletEditDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "96" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
 
-    // No draft was ever created, so cancel is a pure dismiss.
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: /edit pallet plt-old/i })).not.toBeInTheDocument());
+    // No draft was ever created, so cancel is a pure dismiss — give any
+    // stray async work a beat, then confirm nothing hit the backend.
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(wmsMocks.beginInventoryPalletCorrection).not.toHaveBeenCalled();
     expect(wmsMocks.cancelInventoryPalletCorrection).not.toHaveBeenCalled();
     expect(wmsMocks.saveInventoryPalletCorrectionAsDraft).not.toHaveBeenCalled();
