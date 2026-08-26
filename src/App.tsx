@@ -1616,19 +1616,14 @@ function InventoryDetailPage() {
   );
   // A pending edit is resumable rather than blocked — reopening it picks the
   // same draft back up instead of reserving a second pallet number.
-  const correctionBlockedReason = !data?.pallet
-    ? "This inventory record has no pallet."
-    : data.balance.correction_state === "superseded" || data.pallet.correction_state === "superseded"
-      ? "This pallet has been superseded by a correction."
-      : data.balance.correction_state === "pending" || data.pallet.correction_state === "pending"
-        ? ""
-        : (data.balance.status !== "available" &&
-              !(data.balance.status === "receiving" && Number(data.balance.available_quantity ?? 0) === 0)) ||
-            Number(data.balance.reserved_quantity ?? 0) > 0
-          ? "Clear reserved or allocated stock before correcting this pallet."
-          : !data.location?.code
-            ? "Only a stored pallet can be corrected from Inventory."
-            : "";
+  const correctionBlockedReason = palletEditBlockedReason(data);
+  const showStagingHint = Boolean(
+    correctionBlockedReason &&
+    data?.location?.code &&
+    data?.balance &&
+    data.balance.correction_state !== "pending" &&
+    data.pallet?.correction_state !== "pending",
+  );
   const editTarget: PalletEditTarget | null = data?.pallet
     ? {
         balanceId,
