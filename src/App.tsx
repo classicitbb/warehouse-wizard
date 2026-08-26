@@ -81,6 +81,7 @@ import { palletEditBlockedReason, palletOutsideStaging, PUTAWAY_STAGING_LOCATION
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { AiHintFailureAlert } from "@/components/ai-hint-alert";
+import { ConnectionRecovery, WhatsNewOnUpdate } from "@/features/shared/app-runtime";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
