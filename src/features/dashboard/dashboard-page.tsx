@@ -436,7 +436,8 @@ export function DashboardPage() {
       ref={dashboardRef}
       className={cn(
         "cc-grid-bg flex min-h-0 flex-col gap-6 overflow-y-auto overflow-x-hidden lg:h-full lg:gap-3",
-        (isFullscreen || fitToScreen) && "h-screen overflow-auto bg-background p-4",
+        (immersiveMode || fitToScreen) && "h-screen overflow-auto bg-background p-4",
+        simulatedFullscreen && "fixed inset-0 z-50",
       )}
     >
       <div className="flex shrink-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
