@@ -57,39 +57,83 @@ export function assertOnline() {
   }
 }
 
+/** Fired once the app has healed itself after an outage. */
+export const CONNECTION_RESTORED_EVENT = "ww:connection-restored";
+
+const HEALTHY_POLL_MS = 45_000;
+const RECOVERY_BACKOFF_MS = [2_000, 4_000, 8_000, 15_000];
+
 export function useNetworkStatus() {
   // Operational screens freeze promptly on the browser signal. Consumers that
   // raise a notification can wait for `confirmed`, which is set only after the
   // retrying service probe completes.
   const [online, setOnline] = useState(isAppOnline);
   const [confirmed, setConfirmed] = useState(false);
+  const wasOfflineRef = useRef(false);
 
   const refreshConnection = useCallback(async (isCurrent?: () => boolean) => {
     const nextOnline = await verifyConnection();
-    if (isCurrent && !isCurrent()) return;
+    if (isCurrent && !isCurrent()) return nextOnline;
     setOnline(nextOnline);
     setConfirmed(true);
+    if (nextOnline && wasOfflineRef.current) {
+      wasOfflineRef.current = false;
+      // Self-heal in place: no page reload, no operator action. Listeners
+      // refresh the session and refetch live data.
+      window.dispatchEvent(new CustomEvent(CONNECTION_RESTORED_EVENT));
+    }
+    if (!nextOnline) wasOfflineRef.current = true;
+    return nextOnline;
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const update = () => void refreshConnection(() => !cancelled);
+    let timer = 0;
+    let attempt = 0;
+
+    const schedule = (delay: number) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(run, delay);
+    };
+
+    async function run() {
+      if (cancelled) return;
+      if (document.hidden && !wasOfflineRef.current) {
+        schedule(HEALTHY_POLL_MS);
+        return;
+      }
+      const nextOnline = await refreshConnection(() => !cancelled);
+      if (cancelled) return;
+      if (nextOnline) {
+        attempt = 0;
+        schedule(HEALTHY_POLL_MS);
+      } else {
+        // Fast self-healing retries while down, backing off to 15s.
+        const delay = RECOVERY_BACKOFF_MS[Math.min(attempt, RECOVERY_BACKOFF_MS.length - 1)];
+        attempt += 1;
+        schedule(delay);
+      }
+    }
+
+    const update = () => {
+      attempt = 0;
+      schedule(0);
+    };
     const refreshWhenVisible = () => {
       if (!document.hidden) update();
     };
-    const interval = window.setInterval(refreshWhenVisible, 45_000);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     window.addEventListener("focus", update);
     document.addEventListener("visibilitychange", refreshWhenVisible);
-    update();
+    void run();
     return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
       window.removeEventListener("focus", update);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
-      window.clearInterval(interval);
-      cancelled = true;
     };
   }, [refreshConnection]);
 
