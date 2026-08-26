@@ -1007,7 +1007,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {__APP_VERSION__}
                 </a>
               ) : (
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{__APP_VERSION__}</span>
+                <Link
+                  to={`${toPath("/settings")}?tab=about`}
+                  title="Version details"
+                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+                >
+                  {__APP_VERSION__}
+                </Link>
               )}
               {reconnectRefreshing ? (
                 <Loader2
