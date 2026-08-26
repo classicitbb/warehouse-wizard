@@ -282,7 +282,6 @@ export function PalletEditDialog({
               <Input
                 id="pallet-edit-quantity"
                 inputMode="numeric"
-                disabled={preparing}
                 placeholder={String(originalQuantity)}
                 value={quantity}
                 onFocus={(event) => event.currentTarget.select()}
@@ -301,7 +300,6 @@ export function PalletEditDialog({
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={preparing}
                       className={cn("h-10 flex-1 justify-start px-3 text-left font-normal", !effectiveExpiry && "text-muted-foreground")}
                       aria-label="Expiry"
                     >
@@ -328,7 +326,6 @@ export function PalletEditDialog({
                     type="button"
                     variant="outline"
                     className="h-10"
-                    disabled={preparing}
                     title="Clear expiry"
                     onClick={() => { setExpiry(""); setExpiryTouched(true); }}
                   >
@@ -355,18 +352,18 @@ export function PalletEditDialog({
             </Button>
             <Button
               variant="outline"
-              disabled={!online || preparing || busy || quantityInvalid}
+              disabled={!online || busy || quantityInvalid}
               title="Retire this pallet and hold the edit in Receiving > Drafts under a new pallet number"
               onClick={() => saveDraftMutation.mutate()}
             >
               {saveDraftMutation.isPending ? "Saving…" : "Save as draft"}
             </Button>
             <Button
-              disabled={!online || preparing || busy || quantityInvalid || !hasChange}
+              disabled={!online || busy || quantityInvalid || !hasChange}
               title={hasChange ? "Commit this edit" : "Change quantity or expiry to save, or send the pallet back to Drafts"}
               onClick={() => setLocationPromptOpen(true)}
             >
-              {preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -381,11 +378,12 @@ export function PalletEditDialog({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={() => setLocationPromptOpen(false)}>Back</Button>
-            <Button variant="outline" onClick={() => { setStillAtLocation(false); setLocationPromptOpen(false); }}>
+            <Button variant="outline" disabled={preparingCommit} onClick={() => setLocationPromptOpen(false)}>Back</Button>
+            <Button variant="outline" disabled={preparingCommit} onClick={() => void answerLocationPrompt(false)}>
               No — send to Put-Away
             </Button>
-            <Button onClick={() => { setStillAtLocation(true); setLocationPromptOpen(false); }}>
+            <Button disabled={preparingCommit} onClick={() => void answerLocationPrompt(true)}>
+              {preparingCommit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Yes — keep at {locationCode}
             </Button>
           </DialogFooter>
