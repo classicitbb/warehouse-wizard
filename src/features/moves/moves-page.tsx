@@ -223,6 +223,17 @@ export function LocationMovesPage() {
   const [bayBrowserOpen, setBayBrowserOpen] = useState(false);
   const [bayBrowserWarehouseId, setBayBrowserWarehouseId] = useState<string | null>(null);
 
+  // Inventory Detail hands a pallet over here to move it to staging — the
+  // pallet and target bay come in pre-filled so the operator just confirms.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const prefillPallet = searchParams.get("pallet");
+    const prefillBay = searchParams.get("bay");
+    if (prefillPallet) setNewPallet(prefillPallet);
+    if (prefillBay) setNewLocation(prefillBay);
+    // Run once on mount; later navigations re-run only when params change.
+  }, [searchParams]);
+
   const { data: warehousesForBrowse = [] } = useQuery<Array<{ id: string; code: string; name: string }>>({
     queryKey: ["warehouses", "moves-bay-browser"],
     queryFn: () => listRecords("warehouses", "id, code, name") as any,
