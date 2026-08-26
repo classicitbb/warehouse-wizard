@@ -27,7 +27,7 @@ Live data confirms `STG-01-A` (zone STG, "Put-Away Staging") and the receiving s
 - On Inventory Detail, the **Edit pallet** button is enabled only when the pallet's current location is a staging location (`STG-01-A` / Put-Away Staging). All existing blocks (reserved stock, superseded, no pallet) still apply.
 - When the pallet is stored anywhere else, the button is disabled and an inline hint appears:
   "A pallet can only be edited from Put-Away Staging (STG-01-A). Move it there first."
-  next to a **Go to Location Moves** button that opens Location Moves pre-filled with this pallet's barcode.
+  next to a **Go to Location Moves** button that opens Location Moves pre-filled with this pallet's barcode and `STG-01-A` loaded as the bay code.
 - The same rule is applied wherever the edit entry point appears so the button can't be reached from a non-staging pallet.
 
 ## 4. Opening the edit dialog changes nothing
