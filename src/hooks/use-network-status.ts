@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export const OFFLINE_WORK_MESSAGE =
   "Connection lost. This device is frozen for live commits. Reconnect, refresh live state, and confirm again.";
