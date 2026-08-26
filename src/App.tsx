@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { RouteErrorBoundary } from "@/components/error-boundary";
 import {
   BrowserRouter,
+  Link,
   Navigate,
   NavLink,
   Outlet,
