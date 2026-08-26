@@ -1083,12 +1083,26 @@ export function PutawayTasksPage() {
     return () => clearTimeout(timer);
   }, [isMobile, scanDialogOpen, scannerFirstPreferred]);
 
+  // Focus the first pallet field only when a genuinely different first task
+  // appears. Filtering the list while typing in the search box must never
+  // steal the caret out of the search input.
+  const autoFocusedTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (isMobile || isLoading || selectedTask || scanDialogOpen || activeTasks.length === 0) return;
+    if (isMobile || isLoading || selectedTask || scanDialogOpen || activeTasks.length === 0) {
+      if (activeTasks.length === 0) autoFocusedTaskIdRef.current = null;
+      return;
+    }
     const firstId = activeTasks[0].id;
-    const timer = setTimeout(() => palletRefs.current[firstId]?.focus(), 120);
+    if (autoFocusedTaskIdRef.current === firstId) return;
+    autoFocusedTaskIdRef.current = firstId;
+    const timer = setTimeout(() => {
+      const active = document.activeElement as HTMLElement | null;
+      // Never yank focus away from whatever the operator is typing in.
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+      palletRefs.current[firstId]?.focus();
+    }, 120);
     return () => clearTimeout(timer);
-  }, [isLoading, activeTasks.length, isMobile, scanDialogOpen, selectedTask]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoading, activeTasks, isMobile, scanDialogOpen, selectedTask]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePutawayScannerOpenChange = useCallback((open: boolean) => {
     if (!isMobile || scannerFirstPreferred || scannerPreferenceDismissed) return;
