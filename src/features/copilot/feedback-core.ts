@@ -517,6 +517,7 @@ export function rowToTicket(row: Record<string, unknown>): StoredTicket {
     agentBrief: nullableText(row.agent_brief),
     assignedTo: nullableText(row.assigned_to),
     resolution: nullableText(row.resolution),
+    screenshotPath: nullableText(row.screenshot_path),
     submittedAt: nullableText(row.submitted_at),
     resolvedAt: nullableText(row.resolved_at),
     createdAt: text(row.created_at),
