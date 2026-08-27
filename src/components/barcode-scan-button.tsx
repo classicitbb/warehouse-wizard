@@ -545,8 +545,7 @@ export function BarcodeScanButton({
             if (codes.length > 0) {
               if (cancelled) return;
               const detectedCode = codes[0];
-              // A code must hold steady for a full second before it counts —
-              // a passing glimpse of a neighbouring label never inserts itself.
+              // Found codes are accepted instantly (SCAN_DWELL_MS = 0).
               const dwell = updateScanDwell(dwellStateRef.current, detectedCode.rawValue, Date.now());
               dwellStateRef.current = dwell.state;
               setDwellProgress(dwell.progress);
