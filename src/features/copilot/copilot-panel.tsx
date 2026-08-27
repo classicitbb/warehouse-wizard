@@ -99,6 +99,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
+  /** Screen capture in flight for the report the operator is about to file. */
+  const pendingShotRef = useRef<Promise<string | null> | null>(null);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
