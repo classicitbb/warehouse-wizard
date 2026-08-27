@@ -65,6 +65,8 @@ export type TicketDraft = {
   clarifications: Clarification[];
   evidence: TicketEvidence;
   labels: string[];
+  /** Storage path of the screen capture taken when the report was started. */
+  screenshotPath?: string | null;
 };
 
 export type TicketField =
@@ -433,7 +435,7 @@ export function buildAgentBrief(
 const TICKET_COLUMNS =
   "id, ticket_number, kind, status, severity, title, summary, steps_to_reproduce, expected_behavior, " +
   "actual_behavior, route, module, app_version, warehouse_id, reported_by, conversation_id, clarifications, " +
-  "telemetry, agent_brief, labels, assigned_to, resolution, submitted_at, resolved_at, created_at, updated_at";
+  "telemetry, agent_brief, labels, assigned_to, resolution, screenshot_path, submitted_at, resolved_at, created_at, updated_at";
 
 function toRow(draft: TicketDraft) {
   return {
