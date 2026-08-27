@@ -318,7 +318,11 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md">
+      <SheetContent
+        side="right"
+        className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md"
+        {...{ [SCREENSHOT_IGNORE_ATTR]: "" }}
+      >
         <SheetHeader className="border-b border-border px-4 py-3 text-left">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Bot className="h-4 w-4 text-primary" />
