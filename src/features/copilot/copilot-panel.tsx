@@ -32,6 +32,11 @@ import {
   type CopilotConversation,
   type CopilotMessage,
 } from "@/features/copilot/copilot-core";
+import {
+  attachScreenshotToLatestDraft,
+  captureAndUploadTicketScreenshot,
+  SCREENSHOT_IGNORE_ATTR,
+} from "@/features/copilot/screenshot-capture";
 import { recordAction } from "@/lib/habit-tracking";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 
