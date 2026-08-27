@@ -1990,6 +1990,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const canViewUsersRoles = roles.some((r) => ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(r));
+  const canViewSupportRequests = canViewUsersRoles;
   const isDeveloperOrAdmin = roles.some((r) => ["developer", "admin"].includes(r));
   const queryClient = useQueryClient();
   const requestedTab = searchParams.get("tab");
@@ -1999,11 +2000,13 @@ export function SettingsPage() {
     "modules",
     "notifications",
     "environment",
+    ...(canViewSupportRequests ? ["support-requests"] : []),
     ...(isDeveloperOrAdmin ? ["integrations"] : []),
     ...(isEnabled("clients") ? ["client-vars"] : []),
     "about",
     "license",
   ];
+
   const defaultSettingsTab = requestedTab && availableSettingsTabs.includes(requestedTab)
     ? requestedTab
     : "warehouse-structure";
