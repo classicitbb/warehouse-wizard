@@ -2076,6 +2076,9 @@ export function SettingsPage() {
           <TabsTrigger value="modules" className="min-h-9 flex-1 sm:flex-none">Modules</TabsTrigger>
           <TabsTrigger value="notifications" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Bell className="h-3.5 w-3.5" />Notifications</TabsTrigger>
           <TabsTrigger value="environment" className="min-h-9 flex-1 sm:flex-none">Environment</TabsTrigger>
+          {canViewSupportRequests && (
+            <TabsTrigger value="support-requests" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><MessageSquare className="h-3.5 w-3.5" />Support Requests</TabsTrigger>
+          )}
           {isDeveloperOrAdmin && (
             <TabsTrigger value="integrations" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Network className="h-3.5 w-3.5" />Integrations</TabsTrigger>
           )}
@@ -2084,6 +2087,7 @@ export function SettingsPage() {
           )}
           <TabsTrigger value="about" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Info className="h-3.5 w-3.5" />About</TabsTrigger>
           <TabsTrigger value="license" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><FileText className="h-3.5 w-3.5" />License</TabsTrigger>
+
         </TabsList>
 
         <TabsContent value="modules" className="mt-4">
