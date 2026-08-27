@@ -7,6 +7,7 @@ import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationSettingsPanel } from "@/features/shared/notification-settings";
+import { ScannerSettingsPanel } from "@/features/shared/scanner-settings";
 import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, MessageSquare, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, Volume2 } from "lucide-react";
 import {
   DndContext,
@@ -2094,11 +2095,35 @@ export function SettingsPage() {
           <ModulesSettingsPanel isAdmin={isDeveloperOrAdmin} />
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-4 max-w-2xl">
+        <TabsContent value="notifications" className="mt-4 grid max-w-3xl gap-6">
           <NotificationSettingsPanel />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Volume2 className="h-4 w-4" />
+            Audio & Alerts
+          </CardTitle>
+          <CardDescription>Every sound cue used across the app, in one place — play each one to test speaker volume and confirm alerts are audible on the warehouse floor.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2">
+          {AUDIO_TEST_CUES.map((cue) => (
+            <div key={cue.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><cue.icon className="h-3.5 w-3.5 shrink-0" />{cue.label}</p>
+                <p className="text-xs text-muted-foreground">{cue.description}</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={cue.play}>
+                <Play data-icon="inline-start" />
+                Play
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
         </TabsContent>
 
         <TabsContent value="environment" className="mt-4 grid gap-6 xl:grid-cols-2">
+          <ScannerSettingsPanel />
           <Card>
             <CardHeader>
               <CardTitle>Environment & Setup</CardTitle>
@@ -2128,29 +2153,6 @@ export function SettingsPage() {
               </div>
               {!isDeveloperOrAdmin ? <p>Only admins and developers can run Reset All.</p> : null}
               {isDeveloper && <p className="text-xs text-muted-foreground">Delete products is dev-only — removes all products and inventory, preserves warehouse structure.</p>}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Volume2 className="h-4 w-4" />
-                Audio & Alerts
-              </CardTitle>
-              <CardDescription>Every sound cue used across the app, in one place — play each one to test speaker volume and confirm alerts are audible on the warehouse floor.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2 sm:grid-cols-2">
-              {AUDIO_TEST_CUES.map((cue) => (
-                <div key={cue.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><cue.icon className="h-3.5 w-3.5 shrink-0" />{cue.label}</p>
-                    <p className="text-xs text-muted-foreground">{cue.description}</p>
-                  </div>
-                  <Button type="button" size="sm" variant="outline" onClick={cue.play}>
-                    <Play data-icon="inline-start" />
-                    Play
-                  </Button>
-                </div>
-              ))}
             </CardContent>
           </Card>
           <Dialog open={resetOpen} onOpenChange={(o) => { if (!resetMutation.isPending) setResetOpen(o); }}>

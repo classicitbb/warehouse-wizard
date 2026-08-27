@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type ContainerScannerSuccessSample } from "@/lib/container-scanner-learning";
 import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
 import { updateScanDwell, type ScanDwellState } from "@/lib/scan-dwell";
-import { getScanCooldownMs, getScanDwellMs, isWithinScanCooldown } from "@/lib/scan-settings";
+import { getScanDwellMs, isWithinScanCooldown } from "@/lib/scan-settings";
 import { cn } from "@/lib/utils";
 
 export type ScanValidationResult = {
