@@ -456,6 +456,7 @@ function toRow(draft: TicketDraft) {
     clarifications: JSON.parse(JSON.stringify(draft.clarifications)),
     telemetry: JSON.parse(JSON.stringify(draft.evidence)),
     labels: draft.labels,
+    ...(draft.screenshotPath ? { screenshot_path: draft.screenshotPath } : {}),
   };
 }
 
