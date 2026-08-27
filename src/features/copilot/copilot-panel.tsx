@@ -265,11 +265,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   }, [send]);
 
   /** Open the support flow from a button. Starts a fresh thread so the
-   *  interview is not tangled up with whatever was being discussed. */
+   *  interview is not tangled up with whatever was being discussed, and grabs
+   *  a picture of the screen underneath before the conversation moves on. */
   const startSupport = useCallback(
     (kind: keyof typeof SUPPORT_PROMPTS) => {
       if (busy) return;
       recordAction({ action: `copilot.support.${kind}`, route: pathname, outcome: "ok" });
+      if (kind !== "mine") pendingShotRef.current = captureAndUploadTicketScreenshot();
       setConversationId(null);
       setMessages([]);
       setHistoryOpen(false);
@@ -282,6 +284,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   // "Report this" button is the main one.
   useEffect(() =>
     onCopilotReportRequest((request) => {
+      pendingShotRef.current = captureAndUploadTicketScreenshot();
       setOpen(true);
       setConversationId(null);
       setMessages([]);
