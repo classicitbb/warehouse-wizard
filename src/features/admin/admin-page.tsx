@@ -2227,11 +2227,18 @@ export function SettingsPage() {
           </TabsContent>
         )}
 
+        {canViewSupportRequests && (
+          <TabsContent value="support-requests" className="mt-4">
+            <SupportRequestsPanel />
+          </TabsContent>
+        )}
+
         {canViewUsersRoles && (
           <TabsContent value="users-roles" className="mt-4">
             <UsersRolesPage />
           </TabsContent>
         )}
+
 
         <TabsContent value="warehouse-structure" className="mt-4 min-h-0 flex-1 data-[state=active]:flex">
           <div className="flex min-h-0 flex-1 flex-col">
