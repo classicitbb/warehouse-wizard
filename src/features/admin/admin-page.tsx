@@ -176,6 +176,8 @@ import { LocationLabelPage } from "@/components/location-label-page";
 import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
 import { WarehouseStructureTab } from "@/components/warehouse-tree-view";
 import { ReorderForecastSettingsPanel } from "@/features/shared/reorder-forecast-settings";
+import { SupportRequestsPanel } from "@/features/admin/support-requests-panel";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
