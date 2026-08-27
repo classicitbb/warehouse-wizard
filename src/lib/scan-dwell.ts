@@ -1,11 +1,10 @@
-// One-second dwell for live camera scans.
+// Live camera scans accept the first decoded value instantly.
 //
-// A decoded value must stay on camera continuously for `SCAN_DWELL_MS` before
-// it is accepted. A different value restarts the timer; losing the code
-// cancels it. This keeps a passing glimpse of a neighbouring label from
-// inserting itself, and gives the operator a visible "hold steady" beat.
+// `SCAN_DWELL_MS` is 0: a found code is accepted on first sight. The dwell
+// machinery below still supports a hold-steady delay if a future scanner
+// needs it — pass an explicit dwell to `updateScanDwell`.
 
-export const SCAN_DWELL_MS = 1000;
+export const SCAN_DWELL_MS = 0;
 
 export type ScanDwellState = {
   value: string;
