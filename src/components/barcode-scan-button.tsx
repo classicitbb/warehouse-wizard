@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type ContainerScannerSuccessSample } from "@/lib/container-scanner-learning";
 import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
 import { updateScanDwell, type ScanDwellState } from "@/lib/scan-dwell";
+import { getScanDwellMs, isWithinScanCooldown } from "@/lib/scan-settings";
 import { cn } from "@/lib/utils";
 
 export type ScanValidationResult = {
@@ -238,6 +239,7 @@ export function BarcodeScanButton({
   const pendingContainerSuccessRef = useRef<{ event: ScanTelemetryEvent; sample: ContainerScannerSuccessSample } | null>(null);
   const aiBusyRef = useRef(false);
   const lastAiCallRef = useRef(0);
+  const lastAcceptedRef = useRef<{ value: string; at: number } | null>(null);
 
   const updateOpen = useCallback((nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -271,6 +273,7 @@ export function BarcodeScanButton({
       }
       pendingContainerSuccessRef.current = null;
     }
+    lastAcceptedRef.current = { value, at: Date.now() };
     setDetected(value);
     setPendingScan(null);
     pendingScanRef.current = null;
@@ -295,6 +298,12 @@ export function BarcodeScanButton({
 
   const handleScanValue = useCallback((rawValue: string, source: "barcode" | "text" | "ocr", region?: NormalizedScanRegion) => {
     const candidate = getScanCandidate(rawValue, validateScan);
+    if (candidate.valid && candidate.value && isWithinScanCooldown(lastAcceptedRef.current, candidate.value, Date.now())) {
+      // Same code re-read straight after a successful scan — ignore it so a
+      // double trigger cannot submit the value twice.
+      setScanMessage(`Already scanned ${candidate.value} — wait a moment before scanning it again.`);
+      return false;
+    }
     if (!candidate.valid) {
       if (validateScan || source !== "barcode") {
         setScanMessage(scanMode === "containerNumber"
@@ -545,8 +554,8 @@ export function BarcodeScanButton({
             if (codes.length > 0) {
               if (cancelled) return;
               const detectedCode = codes[0];
-              // Found codes are accepted instantly (SCAN_DWELL_MS = 0).
-              const dwell = updateScanDwell(dwellStateRef.current, detectedCode.rawValue, Date.now());
+              // Dwell is configurable per device in Settings > Environment (default 0 = instant).
+              const dwell = updateScanDwell(dwellStateRef.current, detectedCode.rawValue, Date.now(), getScanDwellMs());
               dwellStateRef.current = dwell.state;
               setDwellProgress(dwell.progress);
               if (!dwell.ready) {
