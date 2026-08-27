@@ -608,3 +608,31 @@ export async function listTicketQueue(limit = 50): Promise<StoredTicket[]> {
   if (error) throw new Error(formatSupabaseError(error, "Could not load the ticket queue."));
   return (data ?? []).map(rowToTicket);
 }
+
+/** All tickets the caller is allowed to see, newest first. */
+export async function listAllTickets(limit = 200): Promise<StoredTicket[]> {
+  const { data, error } = await db("operator_tickets")
+    .select(TICKET_COLUMNS)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(formatSupabaseError(error, "Could not load support requests."));
+  return (data ?? []).map(rowToTicket);
+}
+
+export async function updateTicketStatus(
+  ticketId: string,
+  status: TicketStatus,
+  context?: { assignedTo?: string | null; resolution?: string | null },
+): Promise<StoredTicket> {
+  const payload: Record<string, unknown> = { status };
+  if (context?.assignedTo !== undefined) payload.assigned_to = context.assignedTo;
+  if (context?.resolution !== undefined) payload.resolution = context.resolution;
+  const { data, error } = await db("operator_tickets")
+    .update(payload)
+    .eq("id", ticketId)
+    .select(TICKET_COLUMNS)
+    .single();
+  if (error) throw new Error(formatSupabaseError(error, "Could not update ticket status."));
+  return rowToTicket(data);
+}
+
