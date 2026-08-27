@@ -223,6 +223,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           trace: result.trace,
         };
         setMessages((prev) => [...prev, assistantMessage]);
+        // The screen capture taken when the report was started belongs to the
+        // draft the copilot has just opened.
+        if (result.trace?.some((entry) => entry.tool === "start_problem_report") && pendingShotRef.current) {
+          const shot = pendingShotRef.current;
+          pendingShotRef.current = null;
+          void shot.then((path) => (path ? attachScreenshotToLatestDraft(path) : false));
+        }
         if (activeConversationId && user?.id) {
           void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: assistantMessage })
             .then(() => loadCopilotConversations(user.id).then(setConversations))
