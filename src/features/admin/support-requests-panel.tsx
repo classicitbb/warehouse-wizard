@@ -475,6 +475,13 @@ export function SupportRequestsPanel() {
                 </div>
               )}
 
+              {selectedTicket.screenshotPath && (
+                <div>
+                  <h4 className="mb-1 text-sm font-medium">Screen at the time of the report</h4>
+                  <TicketScreenshot path={selectedTicket.screenshotPath} />
+                </div>
+              )}
+
               {selectedTicket.agentBrief && (
                 <div>
                   <h4 className="mb-1 text-sm font-medium">Agent brief</h4>
