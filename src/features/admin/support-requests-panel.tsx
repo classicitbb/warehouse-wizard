@@ -54,6 +54,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { signedScreenshotUrl } from "@/features/copilot/screenshot-capture";
+
+/** Private capture, so it is fetched through a short-lived signed link. */
+function TicketScreenshot({ path }: { path: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["ticket-screenshot", path],
+    queryFn: () => signedScreenshotUrl(path),
+    staleTime: 30 * 60 * 1000,
+  });
+
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading screenshot…</p>;
+  if (isError || !data) return <p className="text-sm text-muted-foreground">Screenshot is unavailable.</p>;
+  return (
+    <a href={data} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border">
+      <img src={data} alt="Screen captured when the report was filed" className="w-full" loading="lazy" />
+    </a>
+  );
+}
+
 
 const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
   { value: "open", label: "Open" },
@@ -472,6 +491,13 @@ export function SupportRequestsPanel() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {selectedTicket.screenshotPath && (
+                <div>
+                  <h4 className="mb-1 text-sm font-medium">Screen at the time of the report</h4>
+                  <TicketScreenshot path={selectedTicket.screenshotPath} />
                 </div>
               )}
 

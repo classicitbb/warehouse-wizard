@@ -32,6 +32,11 @@ import {
   type CopilotConversation,
   type CopilotMessage,
 } from "@/features/copilot/copilot-core";
+import {
+  attachScreenshotToLatestDraft,
+  captureAndUploadTicketScreenshot,
+  SCREENSHOT_IGNORE_ATTR,
+} from "@/features/copilot/screenshot-capture";
 import { recordAction } from "@/lib/habit-tracking";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 
@@ -94,6 +99,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
+  /** Screen capture in flight for the report the operator is about to file. */
+  const pendingShotRef = useRef<Promise<string | null> | null>(null);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -218,6 +225,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           trace: result.trace,
         };
         setMessages((prev) => [...prev, assistantMessage]);
+        // The screen capture taken when the report was started belongs to the
+        // draft the copilot has just opened.
+        if (result.trace?.some((entry) => entry.tool === "start_problem_report") && pendingShotRef.current) {
+          const shot = pendingShotRef.current;
+          pendingShotRef.current = null;
+          void shot.then((path) => (path ? attachScreenshotToLatestDraft(path) : false));
+        }
         if (activeConversationId && user?.id) {
           void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: assistantMessage })
             .then(() => loadCopilotConversations(user.id).then(setConversations))
@@ -251,11 +265,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   }, [send]);
 
   /** Open the support flow from a button. Starts a fresh thread so the
-   *  interview is not tangled up with whatever was being discussed. */
+   *  interview is not tangled up with whatever was being discussed, and grabs
+   *  a picture of the screen underneath before the conversation moves on. */
   const startSupport = useCallback(
     (kind: keyof typeof SUPPORT_PROMPTS) => {
       if (busy) return;
       recordAction({ action: `copilot.support.${kind}`, route: pathname, outcome: "ok" });
+      if (kind !== "mine") pendingShotRef.current = captureAndUploadTicketScreenshot();
       setConversationId(null);
       setMessages([]);
       setHistoryOpen(false);
@@ -268,6 +284,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   // "Report this" button is the main one.
   useEffect(() =>
     onCopilotReportRequest((request) => {
+      pendingShotRef.current = captureAndUploadTicketScreenshot();
       setOpen(true);
       setConversationId(null);
       setMessages([]);
@@ -301,7 +318,11 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md">
+      <SheetContent
+        side="right"
+        className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md"
+        {...{ [SCREENSHOT_IGNORE_ATTR]: "" }}
+      >
         <SheetHeader className="border-b border-border px-4 py-3 text-left">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Bot className="h-4 w-4 text-primary" />

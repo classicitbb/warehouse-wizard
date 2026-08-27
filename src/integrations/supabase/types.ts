@@ -1926,6 +1926,7 @@ export type Database = {
           resolution: string | null
           resolved_at: string | null
           route: string | null
+          screenshot_path: string | null
           severity: string
           status: string
           steps_to_reproduce: string | null
@@ -1955,6 +1956,7 @@ export type Database = {
           resolution?: string | null
           resolved_at?: string | null
           route?: string | null
+          screenshot_path?: string | null
           severity?: string
           status?: string
           steps_to_reproduce?: string | null
@@ -1984,6 +1986,7 @@ export type Database = {
           resolution?: string | null
           resolved_at?: string | null
           route?: string | null
+          screenshot_path?: string | null
           severity?: string
           status?: string
           steps_to_reproduce?: string | null
