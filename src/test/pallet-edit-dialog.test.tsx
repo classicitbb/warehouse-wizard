@@ -13,6 +13,7 @@ const wmsMocks = vi.hoisted(() => ({
     replacementPalletBarcode: "PLT-NEW",
     formerLocationCode: "A-01-L01-P1",
   })),
+  findPendingInventoryPalletCorrection: vi.fn(async (): Promise<any> => null),
   cancelInventoryPalletCorrection: vi.fn(async () => undefined),
   saveInventoryPalletCorrectionAsDraft: vi.fn(async () => ({
     draftId: "draft-1",
