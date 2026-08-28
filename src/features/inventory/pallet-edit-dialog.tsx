@@ -36,6 +36,7 @@ import {
   cancelInventoryPalletCorrection,
   completeInventoryPalletCorrection,
   completeInventoryPalletCorrectionInPlace,
+  findPendingInventoryPalletCorrection,
   saveInventoryPalletCorrectionAsDraft,
 } from "@/lib/wms-core";
 
@@ -57,6 +58,8 @@ export type PalletEditTarget = {
   receiptReference?: string | null;
   packaging?: string | null;
   temperatureClass?: string;
+  /** True when a previous session left a correction open on this pallet. */
+  correctionPending?: boolean;
 };
 
 function parseIsoDate(value: string) {
@@ -137,7 +140,10 @@ export function PalletEditDialog({
   const ensureDraft = useCallback(async () => {
     if (draftId) return { draftId, replacementPalletBarcode: replacementBarcode };
     if (!target?.balanceId) throw new Error("No pallet selected.");
-    const result = await beginInventoryPalletCorrection(target.balanceId);
+    // A correction left half-finished earlier is resumed rather than started
+    // again — the backend refuses a second draft while one is pending.
+    const existing = await findPendingInventoryPalletCorrection(target.balanceId);
+    const result = existing ?? (await beginInventoryPalletCorrection(target.balanceId));
     setDraftId(result.draftId);
     setReplacementBarcode(result.replacementPalletBarcode);
     void queryClient.invalidateQueries({ queryKey: ["inventory-detail"] });
@@ -160,11 +166,19 @@ export function PalletEditDialog({
   }
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelInventoryPalletCorrection(draftId, {
-      quantity: quantityEntered ? Number(quantity) : null,
-      expiryDate: expiryTouched ? expiry || null : null,
-      changed: hasChange,
-    }),
+    mutationFn: async () => {
+      // Cancel must also release a correction that a previous session left
+      // pending, so resolve the open draft before backing it out.
+      const openDraftId = draftId || (target?.balanceId
+        ? (await findPendingInventoryPalletCorrection(target.balanceId))?.draftId ?? ""
+        : "");
+      if (!openDraftId) return;
+      await cancelInventoryPalletCorrection(openDraftId, {
+        quantity: quantityEntered ? Number(quantity) : null,
+        expiryDate: expiryTouched ? expiry || null : null,
+        changed: hasChange,
+      });
+    },
     onSuccess: async () => {
       toast.success(`Pallet ${target?.palletBarcode ?? ""} left unchanged.`.trim());
       onOpenChange(false);
@@ -238,7 +252,7 @@ export function PalletEditDialog({
     updateInPlaceMutation.isPending || replaceMutation.isPending;
 
   function handleCancel() {
-    if (!draftId) {
+    if (!draftId && !target?.correctionPending) {
       onOpenChange(false);
       resetSession();
       return;

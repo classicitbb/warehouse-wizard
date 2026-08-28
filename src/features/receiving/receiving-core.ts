@@ -641,6 +641,28 @@ export async function beginInventoryPalletCorrection(inventoryBalanceId: string)
 }
 
 /**
+ * A correction that was started and left half-finished. Reopening the edit
+ * needs to pick this draft back up — `begin_inventory_pallet_correction`
+ * refuses to start a second one while the pallet is flagged pending.
+ */
+export async function findPendingInventoryPalletCorrection(
+  inventoryBalanceId: string,
+): Promise<{ draftId: string; replacementPalletBarcode: string } | null> {
+  if (!inventoryBalanceId) return null;
+  const { data, error } = await db("receipts")
+    .select("id, draft_pallet_barcode, notes")
+    .eq("status", "draft")
+    .ilike("notes", `%${inventoryBalanceId}%`)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(formatSupabaseError(error, "Could not look up the open pallet correction."));
+  const row = data as { id?: string; draft_pallet_barcode?: string | null } | null;
+  if (!row?.id) return null;
+  return { draftId: row.id, replacementPalletBarcode: row.draft_pallet_barcode ?? "" };
+}
+
+/**
  * Backing out of a pallet edit. The pallet returns to its pre-edit state; the
  * only trace is an audit record, which carries whatever the operator had typed
  * so an abandoned edit is still answerable later.
