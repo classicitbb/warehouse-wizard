@@ -1573,9 +1573,16 @@ export function ReceivingPage() {
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "total", e)}
                               onChange={(e) => {
-                                totalTypedRefs.current[line.id] = e.currentTarget.value.trim() !== "";
-                                updateLine(line.id, { total_quantity: e.currentTarget.value });
+                                const nextValue = e.currentTarget.value;
+                                totalTypedRefs.current[line.id] = nextValue.trim() !== "";
+                                // Recalculate pallets from the (learned or typed) qty per pallet.
+                                updateLine(
+                                  line.id,
+                                  { total_quantity: nextValue },
+                                  nextValue.trim() === "" ? undefined : "total",
+                                );
                               }}
+
                             />
                           </div>
                           <div className="grid min-w-0 gap-1.5">
