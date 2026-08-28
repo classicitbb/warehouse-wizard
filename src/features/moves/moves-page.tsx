@@ -234,6 +234,19 @@ export function LocationMovesPage() {
     // Run once on mount; later navigations re-run only when params change.
   }, [searchParams]);
 
+  // "from" carries the screen that sent us here (e.g. the Inventory product the
+  // operator was viewing) so Cancel Move can take them straight back to it.
+  const returnTo = searchParams.get("from");
+
+  const cancelNewMove = useCallback(() => {
+    setNewPallet("");
+    setNewLocation("");
+    setNewReason("");
+    setNewValidation(null);
+    setNewBaySelectorOpen(false);
+    if (returnTo && returnTo.startsWith("/")) navigate(returnTo);
+  }, [navigate, returnTo]);
+
   const { data: warehousesForBrowse = [] } = useQuery<Array<{ id: string; code: string; name: string }>>({
     queryKey: ["warehouses", "moves-bay-browser"],
     queryFn: () => listRecords("warehouses", "id, code, name") as any,
@@ -553,14 +566,24 @@ export function LocationMovesPage() {
             value={newReason}
             onChange={(e) => setNewReason(e.target.value)}
           />
-          <Button
-            className="w-full"
-            disabled={directMoveMutation.isPending || !newPallet || !newLocation || newValidating || (!!newValidation && !newValidation.valid) || Boolean(newPalletError) || Boolean(newLocationError)}
-            onClick={() => completeNewMove()}
-          >
-            {directMoveMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-            {newValidation && !newValidation.valid ? "Location Invalid" : "Complete Move"}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              className="w-full"
+              disabled={directMoveMutation.isPending || !newPallet || !newLocation || newValidating || (!!newValidation && !newValidation.valid) || Boolean(newPalletError) || Boolean(newLocationError)}
+              onClick={() => completeNewMove()}
+            >
+              {directMoveMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              {newValidation && !newValidation.valid ? "Location Invalid" : "Complete Move"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={directMoveMutation.isPending}
+              onClick={cancelNewMove}
+            >
+              Cancel Move
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

@@ -7,6 +7,7 @@ import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type Cont
 import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
 import { updateScanDwell, type ScanDwellState } from "@/lib/scan-dwell";
 import { getScanDwellMs, isWithinScanCooldown } from "@/lib/scan-settings";
+import { getScanTargetRect, isRegionInsideTarget } from "@/lib/scan-target";
 import { cn } from "@/lib/utils";
 
 export type ScanValidationResult = {
@@ -220,6 +221,7 @@ export function BarcodeScanButton({
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [activeScanRegion, setActiveScanRegion] = useState<NormalizedScanRegion | null>(null);
   const [dwellProgress, setDwellProgress] = useState<number | null>(null);
+  const [offTargetCode, setOffTargetCode] = useState<string | null>(null);
   const pendingScanRef = useRef<PendingScan | null>(null);
   const dwellStateRef = useRef<ScanDwellState>(null);
   const acceptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,6 +483,7 @@ export function BarcodeScanButton({
       pendingScanRef.current = null;
       dwellStateRef.current = null;
       setDwellProgress(null);
+      setOffTargetCode(null);
       ocrBusyRef.current = false;
       scanStartedAtRef.current = 0;
       attemptCountRef.current = 0;
@@ -553,7 +556,25 @@ export function BarcodeScanButton({
               : [];
             if (codes.length > 0) {
               if (cancelled) return;
+              const video = videoRef.current;
               const detectedCode = codes[0];
+              const detectedRegion = getDetectedRegion(detectedCode, video);
+              const frameWidth = video.videoWidth || video.clientWidth || 0;
+              const frameHeight = video.videoHeight || video.clientHeight || 0;
+              const target = getScanTargetRect(
+                scanMode,
+                frameWidth > 0 && frameHeight > 0 ? frameWidth / frameHeight : undefined,
+              );
+              // The code is recognised anywhere in frame, but only read when it
+              // sits inside the on-screen target square.
+              if (!isRegionInsideTarget(detectedRegion, target)) {
+                setOffTargetCode(detectedCode.rawValue);
+                dwellStateRef.current = null;
+                setDwellProgress(null);
+                rafRef.current = requestAnimationFrame(scan);
+                return;
+              }
+              setOffTargetCode(null);
               // Dwell is configurable per device in Settings > Environment (default 0 = instant).
               const dwell = updateScanDwell(dwellStateRef.current, detectedCode.rawValue, Date.now(), getScanDwellMs());
               dwellStateRef.current = dwell.state;
@@ -563,11 +584,13 @@ export function BarcodeScanButton({
                 return;
               }
               setDwellProgress(null);
-              const detectedRegion = getDetectedRegion(detectedCode, videoRef.current);
               if (handleScanValue(detectedCode.rawValue, "barcode", detectedRegion ?? undefined)) return;
-            } else if (dwellStateRef.current) {
-              dwellStateRef.current = null;
-              setDwellProgress(null);
+            } else {
+              setOffTargetCode(null);
+              if (dwellStateRef.current) {
+                dwellStateRef.current = null;
+                setDwellProgress(null);
+              }
             }
 
             const now = Date.now();
@@ -693,14 +716,21 @@ export function BarcodeScanButton({
                 >
                   <div className={cn(
                     "absolute inset-0 rounded border border-white/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] transition-all duration-200 ease-out",
-                    pendingScan && "shadow-[0_0_0_9999px_rgba(22,163,74,0.25)]",
+                    (pendingScan || offTargetCode) && "shadow-[0_0_0_9999px_rgba(22,163,74,0.25)]",
+                    offTargetCode && !pendingScan && "border-green-400/70 ring-2 ring-green-400/70",
                   )} />
-                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
-                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
-                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
-                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
                 </div>
               </div>
+              {offTargetCode && !pendingScan && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/75 px-3 py-2">
+                  <p className="text-xs font-medium text-green-300">Code found — move it into the square</p>
+                  <p className="break-all font-mono text-xs text-white/70">{offTargetCode}</p>
+                </div>
+              )}
               {dwellProgress != null && !pendingScan && (
                 <div className="absolute bottom-0 left-0 right-0 bg-black/75 px-3 py-2">
                   <p className="mb-1 text-xs font-medium text-amber-300">Hold steady…</p>
