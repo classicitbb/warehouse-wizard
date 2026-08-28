@@ -553,14 +553,24 @@ export function LocationMovesPage() {
             value={newReason}
             onChange={(e) => setNewReason(e.target.value)}
           />
-          <Button
-            className="w-full"
-            disabled={directMoveMutation.isPending || !newPallet || !newLocation || newValidating || (!!newValidation && !newValidation.valid) || Boolean(newPalletError) || Boolean(newLocationError)}
-            onClick={() => completeNewMove()}
-          >
-            {directMoveMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-            {newValidation && !newValidation.valid ? "Location Invalid" : "Complete Move"}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              className="w-full"
+              disabled={directMoveMutation.isPending || !newPallet || !newLocation || newValidating || (!!newValidation && !newValidation.valid) || Boolean(newPalletError) || Boolean(newLocationError)}
+              onClick={() => completeNewMove()}
+            >
+              {directMoveMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              {newValidation && !newValidation.valid ? "Location Invalid" : "Complete Move"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={directMoveMutation.isPending}
+              onClick={cancelNewMove}
+            >
+              Cancel Move
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
