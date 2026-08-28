@@ -9,23 +9,43 @@ const PopoverTrigger = PopoverPrimitive.Trigger;
 
 const PopoverAnchor = PopoverPrimitive.Anchor;
 
+/**
+ * When a popover opens from inside a modal dialog, portalling to <body> puts it
+ * outside the dialog's scroll lock, so wheel events over the popover get
+ * cancelled and inner lists cannot scroll. Portal into the open dialog instead.
+ */
+function useDialogPortalContainer() {
+  const [container, setContainer] = React.useState<HTMLElement | undefined>(undefined);
+  React.useEffect(() => {
+    const dialogs = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="dialog"][data-state="open"]'),
+    ).filter((node) => !node.closest("[data-radix-popper-content-wrapper]"));
+    setContainer(dialogs[dialogs.length - 1]);
+  }, []);
+  return container;
+}
+
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
-    <PopoverPrimitive.Content
-      ref={ref}
-      align={align}
-      sideOffset={sideOffset}
-      className={cn(
-        "z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className,
-      )}
-      {...props}
-    />
-  </PopoverPrimitive.Portal>
-));
+  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & { container?: HTMLElement | null }
+>(({ className, align = "center", sideOffset = 4, container, ...props }, ref) => {
+  const dialogContainer = useDialogPortalContainer();
+  return (
+    <PopoverPrimitive.Portal container={container ?? dialogContainer}>
+      <PopoverPrimitive.Content
+        ref={ref}
+        align={align}
+        sideOffset={sideOffset}
+        className={cn(
+          "z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          className,
+        )}
+        {...props}
+      />
+    </PopoverPrimitive.Portal>
+  );
+});
+
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
 export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };
