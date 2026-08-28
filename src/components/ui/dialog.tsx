@@ -1,8 +1,10 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { LifeBuoy, X } from "lucide-react";
 
+import { requestCopilotReport } from "@/features/copilot/copilot-core";
 import { cn } from "@/lib/utils";
+
 
 const Dialog = DialogPrimitive.Root;
 
