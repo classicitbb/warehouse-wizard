@@ -555,7 +555,25 @@ export function BarcodeScanButton({
               : [];
             if (codes.length > 0) {
               if (cancelled) return;
+              const video = videoRef.current;
               const detectedCode = codes[0];
+              const detectedRegion = getDetectedRegion(detectedCode, video);
+              const frameWidth = video.videoWidth || video.clientWidth || 0;
+              const frameHeight = video.videoHeight || video.clientHeight || 0;
+              const target = getScanTargetRect(
+                scanMode,
+                frameWidth > 0 && frameHeight > 0 ? frameWidth / frameHeight : undefined,
+              );
+              // The code is recognised anywhere in frame, but only read when it
+              // sits inside the on-screen target square.
+              if (!isRegionInsideTarget(detectedRegion, target)) {
+                setOffTargetCode(detectedCode.rawValue);
+                dwellStateRef.current = null;
+                setDwellProgress(null);
+                rafRef.current = requestAnimationFrame(scan);
+                return;
+              }
+              setOffTargetCode(null);
               // Dwell is configurable per device in Settings > Environment (default 0 = instant).
               const dwell = updateScanDwell(dwellStateRef.current, detectedCode.rawValue, Date.now(), getScanDwellMs());
               dwellStateRef.current = dwell.state;
@@ -565,11 +583,13 @@ export function BarcodeScanButton({
                 return;
               }
               setDwellProgress(null);
-              const detectedRegion = getDetectedRegion(detectedCode, videoRef.current);
               if (handleScanValue(detectedCode.rawValue, "barcode", detectedRegion ?? undefined)) return;
-            } else if (dwellStateRef.current) {
-              dwellStateRef.current = null;
-              setDwellProgress(null);
+            } else {
+              setOffTargetCode(null);
+              if (dwellStateRef.current) {
+                dwellStateRef.current = null;
+                setDwellProgress(null);
+              }
             }
 
             const now = Date.now();
