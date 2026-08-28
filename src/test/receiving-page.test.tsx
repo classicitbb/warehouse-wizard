@@ -405,15 +405,47 @@ describe("ReceivingPage", () => {
     await waitFor(() => expect(perPalletInput).toHaveFocus());
   });
 
-  it("prefills learned quantity per pallet after one prior product observation", async () => {
+  it("holds the learned quantity per pallet until a total received is entered", async () => {
     aiMocks.getProductPalletQtyHint.mockResolvedValueOnce({ suggestedQty: 24, confidence: 0.05, sampleCount: 1 });
     renderReceivingPage();
 
     const dialog = await openShipmentDialog();
     await selectFlourProduct(dialog);
 
+    await waitFor(() => expect(aiMocks.getProductPalletQtyHint).toHaveBeenCalled());
+    expect(within(dialog).getByLabelText("Qty per pallet")).toHaveDisplayValue("1");
+    expect(within(dialog).queryByText(/Suggested from/)).not.toBeInTheDocument();
+  });
+
+  it("prefills learned quantity per pallet and pallet count once the total received is typed", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValueOnce({ suggestedQty: 24, confidence: 0.05, sampleCount: 1 });
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+    await waitFor(() => expect(aiMocks.getProductPalletQtyHint).toHaveBeenCalled());
+
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+
     await waitFor(() => expect(within(dialog).getByLabelText("Qty per pallet")).toHaveDisplayValue("24"));
+    expect(within(dialog).getByLabelText("Pallets")).toHaveDisplayValue("4");
     expect(within(dialog).getByText("Suggested from 1 prior pallet.")).toBeInTheDocument();
+  });
+
+  it("keeps a manually typed quantity per pallet when the total received changes", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValueOnce({ suggestedQty: 24, confidence: 0.05, sampleCount: 1 });
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+    await waitFor(() => expect(aiMocks.getProductPalletQtyHint).toHaveBeenCalled());
+
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "50" } });
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+
+    await waitFor(() => expect(within(dialog).getByLabelText("Total received")).toHaveDisplayValue("100"));
+    expect(within(dialog).getByLabelText("Qty per pallet")).toHaveDisplayValue("50");
+    expect(within(dialog).queryByText(/Suggested from/)).not.toBeInTheDocument();
   });
 
   it("saves a shipment draft and opens the print dialog for Save & Receive", async () => {

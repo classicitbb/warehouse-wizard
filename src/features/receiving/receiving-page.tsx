@@ -373,6 +373,7 @@ export function ReceivingPage() {
   const expiryRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const shipmentLineRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const perPalletManualProductRefs = useRef<Record<string, string>>({});
+  const totalTypedRefs = useRef<Record<string, boolean>>({});
   const containerAutoAdvanceRef = useRef("");
   const [palletQtyHints, setPalletQtyHints] = useState<Record<string, PalletQtyHint | null>>({});
   const [pendingProductCommit, setPendingProductCommit] = useState<Record<string, boolean>>({});
@@ -552,6 +553,33 @@ export function ReceivingPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [shipmentOpen, shipmentEntryMode]);
+
+  // A learned qty per pallet is applied only after the total received is typed,
+  // so the suggestion lands together with a pallet count that means something.
+  useEffect(() => {
+    if (!shipmentOpen) return;
+    const pendingIds = new Set(
+      shipmentForm.lines
+        .filter((line) => {
+          const hint = palletQtyHints[line.id];
+          if (!hint || !line.product_id) return false;
+          if (perPalletManualProductRefs.current[line.id] === line.product_id) return false;
+          if (!totalTypedRefs.current[line.id]) return false;
+          if (Number(line.total_quantity) <= 0) return false;
+          return Number(line.quantity_per_pallet) !== hint.suggestedQty;
+        })
+        .map((line) => line.id),
+    );
+    if (pendingIds.size === 0) return;
+    setShipmentForm((current) => ({
+      ...current,
+      lines: current.lines.map((line) => {
+        const hint = palletQtyHints[line.id];
+        if (!hint || !pendingIds.has(line.id)) return line;
+        return distributeShipmentLine({ ...line, quantity_per_pallet: hint.suggestedQty }, "perPallet");
+      }),
+    }));
+  }, [shipmentOpen, shipmentForm.lines, palletQtyHints]);
 
   useEffect(() => {
     if (!shipmentOpen || !activeShipmentLineId) return;
@@ -841,6 +869,7 @@ export function ReceivingPage() {
     setShipmentContainerTouched(false);
     setShipmentContainerScanWarning(null);
     perPalletManualProductRefs.current = {};
+    totalTypedRefs.current = {};
     containerAutoAdvanceRef.current = "";
     setPalletQtyHints({});
     setPendingProductCommit({});
@@ -866,6 +895,7 @@ export function ReceivingPage() {
     setShipmentContainerTouched(false);
     setShipmentContainerScanWarning(null);
     perPalletManualProductRefs.current = {};
+    totalTypedRefs.current = {};
     containerAutoAdvanceRef.current = "";
     setPalletQtyHints({});
     setPendingProductCommit({});
@@ -903,6 +933,7 @@ export function ReceivingPage() {
     setShipmentContainerTouched(draftEntryMode === "shipment" && Boolean(values.container_number));
     setShipmentContainerScanWarning(null);
     perPalletManualProductRefs.current = {};
+    totalTypedRefs.current = {};
     containerAutoAdvanceRef.current = "";
     setPalletQtyHints({});
     setPendingProductCommit({});
@@ -959,6 +990,7 @@ export function ReceivingPage() {
     setOpenShipmentDetails((current) => ({ ...current, [lineId]: false }));
     setActiveShipmentLineId(lineId);
     delete perPalletManualProductRefs.current[lineId];
+    delete totalTypedRefs.current[lineId];
   }
 
   function addShipmentLine() {
@@ -987,17 +1019,11 @@ export function ReceivingPage() {
     const warehouseId = shipmentForm.warehouse_id || currentWarehouseId;
     if (!value || !warehouseId) return;
 
+    // The hint is only stored here. Applying it waits for a total received,
+    // because a suggested qty per pallet is only useful once there is a total
+    // to split into pallets.
     const hint = await getProductPalletQtyHint(value, warehouseId);
     setPalletQtyHints((current) => ({ ...current, [line.id]: hint }));
-    if (!hint || perPalletManualProductRefs.current[line.id] === value) return;
-
-    setShipmentForm((current) => ({
-      ...current,
-      lines: current.lines.map((currentLine) => {
-        if (currentLine.id !== line.id || currentLine.product_id !== value) return currentLine;
-        return distributeShipmentLine({ ...currentLine, quantity_per_pallet: hint.suggestedQty }, "perPallet");
-      }),
-    }));
   }
 
   function focusShipmentField(lineId: string, field: "total" | "perPallet" | "count" | "expiry") {
@@ -1432,6 +1458,12 @@ export function ReceivingPage() {
                   const expiryRequired = productRequiresExpiry(selectedProduct);
                   const allocatedQuantity = Math.max(0, Number(line.quantity_per_pallet || 0) * Number(line.pallet_count || 0));
                   const productCommitPending = Boolean(pendingProductCommit[line.id] && line.product_id);
+                  const palletQtyHint = palletQtyHints[line.id];
+                  const palletQtyHintApplied = Boolean(
+                    palletQtyHint
+                    && Number(line.total_quantity) > 0
+                    && Number(line.quantity_per_pallet) === palletQtyHint.suggestedQty,
+                  );
                   const isCollapsed = shipmentForm.lines.length > 1 && Boolean(line.product_id) && activeShipmentLineId !== line.id;
                   return (
                     <div ref={(node) => { shipmentLineRefs.current[line.id] = node; }} key={line.id} className="grid min-w-0 scroll-mt-3 gap-2 rounded-lg border border-border p-2 sm:gap-3 sm:p-3">
@@ -1540,7 +1572,10 @@ export function ReceivingPage() {
                               aria-label="Total received"
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "total", e)}
-                              onChange={(e) => updateLine(line.id, { total_quantity: e.currentTarget.value })}
+                              onChange={(e) => {
+                                totalTypedRefs.current[line.id] = e.currentTarget.value.trim() !== "";
+                                updateLine(line.id, { total_quantity: e.currentTarget.value });
+                              }}
                             />
                           </div>
                           <div className="grid min-w-0 gap-1.5">
@@ -1566,9 +1601,9 @@ export function ReceivingPage() {
                                 );
                               }}
                             />
-                            {palletQtyHints[line.id] ? (
+                            {palletQtyHintApplied ? (
                               <p className="text-xs text-muted-foreground">
-                                Suggested from {palletQtyHints[line.id]?.sampleCount} prior pallet{palletQtyHints[line.id]?.sampleCount === 1 ? "" : "s"}.
+                                Suggested from {palletQtyHint?.sampleCount} prior pallet{palletQtyHint?.sampleCount === 1 ? "" : "s"}.
                               </p>
                             ) : null}
                           </div>
