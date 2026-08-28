@@ -137,7 +137,10 @@ export function PalletEditDialog({
   const ensureDraft = useCallback(async () => {
     if (draftId) return { draftId, replacementPalletBarcode: replacementBarcode };
     if (!target?.balanceId) throw new Error("No pallet selected.");
-    const result = await beginInventoryPalletCorrection(target.balanceId);
+    // A correction left half-finished earlier is resumed rather than started
+    // again — the backend refuses a second draft while one is pending.
+    const existing = await findPendingInventoryPalletCorrection(target.balanceId);
+    const result = existing ?? (await beginInventoryPalletCorrection(target.balanceId));
     setDraftId(result.draftId);
     setReplacementBarcode(result.replacementPalletBarcode);
     void queryClient.invalidateQueries({ queryKey: ["inventory-detail"] });
