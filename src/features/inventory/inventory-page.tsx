@@ -603,13 +603,22 @@ export function InventorySearchPage() {
                 )}
               </TableBody>
             </Table>
+            <div ref={loadMoreSentinelRef} aria-hidden className="h-px w-full" />
             {hasMoreRecords ? (
               <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
-                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
-                  Load 50 more
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isFetching}>
+                  {isFetching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading more…
+                    </>
+                  ) : (
+                    "Load 50 more"
+                  )}
                 </Button>
               </div>
             ) : null}
+
           </TableFrame>
         </CardContent>
       </Card>
