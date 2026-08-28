@@ -255,7 +255,7 @@ export function InventorySearchPage() {
     saveInventorySearchState({ search: searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric });
   }, [ageBucket, expiryWindow, includeHistoric, searchTerm, status, warehouseId]);
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading, isFetching } = useQuery({
     queryKey: [
       "inventory-search", searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric,
       structureZoneCode, structureLocation,
@@ -272,6 +272,9 @@ export function InventorySearchPage() {
       includeHistoric,
       limit: searchTerm.trim() ? undefined : visibleRecordLimit + 1,
     }),
+    // Keep the rows already on screen visible while the next page loads so
+    // scrolling never jumps back to an empty table.
+    placeholderData: (previous) => previous,
   });
 
   useEffect(() => {
@@ -279,6 +282,30 @@ export function InventorySearchPage() {
   }, [searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric, structureZoneCode, structureLocation]);
   const hasMoreRecords = !searchTerm.trim() && data.length > visibleRecordLimit;
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
+
+  // Auto-load the next page when the sentinel at the bottom of the scroll
+  // area comes into view. 50 rows per page keeps each request fast.
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasMoreRecords || isFetching) return;
+    let root: HTMLElement | null = sentinel.parentElement;
+    while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) {
+      root = root.parentElement;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleRecordLimit((current) => current + 50);
+        }
+      },
+      { root, rootMargin: "300px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreRecords, isFetching, tableData.length]);
+
+
 
   useEffect(() => {
     const next = new URLSearchParams();
