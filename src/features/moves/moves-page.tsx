@@ -234,6 +234,19 @@ export function LocationMovesPage() {
     // Run once on mount; later navigations re-run only when params change.
   }, [searchParams]);
 
+  // "from" carries the screen that sent us here (e.g. the Inventory product the
+  // operator was viewing) so Cancel Move can take them straight back to it.
+  const returnTo = searchParams.get("from");
+
+  const cancelNewMove = useCallback(() => {
+    setNewPallet("");
+    setNewLocation("");
+    setNewReason("");
+    setNewValidation(null);
+    setNewBaySelectorOpen(false);
+    if (returnTo && returnTo.startsWith("/")) navigate(returnTo);
+  }, [navigate, returnTo]);
+
   const { data: warehousesForBrowse = [] } = useQuery<Array<{ id: string; code: string; name: string }>>({
     queryKey: ["warehouses", "moves-bay-browser"],
     queryFn: () => listRecords("warehouses", "id, code, name") as any,
