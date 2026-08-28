@@ -41,6 +41,7 @@ import {
   type FailedWorkItem,
 } from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
+import { useInfiniteRows } from "@/hooks/use-infinite-rows";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -343,6 +344,13 @@ export function ReportsPage() {
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, data), [metrics, data]);
   const exportRows = useMemo(() => buildCsvReportRows(data), [data]);
 
+  const occupancyPaging = useInfiniteRows({ pageSize: 12 });
+  const auditsPaging = useInfiniteRows();
+  const occupancyRows = (data?.occupancy ?? []) as any[];
+  const auditRows = (data?.audits ?? []) as any[];
+  const hasMoreOccupancy = occupancyPaging.sync({ loadedCount: occupancyRows.length, isFetching: isLoading });
+  const hasMoreAudits = auditsPaging.sync({ loadedCount: auditRows.length, isFetching: isLoading });
+
   const stockByWarehouse = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of data?.inventory ?? []) {
@@ -392,8 +400,8 @@ export function ReportsPage() {
           <CardHeader>
             <CardTitle>Occupancy view</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            {(data?.occupancy ?? []).slice(0, 12).map((location: any) => (
+          <CardContent className="grid max-h-[28rem] gap-2 overflow-y-auto">
+            {occupancyRows.slice(0, occupancyPaging.limit).map((location: any) => (
               <div key={location.location_id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                 <div>
                   <p>{location.location_code}</p>
@@ -404,6 +412,10 @@ export function ReportsPage() {
                 </Badge>
               </div>
             ))}
+            <div ref={occupancyPaging.sentinelRef} aria-hidden className="h-px w-full" />
+            {hasMoreOccupancy ? (
+              <Button variant="secondary" size="sm" onClick={occupancyPaging.loadMore}>Load more locations</Button>
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -437,8 +449,8 @@ export function ReportsPage() {
         <CardHeader>
           <CardTitle>Recent movements</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2">
-          {(data?.audits ?? []).map((audit: any) => (
+        <CardContent className="grid max-h-[32rem] gap-2 overflow-y-auto">
+          {auditRows.slice(0, auditsPaging.limit).map((audit: any) => (
             <div key={audit.id} className="rounded-lg border border-border px-3 py-2 text-sm">
               <div className="flex items-center justify-between gap-4">
                 <span className="font-medium">{audit.event_type}</span>
@@ -447,6 +459,10 @@ export function ReportsPage() {
               <p className="text-xs text-muted-foreground">{audit.entity_table} · {audit.entity_id}</p>
             </div>
           ))}
+          <div ref={auditsPaging.sentinelRef} aria-hidden className="h-px w-full" />
+          {hasMoreAudits ? (
+            <Button variant="secondary" size="sm" onClick={auditsPaging.loadMore}>Load 50 more movements</Button>
+          ) : null}
         </CardContent>
       </Card>
     </div>
