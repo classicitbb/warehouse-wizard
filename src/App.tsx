@@ -1689,6 +1689,8 @@ function InventoryDetailPage() {
           data.packaging?.unit_of_measure ??
           null,
         temperatureClass: data.product?.temperature_requirement ?? undefined,
+        correctionPending:
+          data.balance.correction_state === "pending" || data.pallet?.correction_state === "pending",
       }
     : null;
 

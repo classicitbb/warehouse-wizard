@@ -36,6 +36,7 @@ import {
   cancelInventoryPalletCorrection,
   completeInventoryPalletCorrection,
   completeInventoryPalletCorrectionInPlace,
+  findPendingInventoryPalletCorrection,
   saveInventoryPalletCorrectionAsDraft,
 } from "@/lib/wms-core";
 
@@ -57,6 +58,8 @@ export type PalletEditTarget = {
   receiptReference?: string | null;
   packaging?: string | null;
   temperatureClass?: string;
+  /** True when a previous session left a correction open on this pallet. */
+  correctionPending?: boolean;
 };
 
 function parseIsoDate(value: string) {
@@ -249,7 +252,7 @@ export function PalletEditDialog({
     updateInPlaceMutation.isPending || replaceMutation.isPending;
 
   function handleCancel() {
-    if (!draftId) {
+    if (!draftId && !target?.correctionPending) {
       onOpenChange(false);
       resetSession();
       return;
