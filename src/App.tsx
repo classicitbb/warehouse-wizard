@@ -1862,7 +1862,7 @@ function InventoryDetailPage() {
                           <p className="text-amber-700 dark:text-amber-400">{STAGING_EDIT_HINT}</p>
                           <Button size="sm" variant="link" className="mt-1 h-auto px-0 text-xs" asChild>
                             <Link
-                              to={`/location-moves?pallet=${encodeURIComponent(palletBarcode)}&bay=${encodeURIComponent(PUTAWAY_STAGING_LOCATION_CODE)}`}
+                              to={`/location-moves?pallet=${encodeURIComponent(palletBarcode)}&bay=${encodeURIComponent(PUTAWAY_STAGING_LOCATION_CODE)}&from=${encodeURIComponent(`/inventory/${balanceId}`)}`}
                             >
                               Go to Location Moves
                             </Link>
