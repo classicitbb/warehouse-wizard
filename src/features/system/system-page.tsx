@@ -41,6 +41,7 @@ import {
   type FailedWorkItem,
 } from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
+import { useInfiniteRows } from "@/hooks/use-infinite-rows";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -206,19 +207,46 @@ export function SystemLogPage() {
   const [logType, setLogType] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [showResolved, setShowResolved] = useState(false);
-  const { data: logs = [], error: logsError, isLoading } = useQuery({
-    queryKey: ["system-logs", logType, severity, sourceFilter, showResolved],
-    queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, source: sourceFilter || undefined, resolved: showResolved ? undefined : false }),
+  // Shared auto-load-on-scroll paging: 50 entries per page, extended as the
+  // operator scrolls, instead of one fixed 500-row read.
+  const paging = useInfiniteRows({ resetKeys: [view, logType, severity, sourceFilter, showResolved] });
+  const { data: logs = [], error: logsError, isLoading, isFetching } = useQuery({
+    queryKey: ["system-logs", logType, severity, sourceFilter, showResolved, paging.limit],
+    queryFn: () => listSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, source: sourceFilter || undefined, resolved: showResolved ? undefined : false, limit: paging.limit + 1 }),
     meta: { suppressGlobalError: true },
     enabled: view === "active",
+    placeholderData: (previous) => previous,
   });
 
-  const { data: archivedLogs = [], error: archivedLogsError, isLoading: archivedLoading } = useQuery({
-    queryKey: ["system-logs-archive", logType, severity],
-    queryFn: () => listArchivedSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity }),
+  const { data: archivedLogs = [], error: archivedLogsError, isLoading: archivedLoading, isFetching: archivedFetching } = useQuery({
+    queryKey: ["system-logs-archive", logType, severity, paging.limit],
+    queryFn: () => listArchivedSystemLogs({ log_type: logType === "all" ? undefined : logType, severity: severity === "all" ? undefined : severity, limit: paging.limit + 1 }),
     meta: { suppressGlobalError: true },
     enabled: view === "archived",
+    placeholderData: (previous) => previous,
   });
+  const activeRows = view === "archived" ? archivedLogs : logs;
+  const hasMoreLogs = paging.sync({
+    loadedCount: activeRows.length,
+    isFetching: view === "archived" ? archivedFetching : isFetching,
+  });
+  const visibleLogs = (logs as any[]).slice(0, paging.limit);
+  const visibleArchivedLogs = (archivedLogs as any[]).slice(0, paging.limit);
+  const logsFetching = view === "archived" ? archivedFetching : isFetching;
+  const loadMoreLogsFooter = hasMoreLogs ? (
+    <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
+      <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={paging.loadMore} disabled={logsFetching}>
+        {logsFetching ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Loading more…
+          </>
+        ) : (
+          "Load 50 more"
+        )}
+      </Button>
+    </div>
+  ) : null;
   const resolveMutation = useMutation({
     mutationFn: resolveSystemLog,
     onSuccess: () => { toast.success("Log entry resolved"); queryClient.invalidateQueries({ queryKey: ["system-logs"] }); },
@@ -381,9 +409,9 @@ export function SystemLogPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : logs.length === 0 ? (
+                ) : visibleLogs.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No log entries found.</TableCell></TableRow>
-                ) : logs.map((log: any) => (
+                ) : visibleLogs.map((log: any) => (
                   <TableRow key={log.id} className={cn("even:bg-muted/30", log.resolved ? "opacity-50" : "")}>
                     <TableCell><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
                     <TableCell><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
@@ -429,6 +457,8 @@ export function SystemLogPage() {
                 ))}
               </TableBody>
             </Table>
+            <div ref={paging.sentinelRef} aria-hidden className="h-px w-full" />
+            {loadMoreLogsFooter}
           </TableFrame>
         </CardContent>
       </Card>
@@ -463,9 +493,9 @@ export function SystemLogPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : archivedLogs.length === 0 ? (
+                ) : visibleArchivedLogs.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No archived log entries.</TableCell></TableRow>
-                ) : archivedLogs.map((log: any) => (
+                ) : visibleArchivedLogs.map((log: any) => (
                   <TableRow key={log.id} className="even:bg-muted/30 opacity-80">
                     <TableCell><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
                     <TableCell><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
@@ -482,6 +512,8 @@ export function SystemLogPage() {
                 ))}
               </TableBody>
             </Table>
+            <div ref={paging.sentinelRef} aria-hidden className="h-px w-full" />
+            {loadMoreLogsFooter}
           </TableFrame>
         </CardContent>
       </Card>
@@ -576,14 +608,21 @@ export function SystemLogPage() {
 export function EmailLogPage() {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
+  const paging = useInfiniteRows({ resetKeys: [status, search.trim()] });
   const { data: rows = [], isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["email-send-log"],
+    queryKey: ["email-send-log", paging.limit],
     queryFn: async () => {
-      const { data, error } = await supabase.from("email_send_log" as any).select("id,message_id,template_name,recipient_email,status,error_message,created_at").order("created_at", { ascending: false }).limit(500);
+      const { data, error } = await supabase
+        .from("email_send_log" as any)
+        .select("id,message_id,template_name,recipient_email,status,error_message,created_at")
+        .order("created_at", { ascending: false })
+        .limit(paging.limit + 1);
       if (error) throw error;
       return data ?? [];
     },
+    placeholderData: (previous) => previous,
   });
+  const hasMoreEmails = paging.sync({ loadedCount: (rows as any[]).length, isFetching });
   const filtered = (rows as any[]).filter((row) => {
     if (status !== "all" && row.status !== status) return false;
     if (search.trim()) {
@@ -654,7 +693,7 @@ export function EmailLogPage() {
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading email log…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No email log entries found.</TableCell></TableRow>
-                ) : filtered.map((row: any) => (
+                ) : filtered.slice(0, paging.limit).map((row: any) => (
                   <TableRow key={row.id} className="even:bg-muted/30 align-top">
                     <TableCell><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{row.template_name}</TableCell>
@@ -668,6 +707,21 @@ export function EmailLogPage() {
                 ))}
               </TableBody>
             </Table>
+            <div ref={paging.sentinelRef} aria-hidden className="h-px w-full" />
+            {hasMoreEmails ? (
+              <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={paging.loadMore} disabled={isFetching}>
+                  {isFetching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading more…
+                    </>
+                  ) : (
+                    "Load 50 more"
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </TableFrame>
         </CardContent>
       </Card>

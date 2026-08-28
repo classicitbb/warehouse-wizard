@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useInfiniteRows } from "@/hooks/use-infinite-rows";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -237,7 +238,6 @@ export function InventorySearchPage() {
     locationPrefix: structureLocation,
     node: structureNode,
   });
-  const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
   const lastDetailTapRef = useRef<{ id: string; time: number } | null>(null);
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
   const { data: options } = useQuery({
@@ -254,6 +254,12 @@ export function InventorySearchPage() {
   useEffect(() => {
     saveInventorySearchState({ search: searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric });
   }, [ageBucket, expiryWindow, includeHistoric, searchTerm, status, warehouseId]);
+
+  // Shared auto-load-on-scroll paging (50 rows per page).
+  const paging = useInfiniteRows({
+    resetKeys: [searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric, structureZoneCode, structureLocation],
+  });
+  const visibleRecordLimit = paging.limit;
 
   const { data = [], isLoading, isFetching } = useQuery({
     queryKey: [
@@ -277,33 +283,13 @@ export function InventorySearchPage() {
     placeholderData: (previous) => previous,
   });
 
-  useEffect(() => {
-    setVisibleRecordLimit(50);
-  }, [searchTerm, status, warehouseId, ageBucket, expiryWindow, includeHistoric, structureZoneCode, structureLocation]);
-  const hasMoreRecords = !searchTerm.trim() && data.length > visibleRecordLimit;
+  const hasMoreRecords = paging.sync({
+    loadedCount: data.length,
+    isFetching,
+    enabled: !searchTerm.trim(),
+  });
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
-
-  // Auto-load the next page when the sentinel at the bottom of the scroll
-  // area comes into view. 50 rows per page keeps each request fast.
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const sentinel = loadMoreSentinelRef.current;
-    if (!sentinel || !hasMoreRecords || isFetching) return;
-    let root: HTMLElement | null = sentinel.parentElement;
-    while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) {
-      root = root.parentElement;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setVisibleRecordLimit((current) => current + 50);
-        }
-      },
-      { root, rootMargin: "300px 0px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMoreRecords, isFetching, tableData.length]);
+  const loadMoreSentinelRef = paging.sentinelRef;
 
 
 
@@ -606,7 +592,7 @@ export function InventorySearchPage() {
             <div ref={loadMoreSentinelRef} aria-hidden className="h-px w-full" />
             {hasMoreRecords ? (
               <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
-                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isFetching}>
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={paging.loadMore} disabled={isFetching}>
                   {isFetching ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

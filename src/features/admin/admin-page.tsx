@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { RELEASE_HISTORY } from "@/lib/release-history";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -2270,192 +2271,7 @@ export function SettingsPage() {
                 <span className="font-medium">Current version</span>
                 <span className="font-mono text-xs font-semibold text-primary">v{__APP_VERSION__}</span>
               </div>
-              {[
-                {
-                  version: "1.27",
-                  date: "August 2026",
-                  changes: [
-                    "Notifications: RF connectivity notices and reorder alerts now share one header bell, with grouped sections and a single combined count",
-                    "Receiving: the container scanner is AI-assisted — when on-device text recognition cannot read the container face, a photo is analysed by AI and the ISO 6346 number is offered for confirmation",
-                    "Container scanning: every AI or OCR read is still check-digit validated and must be confirmed before it is inserted into the container number field",
-                    "Help Center: Receiving and notification topics updated for AI-assisted container capture and the unified alert bell",
-                  ],
-                },
-                {
-                  version: "1.26",
-                  date: "July 2026",
-                  changes: [
-                    "Warehouse Structure: the page frame now stays fixed while only the warehouse tree scrolls, keeping Settings, tabs, search, and Collapse all in view",
-                    "Warehouse Structure: Reorder Settings now opens from each warehouse action menu, keeping forecasting configuration beside the warehouse hierarchy",
-                    "Reorder Forecasting: existing demand look-back, safety lead time, alert threshold, and notification controls are preserved in the new popup",
-                  ],
-                },
-                {
-                  version: "1.25",
-                  date: "July 2026",
-                  changes: [
-                    "Cycle Counts: supervisor review now separates over-threshold variances from count exceptions, with required notes before approving, rejecting, accepting, or returning a line to blind entry",
-                    "Cycle Counts: count numbers now use the CCT sequence format, cancelled counts can be archived, and count lists distinguish review, approved, cancelled, and archived work",
-                    "Inventory freezes: cycle-count close, cancel, and review paths now preserve freeze relationships and release held stock consistently after count decisions",
-                    "Dashboard resilience: older databases without dashboard preference tables now load with safe defaults instead of breaking the Command Center",
-                    "Users & Roles: Developer role assignments now remember the original grantor, and only that developer can remove the Developer role later",
-                    "Account safety: users can no longer disable their own account; the edit control and database trigger both enforce the guardrail",
-                  ],
-                },
-                {
-                  version: "1.24",
-                  date: "July 2026",
-                  changes: [
-                    "Floor connectivity safety: live put-away, pick, receiving, and cycle-count commits now freeze immediately when a device goes offline instead of replaying stale work later",
-                    "Task resume: put-away, pick execution, receiving entry, and cycle-count text entry now keep the operator's local position on the device through reconnects",
-                    "Put-Away: reconnect now refreshes live task, pallet, and location state and can force a safe reselect or task reset when the warehouse record has changed",
-                    "System Log: critical RF disconnect entries now raise a dismissible red supervisor toast that requires typing ACK before acknowledgement",
-                    "Offline queue safety: legacy buffered commit items are moved to dead-letter review instead of being auto-posted back into live warehouse state",
-                  ],
-                },
-                {
-                  version: "1.23",
-                  date: "June 2026",
-                  changes: [
-                    "Location Labels: printed and previewed location labels now show only the local rack-bay-level code, while warehouse, zone, aisle, bay, level, type, and temperature remain available as label context",
-                    "Bin Locations: single-position rack labels omit the unnecessary P1 suffix; P1/P2 remains available only when a bay-level has multiple side-by-side positions",
-                    "Settings: creation workflows were QA checked in external Chrome with direct typed input rather than clipboard-based browser filling",
-                  ],
-                },
-                {
-                  version: "1.22",
-                  date: "June 2026",
-                  changes: [
-                    "Receiving: New Shipment now follows a scanner-first vertical entry flow from container, to PO, to product, quantities, expiry, and optional lot details",
-                    "Receiving: container camera scanning can read printed container text, validate ISO 6346 check digits, show a green confirmed candidate, and insert it into the form",
-                    "Receiving: product scans select the SKU, then focus a highlighted right-arrow commit button before moving to Total received",
-                    "Receiving: quantity fields preserve manual typing, support Enter-to-advance, and can suggest learned quantity-per-pallet values after prior receipts",
-                    "Receiving: expiry selection now uses a larger app calendar picker for clearer mobile date entry",
-                    "Build: switched Vite from the SWC React plugin to @vitejs/plugin-react after the scanner update",
-                  ],
-                },
-                {
-                  version: "1.21",
-                  date: "June 2026",
-                  changes: [
-                    "Pick Execution: whole-pallet picks are enforced so operators confirm the assigned pallet quantity instead of entering partial quantities",
-                    "Pick Execution: rack instructions now use short four-part location codes with the warehouse context removed from the scanned/displayed location string",
-                    "Pick Lists: scanner-first create mode lets operators add product lines by scanning products repeatedly before editing quantities, client, order, and release details",
-                    "Pick Execution: the confirm button flashes yellow after the pallet scan and locks the scan fields until the operator confirms or the backend returns an error",
-                    "Help Center: added operator what-to-do guidance and a documented gap list for dead ends that still need live exception resolution",
-                  ],
-                },
-                {
-                  version: "1.2.0",
-                  date: "June 2026",
-                  changes: [
-                    "Location Moves: Browse bays button next to the location scanner opens the bay selector (with warehouse picker when more than one facility is active)",
-                    "Location Moves: pallet and location codes are trimmed/normalised before lookup so valid pallets are no longer reported as missing",
-                    "Warehouse Structure tool: dedicated tab and Help topic for the live tree view of warehouses, zones, aisles, bays, and locations",
-                    "Help Center: per-module topics refreshed to cover browse-bay flows, label sheets, badge sign-in, access controls, and the Warehouse Structure tool",
-                    "Promoted from 1.1.8 beta: shortened bay codes open the bay selector in Put-Away and Pick; Bin Locations column order; Avery 99x38 location label sheets; Avery 99x93 bay/zone aisle sheets; trusted-device badge PIN limited to mobile/tablet; public Request Access removed in favour of admin-managed accounts",
-                  ],
-                },
-                {
-                  version: "1.1.7",
-                  date: "May 2026",
-                  changes: [
-                    "Labels: every printed code is now a QR (pallet, location, zone, warehouse) for faster, more reliable scans",
-                    "Inventory Search: horizontal scrolling restored so all columns are reachable on narrow screens",
-                    "Products: total on-hand quantity shown beside each product name (read-only)",
-                    "Navigation: desktop sidebar only mounts in landscape; portrait and tablets use the top slide-in nav. Help is always the last item",
-                    "Sidebar: squishy press feedback on nav buttons and tighter responsive width before the scrollbar kicks in",
-                    "Bin Locations: Edit Location now saves Notes and Max height correctly (field-name mismatch fixed)",
-                    "Bin Locations & Zones: bulk label sheets — filter the table, then Print labels sheet (paper size, grid, start cell)",
-                    "Access requests: admins, supervisors, and managers see a full-screen prompt when pending users are awaiting approval, with a one-click jump to Users & Roles",
-                  ],
-                },
-                {
-                  version: "1.1.6",
-                  date: "May 2026",
-                  changes: [
-                    "Pick Lists: product selector now only shows items with available quantity assigned to a location — zero-qty and unlocated stock are hidden",
-                    "Inventory Search: removed the secondary location/zone scan filter bar (warehouse filter remains)",
-                    "Dashboard: put-away count now matches what managers see on the Put-Away page; all roles see tasks correctly",
-                    "Seeded task data (putaway, move tasks, cycle counts) cleaned up via migration",
-                    "Password: all users can change their own password from the nav header; admin cannot change developer passwords",
-                    "Developer and Warehouse Supervisor roles added; password RPCs extended to allow developer role",
-                  ],
-                },
-                {
-                  version: "1.1.3",
-                  date: "May 2026",
-                  changes: [
-                    "Command Center: all Floor, Dock, and Office tiles are draggable and resizable",
-                    "Command Center: summary metrics and workflow tiles now share one dynamic layout surface per view",
-                    "Command Center: tile size and position preferences are remembered per signed-in user when available",
-                    "Navigation: Users shortcut removed from the sidebar while admin user management remains in Settings",
-                    "Dashboard: pallet dials, workflow queues, Warehouse Intelligence, Dock lanes, Office widgets, and Warehouse Brain use the same tile controls",
-                  ],
-                },
-                {
-                  version: "1.1.2",
-                  date: "May 2026",
-                  changes: [
-                    "Inventory Search: fixed header and filter shell with row-only result scrolling",
-                    "Inventory Search: warehouse scope matching now includes live warehouse, zone, aisle, and location codes",
-                    "Bin Locations: generated and migrated codes now preserve warehouse, zone, and location hierarchy",
-                    "Location Labels: full hierarchy codes with QR output for complex location codes",
-                    "Put-Away: clearer location confirmation fields and aligned desktop task confirmation",
-                    "Tables: editable and detail rows now require double-click or double-tap before opening",
-                  ],
-                },
-                {
-                  version: "1.1.1",
-                  date: "May 2026",
-                  changes: [
-                    "Fix: Draft receipts now save correctly (notes column, not metadata)",
-                    "Fix: Receive & Create Pallet works without expanding Show More — client field always visible",
-                    "Fix: Pick list creation initialises all required fields correctly",
-                    "Fix: Move to Picking correctly resolves pallet barcodes",
-                    "Admin: Pick lists can now be cleared, archived, or deleted",
-                    "Settings: Users & Roles management accessible from Settings (admin tab)",
-                    "Help: Articles filtered by your role and enabled modules",
-                  ],
-                },
-                {
-                  version: "1.1.0",
-                  date: "May 2026",
-                  changes: [
-                    "Inline row editing — double-click or click the pencil icon on any resource table row",
-                    "Compact table rows with alternating shading on all data tables",
-                    "Sticky table headers — column headers remain visible while scrolling",
-                    "Full horizontal overflow scrolling on wide tables",
-                    "Bin Locations table: operational columns (Code, Aisle, Bay, Type, Status) promoted to front; Warehouse/Zone moved to overflow",
-                    "Mobile menu: nav item click now dismisses the menu automatically",
-                    "Mobile menu: sign-out button moved to its own row, no longer clashes with the close control",
-                    "Back button on Inventory Detail and Pick Execution pages",
-                    "Settings — new About tab with version history and feature register",
-                  ],
-                },
-                {
-                  version: "1.0.0",
-                  date: "May 2026",
-                  changes: [
-                    "Full warehouse master data — Warehouses, Zones, Bin Locations (bulk wizard), Clients, Products, Packaging Profiles",
-                    "Receiving workflow — manual, purchase order, and transfer receipt types with lot/expiry capture",
-                    "Directed putaway with temperature and capacity validation",
-                    "Inventory search and pallet-level detail with full movement history",
-                    "Pick lists with FIFO/FEFO rotation allocation and shortage capture",
-                    "Inter-warehouse transfers with driver sign-off",
-                    "Cycle counts — location, zone, SKU, and spot scope with variance thresholds",
-                    "Pallet status controls — hold, quarantine, damaged, missing",
-                    "Multi-mode dashboard — Floor, Dock, and Office views with drag-reorder metric cards",
-                    "Reports with inventory, occupancy, and cycle count variance exports",
-                    "Role-based access — Admin, Warehouse Manager, Inventory Clerk, Warehouse Operator, Dispatch Driver",
-                    "Barcode label printing with QR code preview",
-                    "Complete audit trail on all operational events",
-                    "Setup wizard for warehouse, zone, and location bulk creation",
-                    "Help centre with contextual sidebar and searchable articles",
-                    "PWA — installable on mobile and desktop with offline indicator",
-                  ],
-                },
-              ].map((release) => (
+              {RELEASE_HISTORY.map((release) => (
                 <div key={release.version} className="rounded-lg border border-border p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="font-mono text-xs font-semibold bg-primary/10 text-primary rounded px-1.5 py-0.5">v{release.version}</span>
@@ -2469,6 +2285,19 @@ export function SettingsPage() {
                       </li>
                     ))}
                   </ul>
+                  {release.fixes?.length ? (
+                    <>
+                      <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Fixes</p>
+                      <ul className="grid gap-1">
+                        {release.fixes.map((f) => (
+                          <li key={f} className="text-xs text-muted-foreground flex gap-2">
+                            <span className="mt-0.5 shrink-0 text-muted-foreground">•</span>
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
                 </div>
               ))}
             </CardContent>

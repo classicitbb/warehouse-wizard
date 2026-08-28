@@ -42,6 +42,7 @@ import {
   type FailedWorkItem,
 } from "@/lib/offline-queue";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
+import { useInfiniteRows } from "@/hooks/use-infinite-rows";
 import {
   NAVIGATION,
   ROLE_LABELS,
@@ -222,7 +223,7 @@ export function ResourcePage({
   const [includeHidden, setIncludeHidden] = useState(false);
   const [editRecord, setEditRecord] = useState<Record<string, unknown> | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
-  const [visibleRecordLimit, setVisibleRecordLimit] = useState(50);
+  
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
   const [deleteRecord, setDeleteRecord] = useState<Record<string, unknown> | null>(null);
   const [deleteChallenge, setDeleteChallenge] = useState("");
@@ -246,9 +247,11 @@ export function ResourcePage({
   });
   const useGearActions = ["warehouses", "zones", "locations", "products"].includes(resource.table);
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
-  const usesIncrementalTable = ["products", "zones", "locations"].includes(resource.table);
+  const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
-  const { data = [], isLoading } = useQuery({
+  const paging = useInfiniteRows({ resetKeys: [resource.table, includeHidden, activeFilter] });
+  const visibleRecordLimit = paging.limit;
+  const { data = [], isLoading, isFetching } = useQuery({
     queryKey: [resource.table, includeHidden, usesIncrementalTable && !activeFilter ? visibleRecordLimit : "all"],
     queryFn: () => {
       const options = { includeHidden, archiveField: resource.archiveField };
@@ -259,11 +262,14 @@ export function ResourcePage({
       }
       return listRecords(resource.table, resource.select ?? "*", resource.orderBy, options);
     },
+    // Keep the rows already on screen while the next page loads.
+    placeholderData: (previous) => previous,
   });
-  useEffect(() => {
-    setVisibleRecordLimit(50);
-  }, [includeHidden, resource.table]);
-  const hasMoreRecords = usesIncrementalTable && !activeFilter && data.length > visibleRecordLimit;
+  const hasMoreRecords = paging.sync({
+    loadedCount: data.length,
+    isFetching,
+    enabled: usesIncrementalTable && !activeFilter,
+  });
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
   const { data: locationRowsForLabels = [] } = useQuery({
     queryKey: ["locations", "label-source"],
@@ -957,10 +963,18 @@ export function ResourcePage({
                 )}
               </TableBody>
             </Table>
+            <div ref={paging.sentinelRef} aria-hidden className="h-px w-full" />
             {hasMoreRecords ? (
               <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
-                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setVisibleRecordLimit((current) => current + 50)} disabled={isLoading}>
-                  Load 50 more
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={paging.loadMore} disabled={isFetching}>
+                  {isFetching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading more…
+                    </>
+                  ) : (
+                    "Load 50 more"
+                  )}
                 </Button>
               </div>
             ) : null}

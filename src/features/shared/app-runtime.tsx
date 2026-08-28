@@ -45,7 +45,7 @@ export function ConnectionRecovery() {
 
 const SEEN_VERSION_KEY = "warehouseWizard.whatsNew.seenVersion";
 
-export type ReleaseSummary = { version: string; date: string; changes: string[] };
+export type ReleaseSummary = { version: string; date: string; changes: string[]; fixes?: string[] };
 
 /**
  * Shows the release summary once per version, after the app reloads onto a
@@ -106,6 +106,11 @@ export function WhatsNewOnUpdate({ release }: { release: ReleaseSummary }) {
             {release.changes.map((change) => (
               <div key={change} className="rounded-md border border-border px-3 py-2">
                 {change}
+              </div>
+            ))}
+            {(release.fixes ?? []).map((fix) => (
+              <div key={fix} className="rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground">
+                Fix: {fix}
               </div>
             ))}
           </div>
