@@ -483,6 +483,7 @@ export function BarcodeScanButton({
       pendingScanRef.current = null;
       dwellStateRef.current = null;
       setDwellProgress(null);
+      setOffTargetCode(null);
       ocrBusyRef.current = false;
       scanStartedAtRef.current = 0;
       attemptCountRef.current = 0;
