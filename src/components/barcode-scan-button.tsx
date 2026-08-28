@@ -7,6 +7,7 @@ import { getLearnedContainerScanRegion, recordContainerScannerSuccess, type Cont
 import { clampRegion, getContainerScanRegions, scanRegionToPixels, type NormalizedScanRegion } from "@/lib/container-scanner-regions";
 import { updateScanDwell, type ScanDwellState } from "@/lib/scan-dwell";
 import { getScanDwellMs, isWithinScanCooldown } from "@/lib/scan-settings";
+import { getScanTargetRect, isRegionInsideTarget } from "@/lib/scan-target";
 import { cn } from "@/lib/utils";
 
 export type ScanValidationResult = {
@@ -220,6 +221,7 @@ export function BarcodeScanButton({
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [activeScanRegion, setActiveScanRegion] = useState<NormalizedScanRegion | null>(null);
   const [dwellProgress, setDwellProgress] = useState<number | null>(null);
+  const [offTargetCode, setOffTargetCode] = useState<string | null>(null);
   const pendingScanRef = useRef<PendingScan | null>(null);
   const dwellStateRef = useRef<ScanDwellState>(null);
   const acceptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
