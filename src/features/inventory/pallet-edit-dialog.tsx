@@ -163,11 +163,19 @@ export function PalletEditDialog({
   }
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelInventoryPalletCorrection(draftId, {
-      quantity: quantityEntered ? Number(quantity) : null,
-      expiryDate: expiryTouched ? expiry || null : null,
-      changed: hasChange,
-    }),
+    mutationFn: async () => {
+      // Cancel must also release a correction that a previous session left
+      // pending, so resolve the open draft before backing it out.
+      const openDraftId = draftId || (target?.balanceId
+        ? (await findPendingInventoryPalletCorrection(target.balanceId))?.draftId ?? ""
+        : "");
+      if (!openDraftId) return;
+      await cancelInventoryPalletCorrection(openDraftId, {
+        quantity: quantityEntered ? Number(quantity) : null,
+        expiryDate: expiryTouched ? expiry || null : null,
+        changed: hasChange,
+      });
+    },
     onSuccess: async () => {
       toast.success(`Pallet ${target?.palletBarcode ?? ""} left unchanged.`.trim());
       onOpenChange(false);
