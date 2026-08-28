@@ -716,14 +716,21 @@ export function BarcodeScanButton({
                 >
                   <div className={cn(
                     "absolute inset-0 rounded border border-white/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] transition-all duration-200 ease-out",
-                    pendingScan && "shadow-[0_0_0_9999px_rgba(22,163,74,0.25)]",
+                    (pendingScan || offTargetCode) && "shadow-[0_0_0_9999px_rgba(22,163,74,0.25)]",
+                    offTargetCode && !pendingScan && "border-green-400/70 ring-2 ring-green-400/70",
                   )} />
-                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
-                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
-                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
-                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute left-0 top-0 h-6 w-6 rounded-tl border-l-2 border-t-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute right-0 top-0 h-6 w-6 rounded-tr border-r-2 border-t-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute bottom-0 left-0 h-6 w-6 rounded-bl border-b-2 border-l-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
+                  <div className={cn("absolute bottom-0 right-0 h-6 w-6 rounded-br border-b-2 border-r-2 border-white transition-colors duration-150", pendingScan || offTargetCode ? "border-green-400" : dwellProgress != null && "border-amber-400")} />
                 </div>
               </div>
+              {offTargetCode && !pendingScan && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/75 px-3 py-2">
+                  <p className="text-xs font-medium text-green-300">Code found — move it into the square</p>
+                  <p className="break-all font-mono text-xs text-white/70">{offTargetCode}</p>
+                </div>
+              )}
               {dwellProgress != null && !pendingScan && (
                 <div className="absolute bottom-0 left-0 right-0 bg-black/75 px-3 py-2">
                   <p className="mb-1 text-xs font-medium text-amber-300">Hold steady…</p>
