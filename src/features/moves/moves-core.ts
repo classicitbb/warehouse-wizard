@@ -12,9 +12,15 @@ import { writeSystemLog } from "@/features/system/system-core";
 import { upsertRecord } from "@/features/admin/admin-core";
 import { normalizeRackLocationCode } from "@/features/setup/setup-core";
 import { assertNotFrozen, getActiveFreeze } from "@/features/cycle-counts/freeze-core";
+import {
+  exceedsClearance,
+  formatClearanceBlockReason,
+  resolveLocationClearanceMm,
+  resolvePalletHeightMm,
+} from "@/lib/measure";
 
 const MOVE_LOCATION_SELECT =
-  "id, code, status, max_pallets, temperature_class, mixed_sku_allowed, mixed_lot_allowed, max_height, zone_id, warehouse_id";
+  "id, code, status, max_pallets, temperature_class, mixed_sku_allowed, mixed_lot_allowed, max_height, max_height_mm, max_pallet_height_cm, zone_id, warehouse_id";
 const TERMINAL_PALLET_STATUSES = new Set(["shipped", "in_transit", "missing"]);
 
 function assertPalletCanMove(status: unknown) {
@@ -116,6 +122,24 @@ function parseFullLocationScan(locationCode: string) {
   }
 
   return { warehouseCode, zoneCode, aisle, bay, level, position };
+}
+
+/**
+ * The warehouse's clearance safety margin. A missing warehouse row or a failed
+ * lookup falls back to the ratified 3 in default rather than dropping the
+ * margin, which would quietly widen the rule.
+ */
+async function getWarehouseClearanceMarginMm(warehouseId: string | null | undefined) {
+  if (!warehouseId) return null;
+  const { data, error } = await db("warehouses")
+    .select("clearance_safety_margin_mm")
+    .eq("id", warehouseId)
+    .maybeSingle();
+  if (error) {
+    console.error("[validateMoveDestination] clearance margin lookup failed", error);
+    return null;
+  }
+  return (data?.clearance_safety_margin_mm ?? null) as number | null;
 }
 
 async function resolveMoveLocation(locationCode: string) {
@@ -290,7 +314,7 @@ export async function validateMoveDestination(
 
   // ── Fetch pallet ──────────────────────────────────────────────────────────
   const { data: pallet, error: palletErr } = await db("pallets")
-    .select("id, product_id, warehouse_id:current_warehouse_id, current_location_id, status, is_stored")
+    .select("id, product_id, warehouse_id:current_warehouse_id, current_location_id, status, is_stored, height, standard_height_mm")
     .eq("pallet_barcode", palletKey)
     .maybeSingle();
   if (palletErr) {
@@ -372,7 +396,7 @@ export async function validateMoveDestination(
   // ── Temperature ───────────────────────────────────────────────────────────
   if (pallet.product_id) {
     const { data: product } = await db("products")
-      .select("temperature_requirement, sku, height")
+      .select("temperature_requirement, sku")
       .eq("id", pallet.product_id)
       .maybeSingle();
     if (product) {
@@ -387,17 +411,6 @@ export async function validateMoveDestination(
       }
       if (productTemp === "ambient" && locTemp === "cool") {
         warnings.push(`Moving an ambient product into a cool-chain location — verify this is intentional`);
-      }
-
-      // ── Height ─────────────────────────────────────────────────────────────
-      const palletH = Number(product.height ?? 0);
-      const locH = Number((location as any).max_height ?? (location as any).max_pallet_height_cm ?? 0);
-      if (palletH > 0 && locH > 0 && palletH > locH) {
-        return {
-          valid: false,
-          reason: `Pallet height ${palletH} cm exceeds location ceiling of ${locH} cm`,
-          warnings,
-        };
       }
 
       // ── Mixed SKU ──────────────────────────────────────────────────────────
@@ -418,6 +431,25 @@ export async function validateMoveDestination(
           };
         }
       }
+    }
+  }
+
+  // ── Height ────────────────────────────────────────────────────────────────
+  // This compared the *product's* carton height against the bin ceiling in
+  // centimetres, so it never fired. Both sides are now the pallet's built
+  // height and the bin's least non-null ceiling, in millimetres, less the
+  // warehouse safety margin — the same arithmetic as the put-away block. It
+  // applies whether or not the pallet has a product row.
+  const palletHeightMm = resolvePalletHeightMm(pallet as any);
+  const clearanceMm = resolveLocationClearanceMm(location as any);
+  if (palletHeightMm != null && clearanceMm != null) {
+    const marginMm = await getWarehouseClearanceMarginMm(location.warehouse_id);
+    if (exceedsClearance({ palletHeightMm, clearanceMm, marginMm })) {
+      return {
+        valid: false,
+        reason: formatClearanceBlockReason({ palletHeightMm, clearanceMm, marginMm }),
+        warnings,
+      };
     }
   }
 

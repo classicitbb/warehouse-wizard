@@ -7,6 +7,7 @@ import {
   validatePutawayAssignment,
   formatSupabaseError,
 } from "@/features/shared/core-types";
+import { resolveLocationClearanceMm, resolvePalletHeightMm } from "@/lib/measure";
 import { normalizeRackLocationCode } from "@/features/setup/setup-core";
 import { assertNotFrozen } from "@/features/cycle-counts/freeze-core";
 
@@ -73,6 +74,21 @@ export async function confirmPutaway(
 
   const occupiedCount = await getStoredPalletCount(location.id);
 
+  // Height at put-away is a hard block. Both sides are resolved to millimetres
+  // — the pallet's built height against the least non-null bin ceiling — and
+  // the warehouse safety margin is fetched only when both are known, so a bin
+  // or a pallet with no recorded height never triggers a lookup or a block.
+  const palletHeightMm = resolvePalletHeightMm(pallet);
+  const locationClearanceMm = resolveLocationClearanceMm(location);
+  let clearanceMarginMm: number | null = null;
+  if (palletHeightMm != null && locationClearanceMm != null && location.warehouse_id) {
+    const { data: warehouse } = await db("warehouses")
+      .select("clearance_safety_margin_mm")
+      .eq("id", location.warehouse_id)
+      .maybeSingle();
+    clearanceMarginMm = warehouse?.clearance_safety_margin_mm ?? null;
+  }
+
   const ruleCheck = validatePutawayAssignment({
     productTemperature: product.temperature_requirement,
     locationTemperature: location.temperature_class,
@@ -81,9 +97,15 @@ export async function confirmPutaway(
     occupiedPallets: occupiedCount,
     mixedSkuAllowed: location.mixed_sku_allowed,
     hasOtherSku: false,
+    palletHeightMm,
+    locationClearanceMm,
+    clearanceMarginMm,
   });
 
-  const overrideUsed = !ruleCheck.valid && options?.override === true;
+  // A height failure comes back `overridable: false` and stays refused however
+  // the caller asks. Everything else keeps the override-with-a-reason path.
+  const overrideUsed =
+    !ruleCheck.valid && ruleCheck.overridable !== false && options?.override === true;
   if (!ruleCheck.valid && !overrideUsed) {
     // Prefix lets the UI detect rule violations and offer an override path
     throw new Error(`RULE_VIOLATION: ${ruleCheck.reason}`);
