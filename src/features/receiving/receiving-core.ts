@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { validateIso6346ContainerNumber } from "@/lib/container-number";
 import { recordPalletQtyObservation } from "@/lib/ai-assist";
+import { resolvePackStandard } from "@/lib/measure";
 import {
   db,
   getStoredPalletCounts,
@@ -187,6 +188,17 @@ export async function createReceiptFlow(input: z.infer<typeof receivingSchema>) 
     }
   }
 
+  // `pallets.height` is the height of the *pallet*, not of one carton. Until
+  // now it was written from the packaging profile's carton height, so every
+  // downstream height rule compared a ~22 cm carton against a ~190 cm bin and
+  // passed. When the profile carries a build standard we snapshot it in
+  // millimetres and set the legacy centimetre column to match, so the cm path
+  // becomes correct rather than staying wrong. A profile without layer data
+  // falls back to the carton/product behaviour this has always had.
+  const packStandard = resolvePackStandard(packagingProfile);
+  const standardHeightCm =
+    packStandard.standardHeightMm != null ? packStandard.standardHeightMm / 10 : null;
+
   const palletUpsertPayload: Record<string, unknown> = {
     pallet_code: reusedPalletId ? reusedBarcode : palletCode,
     pallet_barcode: reusedPalletId ? reusedBarcode : palletCode,
@@ -202,8 +214,13 @@ export async function createReceiptFlow(input: z.infer<typeof receivingSchema>) 
     is_stored: false,
     length: payload.override_length ?? packagingProfile?.length ?? product.length,
     width: payload.override_width ?? packagingProfile?.width ?? product.width,
-    height: payload.override_height ?? packagingProfile?.height ?? product.height,
+    height: payload.override_height ?? standardHeightCm ?? packagingProfile?.height ?? product.height,
     weight: payload.override_weight ?? packagingProfile?.weight ?? product.weight,
+    // Written unconditionally: a reused pallet row must not keep the standard
+    // it was built to last time.
+    standard_packages_per_layer: packStandard.packagesPerLayer,
+    standard_layers_per_pallet: packStandard.layersPerPallet,
+    standard_height_mm: packStandard.standardHeightMm,
   };
   if (reusedPalletId) {
     palletUpsertPayload.id = reusedPalletId;

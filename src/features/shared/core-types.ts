@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { validateIso6346ContainerNumber } from "@/lib/container-number";
 import { recordPalletQtyObservation, recordPlacementObservation } from "@/lib/ai-assist";
+import { cmToMm, exceedsClearance, formatClearanceBlockReason } from "@/lib/measure";
 // isDesktopClient reserved for future device-aware flows
 
 // Helper to bypass strict Supabase typing for tables not yet in the schema.
@@ -687,6 +688,16 @@ export function parseCsv(text: string) {
   });
 }
 
+export interface PutawayAssignmentCheck {
+  valid: boolean;
+  reason: string;
+  /**
+   * Absent means the caller may offer the usual override-with-a-reason path.
+   * `false` marks a hard block — today, only the height rule.
+   */
+  overridable?: boolean;
+}
+
 export function validatePutawayAssignment(input: {
   productTemperature: TemperatureClass;
   locationTemperature: TemperatureClass;
@@ -695,9 +706,13 @@ export function validatePutawayAssignment(input: {
   occupiedPallets: number;
   mixedSkuAllowed: boolean;
   hasOtherSku: boolean;
+  /** Legacy centimetre inputs. Prefer the millimetre pair below. */
   palletHeightCm?: number | null;
   locationMaxPalletHeightCm?: number | null;
-}) {
+  palletHeightMm?: number | null;
+  locationClearanceMm?: number | null;
+  clearanceMarginMm?: number | null;
+}): PutawayAssignmentCheck {
   if (input.locationStatus !== "active") {
     return { valid: false, reason: "Location is not active" };
   }
@@ -710,14 +725,22 @@ export function validatePutawayAssignment(input: {
   if (input.hasOtherSku && !input.mixedSkuAllowed) {
     return { valid: false, reason: "Location blocks mixed SKU storage" };
   }
-  if (
-    input.locationMaxPalletHeightCm != null &&
-    input.palletHeightCm != null &&
-    input.palletHeightCm > input.locationMaxPalletHeightCm
-  ) {
+  // Height is a hard block: no override, no reason code. Both sides are
+  // compared in millimetres, and the warehouse safety margin is subtracted
+  // from the bin — the same arithmetic the slotting filter and the fit test
+  // use, or the three disagree about which bins are eligible. Centimetre
+  // callers are converted rather than compared in their own unit.
+  const palletHeightMm = input.palletHeightMm ?? cmToMm(input.palletHeightCm);
+  const clearanceMm = input.locationClearanceMm ?? cmToMm(input.locationMaxPalletHeightCm);
+  if (exceedsClearance({ palletHeightMm, clearanceMm, marginMm: input.clearanceMarginMm })) {
     return {
       valid: false,
-      reason: `Pallet height ${input.palletHeightCm} cm exceeds location ceiling of ${input.locationMaxPalletHeightCm} cm`,
+      overridable: false,
+      reason: formatClearanceBlockReason({
+        palletHeightMm,
+        clearanceMm,
+        marginMm: input.clearanceMarginMm,
+      }),
     };
   }
   return { valid: true, reason: "Assignment valid" };

@@ -2,6 +2,7 @@
 // All feature modules are split under src/features/
 // Import paths remain @/lib/wms-core throughout the app.
 
+export * from "@/lib/measure";
 export * from "@/features/shared/core-types";
 export * from "@/features/admin/admin-core";
 export * from "@/features/setup/setup-core";
