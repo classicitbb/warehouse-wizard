@@ -1654,6 +1654,7 @@ export type Database = {
           level_style: string
           location_type: Database["public"]["Enums"]["location_type"]
           max_height: number | null
+          max_height_mm: number | null
           max_length: number | null
           max_pallets: number
           max_weight: number | null
@@ -1688,6 +1689,7 @@ export type Database = {
           level_style?: string
           location_type?: Database["public"]["Enums"]["location_type"]
           max_height?: number | null
+          max_height_mm?: number | null
           max_length?: number | null
           max_pallets?: number
           max_weight?: number | null
@@ -1722,6 +1724,7 @@ export type Database = {
           level_style?: string
           location_type?: Database["public"]["Enums"]["location_type"]
           max_height?: number | null
+          max_height_mm?: number | null
           max_length?: number | null
           max_pallets?: number
           max_weight?: number | null
@@ -2166,6 +2169,9 @@ export type Database = {
           reserved_quantity: number
           reused_from_pallet_id: string | null
           stack_height: number | null
+          standard_height_mm: number | null
+          standard_layers_per_pallet: number | null
+          standard_packages_per_layer: number | null
           status: Database["public"]["Enums"]["inventory_status"]
           updated_at: string
           weight: number | null
@@ -2196,6 +2202,9 @@ export type Database = {
           reserved_quantity?: number
           reused_from_pallet_id?: string | null
           stack_height?: number | null
+          standard_height_mm?: number | null
+          standard_layers_per_pallet?: number | null
+          standard_packages_per_layer?: number | null
           status?: Database["public"]["Enums"]["inventory_status"]
           updated_at?: string
           weight?: number | null
@@ -2226,6 +2235,9 @@ export type Database = {
           reserved_quantity?: number
           reused_from_pallet_id?: string | null
           stack_height?: number | null
+          standard_height_mm?: number | null
+          standard_layers_per_pallet?: number | null
+          standard_packages_per_layer?: number | null
           status?: Database["public"]["Enums"]["inventory_status"]
           updated_at?: string
           weight?: number | null
@@ -2700,51 +2712,129 @@ export type Database = {
       product_packaging_profiles: {
         Row: {
           barcode: string | null
+          build_notes: string | null
           created_at: string
           created_by: string | null
+          effective_from: string | null
+          fit_checked_at: string | null
+          fit_status: string | null
+          fit_summary: Json | null
           height: number | null
           id: string
           is_default: boolean
           is_hidden: boolean
+          is_pallet_standard: boolean
+          layer_columns: number | null
+          layer_pattern: string | null
+          layers_per_pallet: number | null
           length: number | null
+          max_stack_pallets: number | null
+          package_height_mm: number | null
+          package_length_mm: number | null
           package_type: string | null
+          package_width_mm: number | null
+          packages_per_layer: number | null
+          packages_per_pallet: number | null
+          pallet_base_height_mm: number | null
+          pallet_footprint_length_mm: number | null
+          pallet_footprint_width_mm: number | null
+          pallet_tare_kg: number | null
           product_id: string
           profile_name: string
+          quantity_tolerance: number | null
+          revision: number
+          slip_sheet_height_mm: number | null
+          standard_gross_weight_kg: number | null
+          standard_height_mm: number | null
+          superseded_by_id: string | null
           units_per_package: number
+          units_per_pallet: number | null
           updated_at: string
           weight: number | null
           width: number | null
         }
         Insert: {
           barcode?: string | null
+          build_notes?: string | null
           created_at?: string
           created_by?: string | null
+          effective_from?: string | null
+          fit_checked_at?: string | null
+          fit_status?: string | null
+          fit_summary?: Json | null
           height?: number | null
           id?: string
           is_default?: boolean
           is_hidden?: boolean
+          is_pallet_standard?: boolean
+          layer_columns?: number | null
+          layer_pattern?: string | null
+          layers_per_pallet?: number | null
           length?: number | null
+          max_stack_pallets?: number | null
+          package_height_mm?: number | null
+          package_length_mm?: number | null
           package_type?: string | null
+          package_width_mm?: number | null
+          packages_per_layer?: number | null
+          packages_per_pallet?: number | null
+          pallet_base_height_mm?: number | null
+          pallet_footprint_length_mm?: number | null
+          pallet_footprint_width_mm?: number | null
+          pallet_tare_kg?: number | null
           product_id: string
           profile_name: string
+          quantity_tolerance?: number | null
+          revision?: number
+          slip_sheet_height_mm?: number | null
+          standard_gross_weight_kg?: number | null
+          standard_height_mm?: number | null
+          superseded_by_id?: string | null
           units_per_package?: number
+          units_per_pallet?: number | null
           updated_at?: string
           weight?: number | null
           width?: number | null
         }
         Update: {
           barcode?: string | null
+          build_notes?: string | null
           created_at?: string
           created_by?: string | null
+          effective_from?: string | null
+          fit_checked_at?: string | null
+          fit_status?: string | null
+          fit_summary?: Json | null
           height?: number | null
           id?: string
           is_default?: boolean
           is_hidden?: boolean
+          is_pallet_standard?: boolean
+          layer_columns?: number | null
+          layer_pattern?: string | null
+          layers_per_pallet?: number | null
           length?: number | null
+          max_stack_pallets?: number | null
+          package_height_mm?: number | null
+          package_length_mm?: number | null
           package_type?: string | null
+          package_width_mm?: number | null
+          packages_per_layer?: number | null
+          packages_per_pallet?: number | null
+          pallet_base_height_mm?: number | null
+          pallet_footprint_length_mm?: number | null
+          pallet_footprint_width_mm?: number | null
+          pallet_tare_kg?: number | null
           product_id?: string
           profile_name?: string
+          quantity_tolerance?: number | null
+          revision?: number
+          slip_sheet_height_mm?: number | null
+          standard_gross_weight_kg?: number | null
+          standard_height_mm?: number | null
+          superseded_by_id?: string | null
           units_per_package?: number
+          units_per_pallet?: number | null
           updated_at?: string
           weight?: number | null
           width?: number | null
@@ -2755,6 +2845,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_packaging_profiles_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4230,6 +4327,7 @@ export type Database = {
           address_line_1: string | null
           address_line_2: string | null
           city: string | null
+          clearance_safety_margin_mm: number
           code: string
           country: string | null
           created_at: string
@@ -4248,6 +4346,7 @@ export type Database = {
           address_line_1?: string | null
           address_line_2?: string | null
           city?: string | null
+          clearance_safety_margin_mm?: number
           code: string
           country?: string | null
           created_at?: string
@@ -4266,6 +4365,7 @@ export type Database = {
           address_line_1?: string | null
           address_line_2?: string | null
           city?: string | null
+          clearance_safety_margin_mm?: number
           code?: string
           country?: string | null
           created_at?: string
@@ -4697,6 +4797,10 @@ export type Database = {
           score: number
         }[]
       }
+      effective_clearance_mm: {
+        Args: { in_clearance_mm: number; in_margin_mm: number }
+        Returns: number
+      }
       email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
@@ -4726,6 +4830,14 @@ export type Database = {
         Returns: string
       }
       is_approved: { Args: never; Returns: boolean }
+      location_clearance_mm: {
+        Args: {
+          in_max_height: number
+          in_max_height_mm: number
+          in_max_pallet_height_cm: number
+        }
+        Returns: number
+      }
       log_audit_event: {
         Args: {
           in_entity_id: string
@@ -4756,6 +4868,10 @@ export type Database = {
       operator_ticket_fallback_brief: {
         Args: { t: Database["public"]["Tables"]["operator_tickets"]["Row"] }
         Returns: string
+      }
+      pallet_height_mm: {
+        Args: { in_height: number; in_standard_height_mm: number }
+        Returns: number
       }
       pallet_in_accessible_transfer: {
         Args: { target_pallet_id: string }
