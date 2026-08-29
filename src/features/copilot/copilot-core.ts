@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getRouteHelp, getArticleById, searchHelpArticles, helpArticles } from "@/lib/help-content";
 import { localHabitSummary, recentActions } from "@/lib/habit-tracking";
+import { type ScreenReportContext } from "@/features/copilot/report-context";
 
 export type CopilotTraceEntry = {
   tool: string;
@@ -78,6 +79,12 @@ export type CopilotReportRequest = {
   message: string;
   /** Screen the problem happened on, when it is not the current one. */
   route?: string;
+  /**
+   * What the operator had on screen — selected product, typed quantities, the
+   * receiving session. Captured when the button was pressed, because the screen
+   * behind it usually closes on the way to the copilot.
+   */
+  context?: ScreenReportContext | null;
 };
 
 export function requestCopilotReport(request: CopilotReportRequest) {

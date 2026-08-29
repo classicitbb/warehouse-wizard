@@ -17,6 +17,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { db, formatSupabaseError } from "@/features/shared/core-types";
 import { getRouteHelp } from "@/lib/help-content";
+import { describeReportContext, type ScreenReportContext } from "@/features/copilot/report-context";
 import {
   describeHabitsForCopilot,
   lastFailedAction,
@@ -38,12 +39,68 @@ export type Clarification = {
   askedAt: string;
 };
 
+/**
+ * A screenshot or a log excerpt the operator added to their own report.
+ * Screenshots live in the private `ticket-screenshots` bucket; a log excerpt is
+ * short enough to keep inline, where it stays readable in the agent brief.
+ */
+export type TicketAttachment = {
+  kind: "screenshot" | "log";
+  /** Storage path of an uploaded capture. */
+  path?: string | null;
+  /** Inline text for a pasted log excerpt. */
+  excerpt?: string | null;
+  /** What the operator called it, when they picked a file. */
+  name?: string | null;
+  /** `auto` is the capture taken when the report opened; `operator` is a deliberate attach. */
+  source: "auto" | "operator";
+  at: string;
+};
+
 export type TicketEvidence = {
   recentActions: ActionEvent[];
   recentErrors: Array<{ title: string; message: string; source: string; at: string }>;
   systemLogIds: string[];
   habits: HabitSummary | null;
+  /** What was on screen — selected product, typed quantities, session details. */
+  screenContext?: ScreenReportContext | null;
+  /** Screenshots and log excerpts attached to the report. */
+  attachments?: TicketAttachment[];
 };
+
+/** Long enough for a stack trace, short enough to read in a ticket. */
+export const MAX_LOG_EXCERPT_CHARS = 8000;
+
+/** Turn pasted text into a log attachment, or null when there is nothing in it. */
+export function makeLogAttachment(text: string, name?: string | null): TicketAttachment | null {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return null;
+  const excerpt =
+    trimmed.length > MAX_LOG_EXCERPT_CHARS
+      ? `${trimmed.slice(0, MAX_LOG_EXCERPT_CHARS)}\n…truncated at ${MAX_LOG_EXCERPT_CHARS} characters.`
+      : trimmed;
+  return {
+    kind: "log",
+    excerpt,
+    name: name?.trim() || null,
+    source: "operator",
+    at: new Date().toISOString(),
+  };
+}
+
+export function makeScreenshotAttachment(
+  path: string,
+  source: TicketAttachment["source"] = "operator",
+): TicketAttachment {
+  return { kind: "screenshot", path, source, at: new Date().toISOString() };
+}
+
+/** Short label for an attachment chip or a brief line. */
+export function attachmentLabel(attachment: TicketAttachment): string {
+  if (attachment.kind === "screenshot") return attachment.name?.trim() || "Screenshot";
+  const size = attachment.excerpt?.length ?? 0;
+  return `${attachment.name?.trim() || "Log excerpt"} (${size} character${size === 1 ? "" : "s"})`;
+}
 
 export type TicketDraft = {
   id?: string;
@@ -274,6 +331,8 @@ export function createTicketDraft(input: {
   actualBehavior?: string;
   error?: unknown;
   systemLogIds?: string[];
+  /** What the operator had on screen when they reached for the life buoy. */
+  screenContext?: ScreenReportContext | null;
 }): TicketDraft {
   const failed = lastFailedAction();
   const errorMessage =
@@ -313,6 +372,8 @@ export function createTicketDraft(input: {
         : [],
       systemLogIds: input.systemLogIds ?? [],
       habits: localHabitSummary(),
+      screenContext: input.screenContext ?? null,
+      attachments: [],
     },
     labels: [],
   };
@@ -380,6 +441,27 @@ export function buildAgentBrief(
     for (const item of draft.clarifications) {
       lines.push(`- **${FIELD_LABELS[item.field] ?? item.field}** — ${item.question}`);
       lines.push(`  > ${item.answer.replace(/\n/g, "\n  > ")}`);
+    }
+    lines.push("");
+  }
+
+  const screenContext = describeReportContext(draft.evidence.screenContext);
+  if (screenContext) {
+    lines.push("## What was on screen", "", screenContext, "");
+  }
+
+  const attachments = draft.evidence.attachments ?? [];
+  if (attachments.length > 0) {
+    lines.push("## Attachments", "");
+    for (const attachment of attachments) {
+      if (attachment.kind === "screenshot") {
+        lines.push(`- Screenshot (${attachment.source}) — \`${attachment.path ?? "no path"}\``);
+        continue;
+      }
+      lines.push(`- ${attachmentLabel(attachment)}`);
+      // A pasted log can itself contain a fence; neutralise it so the brief
+      // does not end up half inside a code block.
+      lines.push("", "```", String(attachment.excerpt ?? "").replace(/```/g, "'''").trim(), "```");
     }
     lines.push("");
   }
@@ -487,6 +569,8 @@ const EMPTY_EVIDENCE: TicketEvidence = {
   recentErrors: [],
   systemLogIds: [],
   habits: null,
+  screenContext: null,
+  attachments: [],
 };
 
 export function rowToTicket(row: Record<string, unknown>): StoredTicket {
@@ -591,6 +675,73 @@ export async function appendTicketEvent(
     detail,
   });
   if (error) throw new Error(formatSupabaseError(error, "Could not record ticket history."));
+}
+
+// ── Evidence added after the report was opened ───────────────────────────────
+// The copilot opens the draft on the operator's first message, so a screenshot,
+// a log excerpt or the screen context all land on a row that already exists.
+// Everything here is best-effort: a report must never fail because a picture
+// could not be attached to it.
+
+type DraftTicketRow = {
+  id: string;
+  telemetry: Record<string, unknown>;
+  screenshotPath: string | null;
+};
+
+/** The reporter's most recent draft — the report the copilot has just opened. */
+async function latestDraftTicket(): Promise<DraftTicketRow | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) return null;
+  const { data, error } = await db("operator_tickets")
+    .select("id, telemetry, screenshot_path")
+    .eq("reported_by", userId)
+    .eq("status", "draft")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(formatSupabaseError(error, "Could not find the open report."));
+  const row = data as { id?: string; telemetry?: unknown; screenshot_path?: string | null } | null;
+  if (!row?.id) return null;
+  return {
+    id: row.id,
+    telemetry: row.telemetry && typeof row.telemetry === "object" ? { ...(row.telemetry as Record<string, unknown>) } : {},
+    screenshotPath: nullableText(row.screenshot_path),
+  };
+}
+
+/**
+ * Add an attachment and/or the screen context to the open draft report.
+ * Returns false when there is no draft to attach to yet, so the caller can hold
+ * the evidence and try again once the copilot has opened one.
+ */
+export async function addEvidenceToOpenReport(input: {
+  attachment?: TicketAttachment | null;
+  screenContext?: ScreenReportContext | null;
+}): Promise<boolean> {
+  if (!input.attachment && !input.screenContext) return true;
+  const draft = await latestDraftTicket();
+  if (!draft) return false;
+
+  const telemetry = draft.telemetry;
+  const payload: Record<string, unknown> = {};
+
+  if (input.attachment) {
+    const existing = Array.isArray(telemetry.attachments) ? (telemetry.attachments as TicketAttachment[]) : [];
+    telemetry.attachments = [...existing, input.attachment];
+    // The admin view and the notification email both read `screenshot_path`,
+    // so the first picture on a report still lands in the column they know.
+    if (input.attachment.kind === "screenshot" && input.attachment.path && !draft.screenshotPath) {
+      payload.screenshot_path = input.attachment.path;
+    }
+  }
+  if (input.screenContext) telemetry.screenContext = input.screenContext;
+  payload.telemetry = JSON.parse(JSON.stringify(telemetry));
+
+  const { error } = await db("operator_tickets").update(payload).eq("id", draft.id);
+  if (error) throw new Error(formatSupabaseError(error, "Could not attach that to the report."));
+  return true;
 }
 
 export async function listMyTickets(limit = 25): Promise<StoredTicket[]> {

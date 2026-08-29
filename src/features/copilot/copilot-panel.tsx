@@ -12,7 +12,22 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Bot, History, LifeBuoy, Loader2, MessageSquarePlus, Plus, Send, Sparkle, Square, Ticket } from "lucide-react";
+import {
+  Bot,
+  Camera,
+  Check,
+  FileText,
+  History,
+  LifeBuoy,
+  Loader2,
+  MessageSquarePlus,
+  Plus,
+  Send,
+  Sparkle,
+  Square,
+  Ticket,
+  TriangleAlert,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -35,8 +50,22 @@ import {
 import {
   attachScreenshotToLatestDraft,
   captureAndUploadTicketScreenshot,
+  readLogFile,
   SCREENSHOT_IGNORE_ATTR,
 } from "@/features/copilot/screenshot-capture";
+import {
+  addEvidenceToOpenReport,
+  attachmentLabel,
+  makeLogAttachment,
+  makeScreenshotAttachment,
+  MAX_LOG_EXCERPT_CHARS,
+  type TicketAttachment,
+} from "@/features/copilot/feedback-core";
+import {
+  activeReportContext,
+  reportContextForCopilot,
+  type ScreenReportContext,
+} from "@/features/copilot/report-context";
 import { recordAction } from "@/lib/habit-tracking";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 
@@ -65,6 +94,31 @@ const SUPPORT_TOOLS = new Set([
   "submit_problem_report",
   "list_my_reports",
 ]);
+
+/** A screenshot or log excerpt the operator added, and where it has got to. */
+type AttachmentChip = {
+  id: string;
+  label: string;
+  state: "working" | "attached" | "waiting" | "failed";
+};
+
+/**
+ * Evidence that belongs on the report the copilot is about to open. The draft
+ * row does not exist until the first reply comes back, so anything attached
+ * before then waits here rather than being lost.
+ */
+type PendingEvidence = {
+  id: string;
+  attachment?: TicketAttachment;
+  screenContext?: ScreenReportContext | null;
+};
+
+const ATTACHMENT_STATE_LABELS: Record<AttachmentChip["state"], string> = {
+  working: "attaching…",
+  attached: "attached",
+  waiting: "waits for the report",
+  failed: "could not attach",
+};
 
 function messageId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -101,6 +155,17 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const stoppedRef = useRef(false);
   /** Screen capture in flight for the report the operator is about to file. */
   const pendingShotRef = useRef<Promise<string | null> | null>(null);
+  /** True while a report is open in this thread — the attach controls belong to it. */
+  const [reportFlow, setReportFlow] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentChip[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
+  const [logText, setLogText] = useState("");
+  const [logName, setLogName] = useState<string | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  /** What was on screen when the report was started, filed with the ticket. */
+  const reportContextRef = useRef<ScreenReportContext | null>(null);
+  const pendingEvidenceRef = useRef<PendingEvidence[]>([]);
+  const logFileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -117,14 +182,95 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     });
   }, [open, user?.id]);
 
+  const resetReportFlow = useCallback(() => {
+    setReportFlow(false);
+    setAttachments([]);
+    setLogOpen(false);
+    setLogText("");
+    setLogName(null);
+    pendingEvidenceRef.current = [];
+    reportContextRef.current = null;
+  }, []);
+
   const startNewChat = useCallback(() => {
     if (busy) return;
     setConversationId(null);
     setMessages([]);
     setHistoryOpen(false);
     setInput("");
+    resetReportFlow();
     inputRef.current?.focus();
-  }, [busy]);
+  }, [busy, resetReportFlow]);
+
+  /**
+   * Move everything queued onto the open draft report. Anything the copilot has
+   * not opened a report for yet stays queued and is tried again after the next
+   * reply, so an operator who attaches first and talks second loses nothing.
+   */
+  const flushEvidence = useCallback(async () => {
+    if (pendingEvidenceRef.current.length === 0) return;
+    const queue = pendingEvidenceRef.current;
+    pendingEvidenceRef.current = [];
+    const stillWaiting: PendingEvidence[] = [];
+
+    for (const item of queue) {
+      let state: AttachmentChip["state"] = "waiting";
+      try {
+        state = (await addEvidenceToOpenReport({
+          attachment: item.attachment,
+          screenContext: item.screenContext,
+        }))
+          ? "attached"
+          : "waiting";
+      } catch (error) {
+        state = "failed";
+        logErrorTelemetry({
+          error,
+          title: "Report evidence could not be attached",
+          source: "copilot-panel.flushEvidence",
+          severity: "warning",
+          details: { kind: item.attachment?.kind ?? "screen-context" },
+        });
+      }
+      if (state === "waiting") stillWaiting.push(item);
+      if (item.attachment) {
+        setAttachments((current) =>
+          current.map((chip) => (chip.id === item.id ? { ...chip, state } : chip)),
+        );
+      }
+    }
+
+    pendingEvidenceRef.current = [...stillWaiting, ...pendingEvidenceRef.current];
+  }, []);
+
+  /** Take a picture of the screen behind the panel and file it with the report. */
+  const attachScreenshot = useCallback(async () => {
+    if (capturing) return;
+    const id = messageId();
+    setCapturing(true);
+    setAttachments((current) => [...current, { id, label: "Screenshot", state: "working" }]);
+    const path = await captureAndUploadTicketScreenshot();
+    setCapturing(false);
+    if (!path) {
+      setAttachments((current) => current.map((chip) => (chip.id === id ? { ...chip, state: "failed" } : chip)));
+      return;
+    }
+    pendingEvidenceRef.current.push({ id, attachment: makeScreenshotAttachment(path, "operator") });
+    await flushEvidence();
+  }, [capturing, flushEvidence]);
+
+  /** File pasted log text — an error, a console dump — with the report. */
+  const attachLogExcerpt = useCallback(async () => {
+    const attachment = makeLogAttachment(logText, logName);
+    if (!attachment) return;
+    const id = messageId();
+    setAttachments((current) => [...current, { id, label: attachmentLabel(attachment), state: "working" }]);
+    setLogText("");
+    setLogName(null);
+    setLogOpen(false);
+    pendingEvidenceRef.current.push({ id, attachment });
+    await flushEvidence();
+  }, [flushEvidence, logName, logText]);
 
   const openConversation = useCallback(async (id: string) => {
     if (busy || id === conversationId) return;
@@ -215,6 +361,10 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           question: trimmed,
           pathname,
           history: chatHistory,
+          // What the operator had on screen when they reached for the life buoy:
+          // the selected product, the quantities they typed, the session behind
+          // them. Evidence about their own screen, never an instruction.
+          selection: reportContextForCopilot(reportContextRef.current),
           conversationId: activeConversationId,
           signal: controller.signal,
         });
@@ -227,11 +377,29 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
         setMessages((prev) => [...prev, assistantMessage]);
         // The screen capture taken when the report was started belongs to the
         // draft the copilot has just opened.
-        if (result.trace?.some((entry) => entry.tool === "start_problem_report") && pendingShotRef.current) {
-          const shot = pendingShotRef.current;
-          pendingShotRef.current = null;
-          void shot.then((path) => (path ? attachScreenshotToLatestDraft(path) : false));
+        const usedTools = new Set((result.trace ?? []).map((entry) => entry.tool));
+        if (usedTools.has("start_problem_report")) {
+          setReportFlow(true);
+          // A report the operator opened by typing rather than by pressing the
+          // life buoy still deserves the screen it was opened from.
+          if (!reportContextRef.current) {
+            const context = activeReportContext();
+            if (context) {
+              reportContextRef.current = context;
+              pendingEvidenceRef.current.push({ id: messageId(), screenContext: context });
+            }
+          }
+          if (pendingShotRef.current) {
+            const shot = pendingShotRef.current;
+            pendingShotRef.current = null;
+            void shot.then((path) => (path ? attachScreenshotToLatestDraft(path) : false));
+          }
         }
+        // Screen context and anything the operator attached go on the same draft.
+        // Once the report is filed there is nothing left to attach to.
+        void flushEvidence().then(() => {
+          if (usedTools.has("submit_problem_report")) setReportFlow(false);
+        });
         if (activeConversationId && user?.id) {
           void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: assistantMessage })
             .then(() => loadCopilotConversations(user.id).then(setConversations))
@@ -254,7 +422,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
         inputRef.current?.focus();
       }
     },
-    [busy, conversationId, messages, pathname, profile?.default_warehouse_id, user?.id],
+    [busy, conversationId, flushEvidence, messages, pathname, profile?.default_warehouse_id, user?.id],
   );
 
   // Copilot is generally available on every build and for every signed-in user.
@@ -275,9 +443,16 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       setConversationId(null);
       setMessages([]);
       setHistoryOpen(false);
+      resetReportFlow();
+      if (kind !== "mine") {
+        const context = activeReportContext();
+        reportContextRef.current = context;
+        if (context) pendingEvidenceRef.current.push({ id: messageId(), screenContext: context });
+        setReportFlow(true);
+      }
       void sendRef.current(SUPPORT_PROMPTS[kind]);
     },
-    [busy, pathname],
+    [busy, pathname, resetReportFlow],
   );
 
   // Anywhere in the app can hand the copilot a problem — the error boundary's
@@ -289,9 +464,16 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       setConversationId(null);
       setMessages([]);
       setHistoryOpen(false);
+      resetReportFlow();
+      // The life buoy reads the screen before it closes and hands the facts
+      // over with the request; fall back to whatever is still published.
+      const context = request.context ?? activeReportContext();
+      reportContextRef.current = context;
+      if (context) pendingEvidenceRef.current.push({ id: messageId(), screenContext: context });
+      setReportFlow(true);
       void sendRef.current(request.message);
     }),
-  []);
+  [resetReportFlow]);
 
 
   return (
@@ -465,6 +647,125 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             </p>
           ) : null}
         </div>
+
+        {reportFlow ? (
+          <div className="border-t border-border bg-muted/20 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground">Attach to this report</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => void attachScreenshot()}
+                disabled={capturing}
+              >
+                {capturing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                Screenshot
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setLogOpen((value) => !value)}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Log excerpt
+              </Button>
+            </div>
+
+            {attachments.length > 0 ? (
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {attachments.map((chip) => (
+                  <li
+                    key={chip.id}
+                    className={cn(
+                      "flex max-w-full items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px]",
+                      chip.state === "failed" && "border-destructive/60 text-destructive",
+                    )}
+                  >
+                    {chip.state === "working" ? (
+                      <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                    ) : chip.state === "attached" ? (
+                      <Check className="h-3 w-3 shrink-0 text-primary" />
+                    ) : (
+                      <TriangleAlert className="h-3 w-3 shrink-0" />
+                    )}
+                    <span className="truncate">{chip.label}</span>
+                    <span className="shrink-0 text-muted-foreground">— {ATTACHMENT_STATE_LABELS[chip.state]}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {logOpen ? (
+              <div className="mt-2 grid gap-1.5">
+                <Textarea
+                  value={logText}
+                  onChange={(event) => setLogText(event.target.value)}
+                  rows={4}
+                  aria-label="Log excerpt"
+                  placeholder="Paste the error text or the log lines you saw…"
+                  className="resize-none text-xs"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={logFileRef}
+                    type="file"
+                    accept=".txt,.log,.json,.csv,text/plain"
+                    className="hidden"
+                    aria-label="Choose a log file"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (!file) return;
+                      void readLogFile(file).then((text) => {
+                        if (text === null) return;
+                        setLogName(file.name);
+                        setLogText((current) => (current ? `${current}\n${text}` : text));
+                      });
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => logFileRef.current?.click()}
+                  >
+                    Choose a file
+                  </Button>
+                  <span className="text-[11px] text-muted-foreground">
+                    {logText.length}/{MAX_LOG_EXCERPT_CHARS}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="ml-auto h-7 px-2 text-xs"
+                    disabled={!logText.trim()}
+                    onClick={() => void attachLogExcerpt()}
+                  >
+                    Attach
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      setLogOpen(false);
+                      setLogText("");
+                      setLogName(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <form
           className="flex items-end gap-2 border-t border-border px-4 py-3"

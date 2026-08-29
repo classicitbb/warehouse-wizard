@@ -15,6 +15,33 @@ vi.mock("@/features/copilot/copilot-core", async (importOriginal) => {
   return { ...actual, ...copilotMocks };
 });
 
+type EvidenceInput = {
+  attachment?: { kind: string; excerpt?: string | null; path?: string | null };
+  screenContext?: unknown;
+};
+
+const feedbackMocks = vi.hoisted(() => ({
+  addEvidenceToOpenReport: vi.fn(
+    async (_input: { attachment?: unknown; screenContext?: unknown }) => true,
+  ),
+}));
+
+vi.mock("@/features/copilot/feedback-core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/copilot/feedback-core")>();
+  return { ...actual, ...feedbackMocks };
+});
+
+const captureMocks = vi.hoisted(() => ({
+  captureAndUploadTicketScreenshot: vi.fn(async () => "user-1/shot.jpg"),
+  attachScreenshotToLatestDraft: vi.fn(async () => true),
+  readLogFile: vi.fn(async () => "line one\nline two"),
+}));
+
+vi.mock("@/features/copilot/screenshot-capture", () => ({
+  ...captureMocks,
+  SCREENSHOT_IGNORE_ATTR: "data-ticket-screenshot-ignore",
+}));
+
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({
     user: { id: "user-1" },
@@ -24,6 +51,7 @@ vi.mock("@/hooks/use-auth", () => ({
 
 import { CopilotPanel } from "@/features/copilot/copilot-panel";
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
+import { makeReportContext } from "@/features/copilot/report-context";
 
 class ResizeObserverStub {
   observe() {}
@@ -62,7 +90,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   copilotMocks.askCopilot.mockResolvedValue({ answer: "How can I help?", trace: [] });
   copilotMocks.loadCopilotConversations.mockResolvedValue([]);
+  feedbackMocks.addEvidenceToOpenReport.mockResolvedValue(true);
+  captureMocks.captureAndUploadTicketScreenshot.mockResolvedValue("user-1/shot.jpg");
 });
+
+/** Everything the panel has tried to file with the open report. */
+function evidenceCalls(): EvidenceInput[] {
+  return feedbackMocks.addEvidenceToOpenReport.mock.calls.map((call) => call[0] as EvidenceInput);
+}
 
 describe("CopilotPanel support entry points", () => {
   it("offers a way to report a problem and to send feedback", async () => {
@@ -181,5 +216,91 @@ describe("CopilotPanel support entry points", () => {
 
     await waitFor(() => expect(copilotMocks.askCopilot).toHaveBeenCalled());
     expect(await within(dialog).findByText(/1 record lookup/i)).toBeInTheDocument();
+  });
+});
+
+describe("CopilotPanel report evidence", () => {
+  it("offers a screenshot or a log excerpt once a report is open", async () => {
+    renderPanel();
+    await openPanel();
+
+    expect(screen.queryByRole("button", { name: /^screenshot$/i })).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: /report a problem/i }));
+
+    expect(await screen.findByRole("button", { name: /^screenshot$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /log excerpt/i })).toBeInTheDocument();
+  });
+
+  it("keeps the attach controls out of an ordinary question", async () => {
+    renderPanel();
+    const dialog = await openPanel();
+
+    fireEvent.click(await screen.findByText(/what is open for me right now\?/i));
+
+    await waitFor(() => expect(copilotMocks.askCopilot).toHaveBeenCalled());
+    expect(within(dialog).queryByRole("button", { name: /^screenshot$/i })).not.toBeInTheDocument();
+  });
+
+  it("files a pasted log excerpt with the report", async () => {
+    renderPanel();
+    await openPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /report a problem/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: /log excerpt/i }));
+    fireEvent.change(screen.getByLabelText("Log excerpt"), {
+      target: { value: "TypeError: cannot read pallet_count of undefined" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+
+    await waitFor(() =>
+      expect(
+        evidenceCalls().some((call) => call.attachment?.kind === "log"),
+      ).toBe(true),
+    );
+    const logged = evidenceCalls().find((call) => call.attachment?.kind === "log");
+    expect(logged?.attachment?.excerpt).toContain("cannot read pallet_count");
+    expect(await screen.findByText(/attached/i)).toBeInTheDocument();
+  });
+
+  it("captures and files a screenshot on request", async () => {
+    renderPanel();
+    await openPanel();
+    fireEvent.click(await screen.findByRole("button", { name: /report a problem/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: /^screenshot$/i }));
+
+    await waitFor(() => expect(captureMocks.captureAndUploadTicketScreenshot).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(evidenceCalls().some((call) => call.attachment?.path === "user-1/shot.jpg")).toBe(true),
+    );
+  });
+
+  it("carries what was on screen when the life buoy was pressed", async () => {
+    renderPanel();
+
+    act(() => {
+      requestCopilotReport({
+        message: 'I have a problem with the "New Shipment" screen. Here is what happened: ',
+        route: "/receiving",
+        context: makeReportContext({
+          screen: "New Shipment",
+          route: "/receiving",
+          details: [
+            { label: "SKU line 1", value: "FLOUR · Flour — total received 100, 25 per pallet, 4 pallets" },
+            { label: "Container", value: "MSKU1234565" },
+          ],
+        }),
+      });
+    });
+
+    await waitFor(() => expect(copilotMocks.askCopilot).toHaveBeenCalled());
+    const selection = (lastAsk() as unknown as { selection?: Record<string, unknown> })?.selection;
+    expect(selection?.screen_name).toBe("New Shipment");
+    expect(selection?.on_screen).toMatchObject({ Container: "MSKU1234565" });
+
+    await waitFor(() =>
+      expect(evidenceCalls().some((call) => call.screenContext !== undefined)).toBe(true),
+    );
   });
 });

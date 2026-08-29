@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  attachmentLabel,
   listAllTickets,
   updateTicketStatus,
   type StoredTicket,
@@ -29,6 +30,7 @@ import {
   type TicketSeverity,
   type TicketStatus,
 } from "@/features/copilot/feedback-core";
+import { describeReportContext } from "@/features/copilot/report-context";
 import { formatDate } from "@/lib/wms-core";
 import { cn } from "@/lib/utils";
 
@@ -493,6 +495,42 @@ export function SupportRequestsPanel() {
                   </div>
                 </div>
               )}
+
+              {selectedTicket.evidence.screenContext && (
+                <div>
+                  <h4 className="mb-1 text-sm font-medium">What was on screen</h4>
+                  <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-xs font-mono leading-relaxed">
+                    {describeReportContext(selectedTicket.evidence.screenContext)}
+                  </pre>
+                </div>
+              )}
+
+              {(selectedTicket.evidence.attachments ?? []).filter((item) => item.kind === "log").length > 0 && (
+                <div>
+                  <h4 className="mb-1 text-sm font-medium">Log excerpts</h4>
+                  <div className="grid gap-2">
+                    {(selectedTicket.evidence.attachments ?? [])
+                      .filter((item) => item.kind === "log")
+                      .map((item, index) => (
+                        <div key={`${item.at}-${index}`} className="rounded-md border p-3">
+                          <p className="mb-1 text-xs font-medium">{attachmentLabel(item)}</p>
+                          <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs font-mono leading-relaxed">
+                            {item.excerpt}
+                          </pre>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {(selectedTicket.evidence.attachments ?? [])
+                .filter((item) => item.kind === "screenshot" && item.path && item.path !== selectedTicket.screenshotPath)
+                .map((item, index) => (
+                  <div key={`${item.at}-${index}`}>
+                    <h4 className="mb-1 text-sm font-medium">Screenshot added by the reporter</h4>
+                    <TicketScreenshot path={item.path as string} />
+                  </div>
+                ))}
 
               {selectedTicket.screenshotPath && (
                 <div>

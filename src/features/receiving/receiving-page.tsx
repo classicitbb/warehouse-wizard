@@ -133,6 +133,14 @@ import { type ProductSearchHandle } from "@/components/product-search";
 import { cn } from "@/lib/utils";
 import { collectIso6346ContainerCandidates, extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
 import { getProductPalletQtyHint, type PalletQtyHint } from "@/lib/ai-assist";
+import {
+  shouldRedistributeOnTotal,
+  validateShipmentQuantities,
+  type PerPalletSource,
+  type ShipmentQuantityIssues,
+} from "@/features/receiving/receiving-quantity-rules";
+import { buildReceivingReportContext, type ReceivingReportLine } from "@/features/receiving/receiving-report-context";
+import { useReportContext } from "@/features/copilot/report-context";
 import { getOrCreateDeviceId } from "@/lib/device-identity";
 import { invalidateWarehouseData } from "@/lib/query-invalidation";
 import {
@@ -342,6 +350,7 @@ function ShipmentExpiryPicker({
 
 export function ReceivingPage() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
@@ -372,7 +381,10 @@ export function ReceivingPage() {
   const palletCountRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const expiryRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const shipmentLineRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const perPalletManualProductRefs = useRef<Record<string, string>>({});
+  /** Line id → the product the operator typed a qty per pallet for. State, not
+   *  a ref, because whether the qty per pallet is known decides what the line
+   *  renders. */
+  const [perPalletEntered, setPerPalletEntered] = useState<Record<string, string>>({});
   const totalTypedRefs = useRef<Record<string, boolean>>({});
   const containerAutoAdvanceRef = useRef("");
   const [palletQtyHints, setPalletQtyHints] = useState<Record<string, PalletQtyHint | null>>({});
@@ -563,7 +575,7 @@ export function ReceivingPage() {
         .filter((line) => {
           const hint = palletQtyHints[line.id];
           if (!hint || !line.product_id) return false;
-          if (perPalletManualProductRefs.current[line.id] === line.product_id) return false;
+          if (perPalletEntered[line.id] === line.product_id) return false;
           if (!totalTypedRefs.current[line.id]) return false;
           if (Number(line.total_quantity) <= 0) return false;
           return Number(line.quantity_per_pallet) !== hint.suggestedQty;
@@ -579,7 +591,7 @@ export function ReceivingPage() {
         return distributeShipmentLine({ ...line, quantity_per_pallet: hint.suggestedQty }, "perPallet");
       }),
     }));
-  }, [shipmentOpen, shipmentForm.lines, palletQtyHints]);
+  }, [shipmentOpen, shipmentForm.lines, palletQtyHints, perPalletEntered]);
 
   useEffect(() => {
     if (!shipmentOpen || !activeShipmentLineId) return;
@@ -619,23 +631,100 @@ export function ReceivingPage() {
       setPrintAfterSaveIds([]);
     }
   }, [drafts, printAfterSaveIds, printOpen]);
+  /**
+   * Where the qty per pallet on a line came from. A learned qty that was never
+   * found, and never replaced by the operator, leaves the field on its default
+   * of 1 — which would otherwise turn a total of 500 into 500 pallets.
+   */
+  function perPalletSourceFor(line: ReceivingShipmentLineState): PerPalletSource {
+    const hint = palletQtyHints[line.id];
+    if (hint && Number(line.quantity_per_pallet) === hint.suggestedQty) return "learned";
+    if (line.product_id && perPalletEntered[line.id] === line.product_id) return "entered";
+    return "unknown";
+  }
+
+  // Validated on every render: the quantities are what decide whether the line
+  // can be saved, what the fields say inline, and whether the leftover chooser
+  // is worth showing at all.
+  const lineQuantityIssues = new Map<string, ShipmentQuantityIssues>();
+  for (const line of shipmentForm.lines) {
+    lineQuantityIssues.set(
+      line.id,
+      validateShipmentQuantities({
+        line,
+        perPalletSource: perPalletSourceFor(line),
+        productLabel: productOptions.find((product) => product.id === line.product_id)?.sku,
+      }),
+    );
+  }
+
   const incompleteLine = shipmentForm.lines.find((line) => {
     const selectedProduct = productOptions.find((product) => product.id === line.product_id);
-    const remainder = remainderForLine(line);
+    const quantities = lineQuantityIssues.get(line.id);
     return !line.product_id ||
-      Number(line.total_quantity) <= 0 ||
-      Number(line.quantity_per_pallet) <= 0 ||
-      Number(line.pallet_count) <= 0 ||
+      Boolean(quantities?.blocking) ||
       (productRequiresExpiry(selectedProduct) && !line.expiry_date) ||
-      (remainder > 0 && !line.remainder_action);
+      Boolean(quantities?.showRemainder && !line.remainder_action);
   });
+
+  /** Say which line is holding the save up, in the same words as the field. */
+  function blockedLineReason(line: ReceivingShipmentLineState, action: string): string {
+    const quantities = lineQuantityIssues.get(line.id);
+    if (line.product_id && quantities?.blocking) return quantities.blocking;
+    if (quantities?.showRemainder && !line.remainder_action) {
+      return `Choose how to handle the leftover quantity before ${action}.`;
+    }
+    return `Enter a SKU and valid quantities before ${action}.`;
+  }
+
+  // What the life buoy hands over when this screen is reported: the SKU that is
+  // selected, the quantities that were typed, and the receiving session behind
+  // them — not just the route.
+  const reportContext = buildReceivingReportContext({
+    entryOpen: shipmentOpen,
+    entryMode: shipmentEntryMode,
+    editingDraftBarcode: editingDraft?.draft_pallet_barcode ?? null,
+    route: pathname,
+    warehouseLabel: activeWarehouse?.name ?? currentWarehouseId,
+    clientLabel: activeClient ? `${activeClient.code ?? ""} ${activeClient.name ?? ""}`.trim() : "No client",
+    receiptType: shipmentForm.receipt_type,
+    containerNumber: shipmentForm.container_number,
+    poNumber: shipmentForm.po_number,
+    referenceNumber: shipmentForm.reference_number,
+    draftCount: drafts.length,
+    lastReceived: lastResult,
+    lines: shipmentForm.lines.map((line, index): ReceivingReportLine => {
+      const quantities = lineQuantityIssues.get(line.id);
+      const product = productOptions.find((item) => item.id === line.product_id);
+      const hint = palletQtyHints[line.id];
+      return {
+        index: index + 1,
+        sku: product?.sku,
+        productName: product?.name,
+        total: line.total_quantity,
+        perPallet: line.quantity_per_pallet,
+        palletCount: line.pallet_count,
+        remainder: quantities?.facts.remainder ?? 0,
+        overAllocated: quantities?.facts.overAllocated ?? 0,
+        remainderAction: line.remainder_action,
+        expiryDate: line.expiry_date,
+        lotNumber: line.lot_number,
+        batchNumber: line.batch_number,
+        perPalletSource: perPalletSourceFor(line),
+        learnedQty: hint ? { suggestedQty: hint.suggestedQty, sampleCount: hint.sampleCount } : null,
+        issues: [quantities?.total, quantities?.perPallet, quantities?.palletCount].filter(
+          (issue): issue is string => Boolean(issue),
+        ),
+      };
+    }),
+  });
+  useReportContext(reportContext);
+
   const saveBlockedReason = shipmentEntryMode === "pallet"
     ? !shipmentForm.warehouse_id
       ? "Select a warehouse before receiving the pallet."
       : incompleteLine
-        ? remainderForLine(incompleteLine) > 0 && !incompleteLine.remainder_action
-          ? "Choose how to handle the leftover quantity before receiving the pallet."
-          : "Enter a SKU and valid quantities before receiving the pallet."
+        ? blockedLineReason(incompleteLine, "receiving the pallet")
         : ""
     : !shipmentForm.container_number.trim()
       ? "Enter a container number before saving."
@@ -644,9 +733,7 @@ export function ReceivingPage() {
         : !shipmentForm.warehouse_id
           ? "Select a warehouse before saving."
           : incompleteLine
-            ? remainderForLine(incompleteLine) > 0 && !incompleteLine.remainder_action
-              ? "Choose how to handle the leftover quantity before saving."
-              : "Enter a SKU and valid quantities before saving."
+            ? blockedLineReason(incompleteLine, "saving")
             : "";
   const canSaveShipment = !saveBlockedReason;
 
@@ -868,7 +955,7 @@ export function ReceivingPage() {
     setEditingDraft(null);
     setShipmentContainerTouched(false);
     setShipmentContainerScanWarning(null);
-    perPalletManualProductRefs.current = {};
+    setPerPalletEntered({});
     totalTypedRefs.current = {};
     containerAutoAdvanceRef.current = "";
     setPalletQtyHints({});
@@ -894,7 +981,7 @@ export function ReceivingPage() {
     setEditingDraft(null);
     setShipmentContainerTouched(false);
     setShipmentContainerScanWarning(null);
-    perPalletManualProductRefs.current = {};
+    setPerPalletEntered({});
     totalTypedRefs.current = {};
     containerAutoAdvanceRef.current = "";
     setPalletQtyHints({});
@@ -932,7 +1019,7 @@ export function ReceivingPage() {
     setEditingDraft(draft);
     setShipmentContainerTouched(draftEntryMode === "shipment" && Boolean(values.container_number));
     setShipmentContainerScanWarning(null);
-    perPalletManualProductRefs.current = {};
+    setPerPalletEntered({});
     totalTypedRefs.current = {};
     containerAutoAdvanceRef.current = "";
     setPalletQtyHints({});
@@ -940,6 +1027,20 @@ export function ReceivingPage() {
     setOpenExpiryLineId(null);
     setOpenShipmentDetails({});
     setActiveShipmentLineId(null);
+    const draftLine = {
+      ...newShipmentLine(values.product_id),
+      total_quantity: Number(values.quantity),
+      quantity_per_pallet: Number(values.quantity),
+      pallet_count: 1,
+      expiry_date: values.expiry_date ?? "",
+      lot_number: values.lot_number ?? "",
+      batch_number: values.batch_number ?? "",
+      packaging_profile_id: values.packaging_profile_id ?? "",
+    };
+    // The saved draft already carries a real qty per pallet, so the line starts
+    // known: retyping the total recalculates against it instead of asking for a
+    // qty that is already there.
+    if (values.product_id) setPerPalletEntered({ [draftLine.id]: values.product_id });
     setShipmentForm({
       receipt_type: values.receipt_type,
       warehouse_id: values.warehouse_id,
@@ -947,16 +1048,7 @@ export function ReceivingPage() {
       container_number: draftEntryMode === "pallet" ? "" : values.container_number ?? "",
       po_number: draftEntryMode === "pallet" ? "" : values.po_number ?? "",
       reference_number: values.reference_number ?? "",
-      lines: [{
-        ...newShipmentLine(values.product_id),
-        total_quantity: Number(values.quantity),
-        quantity_per_pallet: Number(values.quantity),
-        pallet_count: 1,
-        expiry_date: values.expiry_date ?? "",
-        lot_number: values.lot_number ?? "",
-        batch_number: values.batch_number ?? "",
-        packaging_profile_id: values.packaging_profile_id ?? "",
-      }],
+      lines: [draftLine],
     });
     setShipmentOpen(true);
   }
@@ -989,7 +1081,11 @@ export function ReceivingPage() {
     setOpenExpiryLineId((current) => (current === lineId ? null : current));
     setOpenShipmentDetails((current) => ({ ...current, [lineId]: false }));
     setActiveShipmentLineId(lineId);
-    delete perPalletManualProductRefs.current[lineId];
+    setPerPalletEntered((current) => {
+      const next = { ...current };
+      delete next[lineId];
+      return next;
+    });
     delete totalTypedRefs.current[lineId];
   }
 
@@ -1453,12 +1549,14 @@ export function ReceivingPage() {
 
               <div className="grid gap-3">
                 {shipmentForm.lines.map((line, index) => {
-                  const remainder = remainderForLine(line);
+                  const quantities = lineQuantityIssues.get(line.id);
+                  const remainder = quantities?.facts.remainder ?? remainderForLine(line);
                   const selectedProduct = productOptions.find((product) => product.id === line.product_id);
                   const expiryRequired = productRequiresExpiry(selectedProduct);
                   const allocatedQuantity = Math.max(0, Number(line.quantity_per_pallet || 0) * Number(line.pallet_count || 0));
                   const productCommitPending = Boolean(pendingProductCommit[line.id] && line.product_id);
                   const palletQtyHint = palletQtyHints[line.id];
+                  const perPalletSource = perPalletSourceFor(line);
                   const palletQtyHintApplied = Boolean(
                     palletQtyHint
                     && Number(line.total_quantity) > 0
@@ -1493,6 +1591,12 @@ export function ReceivingPage() {
                               <span>Pallets {line.pallet_count}</span>
                               <span>Exp. {line.expiry_date || "—"}</span>
                             </div>
+                            {/* A collapsed line must not hide a split that does not add up. */}
+                            {quantities?.blocking ? (
+                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                {quantities.blocking}
+                              </p>
+                            ) : null}
                         </div>
                       ) : (
                         <>
@@ -1563,7 +1667,6 @@ export function ReceivingPage() {
                             <ShipmentFieldLabel>Total received</ShipmentFieldLabel>
                             <Input
                               ref={(node) => { totalRefs.current[line.id] = node; }}
-                              className="h-9 sm:h-10"
                               type="number"
                               inputMode="numeric"
                               pattern="[0-9]*"
@@ -1572,34 +1675,55 @@ export function ReceivingPage() {
                               aria-label="Total received"
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "total", e)}
+                              aria-invalid={Boolean(quantities?.total)}
+                              className={cn(
+                                "h-9 sm:h-10",
+                                quantities?.total && "border-amber-500 focus-visible:border-amber-500",
+                              )}
                               onChange={(e) => {
                                 const nextValue = e.currentTarget.value;
                                 totalTypedRefs.current[line.id] = nextValue.trim() !== "";
-                                // Recalculate pallets from the (learned or typed) qty per pallet.
+                                // Every edit to the total redistributes the line, so the pallet
+                                // count follows the total as it is typed. It is held back only
+                                // while the qty per pallet is still an unconfirmed default —
+                                // there is nothing meaningful to divide by yet.
                                 updateLine(
                                   line.id,
                                   { total_quantity: nextValue },
-                                  nextValue.trim() === "" ? undefined : "total",
+                                  shouldRedistributeOnTotal({ nextTotal: nextValue, perPalletSource }),
                                 );
                               }}
 
                             />
+                            {quantities?.total ? (
+                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                {quantities.total}
+                              </p>
+                            ) : null}
                           </div>
                           <div className="grid min-w-0 gap-1.5">
                             <ShipmentFieldLabel>Qty per pallet</ShipmentFieldLabel>
                             <Input
                               ref={(node) => { perPalletRefs.current[line.id] = node; }}
-                              className="h-9 sm:h-10"
                               type="number"
                               inputMode="numeric"
                               pattern="[0-9]*"
                               min={1}
                               value={line.quantity_per_pallet}
                               aria-label="Qty per pallet"
+                              aria-invalid={Boolean(quantities?.perPallet)}
+                              className={cn(
+                                "h-9 sm:h-10",
+                                quantities?.perPallet && "border-amber-500 focus-visible:border-amber-500",
+                              )}
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "perPallet", e)}
                               onChange={(e) => {
-                                if (line.product_id) perPalletManualProductRefs.current[line.id] = line.product_id;
+                                // Typing here settles the qty per pallet for this SKU, so the
+                                // line stops asking for one and the total redistributes against it.
+                                if (line.product_id) {
+                                  setPerPalletEntered((current) => ({ ...current, [line.id]: line.product_id }));
+                                }
                                 const nextValue = e.currentTarget.value;
                                 updateLine(
                                   line.id,
@@ -1608,7 +1732,11 @@ export function ReceivingPage() {
                                 );
                               }}
                             />
-                            {palletQtyHintApplied ? (
+                            {quantities?.perPallet ? (
+                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                {quantities.perPallet}
+                              </p>
+                            ) : palletQtyHintApplied ? (
                               <p className="text-xs text-muted-foreground">
                                 Suggested from {palletQtyHint?.sampleCount} prior pallet{palletQtyHint?.sampleCount === 1 ? "" : "s"}.
                               </p>
@@ -1618,17 +1746,26 @@ export function ReceivingPage() {
                             <ShipmentFieldLabel>Pallets</ShipmentFieldLabel>
                             <Input
                               ref={(node) => { palletCountRefs.current[line.id] = node; }}
-                              className="h-9 sm:h-10"
                               type="number"
                               inputMode="numeric"
                               pattern="[0-9]*"
                               min={1}
                               value={line.pallet_count}
                               aria-label="Pallets"
+                              aria-invalid={Boolean(quantities?.palletCount)}
+                              className={cn(
+                                "h-9 sm:h-10",
+                                quantities?.palletCount && "border-amber-500 focus-visible:border-amber-500",
+                              )}
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "count", e)}
                               onChange={(e) => updateLine(line.id, { pallet_count: e.currentTarget.value })}
                             />
+                            {quantities?.palletCount ? (
+                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                {quantities.palletCount}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -1696,7 +1833,7 @@ export function ReceivingPage() {
                           </CollapsibleContent>
                         </Collapsible>
                       </div>
-                      {remainder > 0 && (
+                      {quantities?.showRemainder && (
                         <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
                           <p className="font-medium">{remainder} unit{remainder === 1 ? "" : "s"} will be left after creating {line.pallet_count} pallet{Number(line.pallet_count) === 1 ? "" : "s"} of {line.quantity_per_pallet}.</p>
                           <p className="text-xs">Allocated in WMS: {allocatedQuantity}. Total received: {line.total_quantity}.</p>
