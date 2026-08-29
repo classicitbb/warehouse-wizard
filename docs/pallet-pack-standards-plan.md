@@ -1,7 +1,9 @@
 # Pallet Pack Standards — implementation plan
 
-**Status:** plan only, nothing implemented. Phase 1 is on hold until §2/§4 are ratified.
-**Ratified:** height is a **hard block** at put-away — no override, no reason code.
+**Status:** plan only, nothing implemented. Phase 1 is unblocked pending one question (§8).
+**Ratified:** height is a **hard block** at put-away (no override, no reason code); bin
+clearances move to mm in Phase 1; clearance safety margin is **3 in / 76 mm**; container
+staff are promoted through the existing Role Matrix.
 **Branch:** `claude/pallet-packaging-profiles-n96nce`
 **Interactive version (schema tables, placement matrix, live isometric prototype):**
 https://claude.ai/code/artifact/e1c6b7d5-5737-44b2-9c2e-f6c4378abe7e
@@ -82,26 +84,36 @@ Round-trip is stable. A quarter-inch is 6.35 mm and integer-mm rounding costs at
 `moves-core.ts:398` reports cm, weights are kg. A pallet in inches against a bin in
 centimetres leaves the operator unable to check a hard block by eye.
 
-- Add `max_height_mm` to `locations`, backfilled from `max_height * 10`. The rules
-  read it; `max_height` and `max_pallet_height_cm` stay as legacy, written through
-  for one release.
+- **Ratified for Phase 1:** add `max_height_mm` to `locations`, backfilled from
+  `max_height * 10`. The rules read it; `max_height` and `max_pallet_height_cm` stay
+  as legacy, written through for one release.
 - `resolveLocationClearanceMm(location)` is the single reader: least non-null of
   `max_height_mm`, `max_height * 10`, `max_pallet_height_cm * 10`.
 - Unit preference rides on `user_mobile_toolbar_preferences` (already holds per-user
   workspace prefs), defaulting from a new warehouse-level setting.
 
-### Hard block makes precision load-bearing
+### The 3 in margin must be applied in exactly three places
 
-No override is right — a 1905 mm pallet does not fit a 1900 mm bay whoever signs it
-off. The consequence is that a wrong bin clearance is now a stoppage, not a warning.
-Two guards come with it:
+`warehouses.clearance_safety_margin_mm` = **76** (3 in, ratified), manager-editable
+per site. The block fires at `standard_height_mm > clearance_mm - margin`.
 
-1. **Safety margin.** `warehouses.clearance_safety_margin_mm`, default `25` (1 in).
-   The block fires at `standard_height_mm > clearance_mm - margin`, so a clearance
-   rounded to the nearest centimetre cannot cause a false block at the boundary.
-2. **Exact figures in the message.** Block text quotes actual millimetres on both
-   sides plus the margin — "1905 mm pallet, 1900 mm clearance, 25 mm margin". The
-   rounded inch display invites an argument the operator cannot win.
+Block text quotes actual millimetres on both sides plus the margin — "1905 mm pallet,
+1900 mm bin, 76 mm margin" — because the quarter-inch display cannot show a difference
+smaller than 6 mm, and an operator who cannot see why they are blocked will find a way
+around it.
+
+The margin must then reach **all three** consumers or they disagree:
+
+1. The fit test's eligible-bin count *and* its "drop to N layers" remedy.
+2. The slotting filter in `directed_putaway_candidates`.
+3. The put-away block.
+
+One SQL expression, one TS helper, three callers. If the fit test counts 214 bins and
+put-away then refuses one of them, the operator stops believing any of the three.
+
+**Budget for the count dropping.** At 76 mm a 2000 mm bay accepts 1924 mm, and a
+standard 1905 mm pallet needs a 1981 mm bay. Re-run the fit test across live bins
+before Phase 5 turns the block on — the margined count is the one that matters.
 
 ### No blind backfill
 
@@ -193,13 +205,45 @@ permanent change recorded as a one-off means every future receipt fights the old
 reference what was true when the pallet was built, not what the profile says today.
 `pallets.height` is already a snapshot of this kind — this finishes it.
 
-### Who can do it
+### Who can do it — and why "promote them in the Role Matrix" cannot work yet
 
-Reuse the existing roles, no new concept: `packagingProfiles.roles`
-(`core-types.ts:494`) is `admin`, `warehouse_manager`, `inventory_clerk`. Those get
-New and Edit. `warehouse_operator` and `dispatch_driver` get View plus the
-per-receipt override — the right division anyway: an operator records what arrived,
-a clerk sets what the standard is.
+Promotion through the Role Matrix is the right mechanism. It does nothing today, for
+two independent reasons. Three sources currently disagree about who may write a
+packaging profile:
+
+| Source | Who it says may write a profile |
+| --- | --- |
+| `core-types.ts:494` (`packagingProfiles.roles`) | `admin`, `warehouse_manager`, `inventory_clerk` |
+| Role Matrix seed (`20260820204306`, `packaging`) | `inventory_clerk` has `can_edit`. `warehouse_operator` has no `packaging` row — and no `receiving` row either. |
+| RLS on the table (`20260722000000`) | `has_min_role(auth.uid(), 'warehouse_manager')` — rank ≥ 40, so `inventory_clerk` at 20 is refused outright. |
+
+And `role_permissions` is read nowhere but the matrix editor itself
+(`admin-page.tsx:563`). Nothing in the app gates on it. So today an `inventory_clerk`
+is shown the create button by the roles array and refused by the database — and
+toggling the matrix changes neither half of that.
+
+Making promotion real, **scoped to the `packaging` feature alone** — this is not an
+app-wide permissions project:
+
+1. `has_feature_permission(_user_id, _feature_code, _mode)` — security definer,
+   joining `user_roles → roles → role_permissions → permission_features`.
+2. RLS on `product_packaging_profiles` writes becomes
+   `is_approved() and (has_min_role(…,'warehouse_manager') or has_feature_permission(…,'packaging','edit'))`.
+   The `has_min_role` arm stays so a missing matrix row can never lock a manager out.
+3. A `useFeaturePermission('packaging')` hook. The panel and the Packaging Profiles
+   resource page both gate on it, replacing the hardcoded roles array for this one
+   resource.
+
+Two things follow that are decisions, not side effects:
+
+- Turning matrix enforcement on immediately grants `inventory_clerk` write access,
+  because the seed already sets `can_edit` for them — a widening against today's RLS.
+  See §8.
+- Promoting a `warehouse_operator` takes **two** toggles, not one: `receiving` view
+  and `packaging` edit, since the seed gives operators neither.
+
+Whatever the matrix says, the division holds: an operator records what arrived through
+the per-receipt override; setting the standard is a separate grant.
 
 ### Two gates on Save
 
@@ -241,9 +285,9 @@ a clerk sets what the standard is.
 `directed_putaway_candidates` gains a hard filter on effective clearance plus three
 scoring terms:
 
-- **Best fit, not first fit** — `+18 × max(0, 1 − headroom/60)`. Stops a 90 cm
-  pallet consuming a 240 cm bay while tall pallets queue. Biggest cube-utilisation
-  win in the change.
+- **Best fit, not first fit** — `+18 × max(0, 1 − headroom_mm/600)`, headroom
+  measured against the usable ceiling. Stops a 900 mm pallet consuming a 2400 mm bay
+  while tall pallets queue. Biggest cube-utilisation win in the change.
 - **Height bands** — profiles and bins both resolve to a band
   (≤110 / ≤140 / ≤170 / ≤200 / >200). Same band scores, and it gives operators a
   vocabulary and the fit test something legible to report.
@@ -307,13 +351,17 @@ Each phase is shippable on its own.
    `~ src/test/receiving-page.test.tsx`, `receiving-shipment-math.test.ts`
 4. **The receiving panel — View, Edit, New** — the three-state panel (§4): the
    actual-quantity render, on-the-fly create and version, the per-receipt override,
-   the inline fit test, and the role and offline gates. Right rail at ≥ `xl`, `Sheet`
-   below. The largest phase, and the one that puts the standard in reach of the
-   person who discovers it changed.
-   `+ src/components/pack-view-panel.tsx` · `~ receiving-page.tsx`,
-   `receiving-core.ts` · `+ src/test/pack-view-panel.test.tsx`
+   the inline fit test, and the Role Matrix and offline gates — including making the
+   matrix actually govern the `packaging` feature, client and server. Right rail at
+   ≥ `xl`, `Sheet` below. The largest phase, and the one that puts the standard in
+   reach of the person who discovers it changed.
+   `+ src/components/pack-view-panel.tsx` · `+ src/hooks/use-feature-permission.ts` ·
+   `+ supabase/migrations/…_packaging_feature_permission.sql` ·
+   `~ receiving-page.tsx`, `receiving-core.ts` ·
+   `+ src/test/pack-view-panel.test.tsx`, `feature-permission.test.ts`
 5. **Slotting and put-away enforcement** — new scoring, the hard height block, the
-   safety margin, bay-picker pre-validation, the height silhouette. Last, because it
+   76 mm margin wired into all three consumers, bay-picker pre-validation, the
+   height silhouette. Last, because it
    is the only phase that can stop an operator mid-task, and with no override it
    should land on data the previous four phases have proven.
    `+ supabase/migrations/…_slotting_height_bands.sql` · `~ putaway-core.ts`,
@@ -325,36 +373,38 @@ they are no-ops when no profile is assigned.
 
 ---
 
-## 8. Open decisions
+## 8. Decisions
 
-**Ratified — height override:** hard block, no override. Carried into Phase 5, with
-the safety margin and exact-millimetre messaging (§2) as the two things that make it
-safe to enforce.
+**Ratified**
 
-Still open:
+- **Height override** — hard block, no override. Carried into Phase 5.
+- **Bin clearances move to mm in Phase 1** — `locations.max_height_mm`, backfilled
+  from `max_height * 10`, read through `resolveLocationClearanceMm()`. Bin Locations
+  accepts inch entry from Phase 2.
+- **Clearance safety margin: 3 in** — `warehouses.clearance_safety_margin_mm` = 76,
+  manager-editable per site. Must reach the fit test, the slotting filter, and the
+  put-away block together (§2).
+- **Container staff are promoted in the Role Matrix** — so the matrix has to start
+  governing the `packaging` feature; it governs nothing today (§4). Display unit
+  follows the same route: an inch default per warehouse, overridable per user.
 
-1. **Do bin clearances move to mm in Phase 1?** The alternative is keeping
-   `locations` in cm and converting on read. A hard block decided against
-   cm-rounded data will produce false stoppages at the boundary.
-   *Recommend:* move in Phase 1, backfilled from `max_height * 10`, with Bin
-   Locations accepting inch entry in Phase 2. Most likely to bite if deferred.
-2. **What is the clearance safety margin, and who sets it?**
-   *Recommend:* `warehouses.clearance_safety_margin_mm`, default 25 mm (1 in),
-   manager-editable per site. Zero only where clearances are laser-measured.
-3. **Is inch or mm the default, and whose choice is it?** Storage is mm regardless.
-   *Recommend:* warehouse-level default with a per-user override, so a site runs in
-   inches while a metric-trained clerk can still work in mm.
-4. **Does `inventory_clerk` cover your receiving staff?** If the people at the
-   container are `warehouse_operator`, they get View and the per-receipt override
-   only, and a supervisor sets the standard.
-   *Recommend:* leave the boundary where it is and watch how often the override is
-   used — that count answers the question without guessing now.
-5. **Which pallet footprint?** 1200 × 1000 mm (EUR2) and 1219 × 1016 mm
-   (GMA 48 × 40) are close enough to look identical and far enough apart to fail a
-   footprint check.
+**Open — one blocks Phase 4, two block Phase 2/3, none block Phase 1**
+
+1. **Does enforcement widen `inventory_clerk` write access, deliberately?** The Role
+   Matrix seed already grants `inventory_clerk` `can_edit` on `packaging`, but RLS
+   today refuses anyone below `warehouse_manager`. The moment the matrix is enforced,
+   clerks can write packaging profiles where currently they cannot — before any admin
+   touches a toggle. *(Blocks Phase 4.)*
+   *Recommend:* let it widen. It matches both the resource definition and the matrix
+   seed, and the point of the matrix is that promotion is an admin's call. Say no and
+   Phase 4 re-seeds `packaging` to manager-and-above first, leaving clerks to be
+   granted explicitly.
+2. **Which pallet footprint?** 1200 × 1000 mm (EUR2) and 1219 × 1016 mm (GMA 48 × 40)
+   are close enough to look identical and far enough apart to fail a footprint check.
+   *(Needed by Phase 2 for editor defaults.)*
    *Recommend:* warehouse-level default with a per-profile override.
-6. **What happens on an off-standard receipt?** Short pallets are normal — the last
-   pallet of a run almost always is.
+3. **What happens on an off-standard receipt?** Short pallets are normal — the last
+   pallet of a run almost always is. *(Needed by Phase 3.)*
    *Recommend:* warn and record the variance, never block. A blocked receipt gets
    worked around invisibly; a recorded variance is data the fit test and slotting
    scores can use.
