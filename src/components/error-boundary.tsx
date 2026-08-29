@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 import { describeErrorForReport, requestCopilotReport } from "@/features/copilot/copilot-core";
+import { activeReportContext } from "@/features/copilot/report-context";
 import { recordAction } from "@/lib/habit-tracking";
 import { isPreviewEnvironment, navigatePreservingPreviewParams, requestAppRefresh } from "@/lib/preview-env";
 
@@ -211,6 +212,7 @@ function DefaultFallback({
                       requestCopilotReport({
                         message: describeErrorForReport(error, window.location.pathname),
                         route: window.location.pathname,
+                        context: activeReportContext(),
                       });
                     }}
                   >

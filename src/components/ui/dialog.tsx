@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { LifeBuoy, X } from "lucide-react";
 
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
+import { activeReportContext } from "@/features/copilot/report-context";
 import { cn } from "@/lib/utils";
 
 
@@ -50,11 +51,19 @@ const DialogContent = React.forwardRef<
   function reportProblem() {
     const title = contentRef.current?.querySelector("h2")?.textContent?.trim();
     const route = typeof window === "undefined" ? "" : window.location.pathname;
+    // The dialog closes on its way to the copilot, so what was on screen —
+    // selected product, typed quantities, the session behind them — is read
+    // here, while it is still true.
+    const context = activeReportContext();
+    const screen = title || context?.screen;
     requestCopilotReport({
-      message: title
-        ? `I have a problem with the "${title}" screen. Here is what happened: `
+      message: screen
+        ? `I have a problem with the "${screen}" screen. Here is what happened: `
         : "I have a problem with the screen I was on. Here is what happened: ",
       route: route || undefined,
+      context: context
+        ? { ...context, screen: screen ?? context.screen, route: context.route ?? route ?? undefined }
+        : null,
     });
   }
 

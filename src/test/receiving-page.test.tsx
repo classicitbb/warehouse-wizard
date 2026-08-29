@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReceivingPage } from "@/components/wms-ui";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { activeReportContext, resetReportContext } from "@/features/copilot/report-context";
 
 const wmsMocks = vi.hoisted(() => {
   const draft = {
@@ -152,6 +153,7 @@ describe("ReceivingPage", () => {
     wmsMocks.listDraftReceipts.mockResolvedValue([]);
     aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
     window.localStorage.clear();
+    resetReportContext();
   });
 
   function renderReceivingPage(initialEntry = "/receiving") {
@@ -446,6 +448,118 @@ describe("ReceivingPage", () => {
     await waitFor(() => expect(within(dialog).getByLabelText("Total received")).toHaveDisplayValue("100"));
     expect(within(dialog).getByLabelText("Qty per pallet")).toHaveDisplayValue("50");
     expect(within(dialog).queryByText(/Suggested from/)).not.toBeInTheDocument();
+  });
+
+  it("says so inline when there is no learned qty per pallet, and does not invent pallets", async () => {
+    // Nothing learned for the SKU leaves the field on its default of 1, which
+    // would have turned a total of 100 into 100 pallets of one unit.
+    aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+
+    expect(
+      await within(dialog).findByText(/No learned qty per pallet for FLOUR yet/i),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Pallets")).toHaveDisplayValue("1");
+    expect(within(dialog).getByLabelText("Qty per pallet")).toHaveAttribute("aria-invalid", "true");
+    // The leftover chooser stays out of the way until the split is real.
+    expect(within(dialog).queryByText(/will be left after creating/i)).not.toBeInTheDocument();
+  });
+
+  it("clears the missing-qty error and recalculates the pallets once one is entered", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+    await within(dialog).findByText(/No learned qty per pallet/i);
+
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "25" } });
+
+    expect(within(dialog).queryByText(/No learned qty per pallet/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Pallets")).toHaveDisplayValue("4");
+  });
+
+  it("recalculates the pallet count every time the total received changes", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+    const totalInput = within(dialog).getByLabelText("Total received");
+    const palletsInput = within(dialog).getByLabelText("Pallets");
+
+    fireEvent.change(totalInput, { target: { value: "100" } });
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "25" } });
+    expect(palletsInput).toHaveDisplayValue("4");
+
+    fireEvent.change(totalInput, { target: { value: "200" } });
+    expect(palletsInput).toHaveDisplayValue("8");
+
+    fireEvent.change(totalInput, { target: { value: "50" } });
+    expect(palletsInput).toHaveDisplayValue("2");
+  });
+
+  it("flags a pallet count that allocates more than was received", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    await selectFlourProduct(dialog);
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "25" } });
+    fireEvent.change(within(dialog).getByLabelText("Pallets"), { target: { value: "6" } });
+
+    expect(
+      await within(dialog).findByText(/6 pallets of 25 allocates 150 units, 50 more than the 100 received/i),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Pallets")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("blocks the save while a line's quantities do not add up, in the same words", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    const poInput = within(dialog).getByLabelText("PO number");
+    fireEvent.change(within(dialog).getByLabelText("Container number"), { target: { value: "MSKU1234565" } });
+    await waitFor(() => expect(poInput).toHaveFocus());
+    await selectFlourProduct(dialog);
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+
+    expect(await within(dialog).findAllByText(/No learned qty per pallet for FLOUR yet/i)).toHaveLength(2);
+    expect(within(dialog).getByRole("button", { name: /save & receive/i })).toBeDisabled();
+  });
+
+  it("hands the life buoy the selected product, the typed quantities and the session", async () => {
+    aiMocks.getProductPalletQtyHint.mockResolvedValue(null);
+    renderReceivingPage();
+
+    const dialog = await openShipmentDialog();
+    const poInput = within(dialog).getByLabelText("PO number");
+    fireEvent.change(within(dialog).getByLabelText("Container number"), { target: { value: "MSKU1234565" } });
+    await waitFor(() => expect(poInput).toHaveFocus());
+    fireEvent.change(poInput, { target: { value: "PO-77" } });
+    await waitFor(() => expect(poInput).toHaveDisplayValue("PO-77"));
+    await selectFlourProduct(dialog);
+    fireEvent.change(within(dialog).getByLabelText("Total received"), { target: { value: "100" } });
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "25" } });
+
+    await waitFor(() => expect(activeReportContext()?.screen).toBe("New Shipment"));
+    const context = activeReportContext();
+    const detail = (label: string) => context?.details.find((item) => item.label === label)?.value ?? "";
+
+    expect(context?.route).toBe("/receiving");
+    expect(detail("Container")).toBe("MSKU1234565");
+    expect(detail("PO")).toBe("PO-77");
+    expect(detail("Entry mode")).toBe("Shipment by container");
+    expect(detail("SKU line 1")).toContain("FLOUR · Flour");
+    expect(detail("SKU line 1")).toContain("total received 100, 25 per pallet, 4 pallets");
+    expect(detail("SKU line 1 qty per pallet")).toContain("typed by the operator");
   });
 
   it("saves a shipment draft and opens the print dialog for Save & Receive", async () => {

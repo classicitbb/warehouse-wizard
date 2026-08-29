@@ -9,6 +9,23 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.28.10",
+    date: "August 2026",
+    changes: [
+      "Receiving now says what is wrong with a pallet split, on the field itself: a SKU with no learned quantity per pallet asks for one instead of turning the total into one pallet per unit, and a pallet count that allocates more than was received says by how many units",
+      "Changing Total received recalculates the pallet count as you type, at any point in the line — including after you have edited the pallet count by hand",
+      "The leftover-quantity choice only appears once the split adds up, so it stops asking about a remainder that is not real yet",
+      "A collapsed SKU line shows its own warning, so a problem cannot hide behind the summary row",
+      "The life buoy now files what was actually on screen: the selected product, the quantities typed into every SKU line, where the quantity per pallet came from, and the receiving session (container, PO, warehouse, client, draft being edited) — not just the screen name",
+      "Reports and feedback opened from the life buoy take attachments: capture a screenshot on the spot, or paste a log excerpt (or pick a log file) and file it with the ticket",
+      "Support Requests in Settings shows the screen context and any log excerpts alongside the screenshot",
+    ],
+    fixes: [
+      "A quantity per pallet larger than the total received no longer creates a pallet holding more than arrived — the old remainder clamped at zero and hid it",
+      "A blank quantity field is treated as missing rather than as zero, so the line asks for it instead of silently going on",
+    ],
+  },
+  {
     version: "1.28.9",
     date: "August 2026",
     changes: [

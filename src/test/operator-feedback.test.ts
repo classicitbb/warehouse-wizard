@@ -11,8 +11,12 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import {
   applyAnswer,
+  attachmentLabel,
   buildAgentBrief,
   createTicketDraft,
+  makeLogAttachment,
+  makeScreenshotAttachment,
+  MAX_LOG_EXCERPT_CHARS,
   missingFields,
   moduleForRoute,
   nextClarifyingQuestion,
@@ -30,6 +34,10 @@ const copilotFunction = readFileSync(
 );
 const migration = readFileSync(
   path.resolve(process.cwd(), "supabase/migrations/20260820120000_operator_feedback_tickets_and_habits.sql"),
+  "utf8",
+);
+const briefMigration = readFileSync(
+  path.resolve(process.cwd(), "supabase/migrations/20260829193000_operator_ticket_screen_context_brief.sql"),
   "utf8",
 );
 
@@ -260,6 +268,60 @@ describe("buildAgentBrief", () => {
   it("names an untitled report rather than emitting a bare heading", () => {
     expect(buildAgentBrief(draftOf("bug"))).toContain("# Untitled operator report");
   });
+
+  it("carries what was on screen, not just the route", () => {
+    // A receiving bug is unreadable without the SKU and the typed quantities.
+    const draft = createTicketDraft({
+      kind: "bug",
+      route: "/receiving",
+      screenContext: {
+        screen: "New Shipment",
+        route: "/receiving",
+        details: [
+          { label: "Container", value: "MSKU1234565" },
+          { label: "SKU line 1", value: "FLOUR · Flour — total received 100, 25 per pallet, 4 pallets" },
+        ],
+      },
+    });
+
+    const brief = buildAgentBrief(draft);
+    expect(brief).toContain("## What was on screen");
+    expect(brief).toContain("Screen: New Shipment (/receiving)");
+    expect(brief).toContain("- Container: MSKU1234565");
+    expect(brief).toContain("total received 100, 25 per pallet, 4 pallets");
+  });
+
+  it("inlines a log excerpt and points at an attached screenshot", () => {
+    const draft = createTicketDraft({ kind: "bug", route: "/receiving" });
+    draft.evidence.attachments = [
+      makeScreenshotAttachment("user-1/shot.jpg", "operator"),
+      makeLogAttachment("TypeError: pallet_count of undefined", "console.log")!,
+    ];
+
+    const brief = buildAgentBrief(draft);
+    expect(brief).toContain("## Attachments");
+    expect(brief).toContain("user-1/shot.jpg");
+    expect(brief).toContain("console.log");
+    expect(brief).toContain("TypeError: pallet_count of undefined");
+  });
+});
+
+describe("attachments", () => {
+  it("keeps a pasted log excerpt, trimmed and labelled", () => {
+    const attachment = makeLogAttachment("  boom  ", " console dump ");
+    expect(attachment).toMatchObject({ kind: "log", excerpt: "boom", name: "console dump", source: "operator" });
+    expect(attachmentLabel(attachment!)).toBe("console dump (4 characters)");
+  });
+
+  it("refuses to attach nothing", () => {
+    expect(makeLogAttachment("   ")).toBeNull();
+  });
+
+  it("truncates a log that would swamp the ticket", () => {
+    const attachment = makeLogAttachment("x".repeat(MAX_LOG_EXCERPT_CHARS + 500));
+    expect(attachment?.excerpt?.length).toBeLessThan(MAX_LOG_EXCERPT_CHARS + 100);
+    expect(attachment?.excerpt).toContain("truncated");
+  });
 });
 
 describe("rowToTicket", () => {
@@ -404,6 +466,16 @@ describe("the migration backs the client contract", () => {
   it("never leaves a filed ticket without an agent brief", () => {
     expect(migration).toContain("create or replace function public.operator_ticket_fallback_brief");
     expect(migration).toContain("new.agent_brief := public.operator_ticket_fallback_brief(new);");
+  });
+
+  it("writes the screen context and attachments into the server-side brief too", () => {
+    // The brief is rewritten by a trigger, so evidence the client adds to
+    // `telemetry` has to be read there as well as in buildAgentBrief.
+    expect(briefMigration).toContain("create or replace function public.operator_ticket_fallback_brief");
+    expect(briefMigration).toContain("'screenContext'");
+    expect(briefMigration).toContain("'attachments'");
+    expect(briefMigration).toContain("## What was on screen");
+    expect(briefMigration).toContain("## Attachments");
   });
 
   it("exposes a queue an agent can read, ordered by severity", () => {

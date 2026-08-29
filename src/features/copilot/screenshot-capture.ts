@@ -14,7 +14,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { db, formatSupabaseError } from "@/features/shared/core-types";
+import { addEvidenceToOpenReport, makeScreenshotAttachment } from "@/features/copilot/feedback-core";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 
 export const TICKET_SCREENSHOT_BUCKET = "ticket-screenshots";
@@ -90,26 +90,12 @@ export async function captureAndUploadTicketScreenshot(): Promise<string | null>
  * Attach a stored capture to the reporter's most recent draft report — the one
  * the copilot has just opened for them.
  */
-export async function attachScreenshotToLatestDraft(path: string): Promise<boolean> {
+export async function attachScreenshotToLatestDraft(
+  path: string,
+  source: "auto" | "operator" = "auto",
+): Promise<boolean> {
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user?.id;
-    if (!userId) return false;
-    const { data, error } = await db("operator_tickets")
-      .select("id, screenshot_path")
-      .eq("reported_by", userId)
-      .eq("status", "draft")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw new Error(formatSupabaseError(error, "Could not find the open report."));
-    const row = data as { id?: string; screenshot_path?: string | null } | null;
-    if (!row?.id || row.screenshot_path) return false;
-    const { error: updateError } = await db("operator_tickets")
-      .update({ screenshot_path: path })
-      .eq("id", row.id);
-    if (updateError) throw new Error(formatSupabaseError(updateError, "Could not attach the screenshot."));
-    return true;
+    return await addEvidenceToOpenReport({ attachment: makeScreenshotAttachment(path, source) });
   } catch (error) {
     logErrorTelemetry({
       error,
@@ -118,6 +104,23 @@ export async function attachScreenshotToLatestDraft(path: string): Promise<boole
       severity: "warning",
     });
     return false;
+  }
+}
+
+/** Read a picked log file as text. Null when it cannot be read. */
+export async function readLogFile(file: File, maxChars = 20_000): Promise<string | null> {
+  try {
+    const text = await file.text();
+    return text.slice(0, maxChars);
+  } catch (error) {
+    logErrorTelemetry({
+      error,
+      title: "Log file could not be read",
+      source: "screenshot-capture.readLogFile",
+      severity: "warning",
+      details: { name: file.name },
+    });
+    return null;
   }
 }
 
