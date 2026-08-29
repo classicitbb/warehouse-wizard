@@ -1,9 +1,10 @@
 # Pallet Pack Standards — implementation plan
 
-**Status:** plan only, nothing implemented. Phase 1 is unblocked pending one question (§8).
+**Status:** Phase 1 in build. Phases 2–5 planned.
 **Ratified:** height is a **hard block** at put-away (no override, no reason code); bin
 clearances move to mm in Phase 1; clearance safety margin is **3 in / 76 mm**; container
-staff are promoted through the existing Role Matrix.
+staff are promoted through the existing Role Matrix; matrix enforcement may widen
+`inventory_clerk` write access.
 **Branch:** `claude/pallet-packaging-profiles-n96nce`
 **Interactive version (schema tables, placement matrix, live isometric prototype):**
 https://claude.ai/code/artifact/e1c6b7d5-5737-44b2-9c2e-f6c4378abe7e
@@ -238,7 +239,7 @@ Two things follow that are decisions, not side effects:
 
 - Turning matrix enforcement on immediately grants `inventory_clerk` write access,
   because the seed already sets `can_edit` for them — a widening against today's RLS.
-  See §8.
+  **Ratified: let it widen.** No re-seed, no manager-only interim step.
 - Promoting a `warehouse_operator` takes **two** toggles, not one: `receiving` view
   and `packaging` edit, since the seed gives operators neither.
 
@@ -367,6 +368,45 @@ Each phase is shippable on its own.
    `+ supabase/migrations/…_slotting_height_bands.sql` · `~ putaway-core.ts`,
    `putaway-page.tsx` · `~ src/test/putaway-page.test.tsx`
 
+### Phase 1 build notes — two unit boundaries that will bite
+
+Both of these are places where "store mm" collides with a codebase that is currently
+centimetres. Getting either wrong is a silent 10× error that passes every test that
+does not assert an actual number.
+
+**1. The profile's own package dimensions are cm.** `product_packaging_profiles`
+`length` / `width` / `height` / `weight` are `numeric(10,2)` and metric-cm by
+convention. `standard_height_mm` must not be generated from `height` directly, or it
+mixes units. Add explicit mm columns for the package —
+`package_length_mm`, `package_width_mm`, `package_height_mm` — backfilled from the
+legacy cm columns (`* 10`), and generate `standard_height_mm` from
+`package_height_mm`. Leave the legacy columns alone; they still feed the existing UI.
+
+**2. `pallets.height` is cm and is read as cm.** `directed_putaway_candidates`
+compares `pc.height` against `l.max_height` (cm), and `moves-core.ts:394` does the
+same. Writing millimetres into `pallets.height` is a 10× error that makes every bin
+look 10× too small. Instead:
+
+- Add `pallets.standard_height_mm`; the new rules read that.
+- Keep `pallets.height` in cm, and set it to `standard_height_mm / 10` at receipt so
+  the legacy path becomes *correct* rather than staying wrong.
+
+**Scope fences for Phase 1**
+
+- Change the height *filter* in `directed_putaway_candidates` to mm plus the margin.
+  Do **not** add the best-fit, height-band, or family-affinity scoring — that is
+  Phase 5.
+- No UI. `RESOURCE_DEFINITIONS` is untouched; the profile form is Phase 2. With no
+  form, no profile will have layer data yet, so the only behaviour change in Phase 1
+  is the clearance plumbing — which is the point.
+- `supabase/migrations/**` is additive only; never edit an existing migration file.
+  `create or replace function` for the RPC follows the existing repo pattern.
+- `src/integrations/supabase/types.ts` is generated and must not be hand-edited, so
+  the new columns will not be typed. Follow the `as any` patterns already used around
+  `db(...)` rather than fighting it.
+- Verify with `npm run typecheck`. Plain `tsc --noEmit` compiles nothing here — the
+  root `tsconfig.json` is reference-only with `"files": []` and always exits 0.
+
 Feature-flag note: the `packaging` module flag is `false` in `STARTER_MODULES`. Gate
 the new UI behind it; the height correctness fixes in Phase 1 ship ungated, since
 they are no-ops when no profile is assigned.
@@ -388,22 +428,17 @@ they are no-ops when no profile is assigned.
   governing the `packaging` feature; it governs nothing today (§4). Display unit
   follows the same route: an inch default per warehouse, overridable per user.
 
-**Open — one blocks Phase 4, two block Phase 2/3, none block Phase 1**
+- **Matrix enforcement may widen `inventory_clerk` access** — let it widen. From
+  Phase 4, `inventory_clerk` can write packaging profiles; RLS stops contradicting
+  the matrix seed. No re-seed, no manager-only interim step.
 
-1. **Does enforcement widen `inventory_clerk` write access, deliberately?** The Role
-   Matrix seed already grants `inventory_clerk` `can_edit` on `packaging`, but RLS
-   today refuses anyone below `warehouse_manager`. The moment the matrix is enforced,
-   clerks can write packaging profiles where currently they cannot — before any admin
-   touches a toggle. *(Blocks Phase 4.)*
-   *Recommend:* let it widen. It matches both the resource definition and the matrix
-   seed, and the point of the matrix is that promotion is an admin's call. Say no and
-   Phase 4 re-seeds `packaging` to manager-and-above first, leaving clerks to be
-   granted explicitly.
-2. **Which pallet footprint?** 1200 × 1000 mm (EUR2) and 1219 × 1016 mm (GMA 48 × 40)
+**Open — neither blocks Phase 1**
+
+1. **Which pallet footprint?** 1200 × 1000 mm (EUR2) and 1219 × 1016 mm (GMA 48 × 40)
    are close enough to look identical and far enough apart to fail a footprint check.
    *(Needed by Phase 2 for editor defaults.)*
    *Recommend:* warehouse-level default with a per-profile override.
-3. **What happens on an off-standard receipt?** Short pallets are normal — the last
+2. **What happens on an off-standard receipt?** Short pallets are normal — the last
    pallet of a run almost always is. *(Needed by Phase 3.)*
    *Recommend:* warn and record the variance, never block. A blocked receipt gets
    worked around invisibly; a recorded variance is data the fit test and slotting
