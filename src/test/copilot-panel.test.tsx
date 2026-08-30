@@ -221,6 +221,13 @@ describe("CopilotPanel support entry points", () => {
 });
 
 describe("CopilotPanel composer", () => {
+  it("offers explicit dictation without sending the message", async () => {
+    renderPanel();
+    await openPanel();
+    expect(screen.getByRole("button", { name: "Start voice input" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/ask anything about this warehouse/i)).toHaveValue("");
+  });
+
   it("sends on Enter once and leaves Shift+Enter as an editable newline", async () => {
     renderPanel();
     await openPanel();
