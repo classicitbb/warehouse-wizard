@@ -2,7 +2,7 @@
 
 - Repository: `classicitbb/warehouse-wizard`
 - Status: Incomplete — Copilot composer implementation awaits authorized browser verification and deployment approval
-- Last updated: 2026-08-29
+- Last updated: 2026-08-30
 
 ## Current state
 
@@ -39,3 +39,10 @@ Objective; current state; completed steps; affected files; tests/commands and ex
 ### Migration correction — 2026-08-30
 
 The original Phase 1 view migration failed in the target SQL editor with `ERROR: 42P16: cannot change name of view column "location_code" to "warehouse_id"`. Cause: PostgreSQL `CREATE OR REPLACE VIEW` preserves existing view-column positions, and the migration inserted `warehouse_id` as the second selected field. Fixed by preserving the nine existing fields in their established order and appending `l.warehouse_id` last. Added a migration regression assertion in `src/test/migration.test.ts`; passed `npm run typecheck` and `npm run test -- --run src/test/migration.test.ts src/test/enterprise-wms.test.ts` (2 files, 27 tests). Exact next action remains: rerun the corrected `20260830021615_warehouse_intelligence_phase_one_scope.sql` in the intended environment.
+
+### Favicon composition fix — 2026-08-30
+
+- Objective: maximize the visible green pallet cube and gold status mark in browser tabs that apply rounded favicon clipping.
+- Completed: added `public/favicon.svg` with a square dark base and a 1.28x enlarged mark, then pointed `index.html` at that dedicated favicon URL. The PWA and application icon sources remain unchanged.
+- Verification: passed `npm run build` and `git diff --check`; inspected the generated SVG in external Chrome headless rendering. Build retained the pre-existing dynamic-import and chunk-size warnings.
+- Environment state: local asset/source change only; no deployment performed. This favicon work is complete and requires no further action. Existing Copilot and migration handoff actions above remain active.
