@@ -15,5 +15,3 @@ project_id = "gxfvxmxplngvxdkpmxgw"
 [functions.copilot-transcribe]
 enabled = true
 verify_jwt = true
-import_map = "./functions/copilot-transcribe/deno.json"
-# Default entrypoint (functions/copilot-transcribe/index.ts) is used.
