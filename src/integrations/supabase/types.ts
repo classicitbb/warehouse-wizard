@@ -4573,9 +4573,18 @@ export type Database = {
             | Database["public"]["Enums"]["temperature_class"]
             | null
           warehouse_code: string | null
+          warehouse_id: string | null
           zone_code: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "locations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operator_ticket_queue: {
         Row: {
