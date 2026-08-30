@@ -1669,8 +1669,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <nav className={cn("flex-1 overflow-y-auto")}>
-        <div className="flex flex-col gap-0.5">
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto")}>
+        <div className="flex h-full min-h-0 flex-col gap-0.5">
           {items.map((item) => {
             const Icon = navIcons[item.to] ?? LayoutDashboard;
             const isActive = pathname === item.to;
@@ -1680,8 +1680,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.to}
                 className={({ isActive: navActive }) =>
                   cn(
-                    "group flex min-h-[3.375rem] items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
-                    sidebarCollapsed && "h-[3.375rem] w-11 justify-center p-0",
+                    "group flex min-h-9 max-h-[3.375rem] flex-1 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
+                    sidebarCollapsed && "w-11 justify-center p-0",
                     navActive || isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",

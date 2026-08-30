@@ -46,3 +46,12 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Completed: added `public/favicon.svg` with a square dark base and a 1.28x enlarged mark, then pointed `index.html` at that dedicated favicon URL. The PWA and application icon sources remain unchanged.
 - Verification: passed `npm run build` and `git diff --check`; inspected the generated SVG in external Chrome headless rendering. Build retained the pre-existing dynamic-import and chunk-size warnings.
 - Environment state: local asset/source change only; no deployment performed. This favicon work is complete and requires no further action. Existing Copilot and migration handoff actions above remain active.
+
+### Sidebar vertical compression — 2026-08-30
+
+- Objective: let desktop sidebar navigation buttons compress before showing a vertical scrollbar, in both expanded and icon-only states.
+- Completed: made the navigation list fill its available height and share that height among buttons; buttons now shrink from the existing 54px maximum to a readable 36px minimum before the navigation itself overflows. The collapsed state uses the same sizing rule.
+- Affected files: `src/features/shared/ui-shared.tsx`.
+- Verification: passed `npm run typecheck`, `npm run build`, and `git diff --check`. The build retains the existing dynamic-import and chunk-size warnings. External Edge reached the local login page at `http://127.0.0.1:8080/login`; authenticated sidebar rendering could not be checked because no approved operator session was available.
+- Environment state: local source change only; no deployment performed.
+- Exact next action: with an approved non-production operator session in external Edge or Chrome, verify at a short landscape viewport that expanded and collapsed sidebar buttons compress to 36px before the navigation shows a scrollbar.
