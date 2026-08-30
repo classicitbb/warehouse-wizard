@@ -275,6 +275,7 @@ function orValue(value: string) {
 
 type ToolContext = {
   warehouseId: string | null
+  warehouseCode: string
   userId: string
   screen: string
   conversationId: string | null
@@ -303,6 +304,7 @@ async function runTool(
         .or(
           `sku.ilike.${term},product_name.ilike.${term},pallet_code.ilike.${term},lot_number.ilike.${term},container_number.ilike.${term},po_number.ilike.${term}`,
         )
+        .eq('warehouse_code', ctx.warehouseCode)
         .limit(clampLimit(args.limit, 25, 100))
       const { data, error } = await q
       if (error) throw new Error(error.message)
@@ -324,6 +326,7 @@ async function runTool(
         .from('locations')
         .select('id, code, warehouse_id, zone_id, status, location_type, temperature_class, max_pallets, max_weight, mixed_sku_allowed, mixed_lot_allowed, zones(code, name, temperature_class)')
         .ilike('code', `%${code}%`)
+        .eq('warehouse_id', warehouseId)
         .limit(5)
       if (error) throw new Error(error.message)
       const rows = data ?? []
@@ -344,6 +347,7 @@ async function runTool(
         .from('receipts')
         .select('id, receipt_number, reference_number, receipt_type, status, warehouse_id, created_at, receipt_lines(id, quantity, received_quantity, products(sku, name))')
         .or(`receipt_number.ilike.${term},reference_number.ilike.${term}`)
+        .eq('warehouse_id', warehouseId)
         .order('created_at', { ascending: false })
         .limit(10)
       if (error) throw new Error(error.message)
@@ -383,6 +387,7 @@ async function runTool(
         .select('pallet_code, sku, product_name, expiry_date, lot_number, warehouse_code, location_code, quantity, status')
         .not('expiry_date', 'is', null)
         .lte('expiry_date', cutoff)
+        .eq('warehouse_code', ctx.warehouseCode)
         .order('expiry_date', { ascending: true })
         .limit(clampLimit(args.limit, 50, 200))
       if (error) throw new Error(error.message)
@@ -390,10 +395,10 @@ async function runTool(
     }
     case 'get_open_tasks': {
       const [putaway, picks, receipts, moves] = await Promise.all([
-        sb.from('putaway_tasks').select('id, task_number, status', { count: 'exact' }).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
-        sb.from('pick_lists').select('id, pick_list_number, status', { count: 'exact' }).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
-        sb.from('receipts').select('id, receipt_number, status', { count: 'exact' }).in('status', ['draft', 'queued', 'in_progress']).limit(20),
-        sb.from('move_tasks').select('id, task_number, status', { count: 'exact' }).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        sb.from('putaway_tasks').select('id, task_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        sb.from('pick_lists').select('id, pick_list_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        sb.from('receipts').select('id, receipt_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['draft', 'queued', 'in_progress']).limit(20),
+        sb.from('move_tasks').select('id, task_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
       ])
       return {
         rows: {
@@ -409,12 +414,14 @@ async function runTool(
         .from('inventory_search_view')
         .select('pallet_code, sku, product_name, warehouse_code, location_code, status, quantity, held_quantity, damaged_quantity')
         .in('status', ['hold', 'quarantine', 'damaged'])
+        .eq('warehouse_code', ctx.warehouseCode)
         .limit(50)
       if (error) throw new Error(error.message)
       const { data: stalePutaway } = await sb
         .from('putaway_tasks')
         .select('id, task_number, status, created_at, pallets(pallet_code)')
         .in('status', ['queued', 'assigned', 'in_progress'])
+        .eq('warehouse_id', warehouseId)
         .lte('created_at', new Date(Date.now() - 24 * 3600_000).toISOString())
         .limit(50)
       return { rows: { blocked_stock: blockedStock ?? [], stale_putaway_tasks: stalePutaway ?? [] } }
@@ -632,11 +639,10 @@ Deno.serve(async (req) => {
     })
     .filter((c): c is string => Boolean(c))
   const warehouseId = (profile?.default_warehouse_id as string | null) ?? null
-  let warehouseLabel = 'All warehouses'
-  if (warehouseId) {
-    const { data: wh } = await sb.from('warehouses').select('code, name').eq('id', warehouseId).maybeSingle()
-    if (wh) warehouseLabel = `${wh.code ?? ''} ${wh.name ?? ''}`.trim()
-  }
+  if (!profile || !warehouseId) return json({ error: 'Select an active warehouse before using the Copilot.' }, 403)
+  const { data: wh } = await sb.from('warehouses').select('code, name').eq('id', warehouseId).maybeSingle()
+  if (!wh?.code) return json({ error: 'Your active warehouse could not be verified.' }, 403)
+  const warehouseLabel = `${wh.code} ${wh.name ?? ''}`.trim()
 
   const audit = serviceRoleKey
     ? createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
@@ -644,13 +650,14 @@ Deno.serve(async (req) => {
 
   const requestContext = body.context as Record<string, unknown> | undefined
   const screen = String(requestContext?.screen ?? 'unknown')
-  const selection = JSON.stringify(requestContext?.selection ?? {})
+  const selection = JSON.stringify(requestContext?.selection ?? {}).slice(0, 6000)
   const procedures = (body.procedures ?? []).slice(0, 12)
 
   // Client-side evidence attached to any report the caller files. It is data
   // about the caller's own session, never an instruction and never a scope.
   const toolContext: ToolContext = {
     warehouseId,
+    warehouseCode: wh.code,
     userId: user.id,
     screen,
     conversationId: body.conversationId ?? null,
@@ -701,7 +708,7 @@ Deno.serve(async (req) => {
     { role: 'system', content: systemPrompt },
     ...(body.history ?? [])
       .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-10)
+      .slice(-6)
       .map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: question },
   ]

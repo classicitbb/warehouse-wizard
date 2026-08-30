@@ -10,7 +10,7 @@
  * errors.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Bot,
@@ -21,11 +21,15 @@ import {
   LifeBuoy,
   Loader2,
   MessageSquarePlus,
+  Mic,
+  MicOff,
   Plus,
   Send,
   Sparkle,
   Square,
   Ticket,
+  ThumbsDown,
+  ThumbsUp,
   TriangleAlert,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -44,6 +48,8 @@ import {
   loadCopilotMessages,
   onCopilotReportRequest,
   saveCopilotMessage,
+  saveCopilotFeedback,
+  type CopilotFeedbackVote,
   type CopilotConversation,
   type CopilotMessage,
 } from "@/features/copilot/copilot-core";
@@ -61,6 +67,7 @@ import {
   MAX_LOG_EXCERPT_CHARS,
   type TicketAttachment,
 } from "@/features/copilot/feedback-core";
+import { useCopilotDictation } from "@/features/copilot/use-copilot-dictation";
 import {
   activeReportContext,
   reportContextForCopilot,
@@ -95,6 +102,18 @@ const SUPPORT_TOOLS = new Set([
   "list_my_reports",
 ]);
 
+const SOURCE_LABELS: Record<string, string> = {
+  search_inventory: "Inventory records",
+  get_product_details: "Product catalogue",
+  get_location_details: "Location records",
+  get_receipt_status: "Receipt records",
+  get_pick_list_status: "Pick-list records",
+  get_putaway_tasks: "Put-away tasks",
+  get_expiring_inventory: "Expiry records",
+  get_open_tasks: "Open-work records",
+  get_blocked_workflows: "Blocked-work records",
+};
+
 /** A screenshot or log excerpt the operator added, and where it has got to. */
 type AttachmentChip = {
   id: string;
@@ -121,7 +140,11 @@ const ATTACHMENT_STATE_LABELS: Record<AttachmentChip["state"], string> = {
 };
 
 function messageId() {
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    return (char === "x" ? value : (value & 0x3) | 0x8).toString(16);
+  });
 }
 
 /**
@@ -145,6 +168,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<Record<string, CopilotFeedbackVote>>({});
+  const [votingMessageId, setVotingMessageId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [conversations, setConversations] = useState<CopilotConversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -152,6 +177,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** React state updates are asynchronous, so this prevents two Enter presses racing. */
+  const sendingRef = useRef(false);
   const stoppedRef = useRef(false);
   /** Screen capture in flight for the report the operator is about to file. */
   const pendingShotRef = useRef<Promise<string | null> | null>(null);
@@ -166,10 +193,23 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const reportContextRef = useRef<ScreenReportContext | null>(null);
   const pendingEvidenceRef = useRef<PendingEvidence[]>([]);
   const logFileRef = useRef<HTMLInputElement | null>(null);
+  const dictation = useCopilotDictation((transcript) => {
+    setInput((current) => [current.trim(), transcript].filter(Boolean).join(current.trim() ? " " : ""));
+    inputRef.current?.focus();
+  });
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  useLayoutEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
+  }, [input]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -196,6 +236,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     if (busy) return;
     setConversationId(null);
     setMessages([]);
+    setFeedback({});
     setHistoryOpen(false);
     setInput("");
     resetReportFlow();
@@ -314,13 +355,18 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const send = useCallback(
     async (question: string) => {
       const trimmed = question.trim();
-      if (!trimmed || busy) return;
+      if (!trimmed || busy || sendingRef.current) return;
+      sendingRef.current = true;
       const chatHistory = messages
         .filter((message) => !message.error)
-        .slice(-8)
+        .slice(-5)
         .map((message) => ({ role: message.role, content: message.content }));
 
       const userMessage = { id: messageId(), role: "user" as const, content: trimmed };
+      setMessages((prev) => [...prev, userMessage]);
+      setInput("");
+      setBusy(true);
+      stoppedRef.current = false;
       let activeConversationId = conversationId;
       if (!activeConversationId && user?.id) {
         try {
@@ -345,10 +391,6 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
         }
       }
 
-      setMessages((prev) => [...prev, userMessage]);
-      setInput("");
-      setBusy(true);
-      stoppedRef.current = false;
       const controller = new AbortController();
       abortRef.current = controller;
       if (activeConversationId && user?.id) {
@@ -419,6 +461,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       } finally {
         abortRef.current = null;
         setBusy(false);
+        sendingRef.current = false;
         inputRef.current?.focus();
       }
     },
@@ -431,6 +474,24 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   useEffect(() => {
     sendRef.current = send;
   }, [send]);
+
+  const voteOnMessage = useCallback(async (messageId: string, vote: CopilotFeedbackVote) => {
+    if (!user?.id || votingMessageId || feedback[messageId] === vote) return;
+    setFeedback((current) => ({ ...current, [messageId]: vote }));
+    setVotingMessageId(messageId);
+    try {
+      await saveCopilotFeedback({ userId: user.id, conversationId, messageId, vote });
+    } catch (error) {
+      setFeedback((current) => {
+        const next = { ...current };
+        delete next[messageId];
+        return next;
+      });
+      logErrorTelemetry({ error, title: "Copilot feedback was not saved", source: "copilot-panel.saveCopilotFeedback", severity: "warning" });
+    } finally {
+      setVotingMessageId(null);
+    }
+  }, [conversationId, feedback, user?.id, votingMessageId]);
 
   /** Open the support flow from a button. Starts a fresh thread so the
    *  interview is not tangled up with whatever was being discussed, and grabs
@@ -637,6 +698,22 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
                   </ul>
                 </details>
               ) : null}
+              {message.role === "assistant" && !message.error ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2">
+                  {message.trace?.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).length ? (
+                    <span className="mr-auto text-[11px] text-muted-foreground" title="Only records returned through the server-side, warehouse-scoped tools are sources.">
+                      Sources: {Array.from(new Set(message.trace.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).map((entry) => SOURCE_LABELS[entry.tool] ?? entry.tool))).join(", ")}
+                    </span>
+                  ) : <span className="mr-auto text-[11px] text-muted-foreground">No record sources used</span>}
+                  <span className="text-[11px] text-muted-foreground">Was this helpful?</span>
+                  <Button type="button" size="icon" variant={feedback[message.id] === "helpful" ? "secondary" : "ghost"} className="h-7 w-7" aria-label="Helpful" title="Helpful" disabled={!user?.id || votingMessageId === message.id} onClick={() => void voteOnMessage(message.id, "helpful")}>
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button type="button" size="icon" variant={feedback[message.id] === "not_helpful" ? "secondary" : "ghost"} className="h-7 w-7" aria-label="Not helpful" title="Not helpful" disabled={!user?.id || votingMessageId === message.id} onClick={() => void voteOnMessage(message.id, "not_helpful")}>
+                    <ThumbsDown className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ))}
 
@@ -774,20 +851,39 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             void send(input);
           }}
         >
+          {dictation.state !== "idle" ? (
+            <div className="absolute bottom-[4.25rem] left-4 right-4 flex items-center gap-2 rounded-md border border-primary/30 bg-background px-3 py-2 text-xs shadow-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span className="min-w-0 flex-1">{dictation.state === "starting" ? "Starting microphone…" : dictation.state === "listening" ? "Listening — tap Done when you finish." : "Transcribing — review the text before sending."}</span>
+              {dictation.state === "listening" ? <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={dictation.stop}>Done</Button> : null}
+            </div>
+          ) : null}
+          <Button
+            type="button"
+            size="icon"
+            variant={dictation.state === "listening" ? "destructive" : "ghost"}
+            className="h-9 w-9 shrink-0"
+            aria-label={dictation.state === "listening" ? "Stop voice input" : "Start voice input"}
+            title={dictation.state === "listening" ? "Stop and transcribe" : "Speak your question"}
+            disabled={busy || dictation.state === "starting" || dictation.state === "transcribing"}
+            onClick={() => (dictation.state === "listening" ? dictation.stop() : void dictation.start())}
+          >
+            {dictation.state === "listening" ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </Button>
           <Textarea
             ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            disabled={busy}
+            disabled={busy || dictation.state !== "idle"}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void send(input);
               }
             }}
-            placeholder="Ask about this warehouse…"
-            rows={2}
-            className="min-h-[2.5rem] flex-1 resize-none text-sm"
+            placeholder="Ask anything about this warehouse…"
+            rows={1}
+            className="min-h-[2.5rem] max-h-36 flex-1 resize-none overflow-y-auto text-sm"
           />
           {busy ? (
             <Button type="button" size="icon" variant="destructive" className="h-9 w-9 shrink-0" onClick={stop} aria-label="Stop response" title="Stop response">
@@ -799,6 +895,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             </Button>
           )}
         </form>
+        {dictation.error ? <p className="border-t border-border px-4 py-2 text-xs text-destructive">{dictation.error}</p> : null}
       </SheetContent>
     </Sheet>
   );

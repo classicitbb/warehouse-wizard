@@ -8,6 +8,7 @@ const copilotMocks = vi.hoisted(() => ({
   loadCopilotConversations: vi.fn(async () => [] as any[]),
   loadCopilotMessages: vi.fn(async () => [] as any[]),
   saveCopilotMessage: vi.fn(async () => undefined),
+  saveCopilotFeedback: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/features/copilot/copilot-core", async (importOriginal) => {
@@ -216,6 +217,50 @@ describe("CopilotPanel support entry points", () => {
 
     await waitFor(() => expect(copilotMocks.askCopilot).toHaveBeenCalled());
     expect(await within(dialog).findByText(/1 record lookup/i)).toBeInTheDocument();
+  });
+});
+
+describe("CopilotPanel composer", () => {
+  it("offers explicit dictation without sending the message", async () => {
+    renderPanel();
+    await openPanel();
+    expect(screen.getByRole("button", { name: "Start voice input" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/ask anything about this warehouse/i)).toHaveValue("");
+  });
+
+  it("sends on Enter once and leaves Shift+Enter as an editable newline", async () => {
+    renderPanel();
+    await openPanel();
+    const composer = screen.getByPlaceholderText(/ask anything about this warehouse/i);
+
+    fireEvent.change(composer, { target: { value: "Where is PAL-001?" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    fireEvent.keyDown(composer, { key: "Enter" });
+
+    await waitFor(() => expect(copilotMocks.askCopilot).toHaveBeenCalledTimes(1));
+    expect((composer as HTMLTextAreaElement).value).toBe("");
+
+    fireEvent.change(composer, { target: { value: "First line" } });
+    fireEvent.keyDown(composer, { key: "Enter", shiftKey: true });
+    fireEvent.change(composer, { target: { value: "First line\nSecond line" } });
+    expect((composer as HTMLTextAreaElement).value).toBe("First line\nSecond line");
+    expect(copilotMocks.askCopilot).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows server-grounded source facts and stores one current response vote", async () => {
+    copilotMocks.askCopilot.mockResolvedValue({
+      answer: "PAL-001 is in A-01.",
+      trace: [{ tool: "search_inventory", input: { query: "PAL-001" }, outcome: "ok", rows: 1 }],
+    });
+    renderPanel();
+    await openPanel();
+    fireEvent.click(await screen.findByText(/what is open for me right now/i));
+
+    expect(await screen.findByText(/sources: inventory records/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
+    await waitFor(() => expect(copilotMocks.saveCopilotFeedback).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
+    expect(copilotMocks.saveCopilotFeedback).toHaveBeenCalledTimes(1);
   });
 });
 

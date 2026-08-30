@@ -62,3 +62,6 @@ Update this section whenever code introduces, removes, or renames configuration.
 - Keep verified project context and resumable handoff state in `docs/agent/`.
 - Update continuity during the same build/change that reveals new facts.
 - Do not infer working behavior from UI placeholders or documentation alone.
+- Warehouse Copilot requests require a signed-in operator with a verified default warehouse. The Edge Function derives that warehouse server-side and scopes its operational reads to it; the browser never supplies the warehouse scope.
+- Copilot response feedback is an idempotent Helpful/Not helpful vote per operator and message. The additive `copilot_message_feedback` migration derives its warehouse context from the signed-in profile and is not an operational authorization channel.
+- Copilot dictation records a maximum one-minute clip in the browser, sends it only to the JWT-protected `copilot-transcribe` Edge Function, and inserts the returned transcript for operator review. The function requires a verified active warehouse, uses `LOVABLE_API_KEY` only server-side, and audits metadata without retaining audio or transcripts.
