@@ -50,6 +50,10 @@ const cancelCycleCountMigration = readFileSync(
   path.resolve(process.cwd(), "supabase/migrations/20260823142641_cancel_cycle_count.sql"),
   "utf8",
 );
+const warehouseIntelligencePhaseOneMigration = readFileSync(
+  path.resolve(process.cwd(), "supabase/migrations/20260830021615_warehouse_intelligence_phase_one_scope.sql"),
+  "utf8",
+);
 
 describe("init_wms migration", () => {
   it("creates the core warehouse tables", () => {
@@ -153,6 +157,13 @@ describe("cycle-count cancellation migration", () => {
     expect(cancelCycleCountMigration).toContain("function public.cancel_cycle_count");
     expect(cancelCycleCountMigration).toContain("security invoker");
     expect(cancelCycleCountMigration).toContain("revoke execute on function public.cancel_cycle_count(uuid, text) from public, anon");
+  });
+});
+
+describe("Warehouse Intelligence Phase 1 migration", () => {
+  it("appends warehouse_id without reordering existing occupancy view columns", () => {
+    expect(warehouseIntelligencePhaseOneMigration).toContain("(count(ib.id) >= l.max_pallets) as is_full,\n  l.warehouse_id");
+    expect(warehouseIntelligencePhaseOneMigration).not.toContain("l.id as location_id,\n  l.warehouse_id,\n  l.code as location_code");
   });
 });
 

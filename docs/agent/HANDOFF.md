@@ -25,3 +25,17 @@ Deployment/environment state: local changes only. The new migration and Edge Fun
 ## Required incomplete-work record
 
 Objective; current state; completed steps; affected files; tests/commands and exact failures; deployment/environment state; blocker; approval required; one exact executable next action.
+
+## Warehouse Intelligence Phase 1 — 2026-08-30
+
+- Objective: scope Command Center intelligence to the active warehouse, make evidence visible, and use configured reorder forecasts instead of a fixed low-stock quantity.
+- Completed: active-warehouse query filtering for dashboard signal inputs; an additive `location_occupancy_view` migration exposing `warehouse_id`; reorder-alert evidence in Warehouse Brain; a unit test proving a hard-coded inventory threshold no longer produces a reorder recommendation.
+- Affected files: `src/features/dashboard/dashboard-page.tsx`, `src/features/shared/ui-shared.tsx`, `src/features/reports/reports-core.ts`, `src/features/status/status-page.tsx`, `src/lib/enterprise-wms.ts`, `src/test/enterprise-wms.test.ts`, `supabase/migrations/20260830021615_warehouse_intelligence_phase_one_scope.sql`.
+- Verification: passed `npm run typecheck`, `npm run lint`, `npm run test` (45 files, 518 tests), `npm run build`, and `git diff --check`. Build retained existing Vite chunk-size warnings.
+- Environment state: no migration applied and no deployment performed. `supabase migration list --local` could not run because local Postgres is unavailable (`failed to connect to postgres: effect/sql/SqlError: PgClient: Failed to connect`). External Chromium loaded the login page without a Vite overlay, but the checked-in seeded login was rejected with `The email or password you entered is incorrect. Please try again.`
+- Approval required: apply the new migration to the intended Supabase environment; provide or authorize a valid non-production account for external-browser dashboard verification.
+- Exact next action: after approval and project linkage, run `supabase db push`, then sign in through external Chrome or Edge and confirm the Dashboard Office view shows Warehouse Intelligence evidence only for the active warehouse.
+
+### Migration correction — 2026-08-30
+
+The original Phase 1 view migration failed in the target SQL editor with `ERROR: 42P16: cannot change name of view column "location_code" to "warehouse_id"`. Cause: PostgreSQL `CREATE OR REPLACE VIEW` preserves existing view-column positions, and the migration inserted `warehouse_id` as the second selected field. Fixed by preserving the nine existing fields in their established order and appending `l.warehouse_id` last. Added a migration regression assertion in `src/test/migration.test.ts`; passed `npm run typecheck` and `npm run test -- --run src/test/migration.test.ts src/test/enterprise-wms.test.ts` (2 files, 27 tests). Exact next action remains: rerun the corrected `20260830021615_warehouse_intelligence_phase_one_scope.sql` in the intended environment.

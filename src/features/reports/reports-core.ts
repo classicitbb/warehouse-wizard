@@ -8,21 +8,31 @@ import {
 import { writeSystemLog } from "@/features/system/system-core";
 import { displayRackLocationCode } from "@/features/setup/setup-core";
 
-export async function getReportData() {
+export async function getReportData({ warehouseId }: { warehouseId?: string | null } = {}) {
+  const withinWarehouse = <T extends { eq: (column: string, value: string) => T }>(query: T, column = "warehouse_id") =>
+    warehouseId ? query.eq(column, warehouseId) : query;
   const [balances, occupancy, audits, clients, warehouses, cycleCounts, stagingLoads, dockAppointments, printerStations, labelTemplates, printJobs, replenishments, aiRecommendations] = await Promise.all([
-    db("inventory_search_view").select("*"),
-    db("location_occupancy_view").select("*"),
-    db("audit_events").select("*").order("created_at", { ascending: false }).limit(12),
+    withinWarehouse(db("inventory_search_view").select("*")),
+    withinWarehouse(db("location_occupancy_view").select("*")),
+    withinWarehouse(db("audit_events").select("*").order("created_at", { ascending: false }).limit(12)),
     db("clients").select("*"),
     db("warehouses").select("*"),
-    db("cycle_count_lines").select("*").order("updated_at", { ascending: false }).limit(12),
-    db("staging_loads").select("*, pick_lists(pick_list_number, warehouse_id, clients(code, name))").order("created_at", { ascending: false }),
-    db("dock_appointments").select("*").order("scheduled_at", { ascending: true }),
-    db("printer_stations").select("*"),
+    warehouseId
+      ? db("cycle_count_lines").select("*, cycle_counts!inner(warehouse_id)").eq("cycle_counts.warehouse_id", warehouseId).order("updated_at", { ascending: false }).limit(12)
+      : db("cycle_count_lines").select("*").order("updated_at", { ascending: false }).limit(12),
+    warehouseId
+      ? db("staging_loads").select("*, pick_lists!inner(pick_list_number, warehouse_id, clients(code, name))").eq("pick_lists.warehouse_id", warehouseId).order("created_at", { ascending: false })
+      : db("staging_loads").select("*, pick_lists(pick_list_number, warehouse_id, clients(code, name))").order("created_at", { ascending: false }),
+    withinWarehouse(db("dock_appointments").select("*").order("scheduled_at", { ascending: true })),
+    withinWarehouse(db("printer_stations").select("*")),
     db("label_templates").select("*"),
-    db("print_jobs").select("*").order("created_at", { ascending: false }).limit(20),
-    db("replenishment_tasks").select("*").order("created_at", { ascending: false }).limit(20),
-    db("ai_recommendations").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(10),
+    warehouseId
+      ? db("print_jobs").select("*, printer_stations!inner(warehouse_id)").eq("printer_stations.warehouse_id", warehouseId).order("created_at", { ascending: false }).limit(20)
+      : db("print_jobs").select("*").order("created_at", { ascending: false }).limit(20),
+    withinWarehouse(db("replenishment_tasks").select("*").order("created_at", { ascending: false }).limit(20)),
+    warehouseId
+      ? Promise.resolve({ data: [], error: null })
+      : db("ai_recommendations").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(10),
   ]);
 
   if (balances.error) throw balances.error;
@@ -58,8 +68,19 @@ export async function getReportData() {
     labelTemplates: labelTemplates.data ?? [],
     printJobs: printJobs.data ?? [],
     replenishments: replenishments.data ?? [],
+    reorderAlerts: await getActiveReorderAlerts(warehouseId),
     aiRecommendations: aiRecommendations.data ?? [],
   };
+}
+
+async function getActiveReorderAlerts(warehouseId?: string | null) {
+  const query = db("reorder_alerts")
+    .select("id, warehouse_id, available_quantity, reorder_point, recommended_quantity, products(sku, name)")
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+  const { data, error } = warehouseId ? await query.eq("warehouse_id", warehouseId) : await query;
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function importCsvToResource(resource: ResourceDefinition, file: File) {

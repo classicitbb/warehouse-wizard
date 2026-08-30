@@ -3618,7 +3618,10 @@ export function DashboardPage() {
     queryFn: () => getDashboardMetrics(profile?.default_warehouse_id, flags),
     refetchInterval: 15_000,
   });
-  const { data: reports } = useQuery({ queryKey: ["reports", "enterprise-dashboard"], queryFn: getReportData });
+  const { data: reports } = useQuery({
+    queryKey: ["reports", "enterprise-dashboard", profile?.default_warehouse_id],
+    queryFn: () => getReportData({ warehouseId: profile?.default_warehouse_id }),
+  });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, reports), [metrics, reports]);
   const summaryCardsById = useMemo(() => {
     const returnedMetricKeys = metrics?.dashboardMetricKeys ? new Set(metrics.dashboardMetricKeys) : null;
@@ -4232,6 +4235,10 @@ export function WarehouseBrainPanel({ recommendations }: { recommendations: Ware
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{recommendation.reason}</p>
             <p className="mt-2 text-sm">{recommendation.nextAction}</p>
+            <div className="mt-3 border-t border-border pt-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Evidence:</span>{" "}
+              {recommendation.evidence.join(" · ")}
+            </div>
           </Link>
         ))}
       </CardContent>

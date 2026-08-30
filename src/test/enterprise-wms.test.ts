@@ -106,7 +106,7 @@ describe("NetSuite integration helpers", () => {
 });
 
 describe("enterprise dashboard and brain", () => {
-  it("surfaces expiration, low stock, controlled stock, and setup signals", () => {
+  it("surfaces expiration, forecast, controlled stock, and setup signals", () => {
     const soon = new Date();
     soon.setDate(soon.getDate() + 7);
 
@@ -135,6 +135,7 @@ describe("enterprise dashboard and brain", () => {
         occupancy: [{ location_id: "L1", occupied_pallets: 1, max_pallets: 2, is_full: false }],
         cycleCounts: [{ variance_quantity: 2, status: "exception" }],
         stagingLoads: [{ id: "SL1", route_code: "R-01", status: "ready" }],
+        reorderAlerts: [{ available_quantity: 5, reorder_point: 12, recommended_quantity: 30, products: { sku: "A" } }],
       },
     );
 
@@ -142,6 +143,9 @@ describe("enterprise dashboard and brain", () => {
     expect(snapshot.floorQueues.find((queue) => queue.label === "Blocked Exceptions")?.count).toBe(2);
     expect(snapshot.dockLoads[0]).toMatchObject({ route: "R-01", status: "ready" });
     expect(snapshot.recommendations.map((item) => item.id)).toContain("expiry-risk");
+    expect(snapshot.recommendations.find((item) => item.id === "low-stock")).toMatchObject({
+      evidence: ["A: 5 available; reorder point 12; replenish 30"],
+    });
   });
 
   it("returns an insufficient-data recommendation when no live evidence supports intel", () => {
@@ -152,6 +156,15 @@ describe("enterprise dashboard and brain", () => {
 
     expect(recommendations).toHaveLength(1);
     expect(recommendations[0].id).toBe("insufficient-data");
+  });
+
+  it("does not create a low-stock recommendation from a hard-coded inventory threshold", () => {
+    const recommendations = buildWarehouseBrainRecommendations(
+      dashboardMetrics(),
+      { inventory: [{ sku: "A", available_quantity: 1 }] },
+    );
+
+    expect(recommendations.map((item) => item.id)).not.toContain("low-stock");
   });
 
   it("does not invent dock loads without live staging load data", () => {

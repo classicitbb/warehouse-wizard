@@ -294,7 +294,10 @@ export function DashboardPage() {
     },
     refetchInterval: 30_000,
   });
-  const { data: reports } = useQuery({ queryKey: ["reports", "enterprise-dashboard"], queryFn: getReportData });
+  const { data: reports } = useQuery({
+    queryKey: ["reports", "enterprise-dashboard", profile?.default_warehouse_id],
+    queryFn: () => getReportData({ warehouseId: profile?.default_warehouse_id }),
+  });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, reports), [metrics, reports]);
   const summaryCardsById = useMemo(() => {
     const returnedMetricKeys = metrics?.dashboardMetricKeys ? new Set(metrics.dashboardMetricKeys) : null;

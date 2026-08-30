@@ -14,12 +14,22 @@ type InventoryRow = {
 };
 
 type OccupancyRow = {
+  warehouse_id?: string | null;
   location_id?: string | null;
   location_code?: string | null;
   temperature_class?: string | null;
   occupied_pallets?: number | null;
   max_pallets?: number | null;
   is_full?: boolean | null;
+};
+
+type ReorderAlertRow = {
+  id?: string | null;
+  warehouse_id?: string | null;
+  available_quantity?: number | null;
+  reorder_point?: number | null;
+  recommended_quantity?: number | null;
+  products?: { sku?: string | null; name?: string | null } | null;
 };
 
 type CycleCountLine = {
@@ -84,6 +94,7 @@ export type EnterpriseReportData = {
   labelTemplates?: LabelTemplateRow[];
   printJobs?: PrintJobRow[];
   replenishments?: Array<Record<string, unknown>>;
+  reorderAlerts?: ReorderAlertRow[];
   aiRecommendations?: AiRecommendationRow[];
 };
 
@@ -97,6 +108,7 @@ export type WarehouseBrainRecommendation = {
   reason: string;
   nextAction: string;
   route: string;
+  evidence: string[];
 };
 
 export type DockHandoffLoad = {
@@ -318,7 +330,7 @@ export function buildEnterpriseDashboard(
   const cycleCounts = reportData?.cycleCounts ?? [];
   const expiring60 = metrics?.expiryWarning60 || countExpiringSoon(inventory, 60);
   const expiring30 = metrics?.expiryWarning30 || countExpiringSoon(inventory, 30);
-  const lowStock = inventory.filter((row) => (row.available_quantity ?? 0) > 0 && (row.available_quantity ?? 0) <= 10).length;
+  const lowStock = (reportData?.reorderAlerts ?? []).length;
   const controlled = (metrics?.holdStock ?? 0) + (metrics?.quarantineStock ?? 0);
   const fullLocations = occupancy.filter((row) => row.is_full).length;
   const totalCapacity = occupancy.reduce((sum, row) => sum + (row.max_pallets ?? 0), 0);
@@ -333,7 +345,7 @@ export function buildEnterpriseDashboard(
   return {
     officeWidgets: [
       { label: "Fill level", value: `${fillRate}%`, tone: fillRate > 92 ? "warning" : "success", detail: `${usedCapacity}/${totalCapacity || 0} slots used`, route: "/locations" },
-      { label: "Inventory turn watch", value: `${lowStock}`, tone: lowStock > 0 ? "warning" : "success", detail: "SKU/location balances at or below 10 available units", route: "/inventory-search" },
+      { label: "Reorder forecast watch", value: `${lowStock}`, tone: lowStock > 0 ? "warning" : "success", detail: "Active demand-and-lead-time reorder alerts", route: "/products" },
       { label: "Expiration risk", value: `${expiring30}`, tone: expiring30 > 0 ? "critical" : expiring60 > 0 ? "warning" : "success", detail: `${expiring60} inside 60 days · ${expiring30} inside 30 days`, route: "/inventory-search" },
       { label: "DPMO", value: `${dpmo}`, tone: dpmo > 50_000 ? "critical" : dpmo > 10_000 ? "warning" : "success", detail: "Cycle-count defect signal", route: "/cycle-counts" },
     ],
@@ -409,7 +421,8 @@ export function buildWarehouseBrainRecommendations(
   const inventory = reportData?.inventory ?? [];
   const expiring60 = metrics?.expiryWarning60 || countExpiringSoon(inventory, 60);
   const expiring30 = metrics?.expiryWarning30 || countExpiringSoon(inventory, 30);
-  const lowStock = inventory.filter((row) => (row.available_quantity ?? 0) > 0 && (row.available_quantity ?? 0) <= 10).length;
+  const reorderAlerts = reportData?.reorderAlerts ?? [];
+  const lowStock = reorderAlerts.length;
   const controlled = (metrics?.holdStock ?? 0) + (metrics?.quarantineStock ?? 0);
   const openWork = (metrics?.openPutawayTasks ?? 0) + (metrics?.openPickLists ?? 0);
   const dockBlocks = (reportData?.stagingLoads ?? []).filter((row) => row.status === "blocked").length;
@@ -426,6 +439,7 @@ export function buildWarehouseBrainRecommendations(
       reason: item.reason ?? "Saved live recommendation is open.",
       nextAction: item.next_action ?? "Review the open recommendation.",
       route: "/reports",
+      evidence: ["Saved recommendation record"],
     });
   }
 
@@ -438,18 +452,23 @@ export function buildWarehouseBrainRecommendations(
       reason: `${expiring60} lot${expiring60 === 1 ? "" : "s"} expire inside 60 days; ${expiring30} inside 30 days.`,
       nextAction: "Prioritize those lots in wave release or move them to hold if QA requires review.",
       route: "/inventory-search",
+      evidence: [`${expiring60} live inventory balance${expiring60 === 1 ? "" : "s"} with expiry inside 60 days`],
     });
   }
 
   if (lowStock > 0) {
     recommendations.push({
       id: "low-stock",
-      title: "Kanban replenishment signal",
+      title: "Reorder forecast needs review",
       severity: "warning",
       audience: ["warehouse_manager", "inventory_clerk"],
-      reason: `${lowStock} SKU/location balance${lowStock === 1 ? "" : "s"} are at or below 10 available units.`,
-      nextAction: "Create replenishment work or confirm the NetSuite reorder signal before the next wave.",
-      route: "/inventory-search",
+      reason: `${lowStock} product${lowStock === 1 ? "" : "s"} crossed its configured demand-and-lead-time reorder point.`,
+      nextAction: "Review the forecast and create replenishment work before the next wave.",
+      route: "/products",
+      evidence: reorderAlerts.slice(0, 3).map((alert) => {
+        const product = alert.products?.sku ?? alert.products?.name ?? "Product";
+        return `${product}: ${Number(alert.available_quantity ?? 0)} available; reorder point ${Number(alert.reorder_point ?? 0)}; replenish ${Number(alert.recommended_quantity ?? 0)}`;
+      }),
     });
   }
 
@@ -462,6 +481,7 @@ export function buildWarehouseBrainRecommendations(
       reason: `${controlled} pallet${controlled === 1 ? "" : "s"} are on hold or quarantine.`,
       nextAction: "Resolve QA decisions, record root cause, and release or disposition the stock.",
       route: "/status",
+      evidence: [`${metrics?.holdStock ?? 0} hold and ${metrics?.quarantineStock ?? 0} quarantine pallet${controlled === 1 ? "" : "s"}`],
     });
   }
 
@@ -474,6 +494,7 @@ export function buildWarehouseBrainRecommendations(
       reason: `${openWork} task group${openWork === 1 ? "" : "s"} are open across putaway and picking.`,
       nextAction: "Use Start Shift on a tablet and work through scan-confirmed tasks.",
       route: "/putaway-tasks",
+      evidence: [`${metrics?.openPutawayTasks ?? 0} open putaway and ${metrics?.openPickLists ?? 0} open pick list${(metrics?.openPickLists ?? 0) === 1 ? "" : "s"}`],
     });
   }
 
@@ -486,6 +507,7 @@ export function buildWarehouseBrainRecommendations(
       reason: `${dockBlocks} staging load${dockBlocks === 1 ? "" : "s"} are blocked.`,
       nextAction: "Clear the blocker before calling the driver or loading the route.",
       route: "/pick-lists",
+      evidence: [`${dockBlocks} blocked staging load${dockBlocks === 1 ? "" : "s"}`],
     });
   }
 
@@ -498,6 +520,7 @@ export function buildWarehouseBrainRecommendations(
       reason: `${failedPrintJobs} recent print job${failedPrintJobs === 1 ? "" : "s"} failed.`,
       nextAction: "Check printer stations and reprint failed labels before the next scan workflow.",
       route: "/settings",
+      evidence: [`${failedPrintJobs} failed print job${failedPrintJobs === 1 ? "" : "s"}`],
     });
   }
 
@@ -510,6 +533,7 @@ export function buildWarehouseBrainRecommendations(
       reason: "Warehouse Intelligence needs current inventory, task, dock, audit, or cycle-count activity before it can make a supported recommendation.",
       nextAction: "Run normal receiving, putaway, picking, dock, or count workflows, then return here for evidence-backed signals.",
       route: "/dashboard",
+      evidence: ["No current scoped operational records met an intelligence rule"],
     });
   }
 
