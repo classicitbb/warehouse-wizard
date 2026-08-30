@@ -9,3 +9,5 @@ project_id = "gxfvxmxplngvxdkpmxgw"
     verify_jwt = false
   [functions.invite-user]
     verify_jwt = false
+  [functions.copilot]
+    verify_jwt = true

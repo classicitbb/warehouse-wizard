@@ -28,6 +28,8 @@ export type CopilotMessage = {
   error?: boolean;
 };
 
+export type CopilotFeedbackVote = "helpful" | "not_helpful";
+
 export type CopilotConversation = {
   id: string;
   title: string | null;
@@ -262,6 +264,7 @@ export async function saveCopilotMessage(params: {
   message: CopilotMessage;
 }) {
   const { error } = await supabase.from("copilot_messages").insert({
+    id: params.message.id,
     conversation_id: params.conversationId,
     user_id: params.userId,
     role: params.message.role,
@@ -275,4 +278,25 @@ export async function saveCopilotMessage(params: {
     .update({ updated_at: new Date().toISOString() })
     .eq("id", params.conversationId);
   if (touchError) throw touchError;
+}
+
+/** One signed-in operator keeps one current vote per rendered answer. */
+export async function saveCopilotFeedback(params: {
+  userId: string;
+  conversationId?: string | null;
+  messageId: string;
+  vote: CopilotFeedbackVote;
+}) {
+  const { error } = await (supabase as any)
+    .from("copilot_message_feedback")
+    .upsert(
+      {
+        user_id: params.userId,
+        conversation_id: params.conversationId ?? null,
+        message_id: params.messageId,
+        vote: params.vote,
+      },
+      { onConflict: "user_id,message_id" },
+    );
+  if (error) throw error;
 }
