@@ -21,6 +21,8 @@ import {
   LifeBuoy,
   Loader2,
   MessageSquarePlus,
+  Mic,
+  MicOff,
   Plus,
   Send,
   Sparkle,
@@ -65,6 +67,7 @@ import {
   MAX_LOG_EXCERPT_CHARS,
   type TicketAttachment,
 } from "@/features/copilot/feedback-core";
+import { useCopilotDictation } from "@/features/copilot/use-copilot-dictation";
 import {
   activeReportContext,
   reportContextForCopilot,
@@ -190,6 +193,10 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const reportContextRef = useRef<ScreenReportContext | null>(null);
   const pendingEvidenceRef = useRef<PendingEvidence[]>([]);
   const logFileRef = useRef<HTMLInputElement | null>(null);
+  const dictation = useCopilotDictation((transcript) => {
+    setInput((current) => [current.trim(), transcript].filter(Boolean).join(current.trim() ? " " : ""));
+    inputRef.current?.focus();
+  });
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -844,11 +851,30 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             void send(input);
           }}
         >
+          {dictation.state !== "idle" ? (
+            <div className="absolute bottom-[4.25rem] left-4 right-4 flex items-center gap-2 rounded-md border border-primary/30 bg-background px-3 py-2 text-xs shadow-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span className="min-w-0 flex-1">{dictation.state === "starting" ? "Starting microphone…" : dictation.state === "listening" ? "Listening — tap Done when you finish." : "Transcribing — review the text before sending."}</span>
+              {dictation.state === "listening" ? <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={dictation.stop}>Done</Button> : null}
+            </div>
+          ) : null}
+          <Button
+            type="button"
+            size="icon"
+            variant={dictation.state === "listening" ? "destructive" : "ghost"}
+            className="h-9 w-9 shrink-0"
+            aria-label={dictation.state === "listening" ? "Stop voice input" : "Start voice input"}
+            title={dictation.state === "listening" ? "Stop and transcribe" : "Speak your question"}
+            disabled={busy || dictation.state === "starting" || dictation.state === "transcribing"}
+            onClick={() => (dictation.state === "listening" ? dictation.stop() : void dictation.start())}
+          >
+            {dictation.state === "listening" ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </Button>
           <Textarea
             ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            disabled={busy}
+            disabled={busy || dictation.state !== "idle"}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -869,6 +895,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             </Button>
           )}
         </form>
+        {dictation.error ? <p className="border-t border-border px-4 py-2 text-xs text-destructive">{dictation.error}</p> : null}
       </SheetContent>
     </Sheet>
   );
