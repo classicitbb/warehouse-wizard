@@ -275,7 +275,7 @@ function orValue(value: string) {
 
 type ToolContext = {
   warehouseId: string | null
-  warehouseCode: string
+  warehouseCode: string | null
   userId: string
   screen: string
   conversationId: string | null
@@ -304,8 +304,8 @@ async function runTool(
         .or(
           `sku.ilike.${term},product_name.ilike.${term},pallet_code.ilike.${term},lot_number.ilike.${term},container_number.ilike.${term},po_number.ilike.${term}`,
         )
-        .eq('warehouse_code', ctx.warehouseCode)
         .limit(clampLimit(args.limit, 25, 100))
+      if (ctx.warehouseCode) q = q.eq('warehouse_code', ctx.warehouseCode)
       const { data, error } = await q
       if (error) throw new Error(error.message)
       return { rows: data ?? [], count: data?.length ?? 0 }
@@ -322,12 +322,13 @@ async function runTool(
     }
     case 'get_location_details': {
       const code = String(args.code ?? '').trim()
-      const { data, error } = await sb
+      let locQ = sb
         .from('locations')
         .select('id, code, warehouse_id, zone_id, status, location_type, temperature_class, max_pallets, max_weight, mixed_sku_allowed, mixed_lot_allowed, zones(code, name, temperature_class)')
         .ilike('code', `%${code}%`)
-        .eq('warehouse_id', warehouseId)
         .limit(5)
+      if (warehouseId) locQ = locQ.eq('warehouse_id', warehouseId)
+      const { data, error } = await locQ
       if (error) throw new Error(error.message)
       const rows = data ?? []
       const enriched = [] as unknown[]
@@ -343,13 +344,14 @@ async function runTool(
     }
     case 'get_receipt_status': {
       const term = orValue(`%${String(args.query ?? '').trim()}%`)
-      const { data, error } = await sb
+      let rcQ = sb
         .from('receipts')
         .select('id, receipt_number, reference_number, receipt_type, status, warehouse_id, created_at, receipt_lines(id, quantity, received_quantity, products(sku, name))')
         .or(`receipt_number.ilike.${term},reference_number.ilike.${term}`)
-        .eq('warehouse_id', warehouseId)
         .order('created_at', { ascending: false })
         .limit(10)
+      if (warehouseId) rcQ = rcQ.eq('warehouse_id', warehouseId)
+      const { data, error } = await rcQ
       if (error) throw new Error(error.message)
       return { rows: data ?? [], count: data?.length ?? 0 }
     }
@@ -382,23 +384,25 @@ async function runTool(
     case 'get_expiring_inventory': {
       const days = clampLimit(args.days, 30, 365)
       const cutoff = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
-      const { data, error } = await sb
+      let expQ = sb
         .from('inventory_search_view')
         .select('pallet_code, sku, product_name, expiry_date, lot_number, warehouse_code, location_code, quantity, status')
         .not('expiry_date', 'is', null)
         .lte('expiry_date', cutoff)
-        .eq('warehouse_code', ctx.warehouseCode)
         .order('expiry_date', { ascending: true })
         .limit(clampLimit(args.limit, 50, 200))
+      if (ctx.warehouseCode) expQ = expQ.eq('warehouse_code', ctx.warehouseCode)
+      const { data, error } = await expQ
       if (error) throw new Error(error.message)
       return { rows: data ?? [], count: data?.length ?? 0 }
     }
     case 'get_open_tasks': {
+      const scoped = (q: any) => (warehouseId ? q.eq('warehouse_id', warehouseId) : q)
       const [putaway, picks, receipts, moves] = await Promise.all([
-        sb.from('putaway_tasks').select('id, task_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
-        sb.from('pick_lists').select('id, pick_list_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
-        sb.from('receipts').select('id, receipt_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['draft', 'queued', 'in_progress']).limit(20),
-        sb.from('move_tasks').select('id, task_number, status', { count: 'exact' }).eq('warehouse_id', warehouseId).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        scoped(sb.from('putaway_tasks').select('id, task_number, status', { count: 'exact' })).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        scoped(sb.from('pick_lists').select('id, pick_list_number, status', { count: 'exact' })).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
+        scoped(sb.from('receipts').select('id, receipt_number, status', { count: 'exact' })).in('status', ['draft', 'queued', 'in_progress']).limit(20),
+        scoped(sb.from('move_tasks').select('id, task_number, status', { count: 'exact' })).in('status', ['queued', 'assigned', 'in_progress']).limit(20),
       ])
       return {
         rows: {
@@ -410,20 +414,22 @@ async function runTool(
       }
     }
     case 'get_blocked_workflows': {
-      const { data: blockedStock, error } = await sb
+      let blockedQ = sb
         .from('inventory_search_view')
         .select('pallet_code, sku, product_name, warehouse_code, location_code, status, quantity, held_quantity, damaged_quantity')
         .in('status', ['hold', 'quarantine', 'damaged'])
-        .eq('warehouse_code', ctx.warehouseCode)
         .limit(50)
+      if (ctx.warehouseCode) blockedQ = blockedQ.eq('warehouse_code', ctx.warehouseCode)
+      const { data: blockedStock, error } = await blockedQ
       if (error) throw new Error(error.message)
-      const { data: stalePutaway } = await sb
+      let staleQ = sb
         .from('putaway_tasks')
         .select('id, task_number, status, created_at, pallets(pallet_code)')
         .in('status', ['queued', 'assigned', 'in_progress'])
-        .eq('warehouse_id', warehouseId)
         .lte('created_at', new Date(Date.now() - 24 * 3600_000).toISOString())
         .limit(50)
+      if (warehouseId) staleQ = staleQ.eq('warehouse_id', warehouseId)
+      const { data: stalePutaway } = await staleQ
       return { rows: { blocked_stock: blockedStock ?? [], stale_putaway_tasks: stalePutaway ?? [] } }
     }
 
@@ -639,10 +645,14 @@ Deno.serve(async (req) => {
     })
     .filter((c): c is string => Boolean(c))
   const warehouseId = (profile?.default_warehouse_id as string | null) ?? null
-  if (!profile || !warehouseId) return json({ error: 'Select an active warehouse before using the Copilot.' }, 403)
-  const { data: wh } = await sb.from('warehouses').select('code, name').eq('id', warehouseId).maybeSingle()
-  if (!wh?.code) return json({ error: 'Your active warehouse could not be verified.' }, 403)
-  const warehouseLabel = `${wh.code} ${wh.name ?? ''}`.trim()
+  // A missing default warehouse is a supported state (new users, admins on
+  // "All warehouses"). The copilot stays usable — and, critically, so do the
+  // problem-report and feedback flows that run through it — just unscoped.
+  const { data: wh } = warehouseId
+    ? await sb.from('warehouses').select('code, name').eq('id', warehouseId).maybeSingle()
+    : { data: null as { code?: string; name?: string } | null }
+  const warehouseCode = wh?.code ? String(wh.code) : null
+  const warehouseLabel = warehouseCode ? `${warehouseCode} ${wh?.name ?? ''}`.trim() : 'All warehouses'
 
   const audit = serviceRoleKey
     ? createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
@@ -656,8 +666,8 @@ Deno.serve(async (req) => {
   // Client-side evidence attached to any report the caller files. It is data
   // about the caller's own session, never an instruction and never a scope.
   const toolContext: ToolContext = {
-    warehouseId,
-    warehouseCode: wh.code,
+    warehouseId: warehouseCode ? warehouseId : null,
+    warehouseCode,
     userId: user.id,
     screen,
     conversationId: body.conversationId ?? null,
