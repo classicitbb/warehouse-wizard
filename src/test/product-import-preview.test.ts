@@ -7,6 +7,9 @@ const supabaseMock = vi.hoisted(() => ({
       if (table === "products") return { data: [], error: null };
       return { data: [], error: null };
     }),
+    insert: vi.fn(() => ({
+      select: vi.fn(async () => ({ data: null, error: null })),
+    })),
   })),
   storage: {
     from: vi.fn(() => ({
@@ -20,7 +23,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   isSupabaseConfigured: true,
 }));
 
-import { parseCsvForResource } from "@/features/reports/reports-core";
+import { commitImportRows, parseCsvForResource, type ImportPreview } from "@/features/reports/reports-core";
 import { RESOURCE_DEFINITIONS } from "@/features/shared/core-types";
 
 describe("product import preview", () => {
@@ -62,5 +65,28 @@ describe("product import preview", () => {
     expect(preview.summary.valid).toBe(1);
     expect(preview.rows[0].normalized?.client_owner_id).toBeNull();
     expect(preview.rows[0].warnings).toContain('client_owner_id: "Foo" not found — left blank, assign after import');
+  });
+
+  it("reports exact commit progress for each valid row", async () => {
+    const preview: ImportPreview = {
+      resourceTable: "products",
+      headers: ["sku", "name"],
+      summary: { total: 3, valid: 2, invalid: 1 },
+      file: new File(["sku,name\nA,Alpha\nB,Beta"], "products.csv", { type: "text/csv" }),
+      rows: [
+        { rowNumber: 2, raw: { sku: "A", name: "Alpha" }, normalized: { sku: "A", name: "Alpha" }, errors: [], warnings: [] },
+        { rowNumber: 3, raw: { sku: "", name: "" }, normalized: null, errors: ["Missing required: sku"], warnings: [] },
+        { rowNumber: 4, raw: { sku: "B", name: "Beta" }, normalized: { sku: "B", name: "Beta" }, errors: [], warnings: [] },
+      ],
+    };
+    const progress: Array<{ completed: number; total: number; inserted: number; failed: number }> = [];
+
+    await commitImportRows(RESOURCE_DEFINITIONS.products, preview, (update) => progress.push(update));
+
+    expect(progress).toEqual([
+      { completed: 0, total: 2, inserted: 0, failed: 0 },
+      { completed: 1, total: 2, inserted: 1, failed: 0 },
+      { completed: 2, total: 2, inserted: 2, failed: 0 },
+    ]);
   });
 });

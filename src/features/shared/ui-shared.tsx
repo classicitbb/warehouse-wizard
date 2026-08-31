@@ -93,6 +93,7 @@ import {
   parseCsvForResource,
   commitImportRows,
   type ImportPreview,
+  type ImportProgress,
   type ImportRowPreview,
   type ProductCategory,
   inferProductCategory,
@@ -2780,6 +2781,7 @@ export function ImportButton({ resource, asMenuItems = false }: { resource: Reso
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [parsing, setParsing] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [importProgress, setImportProgress] = useState<ImportProgress>({ completed: 0, total: 0, inserted: 0, failed: 0 });
   const [overrides, setOverrides] = useState<ProductOverrides | null>(null);
 
   function handleImport() {
@@ -2823,9 +2825,10 @@ export function ImportButton({ resource, asMenuItems = false }: { resource: Reso
     const finalPreview = (resource.table === "products" && overrides)
       ? applyOverridesToPreview(preview, overrides)
       : preview;
+    setImportProgress({ completed: 0, total: finalPreview.summary.valid, inserted: 0, failed: 0 });
     setCommitting(true);
     try {
-      const result = await commitImportRows(resource, finalPreview);
+      const result = await commitImportRows(resource, finalPreview, setImportProgress);
       if (result.failed > 0) {
         downloadCsv(`${resource.table}-errors.csv`, result.errors);
         toast.error(`Imported ${result.inserted}, failed ${result.failed} — error report downloaded`);
@@ -2861,6 +2864,7 @@ export function ImportButton({ resource, asMenuItems = false }: { resource: Reso
           onCancel={() => { setPreview(null); setOverrides(null); }}
           onConfirm={handleConfirm}
           committing={committing}
+          importProgress={importProgress}
         />
       </>
     );
@@ -2888,6 +2892,7 @@ export function ImportButton({ resource, asMenuItems = false }: { resource: Reso
         onCancel={() => { setPreview(null); setOverrides(null); }}
         onConfirm={handleConfirm}
         committing={committing}
+        importProgress={importProgress}
       />
     </>
   );
@@ -2911,6 +2916,7 @@ function ImportPreviewDialog({
   onCancel,
   onConfirm,
   committing,
+  importProgress,
 }: {
   resource: ResourceDefinition;
   preview: ImportPreview | null;
@@ -2919,6 +2925,7 @@ function ImportPreviewDialog({
   onCancel: () => void;
   onConfirm: () => void;
   committing: boolean;
+  importProgress: ImportProgress;
 }) {
   const open = preview !== null;
   const summary = preview?.summary ?? { total: 0, valid: 0, invalid: 0 };
@@ -2935,6 +2942,9 @@ function ImportPreviewDialog({
   }, [preview, isProducts]);
 
   const hasInferred = inferredCategories.length > 0;
+  const importPercent = importProgress.total > 0
+    ? Math.min(100, Math.floor((importProgress.completed / importProgress.total) * 100))
+    : 0;
 
   // Show all non-select fields for products, all fields for others
   const previewCols = isProducts
@@ -3060,12 +3070,22 @@ function ImportPreviewDialog({
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex-none px-6 py-4 border-t flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel} disabled={committing}>Cancel</Button>
-          <Button onClick={onConfirm} disabled={committing || summary.valid === 0}>
-            {committing ? <Loader2 className="animate-spin" /> : <Upload data-icon="inline-start" />}
-            Import {summary.valid} row{summary.valid === 1 ? "" : "s"}
-          </Button>
+        <div className="flex-none px-6 py-4 border-t space-y-3">
+          {committing && (
+            <div className="space-y-1.5" aria-live="polite">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Importing rows</span>
+                <span>{importPercent}% · {importProgress.completed.toLocaleString()} of {importProgress.total.toLocaleString()}</span>
+              </div>
+              <Progress value={importPercent} className="h-2" />
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onCancel} disabled={committing}>Cancel</Button>
+            <Button onClick={onConfirm} disabled={committing || summary.valid === 0}>
+              {committing ? `Importing ${importPercent}%` : <><Upload data-icon="inline-start" />Import {summary.valid} row{summary.valid === 1 ? "" : "s"}</>}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

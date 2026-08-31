@@ -256,6 +256,13 @@ export type ImportPreview = {
   file: File;
 };
 
+export type ImportProgress = {
+  completed: number;
+  total: number;
+  inserted: number;
+  failed: number;
+};
+
 function parseCsvRobust(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const records: string[][] = [];
   let cur: string[] = [];
@@ -492,17 +499,21 @@ export async function parseCsvForResource(resource: ResourceDefinition, file: Fi
 export async function commitImportRows(
   resource: ResourceDefinition,
   preview: ImportPreview,
+  onProgress?: (progress: ImportProgress) => void,
 ): Promise<{ inserted: number; failed: number; errors: Array<{ row: number; error: string }> }> {
   const errors: Array<{ row: number; error: string }> = [];
   let inserted = 0;
-  for (const row of preview.rows) {
-    if (!row.normalized) continue;
+  const validRows = preview.rows.filter((row) => row.normalized);
+  onProgress?.({ completed: 0, total: validRows.length, inserted: 0, failed: 0 });
+  for (let index = 0; index < validRows.length; index++) {
+    const row = validRows[index];
     const { error } = await db(resource.table).insert(row.normalized as never).select();
     if (error) {
       errors.push({ row: row.rowNumber, error: formatSupabaseError(error, "Insert failed") });
     } else {
       inserted++;
     }
+    onProgress?.({ completed: index + 1, total: validRows.length, inserted, failed: errors.length });
   }
   // Best-effort archive of the original file
   try {
