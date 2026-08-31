@@ -698,7 +698,7 @@ export function EmailLogPage() {
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading email log…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No email log entries found.</TableCell></TableRow>
-                ) : filtered.slice(0, paging.limit).map((row: any) => (
+                ) : filtered.slice(0, isFiltering ? filtered.length : paging.limit).map((row: any) => (
                   <TableRow key={row.id} className="even:bg-muted/30 align-top">
                     <TableCell><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{row.template_name}</TableCell>
