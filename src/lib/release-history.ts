@@ -9,6 +9,17 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.1",
+    date: "September 2026",
+    changes: [
+      "Problem reports and feedback filed from the copilot now really send email — to whoever filed it, the developers, the support address and the admins — instead of ending in a copilot error",
+      "Low-stock reorder alerts are emailed by the app as soon as an alert is raised, with an unsubscribe link on every non-critical notice",
+    ],
+    fixes: [
+      "Notification email is no longer composed inside the database, which was blocking the app from moving to the newer, more reliable email delivery",
+    ],
+  },
+  {
     version: "1.29.0",
     date: "September 2026",
     changes: [

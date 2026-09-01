@@ -546,6 +546,23 @@ async function runTool(
         detail: { via: 'copilot-chat', screen: ctx.screen },
       })
 
+      // Email the report to the reporter, the developers and support.
+      // Never let a notification failure fail a filed report.
+      try {
+        const url = Deno.env.get('SUPABASE_URL')
+        const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+        if (url && key) {
+          await fetch(`${url}/functions/v1/send-notification-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, apikey: key },
+            body: JSON.stringify({ kind: 'operator_ticket', id: reportId }),
+          })
+        }
+      } catch (notifyError) {
+        console.error('Ticket notification email failed', notifyError)
+      }
+
+
       const row = data as Record<string, unknown>
       return {
         rows: {

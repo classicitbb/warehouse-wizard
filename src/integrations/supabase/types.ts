@@ -4726,6 +4726,10 @@ export type Database = {
         Args: { in_draft_id: string }
         Returns: undefined
       }
+      cancel_receiving_draft: {
+        Args: { in_draft_id: string; in_reason?: string }
+        Returns: undefined
+      }
       claim_cycle_count_line: {
         Args: { p_line_id: string }
         Returns: undefined
@@ -4786,6 +4790,15 @@ export type Database = {
           in_task_id: string
         }
         Returns: Json
+      }
+      confirm_receiving_draft_labels_printed: {
+        Args: { in_draft_id: string }
+        Returns: {
+          pallet_barcode: string
+          pallet_id: string
+          putaway_task_id: string
+          putaway_task_number: string
+        }[]
       }
       create_pick_shortfall_task: {
         Args: { in_quantity: number; in_task_id: string }
@@ -4963,6 +4976,13 @@ export type Database = {
         }[]
       }
       reset_wms_data: { Args: never; Returns: Json }
+      return_putaway_to_receiving_draft: {
+        Args: { in_task_id: string }
+        Returns: {
+          draft_id: string
+          draft_pallet_barcode: string
+        }[]
+      }
       save_inventory_pallet_correction_as_draft: {
         Args: {
           in_draft_id: string

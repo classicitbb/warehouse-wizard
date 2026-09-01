@@ -42,7 +42,6 @@ function supabaseKey() {
         if (key) return key.trim();
       }
     } catch {
-      // Ignore malformed environment metadata and continue with fallback keys.
     }
   }
   const legacy = firstEnv(["SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"]);
@@ -57,7 +56,7 @@ function supabaseForUser(ctx) {
 }
 
 // src/lib/mcp/tools/list-warehouses.ts
-const list_warehouses_default = defineTool({
+var list_warehouses_default = defineTool({
   name: "list_warehouses",
   title: "List warehouses",
   description: "List warehouses visible to the signed-in user.",
@@ -86,7 +85,7 @@ import { z as z2 } from "npm:zod@^3.25.76";
 function escapePostgrestOrValue(value) {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
-const search_products_default = defineTool2({
+var search_products_default = defineTool2({
   name: "search_products",
   title: "Search products",
   description: "Search the product catalog by SKU, barcode, or name (case-insensitive substring match).",
@@ -112,7 +111,7 @@ const search_products_default = defineTool2({
 // src/lib/mcp/tools/inventory-summary.ts
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.22.0";
 import { z as z3 } from "npm:zod@^3.25.76";
-const inventory_summary_default = defineTool3({
+var inventory_summary_default = defineTool3({
   name: "inventory_summary",
   title: "Inventory summary for a product",
   description: "Return current inventory balances (quantity, available, reserved) for a product by SKU, across visible warehouses and locations.",
@@ -158,8 +157,8 @@ const inventory_summary_default = defineTool3({
 });
 
 // src/lib/mcp/index.ts
-const projectRef = "gxfvxmxplngvxdkpmxgw";
-const mcp_default = defineMcp({
+var projectRef = "gxfvxmxplngvxdkpmxgw";
+var mcp_default = defineMcp({
   name: "warehouse-wizard-mcp",
   title: "Warehouse Wizard MCP",
   version: "0.1.0",
