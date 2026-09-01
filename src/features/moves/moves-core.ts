@@ -31,10 +31,12 @@ function assertPalletCanMove(status: unknown) {
 }
 
 function assertPalletIsPutAway(pallet: { status?: unknown; current_location_id?: unknown; is_stored?: unknown }) {
-  if (String(pallet.status ?? "").toLowerCase() === "receiving" || pallet.is_stored === false || !pallet.current_location_id) {
+  const status = String(pallet.status ?? "").toLowerCase();
+  if (status === "receiving" || status === "putaway" || pallet.is_stored === false || !pallet.current_location_id) {
     throw new Error("This pallet needs to be put away before it can be moved.");
   }
 }
+
 
 /**
  * A pallet that still has an open put-away task must be completed through

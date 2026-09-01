@@ -9,6 +9,19 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.2",
+    date: "September 2026",
+    changes: [
+      "Pallet status now says where the pallet actually is: Receiving while it is still an unconfirmed draft, Awaiting Put-Away once the receipt is confirmed, Put Away once it is scanned into a bin, and Shipped when it is picked out",
+      "Inventory Search gained a Put-Away status filter so everything waiting for a bin can be listed on its own",
+      "The Statuses module is now for exceptions only — Hold, Quarantine, Damaged, Missing, Reserved and In transit — plus a Release back to workflow action that returns a pallet to Put Away or Awaiting Put-Away, whichever matches where it is",
+    ],
+    fixes: [
+      "A pallet sitting in a receiving draft and a pallet waiting on the dock no longer look identical in the database, so counts, dashboards and the occupancy audit agree with the floor",
+      "Existing pallets waiting on an open put-away task were corrected to Awaiting Put-Away",
+    ],
+  },
+  {
     version: "1.29.1",
     date: "September 2026",
     changes: [

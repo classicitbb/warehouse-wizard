@@ -188,10 +188,10 @@ export async function receiveTransfer(transferId: string) {
     if (!line.pallet_id) continue;
     await Promise.all([
       db("pallets")
-        .update({ current_warehouse_id: transfer.destination_warehouse_id, status: "receiving", current_location_id: null, is_stored: false })
+        .update({ current_warehouse_id: transfer.destination_warehouse_id, status: "putaway", current_location_id: null, is_stored: false })
         .eq("id", line.pallet_id),
       db("inventory_balances")
-        .update({ warehouse_id: transfer.destination_warehouse_id, status: "receiving", location_id: null, zone_id: null })
+        .update({ warehouse_id: transfer.destination_warehouse_id, status: "putaway", location_id: null, zone_id: null })
         .eq("pallet_id", line.pallet_id),
       upsertRecord("putaway_tasks", {
         task_number: buildPalletCode("PTA"),

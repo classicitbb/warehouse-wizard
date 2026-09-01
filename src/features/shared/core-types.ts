@@ -42,20 +42,25 @@ function isRetiredInventoryStatus(status: unknown): boolean {
 }
 
 function isStoredPalletStatus(status: unknown): boolean {
-  return String(status ?? "").toLowerCase() !== "receiving" && !isRetiredInventoryStatus(status);
+  const normalized = String(status ?? "").toLowerCase();
+  return normalized !== "receiving" && normalized !== "putaway" && !isRetiredInventoryStatus(status);
 }
 
 function hasVisibleInventoryQuantity(row: Record<string, unknown>): boolean {
   return Number(row.available_quantity ?? 0) > 0 || Number(row.quantity ?? 0) > 0;
 }
 
-/** Operator-facing lifecycle wording. Database availability states remain unchanged. */
+/** Operator-facing lifecycle wording. The stored status now matches the stage:
+ *  `receiving` = still an unconfirmed draft, `putaway` = confirmed and waiting
+ *  for a bin, `available` = scanned into a bin. */
 function inventoryLifecycleLabel(row: Record<string, unknown>): string {
   const status = String(row.status ?? "").toLowerCase();
-  if (status === "receiving") return "Awaiting Put-Away";
+  if (status === "receiving") return "Receiving";
+  if (status === "putaway") return "Awaiting Put-Away";
   if (status === "available" && (row.is_stored === true || row.location_id || row.current_location_id || row.location_code)) return "Put Away";
   return status ? status.replace(/_/g, " ") : "Unknown";
 }
+
 
 export type AppRoute =
   | "/"
@@ -602,7 +607,7 @@ export const cycleCountSchema = z.object({
 
 export const statusChangeSchema = z.object({
   pallet_id: z.string().min(2, "Scan or enter a pallet barcode"),
-  new_status: z.enum(["hold", "quarantine", "damaged", "available", "missing"]),
+  new_status: z.enum(["hold", "quarantine", "damaged", "missing", "reserved", "in_transit", "release"]),
   reason: z.string().min(3),
 });
 

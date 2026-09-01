@@ -53,7 +53,7 @@ export async function confirmPutaway(
   if (!pallet || pallet.pallet_barcode !== scannedPalletBarcode) {
     throw new Error("Scanned pallet barcode does not match the task pallet.");
   }
-  if (!["receiving", "hold", "quarantine"].includes(pallet.status)) {
+  if (!["receiving", "putaway", "hold", "quarantine"].includes(pallet.status)) {
     throw new Error(`Pallet is no longer available for putaway (status: ${pallet.status}).`);
   }
 
@@ -211,7 +211,7 @@ export async function revalidatePutawayTaskPosition(input: {
     };
   }
 
-  if (!["receiving", "hold", "quarantine"].includes(pallet.status)) {
+  if (!["receiving", "putaway", "hold", "quarantine"].includes(pallet.status)) {
     return {
       status: "reset-task",
       summary: `While you were offline: pallet ${pallet.pallet_barcode ?? "for this task"} is no longer waiting for Put-Away (status: ${pallet.status}). Refresh the queue before continuing.`,

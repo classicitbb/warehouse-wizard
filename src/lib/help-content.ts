@@ -167,7 +167,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
       "Type the quantity per pallet yourself when nothing has been learned for the SKU — the pallet count waits for it instead of splitting the total into single-unit pallets",
       "Change the total received at any point: the pallet count recalculates against the quantity per pallet as you type",
       "Reconnect and refresh live state before any save or receive after signal loss",
-      "Print draft labels or send selected pallets to put-away",
+      "Print draft labels or send selected pallets to put-away — confirming the labels flips the pallet from Receiving to Awaiting Put-Away",
     ],
     commonMistakes: [
       "Inserting a container number before the scanner shows a valid green ISO 6346 candidate",
@@ -184,7 +184,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   putaway: {
     id: "putaway",
     title: "Put-Away",
-    summary: "After labels are confirmed printed, stock is Awaiting Put-Away. Put-Away confirms pallet and location scans before it becomes Put Away and available, and it re-validates live state after reconnects.",
+    summary: "After labels are confirmed printed, the pallet status becomes Put-Away (shown as Awaiting Put-Away). Put-Away confirms pallet and location scans before it becomes Put Away and available, and it re-validates live state after reconnects.",
     keyActions: ["Scan pallet", "Scan a full location or shortened bay code", "Select an available bay cell when prompted", "Reconnect and review live task/location state before confirming again after signal loss", "Complete directed put-away with audit logging"],
     commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trusting a pre-disconnect location without the reconnect recheck", "Trying to store cool stock in ambient locations"],
     permissions: "Used by admins, managers, clerks, and operators.",
@@ -247,9 +247,9 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   status: {
     id: "status",
     title: "Statuses",
-    summary: "Status controls move stock into hold, quarantine, damaged, missing, or available with audit reasons.",
-    keyActions: ["Apply controlled statuses", "Record a reason", "Review controlled stock"],
-    commonMistakes: ["Changing status without reason detail", "Forgetting that controlled stock still affects decisions"],
+    summary: "Status controls are for exceptions only: hold, quarantine, damaged, missing, reserved, and in transit, each with an audit reason. Release back to workflow returns the pallet to Put Away when it still holds a bin, or Awaiting Put-Away when it does not — Available is never set by hand.",
+    keyActions: ["Apply controlled statuses", "Record a reason", "Release a cleared pallet back to its workflow status", "Review controlled stock"],
+    commonMistakes: ["Changing status without reason detail", "Expecting to set Available by hand — put the pallet away instead", "Forgetting that controlled stock still affects decisions"],
     permissions: "Used by admins, managers, and inventory clerks.",
     wikiArticleIds: ["status-controls", "operational-dead-ends"],
   },
