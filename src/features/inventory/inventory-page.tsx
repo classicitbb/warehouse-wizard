@@ -454,7 +454,7 @@ export function InventorySearchPage() {
             >
               All
             </Button>
-            {["available", "receiving", "reserved", "hold", "quarantine", "damaged"].map((item) => (
+            {["available", "putaway", "receiving", "reserved", "hold", "quarantine", "damaged"].map((item) => (
               <Button
                 key={item}
                 type="button"
