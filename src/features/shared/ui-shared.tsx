@@ -4313,7 +4313,7 @@ export function newShipmentLine(productId = ""): ReceivingShipmentLineState {
 
 export function distributeShipmentLine(line: ReceivingShipmentLineState, changed: "total" | "perPallet" | "count"): ReceivingShipmentLineState {
   const total = Math.max(0, Number(line.total_quantity) || 0);
-  let perPallet = Math.max(1, Number(line.quantity_per_pallet) || 1);
+  const perPallet = Math.max(1, Number(line.quantity_per_pallet) || 1);
   let palletCount = Math.max(1, Math.floor(Number(line.pallet_count) || 1));
 
   if (changed !== "count") {

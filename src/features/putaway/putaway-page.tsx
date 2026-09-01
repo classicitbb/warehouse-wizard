@@ -1102,7 +1102,7 @@ export function PutawayTasksPage() {
       palletRefs.current[firstId]?.focus();
     }, 120);
     return () => clearTimeout(timer);
-  }, [isLoading, activeTasks, isMobile, scanDialogOpen, selectedTask]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoading, activeTasks, isMobile, scanDialogOpen, selectedTask]);  
 
   const handlePutawayScannerOpenChange = useCallback((open: boolean) => {
     if (!isMobile || scannerFirstPreferred || scannerPreferenceDismissed) return;

@@ -73,3 +73,22 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Deployment/environment state: production Warehouse Wizard is on version `1.28.10`; no production deployment or database write was made after diagnosis. The app currently still has the pre-fix bundle, so the pallet remains unmoved.
 - Approval required: production deployment of the tested source change, then authorization to retry the already-confirmed relocation through the signed-in external browser.
 - Exact next action: after production deployment approval, publish the current source change, reload `https://warehousewizard.app/location-moves`, enter `PLT-874294572HSU` and `STG-01-A`, click Complete Move once, and verify the success toast and updated inventory location.
+
+### Status Controls scanner repair and audit — 2026-09-01
+
+- Objective: audit the application’s registered screens and repair the Status Controls pallet-entry workflow reported from `/status`.
+- Completed: mapped the 22 authenticated routes and the role/module navigation. Status Controls now uses the shared `normalizePalletBarcode` rule for both physical scanner and manual entry, exposes the existing `BarcodeScanButton`, remains normally editable, and normalizes the value again in its core pallet resolver. Added a focused UI regression test for typed and camera-scanned values.
+- Affected files: `src/features/status/status-page.tsx`, `src/features/status/status-core.ts`, `src/test/status-page.test.tsx`.
+- Verification: passed `npm run test -- --run src/test/status-page.test.tsx` (5 tests), `npm run test` (46 files, 527 tests), `npm run typecheck`, `npm run build`, and `git diff --check`. Build retains existing Vite dynamic-import and chunk-size warnings. `npm run lint` remains a repository-wide failing baseline: 633 errors and 3,065 warnings, predominantly existing `@typescript-eslint/no-explicit-any` findings; no lint correction was included because it is outside this focused repair.
+- Deployment/environment state: local source change only; no deployment or database write. External Edge reached the local login screen but could not open authenticated screens because its local Supabase session reported `Invalid Refresh Token: Refresh Token Not Found`.
+- Approval required: provide or authorize a valid non-production external Chrome/Edge operator session for authenticated visual and action testing; production deployment remains an approval boundary.
+- Exact next action: sign in to a non-production Warehouse Wizard account in external Edge or Chrome, open `/status`, type ` plt-51699909eftv ` using real keystrokes and use the `Scan pallet barcode` camera control, then select a non-destructive test status and reason and verify exactly one audited status update.
+
+### Repository-wide lint remediation — 2026-09-01
+
+- Objective: remove the repository’s ESLint debt so `npm run lint` is a clean gate rather than a baseline exception.
+- Current state: completed the safe ESLint auto-fix pass and fully cleaned `src/features/status/status-page.tsx`. Repository diagnostics are now 619 errors / 2,807 warnings; the remaining work is real source cleanup: roughly 606 `@typescript-eslint/no-explicit-any` errors, approximately 2,743 unused-import/variable warnings concentrated in copied screen import blocks, plus small hook and style-rule findings.
+- Changed files so far: `src/features/picking/picking-core.ts`, `src/features/putaway/putaway-page.tsx`, `src/features/shared/ui-shared.tsx`, `src/lib/offline-queue.ts`, and `supabase/functions/mcp/index.ts`, in addition to the existing uncommitted work listed above.
+- Verification: `npx eslint . --fix` completed; `npx eslint src/features/status/status-page.tsx` is clean, `npm run test -- --run src/test/status-page.test.tsx` passes 5 tests, and `npm run typecheck` passes. Do not claim repository lint is green yet; the remaining errors are intentional work items, not ignored configuration.
+- Environment state: local source cleanup only; no deployment, data write, or schema change.
+- Exact next action: remove the unused imports from `src/features/transfers/transfers-page.tsx`, run its focused lint command and tests, then continue the same diagnostic-driven cleanup through the remaining high-noise feature pages before replacing explicit `any` boundaries.
