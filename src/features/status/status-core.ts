@@ -128,7 +128,7 @@ export async function changePalletStatus(input: z.infer<typeof statusChangeSchem
       adjustment_type: "status_change",
       quantity_delta: 0,
       old_status: balance.status,
-      new_status: payload.new_status,
+      new_status: resolvedStatus,
       reason: payload.reason,
     }),
   ]);
@@ -141,18 +141,18 @@ export async function changePalletStatus(input: z.infer<typeof statusChangeSchem
     in_warehouse_id: balance.warehouse_id,
     in_metadata: {
       old_status: balance.status,
-      new_status: payload.new_status,
+      new_status: resolvedStatus,
       reason: payload.reason,
     } as any,
   });
   if (statusAudit.error) console.error("[changePalletStatus] log_audit_event failed:", statusAudit.error);
   await writeSystemLog({
     log_type: "system_change",
-    severity: ["missing", "damaged", "quarantine"].includes(payload.new_status) ? "warning" : "info",
+    severity: ["missing", "damaged", "quarantine"].includes(resolvedStatus) ? "warning" : "info",
     title: "Pallet status changed",
-    message: `Pallet status changed from ${balance.status} to ${payload.new_status}.`,
+    message: `Pallet status changed from ${balance.status} to ${resolvedStatus}.`,
     source: "inventory",
     table_name: "pallets",
-    details: { palletId, old_status: balance.status, new_status: payload.new_status, reason: payload.reason },
+    details: { palletId, old_status: balance.status, new_status: resolvedStatus, reason: payload.reason },
   }).catch((error) => console.error("[changePalletStatus] writeSystemLog failed:", error));
 }
