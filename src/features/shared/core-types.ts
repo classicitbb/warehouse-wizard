@@ -607,7 +607,7 @@ export const cycleCountSchema = z.object({
 
 export const statusChangeSchema = z.object({
   pallet_id: z.string().min(2, "Scan or enter a pallet barcode"),
-  new_status: z.enum(["hold", "quarantine", "damaged", "available", "missing"]),
+  new_status: z.enum(["hold", "quarantine", "damaged", "missing", "reserved", "in_transit", "release"]),
   reason: z.string().min(3),
 });
 
