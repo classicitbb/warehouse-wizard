@@ -787,7 +787,7 @@ function ZoneNode({
             <Printer className="mr-2 h-3.5 w-3.5" />Print all bay labels
           </TreeRowFlyoutItem>
           <div className="-mx-1 my-1 h-px bg-border" />
-          <TreeRowFlyoutItem destructive onSelect={() => { setDialog({ type: "delete", label: `zone \"${zone.name}\" and all its locations`, deleteFn: () => deleteZoneCascade(zone.id) }); close(); }}>
+          <TreeRowFlyoutItem destructive onSelect={() => { setDialog({ type: "delete", label: `zone "${zone.name}" and all its locations`, deleteFn: () => deleteZoneCascade(zone.id) }); close(); }}>
             <Trash2 className="mr-2 h-3.5 w-3.5" />Delete Zone
           </TreeRowFlyoutItem>
         </>
@@ -960,7 +960,7 @@ function WarehouseLabelPage({
     <div class="qr">${qr}</div>
     <div class="code">${escapeHtml(code)}</div>
   </section>
-  <script>window.onload=()=>{window.print();window.close();}<\/script>
+  <script>window.onload=()=>{window.print();window.close();}</script>
 </body>
 </html>`);
     win.document.close();
@@ -1019,7 +1019,7 @@ function WarehouseNode({ warehouse, nodeKey }: { warehouse: WarehouseRow; nodeKe
             <AlertTriangle className="mr-2 h-3.5 w-3.5" />Reorder Settings
           </TreeRowFlyoutItem>
           <div className="-mx-1 my-1 h-px bg-border" />
-          <TreeRowFlyoutItem destructive onSelect={() => { setDialog({ type: "delete", label: `warehouse \"${warehouse.name}\" and all its zones and locations`, deleteFn: () => deleteWarehouseCascade(warehouse.id) }); close(); }}>
+          <TreeRowFlyoutItem destructive onSelect={() => { setDialog({ type: "delete", label: `warehouse "${warehouse.name}" and all its zones and locations`, deleteFn: () => deleteWarehouseCascade(warehouse.id) }); close(); }}>
             <Trash2 className="mr-2 h-3.5 w-3.5" />Delete Warehouse
           </TreeRowFlyoutItem>
         </>

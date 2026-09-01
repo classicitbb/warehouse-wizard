@@ -139,7 +139,7 @@ export function LocationLabelPage(props: LocationLabelPageProps) {
     ${zoneName ? `<p class="sub">Zone: ${escapeHtml(zoneName)}${warehouseName ? ` · ${escapeHtml(warehouseName)}` : ""}</p>` : (warehouseName ? `<p class="sub">${escapeHtml(warehouseName)}</p>` : "")}
   </div>
   <div class="qr-wrap">${machineMarkup}</div>
-  <script>window.onload=()=>{window.print();window.close();}<\/script>
+  <script>window.onload=()=>{window.print();window.close();}</script>
 </body>
 </html>`);
     win.document.close();

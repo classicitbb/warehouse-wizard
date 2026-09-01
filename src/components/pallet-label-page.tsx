@@ -239,7 +239,7 @@ export function buildPalletLabelBatchPrintHtml(labels: PalletLabelPageProps[], p
 </head>
 <body>
   ${labels.map((label) => renderPalletLabelSheet(label, printTimestamp)).join("")}
-  <script>window.onload=()=>{window.print();window.close();}<\/script>
+  <script>window.onload=()=>{window.print();window.close();}</script>
 </body>
 </html>`;
 }

@@ -228,7 +228,8 @@ function WarehouseBayBrowserDialog({
   const toggleZone = (zk: string) =>
     setCollapsedZones((prev) => {
       const next = new Set(prev);
-      next.has(zk) ? next.delete(zk) : next.add(zk);
+      if (next.has(zk)) next.delete(zk);
+      else next.add(zk);
       return next;
     });
 
@@ -1102,7 +1103,7 @@ export function PutawayTasksPage() {
       palletRefs.current[firstId]?.focus();
     }, 120);
     return () => clearTimeout(timer);
-  }, [isLoading, activeTasks, isMobile, scanDialogOpen, selectedTask]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoading, activeTasks, isMobile, scanDialogOpen, selectedTask]);  
 
   const handlePutawayScannerOpenChange = useCallback((open: boolean) => {
     if (!isMobile || scannerFirstPreferred || scannerPreferenceDismissed) return;
@@ -1390,7 +1391,7 @@ export function PutawayTasksPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center justify-between gap-4 text-base">
                     <span className="font-mono">{palletBarcode || "No pallet assigned"}</span>
-                    <Badge>{task.status}</Badge>
+                    <Badge>Awaiting Put-Away</Badge>
                   </CardTitle>
                   <CardDescription>
                     <span className="font-medium text-foreground">
@@ -1675,7 +1676,7 @@ export function PutawayTasksPage() {
                           {palletCode}
                         </span>
                       </div>
-                      <Badge variant={statusBadgeVariant(task.status)} className="shrink-0 text-xs">{task.status}</Badge>
+                      <Badge variant={statusBadgeVariant(task.status)} className="shrink-0 text-xs">{task.status === "completed" ? "Put Away" : task.status === "cancelled" ? "Returned to Receiving" : "Awaiting Put-Away"}</Badge>
                     </summary>
                     <div className="mt-3 grid gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs sm:grid-cols-2">
                       <div>

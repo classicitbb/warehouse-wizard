@@ -54,6 +54,10 @@ const warehouseIntelligencePhaseOneMigration = readFileSync(
   path.resolve(process.cwd(), "supabase/migrations/20260830021615_warehouse_intelligence_phase_one_scope.sql"),
   "utf8",
 );
+const receivingPutawayLifecycleMigration = readFileSync(
+  path.resolve(process.cwd(), "supabase/migrations/20260901155226_receiving_putaway_lifecycle_integrity.sql"),
+  "utf8",
+);
 
 describe("init_wms migration", () => {
   it("creates the core warehouse tables", () => {
@@ -164,6 +168,25 @@ describe("Warehouse Intelligence Phase 1 migration", () => {
   it("appends warehouse_id without reordering existing occupancy view columns", () => {
     expect(warehouseIntelligencePhaseOneMigration).toContain("(count(ib.id) >= l.max_pallets) as is_full,\n  l.warehouse_id");
     expect(warehouseIntelligencePhaseOneMigration).not.toContain("l.id as location_id,\n  l.warehouse_id,\n  l.code as location_code");
+  });
+});
+
+describe("receiving and Put-Away lifecycle migration", () => {
+  it("owns receiving confirmation and cancellation in guarded atomic RPCs", () => {
+    expect(receivingPutawayLifecycleMigration).toContain("function public.confirm_receiving_draft_labels_printed");
+    expect(receivingPutawayLifecycleMigration).toContain("function public.cancel_receiving_draft");
+    expect(receivingPutawayLifecycleMigration).toContain("security definer");
+    expect(receivingPutawayLifecycleMigration).toContain("for update");
+    expect(receivingPutawayLifecycleMigration).toContain("receiving_labels_confirmed");
+    expect(receivingPutawayLifecycleMigration).toContain("revoke all on function public.confirm_receiving_draft_labels_printed(uuid) from public, anon");
+  });
+
+  it("reconciles only location-less receiving stock without active work into same-barcode drafts", () => {
+    expect(receivingPutawayLifecycleMigration).toContain("orphan_receiving_reconciliation");
+    expect(receivingPutawayLifecycleMigration).toContain("p.current_location_id is null");
+    expect(receivingPutawayLifecycleMigration).toContain("pt.status in ('draft', 'queued', 'assigned', 'in_progress', 'exception')");
+    expect(receivingPutawayLifecycleMigration).toContain("rd.status = 'draft'");
+    expect(receivingPutawayLifecycleMigration).toContain("candidate.pallet_barcode");
   });
 });
 

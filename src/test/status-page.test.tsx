@@ -62,6 +62,12 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
   return { ...actual, ...statusMocks };
 });
 
+vi.mock("@/components/barcode-scan-button", () => ({
+  BarcodeScanButton: ({ onScan, title }: { onScan: (value: string) => void; title: string }) => (
+    <button type="button" onClick={() => onScan(" plt-51699909eftv ")}>{title}</button>
+  ),
+}));
+
 const missingNoLocation = {
   inventory_balance_id: "balance-1",
   pallet_id: "pallet-1",
@@ -122,6 +128,19 @@ describe("StatusPage controlled stock", () => {
 
     await screen.findByText("PLT-51699909EFTV · No location");
     expect(screen.getAllByRole("button", { name: /^found$/i })).toHaveLength(1);
+  });
+
+  it("uses the shared pallet-code normalizer for typed and camera-scanned values", async () => {
+    renderStatusPage();
+
+    const input = screen.getByLabelText("Pallet barcode or ID");
+    fireEvent.change(input, { target: { value: " plt-typed 01 " } });
+    expect(input).toHaveValue("PLT-TYPED01");
+
+    fireEvent.click(screen.getByRole("button", { name: "Scan pallet barcode" }));
+    await waitFor(() => expect(input).toHaveValue("PLT-51699909EFTV"));
+    expect(input).not.toBeDisabled();
+    expect(input).not.toHaveAttribute("readonly");
   });
 
   it("sends a found pallet to Put-Away under its own number", async () => {

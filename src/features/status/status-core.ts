@@ -10,9 +10,10 @@ import {
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
 import { displayRackLocationCode } from "@/features/setup/setup-core";
+import { normalizePalletBarcode } from "@/lib/code-input";
 
 async function resolvePalletId(palletInput: string) {
-  const normalized = palletInput.trim();
+  const normalized = normalizePalletBarcode(palletInput);
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) {
     return normalized;
   }

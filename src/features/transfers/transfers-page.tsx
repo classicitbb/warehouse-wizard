@@ -1,202 +1,60 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormReturn } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { Loader2, Package, PackageX, Truck } from "lucide-react";
 import { z } from "zod";
 
-import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
-import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
-import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import {
-  enqueueOfflineWork,
-  flushOfflineQueue,
-  installOfflineAutoReplay,
-  isLikelyNetworkError,
-  useOfflineQueue,
-  useDeadLetterQueue,
-
-  type FailedWorkItem,
-} from "@/lib/offline-queue";
-import { useBackgroundSync } from "@/hooks/use-background-sync";
-import {
-  NAVIGATION,
-  ROLE_LABELS,
-  ROLE_DESCRIPTIONS,
-  type AdminInviteUserInput,
-  type AppRoute,
-  type FieldDefinition,
-  type ResourceDefinition,
-  type DraftReceipt,
-  type BayOccupancyCell,
-  adminInviteUser,
-  adminDeleteUser,
-  adminUpdateUserPin,
-  adminUpdateUserPassword,
-  buildBayOccupancyGrid,
-  updateOwnPassword,
-  changePalletStatus,
-  confirmPutaway,
-  createCycleCountFlow,
-  createPickListFlow,
-  getPickableStockSummary,
   createTransferFlow,
-  cancelPickList,
-  deleteClientVariable,
-  deleteResourceCascade,
   dispatchTransfer,
-  cycleCountSchema,
-  resetWmsData,
-  removeUserRoleAssignment,
-  downloadCsv,
-  downloadCsvTemplate,
   fetchOptions,
   formatDate,
   formatNumber,
-  getDashboardMetrics,
-  getInventoryDetail,
-  getPickExecution,
-  getBinOccupancy,
-  getBayOccupancy,
-  getWarehouseBayOccupancy,
-  type WarehouseBayGroup,
-  logPutawayBaySelection,
-  getPutawayTasks,
-  getPutawayTaskHistory,
-  getReportData,
-  parseCsvForResource,
-  commitImportRows,
-  type ImportPreview,
-  listClientVariables,
-  listDraftReceipts,
-  saveShipmentDrafts,
-  updateDraftReceipt,
-  completeReceiptFromDraft,
-  deleteDraftReceipt,
-  listSystemLogs,
-  listUserActivities,
-  listCycleCounts,
-  listPickLists,
-  listRecords,
-  listStatusPallets,
   listTransfers,
-  pickListSchema,
-  receivingSchema,
   receiveTransfer,
-  resolveSystemLog,
-  searchInventory,
-  setProfileActive,
-  snapshotRecordCounts,
-  updateProfileDetails,
-  updateProfileDefaultWarehouse,
-  statusChangeSchema,
-  setResourceVisibility,
-  setUserRoleVisibility,
-  submitCycleCountLine,
   transferSchema,
-  updateRecord,
-  upsertClientVariable,
-  upsertRecord,
-  writeSystemLog,
   cancelTransfer,
-  flagCountLineException,
-  revertPutawayToDraft,
-  listMoveTasks,
-  completeDirectMove,
-  completeMoveTask,
-  cancelMoveTask,
-  expandLocationRange,
-  buildRackLocationCode,
-  suggestNextRackPosition,
-  validateMoveDestination,
-  type MoveValidationResult,
 } from "@/lib/wms-core";
-import { ProductSearch } from "@/components/product-search";
-import { PalletLabelPage } from "@/components/pallet-label-page";
-import { BarcodeScanButton } from "@/components/barcode-scan-button";
-import { type ProductSearchHandle } from "@/components/product-search";
-
-import { cn } from "@/lib/utils";
-import { extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
-import { getOrCreateDeviceId } from "@/lib/device-identity";
-import { invalidateWarehouseData } from "@/lib/query-invalidation";
-import {
-  filterDashboardTileDefinitions,
-  hiddenDashboardTiles,
-  loadDashboardDeviceLayout,
-  loadDashboardTileVisibility,
-  sanitizeDashboardLayout,
-  saveDashboardDeviceLayout,
-  saveDashboardTileVisibility,
-  visibleDashboardTiles,
-  type DashboardCardSize,
-  type DashboardTileConfig,
-  type DashboardTileDefinition,
-  type DashboardVisibilityMap,
-} from "@/lib/dashboard-preferences";
-import {
-  buildCsvReportRows,
-  buildEnterpriseDashboard,
-  type DashboardMode,
-  type DockHandoffLoad,
-  type EnterpriseDashboardSnapshot,
-  type WarehouseBrainRecommendation,
-} from "@/lib/enterprise-wms";
-import { HelpSidebar } from "@/components/help-sidebar";
-import { ZoneLabelPage } from "@/components/zone-label-page";
-import { LocationLabelPage } from "@/components/location-label-page";
-import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
-import { WarehouseStructureTab } from "@/components/warehouse-tree-view";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-// removed unused dropdown-menu and drawer imports
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-
 import {
   SelectField,
   TextField,
   statusBadgeVariant,
   alertToast,
 } from "@/features/shared/ui-shared";
+
+type TransferProduct = { name?: string | null; sku?: string | null };
+type TransferPallet = {
+  id: string;
+  pallet_barcode?: string | null;
+  pallet_code?: string | null;
+  status: string;
+  current_warehouse_id?: string | null;
+  is_stored?: boolean | null;
+  current_location_id?: string | null;
+};
+type TransferLine = {
+  id: string;
+  quantity?: number | null;
+  pallet_id?: string | null;
+  pallets?: { pallet_barcode?: string | null; products?: TransferProduct | null } | null;
+};
+type TransferRow = {
+  id: string;
+  status: string;
+  transfer_number?: string | null;
+  notes?: string | null;
+  dispatch_signed_off_at?: string | null;
+  transfer_lines?: TransferLine[] | null;
+};
 
 export function TransfersPage() {
   const navigate = useNavigate();
@@ -215,7 +73,8 @@ export function TransfersPage() {
 
   const inFlightPalletIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const t of (transfers as any[])) {
+    const transferRows = (transfers ?? []) as TransferRow[];
+    for (const t of transferRows) {
       if (t.status === "completed" || t.status === "cancelled") continue;
       for (const line of (t.transfer_lines ?? [])) {
         if (line.pallet_id) ids.add(line.pallet_id);
@@ -225,9 +84,10 @@ export function TransfersPage() {
   }, [transfers]);
 
   const transferablePallets = useMemo(() => {
-    if (!sourceWarehouseId) return [] as any[];
+    if (!sourceWarehouseId) return [] as TransferPallet[];
     const allowed = new Set(["available", "quarantine", "hold"]);
-    return (options?.pallets ?? []).filter((p: any) =>
+    const palletRows = (options?.pallets ?? []) as TransferPallet[];
+    return palletRows.filter((p) =>
       p.current_warehouse_id === sourceWarehouseId
       && p.is_stored
       && p.current_location_id
@@ -288,8 +148,9 @@ export function TransfersPage() {
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Cancel failed"),
   });
 
-  const active = (transfers as any[]).filter((t) => !["completed", "cancelled"].includes(t.status));
-  const done = (transfers as any[]).filter((t) => ["completed", "cancelled"].includes(t.status));
+  const transferRows = (transfers ?? []) as TransferRow[];
+  const active = transferRows.filter((t) => !["completed", "cancelled"].includes(t.status));
+  const done = transferRows.filter((t) => ["completed", "cancelled"].includes(t.status));
 
   return (
     <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
@@ -311,7 +172,7 @@ export function TransfersPage() {
                 form={form}
                 name="pallet_id"
                 label="Pallet"
-                options={transferablePallets.map((pallet: any) => ({
+                options={transferablePallets.map((pallet) => ({
                   label: `${pallet.pallet_barcode || pallet.pallet_code} · ${pallet.status}`,
                   value: pallet.id,
                 }))}
@@ -352,8 +213,8 @@ export function TransfersPage() {
             <p className="mt-1 text-sm text-muted-foreground">Create a transfer to move pallets between warehouses or zones.</p>
           </div>
         )}
-        {active.map((transfer: any) => {
-          const lines: any[] = transfer.transfer_lines ?? [];
+        {active.map((transfer) => {
+          const lines = transfer.transfer_lines ?? [];
           const cs = cancelState[transfer.id] ?? { open: false, reason: "" };
           const codeEntered = !!(signoffCodes[transfer.id] ?? "").trim();
           return (
@@ -370,8 +231,8 @@ export function TransfersPage() {
               </CardHeader>
               <CardContent className="grid gap-3">
                 {/* Pallet / product summary */}
-                {lines.map((line: any) => {
-                  const product = line.pallets?.products as any;
+                {lines.map((line) => {
+                  const product = line.pallets?.products;
                   return (
                     <div key={line.id} className="flex items-center gap-3 rounded-md border border-border bg-secondary/20 px-3 py-2 text-sm">
                       <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -472,7 +333,7 @@ export function TransfersPage() {
               <span className="hidden group-open:inline">▼ Hide completed / cancelled</span>
             </summary>
             <div className="mt-2 grid gap-2">
-              {done.map((t: any) => (
+              {done.map((t) => (
                 <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm opacity-60">
                   <span className="font-mono text-xs">{t.transfer_number}</span>
                   <Badge variant={statusBadgeVariant(t.status)} className="text-xs">{t.status}</Badge>

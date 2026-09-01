@@ -184,7 +184,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   putaway: {
     id: "putaway",
     title: "Put-Away",
-    summary: "Put-Away confirms pallet and location scans before stock becomes stored and available, and it re-validates live state after reconnects.",
+    summary: "After labels are confirmed printed, stock is Awaiting Put-Away. Put-Away confirms pallet and location scans before it becomes Put Away and available, and it re-validates live state after reconnects.",
     keyActions: ["Scan pallet", "Scan a full location or shortened bay code", "Select an available bay cell when prompted", "Reconnect and review live task/location state before confirming again after signal loss", "Complete directed put-away with audit logging"],
     commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trusting a pre-disconnect location without the reconnect recheck", "Trying to store cool stock in ambient locations"],
     permissions: "Used by admins, managers, clerks, and operators.",
@@ -430,7 +430,7 @@ export const helpArticles: HelpArticle[] = [
       { title: "Product Commit Step", content: ["Scan product or search by SKU/name to select the product. Selection alone does not move into quantities.", "After a product is selected, the right-arrow commit button is highlighted and focused. Confirm it to lock the chosen product for that line and move to Total received."] },
       { title: "Quantity and Expiry Entry", content: ["Quantity fields allow blank and partial typing, so multi-digit numbers should be typed normally and committed with Enter.", "Total received Enter recalculates pallet count and moves to Qty per pallet. Qty per pallet Enter recalculates pallet count and moves to Pallets. Pallets Enter opens the expiry calendar.", "When the product has prior receiving observations, Qty per pallet may be suggested from learned history. Treat it as a time saver, not a substitute for the physical count."] },
       { title: "Connectivity Safety", content: ["If the device goes offline, keep typing or scanning locally but do not expect Save, Save & Receive, or Print & Receive to post. Live receiving commits are frozen until the connection returns.", "After reconnect, refresh live state, review the draft list and current shipment form, then save or receive again from the live screen."] },
-      { title: "Critical Checks", content: ["Confirm warehouse, container, PO, product, quantity, pallet count, and lot/expiry values before saving or receiving.", "Cool-chain items must align with cool-zone storage, and products that require expiry tracking should use the calendar picker before labels are printed."] },
+      { title: "Critical Checks", content: ["Confirm warehouse, container, PO, product, quantity, pallet count, and lot/expiry values before saving the draft.", "Print the labels, verify physical output, then use Labels printed to create Awaiting Put-Away stock. If printing fails, leave the draft in Receiving and print again.", "Cool-chain items must align with cool-zone storage, and products that require expiry tracking should use the calendar picker before labels are printed."] },
     ],
   },
   {
@@ -440,7 +440,7 @@ export const helpArticles: HelpArticle[] = [
     audience: "Operators and supervisors",
     keywords: ["put-away", "scan", "location", "temperature", "store"],
     sections: [
-      { title: "How It Works", content: ["Put-Away is complete only after the pallet barcode and location barcode are both confirmed.", "A full location code fills the confirmation field directly. A shortened bay code opens the bay selector so the operator can tap the exact available slot.", "Successful confirmation moves stock into stored and available status."] },
+      { title: "How It Works", content: ["Put-Away begins only after printed labels were confirmed in Receiving; that stock is shown as Awaiting Put-Away.", "A full location code fills the confirmation field directly. A shortened bay code opens the bay selector so the operator can tap the exact available slot.", "Successful confirmation moves stock into Put Away and available status."] },
       { title: "Reconnect Safety", content: ["If signal drops, the current task position stays on the device, but the confirmation itself is frozen until connectivity returns.", "When the device reconnects, the screen refreshes live task, pallet, and location state. Be ready to reselect a location or restart the task if the live warehouse record no longer matches what was on screen before the disconnect."] },
       { title: "Common Exceptions", content: ["A location that is inactive, full, or temperature-incompatible will block the move.", "Scan mismatches should be corrected before retrying."] },
     ],

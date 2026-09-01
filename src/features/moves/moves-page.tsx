@@ -1,200 +1,28 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormReturn } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { z } from "zod";
-
-import { useAuth } from "@/hooks/use-auth";
-import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
-import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
-import {
-  enqueueOfflineWork,
-  flushOfflineQueue,
-  installOfflineAutoReplay,
-  isLikelyNetworkError,
-  useOfflineQueue,
-  useDeadLetterQueue,
-
-  type FailedWorkItem,
-} from "@/lib/offline-queue";
-import { useBackgroundSync } from "@/hooks/use-background-sync";
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, Loader2, PackageX } from "lucide-react";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { formatSupabaseError } from "@/features/shared/core-types";
 import {
-  NAVIGATION,
-  ROLE_LABELS,
-  ROLE_DESCRIPTIONS,
-  type AdminInviteUserInput,
-  type AppRoute,
-  type FieldDefinition,
-  type ResourceDefinition,
-  type DraftReceipt,
-  type BayOccupancyCell,
-  adminInviteUser,
-  adminDeleteUser,
-  adminUpdateUserPin,
-  adminUpdateUserPassword,
-  buildBayOccupancyGrid,
-  updateOwnPassword,
-  changePalletStatus,
-  confirmPutaway,
-  createCycleCountFlow,
-  createPickListFlow,
-  getPickableStockSummary,
-  createTransferFlow,
-  cancelPickList,
-  deleteClientVariable,
-  deleteResourceCascade,
-  dispatchTransfer,
-  cycleCountSchema,
-  resetWmsData,
-  removeUserRoleAssignment,
-  downloadCsv,
-  downloadCsvTemplate,
-  fetchOptions,
-  formatDate,
   formatDateTime,
-  formatNumber,
-  getDashboardMetrics,
-  getInventoryDetail,
-  getPickExecution,
-  getBinOccupancy,
-  getBayOccupancy,
-  getWarehouseBayOccupancy,
-  type WarehouseBayGroup,
-  logPutawayBaySelection,
-  getPutawayTasks,
-  getPutawayTaskHistory,
-  getReportData,
-  parseCsvForResource,
-  commitImportRows,
-  type ImportPreview,
-  listClientVariables,
-  listDraftReceipts,
-  saveShipmentDrafts,
-  updateDraftReceipt,
-  completeReceiptFromDraft,
-  deleteDraftReceipt,
-  listSystemLogs,
-  listUserActivities,
-  listCycleCounts,
-  listPickLists,
   listRecords,
-  listStatusPallets,
-  listTransfers,
-  pickListSchema,
-  receivingSchema,
-  receiveTransfer,
-  resolveSystemLog,
-  searchInventory,
-  setProfileActive,
-  snapshotRecordCounts,
-  updateProfileDetails,
-  updateProfileDefaultWarehouse,
-  statusChangeSchema,
-  setResourceVisibility,
-  setUserRoleVisibility,
-  submitCycleCountLine,
-  transferSchema,
-  updateRecord,
-  upsertClientVariable,
-  upsertRecord,
-  writeSystemLog,
-  cancelTransfer,
-  flagCountLineException,
-  revertPutawayToDraft,
   listMoveTasks,
   completeDirectMove,
   completeMoveTask,
   cancelMoveTask,
-  expandLocationRange,
-  buildRackLocationCode,
   displayRackLocationCode,
-  suggestNextRackPosition,
   validateMoveDestination,
   type MoveValidationResult,
 } from "@/lib/wms-core";
-import { ProductSearch } from "@/components/product-search";
-import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
-import { type ProductSearchHandle } from "@/components/product-search";
-
-import { cn } from "@/lib/utils";
-import { extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
-import { getOrCreateDeviceId } from "@/lib/device-identity";
-import { invalidateWarehouseData } from "@/lib/query-invalidation";
-import {
-  filterDashboardTileDefinitions,
-  hiddenDashboardTiles,
-  loadDashboardDeviceLayout,
-  loadDashboardTileVisibility,
-  sanitizeDashboardLayout,
-  saveDashboardDeviceLayout,
-  saveDashboardTileVisibility,
-  visibleDashboardTiles,
-  type DashboardCardSize,
-  type DashboardTileConfig,
-  type DashboardTileDefinition,
-  type DashboardVisibilityMap,
-} from "@/lib/dashboard-preferences";
-import {
-  buildCsvReportRows,
-  buildEnterpriseDashboard,
-  type DashboardMode,
-  type DockHandoffLoad,
-  type EnterpriseDashboardSnapshot,
-  type WarehouseBrainRecommendation,
-} from "@/lib/enterprise-wms";
-import { HelpSidebar } from "@/components/help-sidebar";
-import { ZoneLabelPage } from "@/components/zone-label-page";
-import { LocationLabelPage } from "@/components/location-label-page";
-import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
-import { WarehouseStructureTab } from "@/components/warehouse-tree-view";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-// removed unused dropdown-menu and drawer imports
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
-import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-
 import {
   BayOccupancyGrid,
   isBaySelectorCode,

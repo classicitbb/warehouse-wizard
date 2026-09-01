@@ -76,6 +76,7 @@ import {
   downloadCsvTemplate,
   fetchOptions,
   formatDate,
+  inventoryLifecycleLabel,
   formatNumber,
   getDashboardMetrics,
   getInventoryDetail,
@@ -578,7 +579,7 @@ export function InventorySearchPage() {
                       <TableCell>{row.warehouse_code ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant={row.status === "missing" ? "destructive" : row.status === "available" && !historic ? "default" : "secondary"}>
-                          {String(row.status ?? "").replace("_", " ")}
+                          {inventoryLifecycleLabel(row)}
                         </Badge>
                       </TableCell>
                       <TableCell>{formatNumber(row.available_quantity)}</TableCell>

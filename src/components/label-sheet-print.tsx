@@ -217,7 +217,7 @@ function openPrint(title: string, body: string, pageSize: string, css: string) {
       ${css}
       @media print { .cell,.lpage { border-color: transparent !important; } }
     </style>
-  </head><body>${body}<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`);
+  </head><body>${body}<script>window.onload=()=>{window.print();window.close();}</script></body></html>`);
   win.document.close();
 }
 
