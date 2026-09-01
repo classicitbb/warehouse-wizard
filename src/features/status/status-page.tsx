@@ -157,9 +157,12 @@ export function StatusPage() {
                 { label: "Hold", value: "hold" },
                 { label: "Quarantine", value: "quarantine" },
                 { label: "Damaged", value: "damaged" },
-                { label: "Available", value: "available" },
                 { label: "Missing", value: "missing" },
+                { label: "Reserved", value: "reserved" },
+                { label: "In transit", value: "in_transit" },
+                { label: "Release back to workflow", value: "release" },
               ]} />
+
               <FormField
                 control={form.control}
                 name="reason"
