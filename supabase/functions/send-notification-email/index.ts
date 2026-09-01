@@ -3,12 +3,13 @@
 // Owns every notification email the app sends (reorder alerts, operator
 // tickets/feedback). The database no longer composes or enqueues these — it
 // only records that a notification is due, and this function builds the
-// recipient list, renders the template, applies suppression/unsubscribe
-// handling, and hands the message to the email queue.
+// recipient list, renders the template, and sends it through Lovable's
+// managed email delivery (suppression and unsubscribe are handled there).
 //
 // POST { kind: 'reorder_alert' | 'operator_ticket', id: uuid }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
+import { EmailAPIError, sendLovableEmail } from 'npm:@lovable.dev/email-js@0.1.0'
 import {
   normaliseRecipients,
   renderOperatorTicket,
@@ -155,19 +156,18 @@ async function sendReorderAlert(sb: Client, alertId: string) {
   })
 
   const recipients = normaliseRecipients(await emailsForRoles(sb, ['admin', 'warehouse_manager']))
-  const blocked = await suppressed(sb, recipients)
 
   let sent = 0
   for (const to of recipients) {
-    if (blocked.has(to)) continue
     if (
-      await queue(sb, {
+      await deliver(sb, {
         to,
         subject: rendered.subject,
         title: rendered.subject,
         bodyHtml: rendered.bodyHtml,
         text: rendered.text,
         label: 'reorder-alert',
+        idempotencyKey: `reorder-alert-${alertId}-${to}`,
       })
     ) {
       sent += 1
@@ -238,19 +238,18 @@ async function sendOperatorTicket(sb: Client, ticketId: string) {
     ...devEmails,
     ...adminEmails,
   ])
-  const blocked = await suppressed(sb, recipients)
 
   let sent = 0
   for (const to of recipients) {
-    if (blocked.has(to)) continue
     if (
-      await queue(sb, {
+      await deliver(sb, {
         to,
         subject: rendered.subject,
         title: rendered.subject,
         bodyHtml: rendered.bodyHtml,
         text: rendered.text,
         label: 'operator-ticket',
+        idempotencyKey: `operator-ticket-${ticketId}-${to}`,
       })
     ) {
       sent += 1
