@@ -326,7 +326,7 @@ export function LocationMovesPage() {
       setNewPallet(""); setNewLocation(""); setNewReason(""); setNewValidation(null);
       await invalidateMoveData();
     },
-    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Move failed"),
+    onError: (e) => alertToast.noGo(formatSupabaseError(e, "Move failed") || "Move failed"),
   });
 
   const completeMutation = useMutation({
@@ -337,7 +337,7 @@ export function LocationMovesPage() {
       setCompletedIds((prev) => new Set([...prev, vars.taskId]));
       await invalidateMoveData();
     },
-    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Move failed"),
+    onError: (e) => alertToast.noGo(formatSupabaseError(e, "Move failed") || "Move failed"),
   });
 
   const cancelMutation = useMutation({
@@ -347,7 +347,7 @@ export function LocationMovesPage() {
       setCancelledIds((prev) => new Set([...prev, taskId]));
       await invalidateMoveData();
     },
-    onError: (e) => alertToast.noGo(e instanceof Error ? e.message : "Cancel failed"),
+    onError: (e) => alertToast.noGo(formatSupabaseError(e, "Cancel failed") || "Cancel failed"),
   });
 
   const knownCodes = useKnownLocationCodes();
