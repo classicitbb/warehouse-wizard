@@ -601,6 +601,8 @@ export const helpArticles: HelpArticle[] = [
       { title: "When to Use It", content: ["Use Location Moves when a pallet stays in the same warehouse but needs a new bin, staging area, or picking area.", "Use Transfers only when the stock changes warehouse or requires dispatch/receiving handoff."] },
       { title: "Scan Control", content: ["The pallet barcode confirms identity and the destination location confirms where the stock physically moved.", "If the location is blocked, disabled, full, or physically wrong, stop and correct the destination before posting the move."] },
       { title: "Typing Codes By Hand", content: ["Pallet fields only accept barcodes that start with PLT-. Bay and location fields only accept codes that exist in the selected warehouse.", "You do not have to type the dashes: enter A01A and the field corrects itself to A-01-A once the code is recognised. Backspace still removes characters normally, and the field only inserts a separator when every matching code agrees on it."] },
+      { title: "When A Move Fails", content: ["A refused move now shows the actual reason instead of a plain \"Move failed\". If the message names a database column or looks technical, file it with the life buoy — nothing was moved, the pallet is still at its original bin.", "A move that reports success has already updated both the pallet and inventory, so re-scanning the destination is safe to confirm."] },
+
 
     ],
   },
