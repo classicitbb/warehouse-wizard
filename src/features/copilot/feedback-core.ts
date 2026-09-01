@@ -659,8 +659,28 @@ export async function submitTicket(
   }).catch(() => {
     // The ticket is filed; a missing history row must not fail the submit.
   });
+
+  await notifyTicketSubmitted(ticket.id);
+
   return ticket;
 }
+
+/**
+ * Ask the app-side sender to email the report to the reporter, the developers
+ * and the support address. Email is a notification, never a gate: a failure
+ * here must not fail a filed report.
+ */
+export async function notifyTicketSubmitted(ticketId: string): Promise<void> {
+  try {
+    await supabase.functions.invoke("send-notification-email", {
+      body: { kind: "operator_ticket", id: ticketId },
+    });
+  } catch (error) {
+    console.warn("Could not send the report notification email", error);
+  }
+}
+
+
 
 export async function appendTicketEvent(
   ticketId: string,

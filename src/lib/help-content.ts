@@ -167,7 +167,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
       "Type the quantity per pallet yourself when nothing has been learned for the SKU — the pallet count waits for it instead of splitting the total into single-unit pallets",
       "Change the total received at any point: the pallet count recalculates against the quantity per pallet as you type",
       "Reconnect and refresh live state before any save or receive after signal loss",
-      "Print draft labels or send selected pallets to put-away",
+      "Print draft labels or send selected pallets to put-away — confirming the labels flips the pallet from Receiving to Awaiting Put-Away",
     ],
     commonMistakes: [
       "Inserting a container number before the scanner shows a valid green ISO 6346 candidate",
@@ -184,7 +184,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   putaway: {
     id: "putaway",
     title: "Put-Away",
-    summary: "Put-Away confirms pallet and location scans before stock becomes stored and available, and it re-validates live state after reconnects.",
+    summary: "After labels are confirmed printed, the pallet status becomes Put-Away (shown as Awaiting Put-Away). Put-Away confirms pallet and location scans before it becomes Put Away and available, and it re-validates live state after reconnects.",
     keyActions: ["Scan pallet", "Scan a full location or shortened bay code", "Select an available bay cell when prompted", "Reconnect and review live task/location state before confirming again after signal loss", "Complete directed put-away with audit logging"],
     commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trusting a pre-disconnect location without the reconnect recheck", "Trying to store cool stock in ambient locations"],
     permissions: "Used by admins, managers, clerks, and operators.",
@@ -247,9 +247,9 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   status: {
     id: "status",
     title: "Statuses",
-    summary: "Status controls move stock into hold, quarantine, damaged, missing, or available with audit reasons.",
-    keyActions: ["Apply controlled statuses", "Record a reason", "Review controlled stock"],
-    commonMistakes: ["Changing status without reason detail", "Forgetting that controlled stock still affects decisions"],
+    summary: "Status controls are for exceptions only: hold, quarantine, damaged, missing, reserved, and in transit, each with an audit reason. Release back to workflow returns the pallet to Put Away when it still holds a bin, or Awaiting Put-Away when it does not — Available is never set by hand.",
+    keyActions: ["Apply controlled statuses", "Record a reason", "Release a cleared pallet back to its workflow status", "Review controlled stock"],
+    commonMistakes: ["Changing status without reason detail", "Expecting to set Available by hand — put the pallet away instead", "Forgetting that controlled stock still affects decisions"],
     permissions: "Used by admins, managers, and inventory clerks.",
     wikiArticleIds: ["status-controls", "operational-dead-ends"],
   },
@@ -430,7 +430,7 @@ export const helpArticles: HelpArticle[] = [
       { title: "Product Commit Step", content: ["Scan product or search by SKU/name to select the product. Selection alone does not move into quantities.", "After a product is selected, the right-arrow commit button is highlighted and focused. Confirm it to lock the chosen product for that line and move to Total received."] },
       { title: "Quantity and Expiry Entry", content: ["Quantity fields allow blank and partial typing, so multi-digit numbers should be typed normally and committed with Enter.", "Total received Enter recalculates pallet count and moves to Qty per pallet. Qty per pallet Enter recalculates pallet count and moves to Pallets. Pallets Enter opens the expiry calendar.", "When the product has prior receiving observations, Qty per pallet may be suggested from learned history. Treat it as a time saver, not a substitute for the physical count."] },
       { title: "Connectivity Safety", content: ["If the device goes offline, keep typing or scanning locally but do not expect Save, Save & Receive, or Print & Receive to post. Live receiving commits are frozen until the connection returns.", "After reconnect, refresh live state, review the draft list and current shipment form, then save or receive again from the live screen."] },
-      { title: "Critical Checks", content: ["Confirm warehouse, container, PO, product, quantity, pallet count, and lot/expiry values before saving or receiving.", "Cool-chain items must align with cool-zone storage, and products that require expiry tracking should use the calendar picker before labels are printed."] },
+      { title: "Critical Checks", content: ["Confirm warehouse, container, PO, product, quantity, pallet count, and lot/expiry values before saving the draft.", "Print the labels, verify physical output, then use Labels printed to create Awaiting Put-Away stock. If printing fails, leave the draft in Receiving and print again.", "Cool-chain items must align with cool-zone storage, and products that require expiry tracking should use the calendar picker before labels are printed."] },
     ],
   },
   {
@@ -440,7 +440,7 @@ export const helpArticles: HelpArticle[] = [
     audience: "Operators and supervisors",
     keywords: ["put-away", "scan", "location", "temperature", "store"],
     sections: [
-      { title: "How It Works", content: ["Put-Away is complete only after the pallet barcode and location barcode are both confirmed.", "A full location code fills the confirmation field directly. A shortened bay code opens the bay selector so the operator can tap the exact available slot.", "Successful confirmation moves stock into stored and available status."] },
+      { title: "How It Works", content: ["Put-Away begins only after printed labels were confirmed in Receiving; that stock is shown as Awaiting Put-Away.", "A full location code fills the confirmation field directly. A shortened bay code opens the bay selector so the operator can tap the exact available slot.", "Successful confirmation moves stock into Put Away and available status."] },
       { title: "Reconnect Safety", content: ["If signal drops, the current task position stays on the device, but the confirmation itself is frozen until connectivity returns.", "When the device reconnects, the screen refreshes live task, pallet, and location state. Be ready to reselect a location or restart the task if the live warehouse record no longer matches what was on screen before the disconnect."] },
       { title: "Common Exceptions", content: ["A location that is inactive, full, or temperature-incompatible will block the move.", "Scan mismatches should be corrected before retrying."] },
     ],
@@ -601,6 +601,8 @@ export const helpArticles: HelpArticle[] = [
       { title: "When to Use It", content: ["Use Location Moves when a pallet stays in the same warehouse but needs a new bin, staging area, or picking area.", "Use Transfers only when the stock changes warehouse or requires dispatch/receiving handoff."] },
       { title: "Scan Control", content: ["The pallet barcode confirms identity and the destination location confirms where the stock physically moved.", "If the location is blocked, disabled, full, or physically wrong, stop and correct the destination before posting the move."] },
       { title: "Typing Codes By Hand", content: ["Pallet fields only accept barcodes that start with PLT-. Bay and location fields only accept codes that exist in the selected warehouse.", "You do not have to type the dashes: enter A01A and the field corrects itself to A-01-A once the code is recognised. Backspace still removes characters normally, and the field only inserts a separator when every matching code agrees on it."] },
+      { title: "When A Move Fails", content: ["A refused move now shows the actual reason instead of a plain \"Move failed\". If the message names a database column or looks technical, file it with the life buoy — nothing was moved, the pallet is still at its original bin.", "A move that reports success has already updated both the pallet and inventory, so re-scanning the destination is safe to confirm."] },
+
 
     ],
   },

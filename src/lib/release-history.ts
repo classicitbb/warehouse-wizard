@@ -9,6 +9,43 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.2",
+    date: "September 2026",
+    changes: [
+      "Pallet status now says where the pallet actually is: Receiving while it is still an unconfirmed draft, Awaiting Put-Away once the receipt is confirmed, Put Away once it is scanned into a bin, and Shipped when it is picked out",
+      "Inventory Search gained a Put-Away status filter so everything waiting for a bin can be listed on its own",
+      "The Statuses module is now for exceptions only — Hold, Quarantine, Damaged, Missing, Reserved and In transit — plus a Release back to workflow action that returns a pallet to Put Away or Awaiting Put-Away, whichever matches where it is",
+    ],
+    fixes: [
+      "A pallet sitting in a receiving draft and a pallet waiting on the dock no longer look identical in the database, so counts, dashboards and the occupancy audit agree with the floor",
+      "Existing pallets waiting on an open put-away task were corrected to Awaiting Put-Away",
+    ],
+  },
+  {
+    version: "1.29.1",
+    date: "September 2026",
+    changes: [
+      "Problem reports and feedback filed from the copilot now really send email — to whoever filed it, the developers, the support address and the admins — instead of ending in a copilot error",
+      "Low-stock reorder alerts are emailed by the app as soon as an alert is raised, with an unsubscribe link on every non-critical notice",
+    ],
+    fixes: [
+      "Notification email is no longer composed inside the database, which was blocking the app from moving to the newer, more reliable email delivery",
+    ],
+  },
+  {
+    version: "1.29.0",
+    date: "September 2026",
+    changes: [
+      "A move that is refused now shows the real reason on the no-go toast instead of a plain \"Move failed\", and the same wording reaches the support ticket",
+    ],
+    fixes: [
+      "Location Moves could fail for every pallet with a silent \"Move failed\": the destination lookup asked the database for a bin height field that was missing in production. The field has been restored and the lookup no longer depends on it",
+      "PLT-874294572HSU (and any pallet blocked by the same fault) can be moved again — no stock was left mis-located, the moves never reached inventory",
+      "A new automated check compares every inventory, pallet, location, put-away, move, and pick query against the live database schema, so a missing column is caught before it reaches the floor",
+    ],
+  },
+  {
+
     version: "1.28.10",
     date: "August 2026",
     changes: [

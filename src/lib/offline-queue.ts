@@ -331,7 +331,7 @@ export interface FlushResult {
   deadLettered: number;
 }
 
-let flushSubscribers = new Set<(syncing: boolean) => void>();
+const flushSubscribers = new Set<(syncing: boolean) => void>();
 export function subscribeFlushState(cb: (syncing: boolean) => void) {
   flushSubscribers.add(cb);
   cb(isFlushing);

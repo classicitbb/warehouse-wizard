@@ -76,6 +76,7 @@ import {
   downloadCsvTemplate,
   fetchOptions,
   formatDate,
+  inventoryLifecycleLabel,
   formatNumber,
   getDashboardMetrics,
   getInventoryDetail,
@@ -453,7 +454,7 @@ export function InventorySearchPage() {
             >
               All
             </Button>
-            {["available", "receiving", "reserved", "hold", "quarantine", "damaged"].map((item) => (
+            {["available", "putaway", "receiving", "reserved", "hold", "quarantine", "damaged"].map((item) => (
               <Button
                 key={item}
                 type="button"
@@ -578,7 +579,7 @@ export function InventorySearchPage() {
                       <TableCell>{row.warehouse_code ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant={row.status === "missing" ? "destructive" : row.status === "available" && !historic ? "default" : "secondary"}>
-                          {String(row.status ?? "").replace("_", " ")}
+                          {inventoryLifecycleLabel(row)}
                         </Badge>
                       </TableCell>
                       <TableCell>{formatNumber(row.available_quantity)}</TableCell>

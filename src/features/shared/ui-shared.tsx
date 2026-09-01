@@ -3460,7 +3460,7 @@ export function BarcodePrintDialog({ labelType, code, title }: { labelType: "war
       <p class="label-type">${escapeHtml(labelType)}</p>
       <p class="label-code">${escapeHtml(title)}</p>
       <p class="label-sub">${escapeHtml(code)}</p>
-    </div><script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`);
+    </div><script>window.onload=()=>{window.print();window.close();}</script></body></html>`);
     printWindow.document.close();
   }
 
@@ -4313,7 +4313,7 @@ export function newShipmentLine(productId = ""): ReceivingShipmentLineState {
 
 export function distributeShipmentLine(line: ReceivingShipmentLineState, changed: "total" | "perPallet" | "count"): ReceivingShipmentLineState {
   const total = Math.max(0, Number(line.total_quantity) || 0);
-  let perPallet = Math.max(1, Number(line.quantity_per_pallet) || 1);
+  const perPallet = Math.max(1, Number(line.quantity_per_pallet) || 1);
   let palletCount = Math.max(1, Math.floor(Number(line.pallet_count) || 1));
 
   if (changed !== "count") {
@@ -4411,7 +4411,6 @@ export function printDraftLabels(
   clients: Array<{ id: string; name: string }>,
   warehouses: Array<{ id: string; name: string; code?: string | null }>,
   packagingProfiles: Array<{ id: string; name?: string | null; unit_name?: string | null; unit_of_measure?: string | null }>,
-  onPrinted?: () => Promise<void> | void,
 ) {
   if (drafts.length === 0) {
     toast.error("Select at least one draft label to print.");
@@ -4451,7 +4450,6 @@ export function printDraftLabels(
   }
   win.document.write(buildPalletLabelBatchPrintHtml(labels));
   win.document.close();
-  void Promise.resolve(onPrinted?.());
   return true;
 }
 
@@ -4730,9 +4728,7 @@ export function ReceivingPage() {
   });
 
   function printAndReceiveDrafts(draftsToReceive: DraftReceipt[]) {
-    printDraftLabels(draftsToReceive, productOptions, clients, warehouses, packagingProfiles, () => {
-      batchReceiveMutation.mutate(draftsToReceive);
-    });
+    printDraftLabels(draftsToReceive, productOptions, clients, warehouses, packagingProfiles);
   }
 
   const deleteDraftMutation = useMutation({
@@ -5465,7 +5461,8 @@ export function WarehouseBayBrowserDialog({
   const toggleZone = (zk: string) =>
     setCollapsedZones((prev) => {
       const next = new Set(prev);
-      next.has(zk) ? next.delete(zk) : next.add(zk);
+      if (next.has(zk)) next.delete(zk);
+      else next.add(zk);
       return next;
     });
 

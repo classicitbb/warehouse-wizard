@@ -1,211 +1,76 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { QRCodeSVG } from "qrcode.react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormReturn } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { normalizePalletBarcode } from "@/lib/code-input";
 
-import { useAuth } from "@/hooks/use-auth";
-import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
-import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
-import {
-  enqueueOfflineWork,
-  flushOfflineQueue,
-  installOfflineAutoReplay,
-  isLikelyNetworkError,
-  useOfflineQueue,
-  useDeadLetterQueue,
-
-  type FailedWorkItem,
-} from "@/lib/offline-queue";
-import { useBackgroundSync } from "@/hooks/use-background-sync";
 import { useInfiniteRows } from "@/hooks/use-infinite-rows";
 import {
-  NAVIGATION,
-  ROLE_LABELS,
-  ROLE_DESCRIPTIONS,
-  type AdminInviteUserInput,
-  type AppRoute,
-  type FieldDefinition,
-  type ResourceDefinition,
-  type DraftReceipt,
-  type BayOccupancyCell,
-  adminInviteUser,
-  adminDeleteUser,
-  adminUpdateUserPin,
-  adminUpdateUserPassword,
-  buildBayOccupancyGrid,
-  updateOwnPassword,
   changePalletStatus,
-  confirmPutaway,
-  createCycleCountFlow,
-  createPickListFlow,
-  getPickableStockSummary,
-  createTransferFlow,
-  cancelPickList,
-  deleteClientVariable,
-  deleteResourceCascade,
-  dispatchTransfer,
-  cycleCountSchema,
-  resetWmsData,
-  removeUserRoleAssignment,
   downloadCsv,
-  downloadCsvTemplate,
-  fetchOptions,
   formatDate,
   formatNumber,
   getDashboardMetrics,
-  getInventoryDetail,
-  getPickExecution,
-  getBinOccupancy,
-  getBayOccupancy,
-  getWarehouseBayOccupancy,
-  type WarehouseBayGroup,
-  logPutawayBaySelection,
-  getPutawayTasks,
-  getPutawayTaskHistory,
   getReportData,
-  parseCsvForResource,
-  commitImportRows,
-  type ImportPreview,
-  listClientVariables,
-  listDraftReceipts,
-  saveShipmentDrafts,
-  updateDraftReceipt,
-  completeReceiptFromDraft,
-  deleteDraftReceipt,
-  listSystemLogs,
-  listUserActivities,
-  listCycleCounts,
-  listPickLists,
-  listRecords,
   listStatusPallets,
   recoverMissingPalletToDraft,
   recoverMissingPalletToPutaway,
-  listTransfers,
-  pickListSchema,
-  receivingSchema,
-  receiveTransfer,
-  resolveSystemLog,
-  searchInventory,
-  setProfileActive,
-  snapshotRecordCounts,
-  updateProfileDetails,
-  updateProfileDefaultWarehouse,
   statusChangeSchema,
-  setResourceVisibility,
-  setUserRoleVisibility,
-  submitCycleCountLine,
-  transferSchema,
-  updateRecord,
-  upsertClientVariable,
-  upsertRecord,
-  writeSystemLog,
-  cancelTransfer,
-  flagCountLineException,
-  revertPutawayToDraft,
-  listMoveTasks,
-  completeDirectMove,
-  completeMoveTask,
-  cancelMoveTask,
-  expandLocationRange,
-  buildRackLocationCode,
-  suggestNextRackPosition,
-  validateMoveDestination,
-  type MoveValidationResult,
 } from "@/lib/wms-core";
-import { ProductSearch } from "@/components/product-search";
-import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
-import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
-import { extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
-import { getOrCreateDeviceId } from "@/lib/device-identity";
-import { invalidateWarehouseData } from "@/lib/query-invalidation";
-import {
-  filterDashboardTileDefinitions,
-  hiddenDashboardTiles,
-  loadDashboardDeviceLayout,
-  loadDashboardTileVisibility,
-  sanitizeDashboardLayout,
-  saveDashboardDeviceLayout,
-  saveDashboardTileVisibility,
-  visibleDashboardTiles,
-  type DashboardCardSize,
-  type DashboardTileConfig,
-  type DashboardTileDefinition,
-  type DashboardVisibilityMap,
-} from "@/lib/dashboard-preferences";
 import {
   buildCsvReportRows,
   buildEnterpriseDashboard,
-  type DashboardMode,
-  type DockHandoffLoad,
-  type EnterpriseDashboardSnapshot,
-  type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
-import { HelpSidebar } from "@/components/help-sidebar";
-import { ZoneLabelPage } from "@/components/zone-label-page";
-import { LocationLabelPage } from "@/components/location-label-page";
-import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
-import { WarehouseStructureTab } from "@/components/warehouse-tree-view";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-// removed unused dropdown-menu and drawer imports
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
 
 import {
   SelectField,
-  TextField,
   WarehouseBrainPanel,
   toneBorder,
 } from "@/features/shared/ui-shared";
+
+type StatusStockRow = {
+  inventory_balance_id: string;
+  pallet_code?: string | null;
+  sku?: string | null;
+  status: string;
+  location_code?: string | null;
+};
+
+type ReportOccupancyRow = {
+  location_id: string;
+  location_code?: string | null;
+  temperature_class?: string | null;
+  is_full?: boolean | null;
+  occupied_pallets?: number | null;
+  max_pallets?: number | null;
+};
+
+type ReportAuditRow = {
+  id: string;
+  event_type?: string | null;
+  created_at?: string | null;
+  entity_table?: string | null;
+  entity_id?: string | null;
+};
 
 export function StatusPage() {
   const queryClient = useQueryClient();
   const { data = [] } = useQuery({ queryKey: ["status-pallets"], queryFn: listStatusPallets });
   // A missing pallet that has turned up with no location to go back to.
-  const [foundPallet, setFoundPallet] = useState<any | null>(null);
+  const [foundPallet, setFoundPallet] = useState<StatusStockRow | null>(null);
   const form = useForm<z.infer<typeof statusChangeSchema>>({
     resolver: zodResolver(statusChangeSchema),
   });
@@ -213,7 +78,7 @@ export function StatusPage() {
     mutationFn: changePalletStatus,
     onSuccess: async () => {
       toast.success("Status updated");
-      form.reset({ pallet_id: "", reason: "" } as any);
+      form.reset();
       await queryClient.invalidateQueries({ queryKey: ["status-pallets"] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Status update failed"),
@@ -261,14 +126,43 @@ export function StatusPage() {
         <CardContent>
           <Form {...form}>
             <form className="grid gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-              <TextField form={form} name="pallet_id" label="Pallet barcode or ID" />
+              <FormField
+                control={form.control}
+                name="pallet_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pallet barcode or ID</FormLabel>
+                    <div className="flex gap-2">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="min-w-0 flex-1 font-mono"
+                          placeholder="Scan or enter pallet barcode"
+                          value={field.value ?? ""}
+                          onChange={(event) => field.onChange(normalizePalletBarcode(event.target.value))}
+                        />
+                      </FormControl>
+                      <BarcodeScanButton
+                        title="Scan pallet barcode"
+                        onScan={(value) => {
+                          form.setValue("pallet_id", normalizePalletBarcode(value), { shouldDirty: true, shouldValidate: true });
+                        }}
+                      />
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <SelectField form={form} name="new_status" label="New status" options={[
                 { label: "Hold", value: "hold" },
                 { label: "Quarantine", value: "quarantine" },
                 { label: "Damaged", value: "damaged" },
-                { label: "Available", value: "available" },
                 { label: "Missing", value: "missing" },
+                { label: "Reserved", value: "reserved" },
+                { label: "In transit", value: "in_transit" },
+                { label: "Release back to workflow", value: "release" },
               ]} />
+
               <FormField
                 control={form.control}
                 name="reason"
@@ -291,7 +185,7 @@ export function StatusPage() {
           <CardTitle>Controlled stock</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {data.map((row: any) => (
+          {data.map((row: StatusStockRow) => (
             <div key={row.inventory_balance_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
               <div>
                 <p className="font-medium">{row.sku}</p>
@@ -346,8 +240,8 @@ export function ReportsPage() {
 
   const occupancyPaging = useInfiniteRows({ pageSize: 12 });
   const auditsPaging = useInfiniteRows();
-  const occupancyRows = (data?.occupancy ?? []) as any[];
-  const auditRows = (data?.audits ?? []) as any[];
+  const occupancyRows = (data?.occupancy ?? []) as ReportOccupancyRow[];
+  const auditRows = (data?.audits ?? []) as ReportAuditRow[];
   const hasMoreOccupancy = occupancyPaging.sync({ loadedCount: occupancyRows.length, isFetching: isLoading });
   const hasMoreAudits = auditsPaging.sync({ loadedCount: auditRows.length, isFetching: isLoading });
 
@@ -401,7 +295,7 @@ export function ReportsPage() {
             <CardTitle>Occupancy view</CardTitle>
           </CardHeader>
           <CardContent className="grid max-h-[28rem] gap-2 overflow-y-auto">
-            {occupancyRows.slice(0, occupancyPaging.limit).map((location: any) => (
+            {occupancyRows.slice(0, occupancyPaging.limit).map((location: ReportOccupancyRow) => (
               <div key={location.location_id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                 <div>
                   <p>{location.location_code}</p>
@@ -450,7 +344,7 @@ export function ReportsPage() {
           <CardTitle>Recent movements</CardTitle>
         </CardHeader>
         <CardContent className="grid max-h-[32rem] gap-2 overflow-y-auto">
-          {auditRows.slice(0, auditsPaging.limit).map((audit: any) => (
+          {auditRows.slice(0, auditsPaging.limit).map((audit: ReportAuditRow) => (
             <div key={audit.id} className="rounded-lg border border-border px-3 py-2 text-sm">
               <div className="flex items-center justify-between gap-4">
                 <span className="font-medium">{audit.event_type}</span>

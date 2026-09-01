@@ -210,7 +210,7 @@ export async function createReceiptFlow(input: z.infer<typeof receivingSchema>) 
     packaging_profile_id: payload.packaging_profile_id || null,
     quantity: payload.quantity,
     available_quantity: 0,
-    status: "receiving",
+    status: "putaway",
     is_stored: false,
     length: payload.override_length ?? packagingProfile?.length ?? product.length,
     width: payload.override_width ?? packagingProfile?.width ?? product.width,
@@ -234,7 +234,7 @@ export async function createReceiptFlow(input: z.infer<typeof receivingSchema>) 
     client_id: payload.client_id,
     warehouse_id: payload.warehouse_id,
     inventory_lot_id: lot.id,
-    status: "receiving",
+    status: "putaway",
     quantity: payload.quantity,
     available_quantity: 0,
     expiry_date: lot.expiry_date,
@@ -887,7 +887,7 @@ async function completeReturnedPalletDraft(
         packaging_profile_id: values.packaging_profile_id || pallet.packaging_profile_id || null,
         quantity: values.quantity,
         available_quantity: 0,
-        status: "receiving",
+        status: "putaway",
         is_stored: false,
         length: values.override_length ?? pallet.length ?? product.length,
         width: values.override_width ?? pallet.width ?? product.width,
@@ -904,7 +904,7 @@ async function completeReturnedPalletDraft(
             zone_id: null,
             location_id: null,
             inventory_lot_id: lot.id,
-            status: "receiving",
+            status: "putaway",
             quantity: values.quantity,
             available_quantity: 0,
             expiry_date: lot.expiry_date,
@@ -916,7 +916,7 @@ async function completeReturnedPalletDraft(
           client_id: values.client_id || pallet.client_id || null,
           warehouse_id: values.warehouse_id,
           inventory_lot_id: lot.id,
-          status: "receiving",
+          status: "putaway",
           quantity: values.quantity,
           available_quantity: 0,
           expiry_date: lot.expiry_date,
@@ -948,70 +948,23 @@ async function completeReturnedPalletDraft(
 
 export async function completeReceiptFromDraft(
   draftId: string,
-  values: z.infer<typeof receivingSchema>,
+  _values: z.infer<typeof receivingSchema>,
 ): Promise<{ palletBarcode: string; putawayTaskNumber: string }> {
-  let { data: draft, error: draftError } = await db("receipts").select("id, status, notes, container_number, po_number, draft_group_id, draft_pallet_barcode, draft_sequence, draft_count").eq("id", draftId).single();
-  if (draftError && isMissingReceiptDraftColumn(draftError)) {
-    ({ data: draft, error: draftError } = await db("receipts").select("id, status, notes").eq("id", draftId).single());
-  }
-  if (draftError) throw draftError;
-  const meta = parseReceiptNotes(draft?.notes);
-  if (meta._returned) {
-    return completeReturnedPalletDraft(draftId, values, meta);
-  }
-  if (draft?.status === "queued" && !meta._draft) {
-    const { data: line, error: lineError } = await db("receipt_lines")
-      .select("id, pallets(id, pallet_barcode), receipts(id)")
-      .eq("receipt_id", draftId)
-      .limit(1)
-      .maybeSingle();
-    if (lineError) throw lineError;
-    const pallet = Array.isArray((line as any)?.pallets) ? (line as any).pallets[0] : (line as any)?.pallets;
-    if (!pallet?.id) throw new Error("Seeded receiving draft is missing its pallet.");
-    const { data: putawayTask, error: putawayError } = await db("putaway_tasks")
-      .select("task_number")
-      .eq("pallet_id", pallet.id)
-      .in("status", ["draft", "queued", "assigned", "in_progress"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (putawayError) throw putawayError;
-    const { error: receiptError } = await db("receipts").update({ status: "completed" }).eq("id", draftId);
-    if (receiptError) throw receiptError;
-    return { palletBarcode: pallet.pallet_barcode, putawayTaskNumber: putawayTask?.task_number ?? "existing putaway task" };
-  }
-
-  const result = await createReceiptFlow({
-    ...values,
-    container_number: values.container_number || draft?.container_number || meta.container_number || "",
-    po_number: values.po_number || draft?.po_number || meta.po_number || "",
-    pallet_barcode: values.pallet_barcode || draft?.draft_pallet_barcode || meta.draft_pallet_barcode || "",
-    draft_group_id: values.draft_group_id || draft?.draft_group_id || meta.draft_group_id || undefined,
-    draft_sequence: values.draft_sequence ?? draft?.draft_sequence ?? meta.draft_sequence,
-    draft_count: values.draft_count ?? draft?.draft_count ?? meta.draft_count,
+  const { data, error } = await (supabase.rpc as any)("confirm_receiving_draft_labels_printed", {
+    in_draft_id: draftId,
   });
-  const { error: draftCancelError } = await db("receipts").update({ status: "cancelled" }).eq("id", draftId);
-  if (draftCancelError) {
-    console.error("[completeReceiptFromDraft] failed to cancel draft:", draftCancelError);
+  if (error) throw new Error(formatSupabaseError(error, "Could not confirm printed labels and receive this draft."));
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.pallet_id || !row?.putaway_task_number) {
+    throw new Error("Receiving confirmation did not return a pallet and Put-Away task.");
   }
-  return { palletBarcode: result.pallet.pallet_barcode, putawayTaskNumber: result.putawayTask.task_number };
+  return { palletBarcode: row.pallet_barcode, putawayTaskNumber: row.putaway_task_number };
 }
 
 export async function deleteDraftReceipt(draftId: string): Promise<void> {
-  const { data: draft } = await db("receipts")
-    .select("receipt_number, reference_number, notes")
-    .eq("id", draftId)
-    .maybeSingle();
-  const { error } = await db("receipts").delete().eq("id", draftId).eq("status", "draft");
-  if (error) throw error;
-  const meta = parseReceiptNotes((draft as any)?.notes);
-  await writeSystemLog({
-    log_type: "system_change",
-    severity: "info",
-    title: "Receiving draft cancelled",
-    message: `Draft ${meta.draft_pallet_barcode ?? (draft as any)?.receipt_number ?? draftId} was cancelled.`,
-    source: "receiving",
-    table_name: "receipts",
-    details: { draftId, receipt_number: (draft as any)?.receipt_number ?? null, reference_number: (draft as any)?.reference_number ?? null },
-  }).catch((error) => console.error("[deleteDraftReceipt] writeSystemLog failed:", error));
+  const { error } = await (supabase.rpc as any)("cancel_receiving_draft", {
+    in_draft_id: draftId,
+    in_reason: "Cancelled from Receiving drafts",
+  });
+  if (error) throw new Error(formatSupabaseError(error, "Could not cancel this Receiving draft."));
 }

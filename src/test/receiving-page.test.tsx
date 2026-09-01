@@ -670,12 +670,14 @@ describe("ReceivingPage", () => {
     }));
   });
 
-  it("printing a draft row completes receiving and sends it to putaway", async () => {
+  it("printing a draft row keeps it out of inventory until labels are confirmed", async () => {
     wmsMocks.listDraftReceipts.mockResolvedValue([wmsMocks.draft] as never);
     renderReceivingPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: /print & receive/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^print label$/i }));
+    expect(wmsMocks.completeReceiptFromDraft).not.toHaveBeenCalled();
 
+    fireEvent.click(screen.getByRole("button", { name: /^labels printed$/i }));
     await waitFor(() => expect(wmsMocks.completeReceiptFromDraft).toHaveBeenCalledWith("draft-1", expect.objectContaining({
       pallet_barcode: "PLT-1",
       product_id: "prod-1",
@@ -741,7 +743,7 @@ describe("ReceivingPage", () => {
     const checkbox = await within(dialog).findByRole("checkbox");
     await waitFor(() => expect(checkbox).toBeChecked());
 
-    const printButton = within(dialog).getByRole("button", { name: /print selected & send to put-away/i });
+    const printButton = within(dialog).getByRole("button", { name: /labels printed — send to put-away/i });
     const deselectButton = within(dialog).getByRole("button", { name: /deselect all/i });
     expect(printButton).toBeEnabled();
     expect(deselectButton).toBeEnabled();
@@ -792,7 +794,9 @@ describe("ReceivingPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: /^print drafts$/i }));
       const dialog = await screen.findByRole("dialog", { name: /print draft labels/i });
       await waitFor(() => expect(within(dialog).getAllByRole("checkbox")).toHaveLength(3));
-      fireEvent.click(within(dialog).getByRole("button", { name: /print selected & send to put-away/i }));
+      fireEvent.click(within(dialog).getByRole("button", { name: /print selected labels/i }));
+      expect(wmsMocks.completeReceiptFromDraft).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole("button", { name: /labels printed — send to put-away/i }));
     }
 
     it("tells the operator exactly how many pallets were received before it stopped", async () => {

@@ -20,7 +20,7 @@ import {
 } from "@/lib/measure";
 
 const MOVE_LOCATION_SELECT =
-  "id, code, status, max_pallets, temperature_class, mixed_sku_allowed, mixed_lot_allowed, max_height, max_height_mm, max_pallet_height_cm, zone_id, warehouse_id";
+  "id, code, status, max_pallets, temperature_class, mixed_sku_allowed, mixed_lot_allowed, max_height, zone_id, warehouse_id";
 const TERMINAL_PALLET_STATUSES = new Set(["shipped", "in_transit", "missing"]);
 
 function assertPalletCanMove(status: unknown) {
@@ -31,10 +31,12 @@ function assertPalletCanMove(status: unknown) {
 }
 
 function assertPalletIsPutAway(pallet: { status?: unknown; current_location_id?: unknown; is_stored?: unknown }) {
-  if (String(pallet.status ?? "").toLowerCase() === "receiving" || pallet.is_stored === false || !pallet.current_location_id) {
+  const status = String(pallet.status ?? "").toLowerCase();
+  if (status === "receiving" || status === "putaway" || pallet.is_stored === false || !pallet.current_location_id) {
     throw new Error("This pallet needs to be put away before it can be moved.");
   }
 }
+
 
 /**
  * A pallet that still has an open put-away task must be completed through

@@ -91,7 +91,7 @@ export function ZoneLabelPage(props: ZoneLabelPageProps) {
     <div class="qr-wrap">${qrSvg}</div>
     <p class="zone-code">${escapeHtml(rackLabel)}</p>
   </section>
-  <script>window.onload=()=>{window.print();window.close();}<\/script>
+  <script>window.onload=()=>{window.print();window.close();}</script>
 </body>
 </html>`);
     win.document.close();

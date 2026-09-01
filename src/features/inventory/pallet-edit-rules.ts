@@ -31,13 +31,17 @@ export function palletEditBlockedReason(input: PalletEditBlockInput): string {
     return "This pallet has been superseded by a correction.";
   }
   if (input.balanceCorrectionState === "pending" || input.palletCorrectionState === "pending") return "";
+  if (input.balanceStatus === "receiving" || input.balanceStatus === "putaway") {
+    if (!input.locationCode) return "Only a stored pallet can be corrected from Inventory.";
+  }
   const statusNotEditable =
     input.balanceStatus !== "available" &&
-    !(input.balanceStatus === "receiving" && Number(input.availableQuantity ?? 0) === 0);
+    !((input.balanceStatus === "receiving" || input.balanceStatus === "putaway") && Number(input.availableQuantity ?? 0) === 0);
   if (statusNotEditable || Number(input.reservedQuantity ?? 0) > 0) {
     return "Clear reserved or allocated stock before correcting this pallet.";
   }
   if (!input.locationCode) return "Only a stored pallet can be corrected from Inventory.";
+
   if (input.locationType !== "staging") return STAGING_EDIT_HINT;
   return "";
 }

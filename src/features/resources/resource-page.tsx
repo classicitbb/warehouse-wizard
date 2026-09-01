@@ -124,6 +124,7 @@ import {
   upsertRecord,
   writeSystemLog,
   cancelTransfer,
+  countRecords,
   flagCountLineException,
   revertPutawayToDraft,
   listMoveTasks,
@@ -271,6 +272,11 @@ export function ResourcePage({
     enabled: usesIncrementalTable && !activeFilter,
   });
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
+  const { data: totalRecordCount } = useQuery({
+    queryKey: [resource.table, includeHidden, "count"],
+    queryFn: () => countRecords(resource.table, { includeHidden, archiveField: resource.archiveField }),
+    enabled: usesIncrementalTable && !activeFilter,
+  });
   const { data: locationRowsForLabels = [] } = useQuery({
     queryKey: ["locations", "label-source"],
     enabled: resource.table === "zones",
@@ -733,7 +739,7 @@ export function ResourcePage({
           </span>
         ) : (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {isLoading ? "" : usesIncrementalTable ? `${tableData.length} loaded` : `${data.length} rows`}
+            {isLoading ? "" : usesIncrementalTable ? `${formatNumber(tableData.length)} of ${formatNumber(totalRecordCount ?? tableData.length)} loaded` : `${data.length} rows`}
           </span>
         )}
       </div>
