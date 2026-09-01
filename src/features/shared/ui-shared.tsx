@@ -4411,7 +4411,6 @@ export function printDraftLabels(
   clients: Array<{ id: string; name: string }>,
   warehouses: Array<{ id: string; name: string; code?: string | null }>,
   packagingProfiles: Array<{ id: string; name?: string | null; unit_name?: string | null; unit_of_measure?: string | null }>,
-  onPrinted?: () => Promise<void> | void,
 ) {
   if (drafts.length === 0) {
     toast.error("Select at least one draft label to print.");
@@ -4451,7 +4450,6 @@ export function printDraftLabels(
   }
   win.document.write(buildPalletLabelBatchPrintHtml(labels));
   win.document.close();
-  void Promise.resolve(onPrinted?.());
   return true;
 }
 
@@ -4730,9 +4728,7 @@ export function ReceivingPage() {
   });
 
   function printAndReceiveDrafts(draftsToReceive: DraftReceipt[]) {
-    printDraftLabels(draftsToReceive, productOptions, clients, warehouses, packagingProfiles, () => {
-      batchReceiveMutation.mutate(draftsToReceive);
-    });
+    printDraftLabels(draftsToReceive, productOptions, clients, warehouses, packagingProfiles);
   }
 
   const deleteDraftMutation = useMutation({

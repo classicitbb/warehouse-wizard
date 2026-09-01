@@ -928,16 +928,16 @@ export function ReceivingPage() {
     ? (batchReceiveProgress.completed / Math.max(batchReceiveProgress.total, 1)) * 100
     : 0;
 
-  function printAndReceiveDrafts(draftsToReceive: DraftReceipt[]) {
+  function printDraftLabelsOnly(draftsToPrint: DraftReceipt[]) {
     try {
       assertOnline();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : OFFLINE_WORK_MESSAGE);
       return;
     }
-    printDraftLabels(draftsToReceive, productOptions, clients, warehouses, packagingProfiles, () => {
-      batchReceiveMutation.mutate(draftsToReceive);
-    });
+    if (printDraftLabels(draftsToPrint, productOptions, clients, warehouses, packagingProfiles)) {
+      toast.message("Labels opened for printing. Confirm only after the physical labels have printed.");
+    }
   }
 
   const deleteDraftMutation = useMutation({
@@ -1281,7 +1281,7 @@ export function ReceivingPage() {
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-semibold">Receiving</h2>
             <HintButton label="Receiving hints">
-              Create shipment drafts by container, print labels, then receive selected pallets.
+              Save draft details, print labels, then explicitly confirm the physical labels before stock enters Put-Away.
             </HintButton>
           </div>
         </div>
@@ -1334,10 +1334,10 @@ export function ReceivingPage() {
             <span>Draft Pallets</span>
             {drafts.length > 0 && <Badge variant="secondary">{drafts.length}</Badge>}
             <HintButton label="Draft Pallets hints">
-              Use Print for labels, Edit for quantity/date corrections, and Receive when the physical pallet is confirmed.
+              Print labels first, then confirm they printed to send stock to Put-Away.
             </HintButton>
           </CardTitle>
-          <CardDescription className="hidden sm:block">Use Print for labels, Edit for quantity/date corrections, and Receive when the physical pallet is confirmed.</CardDescription>
+          <CardDescription className="hidden sm:block">Printing alone keeps stock out of inventory. Confirm printed labels to create its Awaiting Put-Away work.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-0 px-0 pb-0 sm:gap-3 sm:px-6 sm:pb-6">
           {visibleDrafts.length === 0 ? (
@@ -1384,9 +1384,11 @@ export function ReceivingPage() {
                     draftSequence={draft.draft_sequence}
                     draftCount={draft.draft_count}
                     temperatureClass={product?.temperature_requirement}
-                    onPrinted={async () => { await receiveMutation.mutateAsync(draft); }}
-                    trigger={<Button size="sm" variant="outline" disabled={!online || receiveMutation.isPending}><Printer data-icon="inline-start" />Print & Receive</Button>}
+                    trigger={<Button size="sm" variant="outline" disabled={!online || receiveMutation.isPending}><Printer data-icon="inline-start" />Print label</Button>}
                   />
+                  <Button size="sm" disabled={!online || receiveMutation.isPending} onClick={() => receiveMutation.mutate(draft)}>
+                    Labels printed
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => openEditDraft(draft)}><Pencil data-icon="inline-start" />Edit</Button>
                   {draft.status === "draft" && (
                     <Button size="sm" variant="ghost" onClick={() => deleteDraftMutation.mutate(draft.id)} disabled={deleteDraftMutation.isPending}>
@@ -1901,7 +1903,7 @@ export function ReceivingPage() {
         <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Print Draft Labels</DialogTitle>
-            <DialogDescription>Filter by container, select draft pallets, then print the selected labels together.</DialogDescription>
+            <DialogDescription>Print the selected labels, then confirm the physical output before creating Awaiting Put-Away stock.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
@@ -1956,7 +1958,11 @@ export function ReceivingPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedDraftIds(new Set(printDrafts.map((draft) => draft.id)))}>Select all shown</Button>
             <Button variant="outline" disabled={selectedDraftIds.size === 0} onClick={() => setSelectedDraftIds(new Set())}>Deselect all</Button>
-            <Button className="relative overflow-hidden" disabled={!online || batchReceiveMutation.isPending || selectedPrintDrafts.length === 0} onClick={() => printAndReceiveDrafts(selectedPrintDrafts)}>
+            <Button variant="outline" disabled={!online || batchReceiveMutation.isPending || selectedPrintDrafts.length === 0} onClick={() => printDraftLabelsOnly(selectedPrintDrafts)}>
+              <Printer data-icon="inline-start" />
+              Print selected labels
+            </Button>
+            <Button className="relative overflow-hidden" disabled={!online || batchReceiveMutation.isPending || selectedPrintDrafts.length === 0} onClick={() => batchReceiveMutation.mutate(selectedPrintDrafts)}>
               {batchReceiveMutation.isPending ? (
                 <ButtonProgress
                   value={printReceiveProgress}
@@ -1965,7 +1971,7 @@ export function ReceivingPage() {
               ) : (
                 <>
                   <Printer data-icon="inline-start" />
-                  Print selected & send to Put-Away
+                  Labels printed — send to Put-Away
                 </>
               )}
             </Button>

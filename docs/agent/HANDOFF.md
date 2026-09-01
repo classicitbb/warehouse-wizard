@@ -26,6 +26,15 @@ Deployment/environment state: local changes only. The new migration and Edge Fun
 
 Objective; current state; completed steps; affected files; tests/commands and exact failures; deployment/environment state; blocker; approval required; one exact executable next action.
 
+## Receiving / Put-Away lifecycle integrity — 2026-09-01
+
+- Objective: prevent unprinted or cancelled Receiving drafts from creating orphan `receiving` inventory; make the floor lifecycle explicit as Draft, Awaiting Put-Away, then Put Away.
+- Completed: added additive migration `20260901155226_receiving_putaway_lifecycle_integrity.sql`. Its guarded, transaction-owned RPCs atomically confirm printed labels into a pallet, balance, receipt line, audit record, and exactly one existing-or-new Put-Away task; return an open Put-Away task to a linked reprint draft atomically; and cancel drafts audibly, retiring linked physical stock to `missing` with zero available quantity. The migration also creates same-barcode linked reprint drafts for every current, location-less receiving pallet/balance with no active draft/task. Receiving now separates Print label from Labels printed; Put-Away and Inventory show Awaiting Put-Away / Put Away lifecycle wording; Help explains the confirmation step.
+- Affected files: `supabase/migrations/20260901155226_receiving_putaway_lifecycle_integrity.sql`, `src/features/receiving/receiving-core.ts`, `src/features/receiving/receiving-page.tsx`, `src/features/putaway/putaway-core.ts`, `src/features/putaway/putaway-page.tsx`, `src/features/shared/core-types.ts`, `src/features/inventory/inventory-page.tsx`, `src/features/shared/ui-shared.tsx`, `src/lib/help-content.ts`, `src/test/receiving-page.test.tsx`, and `src/test/migration.test.ts`.
+- Verification: passed `npm run test -- --run src/test/receiving-page.test.tsx src/test/migration.test.ts src/test/putaway-page.test.tsx` (3 files, 80 tests), `npm run build`, and `git diff --check`. `npm run typecheck` is blocked by unrelated current errors in `src/features/moves/moves-page.tsx`: missing `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, and `DropdownMenuItem` identifiers at lines 314-332. `supabase migration list --local` cannot run because local Postgres is unavailable: `failed to connect to postgres: effect/sql/SqlError: PgClient: Failed to connect`.
+- Environment state: local source/migration only; no database migration, production data repair, or deployment applied. External Chrome was unavailable through the required browser control connection, and the in-app browser was intentionally not used as text-entry proof.
+- Approval required: approve applying the migration to the intended Supabase environment; provide or authorize an approved non-production external Chrome/Edge operator session for the authenticated lifecycle test. Exact next action: after approval, run `supabase db push`, then in external Chrome or Edge create a Receiving draft, click Print label, verify it remains a draft, click Labels printed, and verify it becomes one Awaiting Put-Away task with the same pallet barcode.
+
 ## Warehouse Intelligence Phase 1 — 2026-08-30
 
 - Objective: scope Command Center intelligence to the active warehouse, make evidence visible, and use configured reorder forecasts instead of a fixed low-stock quantity.
@@ -92,3 +101,11 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Verification: `npm run lint` passes (0 errors, 3,140 warnings), `npm run test -- --run` passes 46 files / 527 tests, `npm run typecheck` passes, `npm run build` passes, and `git diff --check` remains required before handoff. Build retains existing Vite chunk-size and dynamic-import warnings.
 - Environment state: local source cleanup only; no deployment, data write, or schema change.
 - Exact next action: run `git diff --check`, inspect the staged diff for unintended mechanical changes, then optionally retire the remaining 3,140 warnings module-by-module by replacing `any` boundaries and unused bindings with domain types.
+
+### Moves screen import cleanup — 2026-09-01
+
+- Objective: remove the copied, unused import block from Location Moves without changing move behavior.
+- Completed: reduced `src/features/moves/moves-page.tsx` from 268 warnings to 13 explicit-`any` boundary warnings; retained only symbols used by the rendered move workflow.
+- Verification: focused ESLint passes with 0 errors, `npm run typecheck` passes, and `git diff --check` passes.
+- Environment state: local source cleanup only. An unrelated user migration change remains in the worktree and was preserved.
+- Exact next action: repeat the same import cleanup on `src/features/inventory/inventory-page.tsx`, then `src/features/putaway/putaway-page.tsx`.

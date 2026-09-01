@@ -1391,7 +1391,7 @@ export function PutawayTasksPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center justify-between gap-4 text-base">
                     <span className="font-mono">{palletBarcode || "No pallet assigned"}</span>
-                    <Badge>{task.status}</Badge>
+                    <Badge>Awaiting Put-Away</Badge>
                   </CardTitle>
                   <CardDescription>
                     <span className="font-medium text-foreground">
@@ -1676,7 +1676,7 @@ export function PutawayTasksPage() {
                           {palletCode}
                         </span>
                       </div>
-                      <Badge variant={statusBadgeVariant(task.status)} className="shrink-0 text-xs">{task.status}</Badge>
+                      <Badge variant={statusBadgeVariant(task.status)} className="shrink-0 text-xs">{task.status === "completed" ? "Put Away" : task.status === "cancelled" ? "Returned to Receiving" : "Awaiting Put-Away"}</Badge>
                     </summary>
                     <div className="mt-3 grid gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs sm:grid-cols-2">
                       <div>

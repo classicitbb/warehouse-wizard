@@ -49,6 +49,14 @@ function hasVisibleInventoryQuantity(row: Record<string, unknown>): boolean {
   return Number(row.available_quantity ?? 0) > 0 || Number(row.quantity ?? 0) > 0;
 }
 
+/** Operator-facing lifecycle wording. Database availability states remain unchanged. */
+function inventoryLifecycleLabel(row: Record<string, unknown>): string {
+  const status = String(row.status ?? "").toLowerCase();
+  if (status === "receiving") return "Awaiting Put-Away";
+  if (status === "available" && (row.is_stored === true || row.location_id || row.current_location_id || row.location_code)) return "Put Away";
+  return status ? status.replace(/_/g, " ") : "Unknown";
+}
+
 export type AppRoute =
   | "/"
   | "/dashboard"
@@ -801,7 +809,7 @@ async function fetchAllRows<T = any>(
 
 export { db };
 export { DB_RETIRED_INVENTORY_STATUS_FILTER, RETIRED_INVENTORY_STATUSES };
-export { isRetiredInventoryStatus, isStoredPalletStatus, hasVisibleInventoryQuantity };
+export { isRetiredInventoryStatus, isStoredPalletStatus, hasVisibleInventoryQuantity, inventoryLifecycleLabel };
 export { formatSupabaseError, throwIfSupabaseError, applyArchiveFilter };
 export { fetchAllRows };
 export { PICK_COMPLETED_INVENTORY_STATUS };

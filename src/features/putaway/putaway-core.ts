@@ -1,4 +1,3 @@
-import { createReturnedPalletDraft } from "@/features/receiving/receiving-core";
 import { supabase } from "@/integrations/supabase/client";
 import { recordPlacementObservation } from "@/lib/ai-assist";
 import {
@@ -272,41 +271,6 @@ export async function getPutawayTaskHistory(userId?: string) {
 }
 
 export async function revertPutawayToDraft(taskId: string): Promise<void> {
-  const { data: task, error } = await db("putaway_tasks").select("*, pallets(pallet_barcode)").eq("id", taskId).single();
-  if (error) throw error;
-  if (task.status === "completed") throw new Error("Cannot revert a completed putaway task.");
-  if (task.status === "cancelled") throw new Error("Put-Away task has already been returned to Receiving.");
-
-  await createReturnedPalletDraft({
-    palletId: task.pallet_id,
-    warehouseId: task.warehouse_id,
-    sourceLabel: `Put-Away task ${task.task_number}`,
-    sourceType: "putaway_returned",
-    sourceId: taskId,
-    reason: "Returned to receiving from putaway",
-  });
-
-  const [{ error: updErr }, { error: palletErr }, { error: balanceErr }] = await Promise.all([
-    db("putaway_tasks")
-      .update({ status: "cancelled", completed_at: new Date().toISOString() } as any)
-      .eq("id", taskId)
-      .in("status", ["queued", "assigned", "in_progress", "exception", "draft"]),
-    db("pallets")
-      .update({ status: "receiving", current_location_id: null, is_stored: false, available_quantity: 0 } as any)
-      .eq("id", task.pallet_id),
-    db("inventory_balances")
-      .update({ status: "receiving", location_id: null, zone_id: null, available_quantity: 0 } as any)
-      .eq("pallet_id", task.pallet_id),
-  ]);
-  if (updErr) throw updErr;
-  if (palletErr) throw palletErr;
-  if (balanceErr) throw balanceErr;
-
-  await (supabase.rpc as any)("log_audit_event", {
-    in_event_type: "putaway_reverted_to_draft",
-    in_entity_table: "putaway_tasks",
-    in_entity_id: taskId,
-    in_warehouse_id: task.warehouse_id,
-    in_metadata: { previous_status: task.status },
-  });
+  const { error } = await (supabase.rpc as any)("return_putaway_to_receiving_draft", { in_task_id: taskId });
+  if (error) throw new Error(formatSupabaseError(error, "Could not return this Put-Away task to Receiving."));
 }
