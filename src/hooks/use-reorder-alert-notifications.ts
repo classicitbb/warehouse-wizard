@@ -8,9 +8,26 @@ type ReorderAlertNotificationRow = {
   id: string;
   available_quantity: number | null;
   recommended_quantity: number | null;
+  email_queued_at?: string | null;
   products?: { sku: string | null; name: string | null } | null;
   warehouses?: { code: string | null; name: string | null } | null;
 };
+
+/**
+ * Reorder alert emails are sent app-side (the database only raises the alert
+ * row). The sender marks `email_queued_at`, so it is safe to ask more than
+ * once — and a failure never affects the on-screen alert.
+ */
+async function sendReorderAlertEmail(alertId: string) {
+  try {
+    await supabase.functions.invoke("send-notification-email", {
+      body: { kind: "reorder_alert", id: alertId },
+    });
+  } catch (error) {
+    console.warn("Could not send the reorder alert email", error);
+  }
+}
+
 
 function readNotifiedIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -97,7 +114,9 @@ export function useReorderAlertNotifications(enabled: boolean) {
     enabled,
     queryFn: async () => {
       const { data, error } = await (supabase.from as any)("reorder_alerts")
-        .select("id, available_quantity, recommended_quantity, products(sku, name), warehouses(code, name)")
+        .select(
+          "id, available_quantity, recommended_quantity, email_queued_at, products(sku, name), warehouses(code, name)",
+        )
         .eq("status", "active");
       if (error) throw error;
       return (data ?? []) as ReorderAlertNotificationRow[];
@@ -113,6 +132,11 @@ export function useReorderAlertNotifications(enabled: boolean) {
     for (const alert of newAlerts) {
       void showReorderAlertNotification(alert);
     }
+
+    for (const alert of alerts) {
+      if (!alert.email_queued_at) void sendReorderAlertEmail(alert.id);
+    }
+
 
     const nextNotified = new Set(alerts.map((alert) => alert.id));
     notifiedIdsRef.current = nextNotified;

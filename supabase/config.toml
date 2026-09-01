@@ -11,6 +11,9 @@ project_id = "gxfvxmxplngvxdkpmxgw"
     verify_jwt = false
   [functions.copilot]
     verify_jwt = true
+  [functions.send-notification-email]
+    verify_jwt = true
+
 
 [functions.copilot-transcribe]
 enabled = true
