@@ -42,6 +42,7 @@ function supabaseKey() {
         if (key) return key.trim();
       }
     } catch {
+      // Ignore malformed environment metadata and continue with fallback keys.
     }
   }
   const legacy = firstEnv(["SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"]);

@@ -3460,7 +3460,7 @@ export function BarcodePrintDialog({ labelType, code, title }: { labelType: "war
       <p class="label-type">${escapeHtml(labelType)}</p>
       <p class="label-code">${escapeHtml(title)}</p>
       <p class="label-sub">${escapeHtml(code)}</p>
-    </div><script>window.onload=()=>{window.print();window.close();}<\/script></body></html>`);
+    </div><script>window.onload=()=>{window.print();window.close();}</script></body></html>`);
     printWindow.document.close();
   }
 
@@ -5465,7 +5465,8 @@ export function WarehouseBayBrowserDialog({
   const toggleZone = (zk: string) =>
     setCollapsedZones((prev) => {
       const next = new Set(prev);
-      next.has(zk) ? next.delete(zk) : next.add(zk);
+      if (next.has(zk)) next.delete(zk);
+      else next.add(zk);
       return next;
     });
 

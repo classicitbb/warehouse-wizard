@@ -228,7 +228,8 @@ function WarehouseBayBrowserDialog({
   const toggleZone = (zk: string) =>
     setCollapsedZones((prev) => {
       const next = new Set(prev);
-      next.has(zk) ? next.delete(zk) : next.add(zk);
+      if (next.has(zk)) next.delete(zk);
+      else next.add(zk);
       return next;
     });
 
