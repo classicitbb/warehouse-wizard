@@ -42,6 +42,7 @@ import {
 import { useBackgroundSync } from "@/hooks/use-background-sync";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
+import { formatSupabaseError } from "@/features/shared/core-types";
 import {
   NAVIGATION,
   ROLE_LABELS,
