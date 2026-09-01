@@ -9,6 +9,19 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.0",
+    date: "September 2026",
+    changes: [
+      "A move that is refused now shows the real reason on the no-go toast instead of a plain \"Move failed\", and the same wording reaches the support ticket",
+    ],
+    fixes: [
+      "Location Moves could fail for every pallet with a silent \"Move failed\": the destination lookup asked the database for a bin height field that was missing in production. The field has been restored and the lookup no longer depends on it",
+      "PLT-874294572HSU (and any pallet blocked by the same fault) can be moved again — no stock was left mis-located, the moves never reached inventory",
+      "A new automated check compares every inventory, pallet, location, put-away, move, and pick query against the live database schema, so a missing column is caught before it reaches the floor",
+    ],
+  },
+  {
+
     version: "1.28.10",
     date: "August 2026",
     changes: [

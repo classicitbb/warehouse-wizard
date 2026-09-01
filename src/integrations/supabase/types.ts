@@ -1656,6 +1656,7 @@ export type Database = {
           max_height: number | null
           max_height_mm: number | null
           max_length: number | null
+          max_pallet_height_cm: number | null
           max_pallets: number
           max_weight: number | null
           max_width: number | null
@@ -1691,6 +1692,7 @@ export type Database = {
           max_height?: number | null
           max_height_mm?: number | null
           max_length?: number | null
+          max_pallet_height_cm?: number | null
           max_pallets?: number
           max_weight?: number | null
           max_width?: number | null
@@ -1726,6 +1728,7 @@ export type Database = {
           max_height?: number | null
           max_height_mm?: number | null
           max_length?: number | null
+          max_pallet_height_cm?: number | null
           max_pallets?: number
           max_weight?: number | null
           max_width?: number | null
