@@ -13,7 +13,7 @@ describe("pallet lifecycle statuses", () => {
   it("labels each stage from the stored status", () => {
     expect(inventoryLifecycleLabel({ status: "receiving" })).toBe("Receiving");
     expect(inventoryLifecycleLabel({ status: "putaway" })).toBe("Awaiting Put-Away");
-    expect(inventoryLifecycleLabel({ status: "available", location_code: "A-01-A" })).toBe("Put Away");
+    expect(inventoryLifecycleLabel({ status: "available", location_code: "A-01-A" })).toBe("Available");
     expect(inventoryLifecycleLabel({ status: "shipped" })).toBe("shipped");
   });
 
