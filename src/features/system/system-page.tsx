@@ -608,21 +608,26 @@ export function SystemLogPage() {
 export function EmailLogPage() {
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
+  const isFiltering = Boolean(search.trim()) || status !== "all";
   const paging = useInfiniteRows({ resetKeys: [status, search.trim()] });
+  // Filtering happens client-side, so a filtered view must read a wide window
+  // rather than only the newest page — otherwise older matches are invisible.
+  const queryLimit = isFiltering ? 500 : paging.limit + 1;
   const { data: rows = [], isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["email-send-log", paging.limit],
+    queryKey: ["email-send-log", queryLimit],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_send_log" as any)
         .select("id,message_id,template_name,recipient_email,status,error_message,created_at")
         .order("created_at", { ascending: false })
-        .limit(paging.limit + 1);
+        .limit(queryLimit);
       if (error) throw error;
       return data ?? [];
     },
     placeholderData: (previous) => previous,
   });
-  const hasMoreEmails = paging.sync({ loadedCount: (rows as any[]).length, isFetching });
+  const hasMoreEmails = paging.sync({ loadedCount: (rows as any[]).length, isFetching, enabled: !isFiltering });
+
   const filtered = (rows as any[]).filter((row) => {
     if (status !== "all" && row.status !== status) return false;
     if (search.trim()) {
@@ -693,7 +698,7 @@ export function EmailLogPage() {
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading email log…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No email log entries found.</TableCell></TableRow>
-                ) : filtered.slice(0, paging.limit).map((row: any) => (
+                ) : filtered.slice(0, isFiltering ? filtered.length : paging.limit).map((row: any) => (
                   <TableRow key={row.id} className="even:bg-muted/30 align-top">
                     <TableCell><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{row.template_name}</TableCell>
