@@ -6,6 +6,14 @@
 
 ## Current state
 
+### PR 12 CI typecheck repair — 2026-09-01
+
+- Objective: repair the failed `Typecheck & unit tests` check on the latest `codex/review-and-fix-all-screens` push.
+- Completed: used the GitHub Actions job log to identify missing `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, and `DropdownMenuItem` imports in `src/features/moves/moves-page.tsx`, then restored the existing dropdown-menu import.
+- Verification: passed `npm run typecheck`, `npm run test -- --run` (46 files, 529 tests), and `git diff --check`.
+- Environment state: the two changed files are staged locally; no commit or remote push was made.
+- Exact next action: inspect the staged diff, commit the import repair on `codex/review-and-fix-all-screens`, and push it to update PR 12 when authorized.
+
 Implemented the Warehouse Copilot composer upgrade locally. It now has an auto-growing keyboard-first textarea, Enter send / Shift+Enter newline behavior, immediate duplicate-send locking, bounded context (five client turns, six server turns), new-chat reset, server-grounded source labels, idempotent response feedback, and a microphone control. Dictation records up to one minute, sends the clip to a protected Edge Function for server-side Lovable transcription, then inserts the editable transcript into the composer; it never auto-sends.
 
 The Copilot Edge Function now requires a verified signed-in profile with a default warehouse and explicitly filters inventory, receipt, location, open-work, expiry, blocked-work, and task reads to that warehouse. It still has no operational write tools: inventory, pallet, location, print, cycle-count, and freeze changes cannot be executed by the model. Problem reports remain the existing separately approved/audited exception.
