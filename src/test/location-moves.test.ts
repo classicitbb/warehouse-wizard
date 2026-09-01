@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockDb = vi.hoisted(() => ({
   selects: {} as Record<string, Array<{ data: any; error: any }>>,
+  selectColumns: [] as Array<{ table: string; columns: string }>,
   updates: [] as Array<{ table: string; payload: Record<string, unknown>; filters: Array<[string, unknown]> }>,
   updateResults: {} as Record<string, Array<{ data: any; error: any }>>,
   upserts: [] as Array<{ table: string; payload: Record<string, unknown> }>,
@@ -24,7 +25,8 @@ vi.mock("@/integrations/supabase/client", () => {
   function from(table: string) {
     const filters: Array<[string, unknown]> = [];
     return {
-      select: () => {
+      select: (columns: string) => {
+        mockDb.selectColumns.push({ table, columns });
         const chain: any = {
           eq: (column: string, value: unknown) => {
             filters.push([column, value]);
@@ -94,6 +96,7 @@ import { cancelMoveTask, completeDirectMove, completeMoveTask, validateMoveDesti
 describe("location move helpers", () => {
   beforeEach(() => {
     mockDb.selects = {};
+    mockDb.selectColumns = [];
     mockDb.updates = [];
     mockDb.updateResults = {};
     mockDb.upserts = [];
@@ -136,6 +139,20 @@ describe("location move helpers", () => {
       name: "log_audit_event",
       args: { in_event_type: "move_task_completed", in_entity_table: "move_tasks", in_entity_id: "move-new" },
     });
+  });
+
+  it("uses the portable location projection needed by a direct move", async () => {
+    mockDb.selects = {
+      pallets: [{ data: { id: "pallet-1", current_location_id: "loc-old", warehouse_id: "wh-1" }, error: null }],
+      locations: [{ data: { id: "loc-new", warehouse_id: "wh-1", zone_id: "zone-a" }, error: null }],
+    };
+
+    await completeDirectMove("PBC-1", "A-01-01");
+
+    const locationProjection = mockDb.selectColumns.find((select) => select.table === "locations")?.columns ?? "";
+    expect(locationProjection).not.toContain("max_height_mm");
+    expect(locationProjection).not.toContain("max_pallet_height_cm");
+    expect(locationProjection).toContain("max_height");
   });
 
   it("throws and leaves the pallet untouched when no inventory balance row matches the move", async () => {

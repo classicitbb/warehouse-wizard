@@ -55,3 +55,21 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Verification: passed `npm run typecheck`, `npm run build`, and `git diff --check`. The build retains the existing dynamic-import and chunk-size warnings. External Edge reached the local login page at `http://127.0.0.1:8080/login`; authenticated sidebar rendering could not be checked because no approved operator session was available.
 - Environment state: local source change only; no deployment performed.
 - Exact next action: with an approved non-production operator session in external Edge or Chrome, verify at a short landscape viewport that expanded and collapsed sidebar buttons compress to 36px before the navigation shows a scrollbar.
+
+### Resource-table loaded-total indicator — 2026-08-31
+
+- Objective: make the resource search indicator show both loaded rows and the total visible to the operator.
+- Completed: added a count-only query that applies the same archive visibility filter as the paged row query, and changed the indicator from `50 loaded` to `50 of 3,000 loaded` (using locale-aware number formatting). This applies to Products and the other incrementally loaded resource tables.
+- Affected files: `src/features/admin/admin-core.ts`, `src/features/resources/resource-page.tsx`.
+- Verification: passed `npm run typecheck`, `npm run build`, and `git diff --check`. Build retained the existing dynamic-import and chunk-size warnings. External Edge reached `http://127.0.0.1:8080/products` and redirected to `/login`; no approved operator session was available, so the authenticated Products indicator remains visually unverified.
+- Exact next action: with an approved external-browser operator session, open Products and confirm the indicator matches the paged rows and visible total.
+
+### Location Moves production schema-drift repair — 2026-09-01
+
+- Objective: move `PLT-874294572HSU` to `STG-01-A` and prevent the same failure for other pallet moves.
+- Completed: reproduced the live failure twice through signed-in external Edge after destination preflight passed; captured the PostgREST error `42703: column locations.max_pallet_height_cm does not exist`. The error occurs during the destination lookup, before inventory or pallet updates, so neither submitted attempt relocated the pallet. Changed the move location projection to use the portable `max_height` ceiling only, avoiding both deployment-dependent height columns while retaining the existing height safety check. Added a regression test that fails if the direct-move query again selects either non-portable height column.
+- Affected files: `src/features/moves/moves-core.ts`, `src/test/location-moves.test.ts`.
+- Verification: the new regression test was red before the code change (`expected ... not to contain max_height_mm`); passed `npm run test -- --run src/test/location-moves.test.ts` (13 tests), `npm run typecheck`, `npm run build`, and `git diff --check`. Build retained the existing dynamic-import and chunk-size warnings.
+- Deployment/environment state: production Warehouse Wizard is on version `1.28.10`; no production deployment or database write was made after diagnosis. The app currently still has the pre-fix bundle, so the pallet remains unmoved.
+- Approval required: production deployment of the tested source change, then authorization to retry the already-confirmed relocation through the signed-in external browser.
+- Exact next action: after production deployment approval, publish the current source change, reload `https://warehousewizard.app/location-moves`, enter `PLT-874294572HSU` and `STG-01-A`, click Complete Move once, and verify the success toast and updated inventory location.

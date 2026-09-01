@@ -82,6 +82,19 @@ export async function listRecordsPage(
     : rows;
 }
 
+/** Returns the number of records visible to the current operator without
+ * transferring the rows. Used to make incremental table loading transparent. */
+export async function countRecords(
+  table: string,
+  options?: { includeHidden?: boolean; archiveField?: ArchiveField },
+) {
+  let query = (supabase.from as any)(table).select("*", { count: "exact", head: true });
+  query = applyArchiveFilter(query, options?.archiveField, options?.includeHidden);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Columns that are NOT NULL in Postgres but have a database default. Sending
  *  an explicit null (from a cleared form field) violates the constraint, so we
  *  drop them from the payload and let the default apply. */
