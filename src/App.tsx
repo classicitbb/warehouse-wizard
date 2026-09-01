@@ -52,6 +52,8 @@ import {
   confirmPickTask,
   createPickShortfallTask,
   formatDate,
+  formatDateTime,
+
   formatNumber,
   formatPickRackInstruction,
   getBayOccupancy,
@@ -1650,7 +1652,7 @@ function InventoryDetailPage() {
                     <div key={event.id} className="rounded-lg border border-border px-3 py-2 text-sm">
                       <div className="flex items-center justify-between gap-4">
                         <span className="font-medium">{event.event_type}</span>
-                        <span className="text-xs text-muted-foreground">{formatDate(event.created_at)}</span>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(event.created_at)}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">{event.entity_table}</p>
                     </div>
