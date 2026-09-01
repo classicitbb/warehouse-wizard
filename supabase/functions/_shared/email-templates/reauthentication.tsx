@@ -8,7 +8,6 @@ import {
   Head,
   Heading,
   Html,
-  Img,
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
@@ -23,13 +22,6 @@ export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => 
     <Preview>Your verification code</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img
-          src="https://gxfvxmxplngvxdkpmxgw.supabase.co/storage/v1/object/public/email-assets/logo.png"
-          alt="Warehouse Wizard"
-          width="96"
-          height="96"
-          style={logo}
-        />
         <Heading style={h1}>Confirm reauthentication</Heading>
         <Text style={text}>Use the code below to confirm your identity:</Text>
         <Text style={codeStyle}>{token}</Text>
@@ -66,4 +58,3 @@ const codeStyle = {
   margin: '0 0 30px',
 }
 const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
-const logo = { display: 'block', margin: '0 auto 24px', width: '96px', height: '96px' }

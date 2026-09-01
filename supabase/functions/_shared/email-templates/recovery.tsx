@@ -9,7 +9,6 @@ import {
   Head,
   Heading,
   Html,
-  Img,
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
@@ -24,23 +23,18 @@ export const RecoveryEmail = ({
   confirmationUrl,
 }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
-    <Head />
+    <Head>
+      <style>{darkModeCss}</style>
+    </Head>
     <Preview>Reset your password for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img
-          src="https://gxfvxmxplngvxdkpmxgw.supabase.co/storage/v1/object/public/email-assets/logo.png"
-          alt={siteName}
-          width="96"
-          height="96"
-          style={logo}
-        />
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
           We received a request to reset your password for {siteName}. Click
           the button below to choose a new password.
         </Text>
-        <Button style={button} href={confirmationUrl}>
+        <Button className="dm-btn" style={button} href={confirmationUrl}>
           Reset Password
         </Button>
         <Text style={footer}>
@@ -69,12 +63,20 @@ const text = {
   margin: '0 0 25px',
 }
 const button = {
-  backgroundColor: '#2EBFB3',
-  color: '#111A24',
+  backgroundColor: '#000000',
+  color: '#ffffff',
   fontSize: '14px',
-  borderRadius: '6px',
+  border: '1px solid #000000',
+  borderRadius: '8px',
   padding: '12px 20px',
   textDecoration: 'none',
 }
 const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
-const logo = { display: 'block', margin: '0 auto 24px', width: '96px', height: '96px' }
+// Rendered as a text child, which React may HTML-escape: keep this CSS free of >, &, and quotes.
+const darkModeCss = `
+  @media (prefers-color-scheme: dark) {
+    .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+  }
+  [data-ogsc] .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+  [data-ogsb] .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+`

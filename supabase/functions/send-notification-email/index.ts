@@ -3,12 +3,13 @@
 // Owns every notification email the app sends (reorder alerts, operator
 // tickets/feedback). The database no longer composes or enqueues these — it
 // only records that a notification is due, and this function builds the
-// recipient list, renders the template, applies suppression/unsubscribe
-// handling, and hands the message to the email queue.
+// recipient list, renders the template, and sends it through Lovable's
+// managed email delivery (suppression and unsubscribe are handled there).
 //
 // POST { kind: 'reorder_alert' | 'operator_ticket', id: uuid }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
+import { EmailAPIError, sendLovableEmail } from 'npm:@lovable.dev/email-js@0.1.0'
 import {
   normaliseRecipients,
   renderOperatorTicket,
@@ -63,71 +64,66 @@ async function emailsForRoles(sb: Client, codes: string[]): Promise<string[]> {
 }
 
 
-async function suppressed(sb: Client, recipients: string[]): Promise<Set<string>> {
-  if (recipients.length === 0) return new Set()
-  const { data, error } = await sb.from('suppressed_emails').select('email').in('email', recipients)
-  if (error) {
-    console.error('Could not read suppression list', error)
-    return new Set()
-  }
-  return new Set((data ?? []).map((row: { email: string }) => String(row.email).toLowerCase()))
-}
-
-async function queue(
+async function deliver(
   sb: Client,
-  input: { to: string; subject: string; title: string; bodyHtml: string; text: string; label: string },
+  input: {
+    to: string
+    subject: string
+    title: string
+    bodyHtml: string
+    text: string
+    label: string
+    idempotencyKey: string
+  },
 ): Promise<boolean> {
-  const messageId = crypto.randomUUID()
-  let unsubscribeToken: string | null = null
-  let unsubscribeUrl: string | null = null
-  try {
-    const { data } = await sb.rpc('get_or_create_unsubscribe_token', { in_email: input.to })
-    if (typeof data === 'string' && data) {
-      unsubscribeToken = data
-      unsubscribeUrl = `https://warehousewizard.app/email/unsubscribe?token=${encodeURIComponent(data)}`
-    }
-  } catch (error) {
-    console.error('Unsubscribe token unavailable', error)
-  }
-
-  await sb.from('email_send_log').insert({
-    message_id: messageId,
-    template_name: input.label,
-    recipient_email: input.to,
-    status: 'pending',
-  })
-
-  const { error } = await sb.rpc('enqueue_email', {
-    queue_name: 'transactional_emails',
-    payload: {
-      message_id: messageId,
-      idempotency_key: messageId,
-      unsubscribe_token: unsubscribeToken,
-      to: input.to,
-      from: FROM,
-      sender_domain: SENDER_DOMAIN,
-      subject: input.subject,
-      html: shell(input.title, input.bodyHtml, unsubscribeUrl),
-      text: input.text,
-      purpose: 'transactional',
-      label: input.label,
-      queued_at: new Date().toISOString(),
-    },
-  })
-
-  if (error) {
-    console.error('Could not enqueue notification email', { label: input.label, error })
-    await sb.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: input.label,
-      recipient_email: input.to,
-      status: 'failed',
-      error_message: error.message ?? 'Failed to enqueue email',
-    })
+  const apiKey = Deno.env.get('LOVABLE_API_KEY')
+  if (!apiKey) {
+    console.error('LOVABLE_API_KEY is not configured')
     return false
   }
+
+  async function log(status: string, errorMessage?: string) {
+    const { error } = await sb.from('email_send_log').insert({
+      template_name: input.label,
+      recipient_email: input.to,
+      status,
+      error_message: errorMessage ?? null,
+    })
+    if (error) {
+      console.error('Could not record notification email result', { label: input.label, error })
+    }
+  }
+
+  try {
+    await sendLovableEmail(
+      {
+        to: input.to,
+        from: FROM,
+        sender_domain: SENDER_DOMAIN,
+        subject: input.subject,
+        html: shell(input.title, input.bodyHtml),
+        text: input.text,
+        purpose: 'transactional',
+        label: input.label,
+        idempotency_key: input.idempotencyKey,
+      },
+      { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') },
+    )
+  } catch (error) {
+    if (error instanceof EmailAPIError && error.code === 'recipient_suppressed') {
+      await log('suppressed')
+      return false
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Could not send notification email', { label: input.label, message })
+    await log('failed', message.slice(0, 1000))
+    return false
+  }
+
+  await log('sent')
   return true
 }
+
 
 async function sendReorderAlert(sb: Client, alertId: string) {
   const { data: alert, error } = await sb
@@ -160,19 +156,18 @@ async function sendReorderAlert(sb: Client, alertId: string) {
   })
 
   const recipients = normaliseRecipients(await emailsForRoles(sb, ['admin', 'warehouse_manager']))
-  const blocked = await suppressed(sb, recipients)
 
   let sent = 0
   for (const to of recipients) {
-    if (blocked.has(to)) continue
     if (
-      await queue(sb, {
+      await deliver(sb, {
         to,
         subject: rendered.subject,
         title: rendered.subject,
         bodyHtml: rendered.bodyHtml,
         text: rendered.text,
         label: 'reorder-alert',
+        idempotencyKey: `reorder-alert-${alertId}-${to}`,
       })
     ) {
       sent += 1
@@ -243,19 +238,18 @@ async function sendOperatorTicket(sb: Client, ticketId: string) {
     ...devEmails,
     ...adminEmails,
   ])
-  const blocked = await suppressed(sb, recipients)
 
   let sent = 0
   for (const to of recipients) {
-    if (blocked.has(to)) continue
     if (
-      await queue(sb, {
+      await deliver(sb, {
         to,
         subject: rendered.subject,
         title: rendered.subject,
         bodyHtml: rendered.bodyHtml,
         text: rendered.text,
         label: 'operator-ticket',
+        idempotencyKey: `operator-ticket-${ticketId}-${to}`,
       })
     ) {
       sent += 1
