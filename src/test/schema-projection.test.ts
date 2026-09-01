@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Schema-drift guard.
@@ -11,75 +10,42 @@ import type { Database } from "@/integrations/supabase/types";
  * database did not have. `src/integrations/supabase/types.ts` is generated from
  * the live database, so it is the source of truth for what a select may name.
  *
- * This test walks the source, resolves the column lists passed to `.select()`
- * on the tables the floor screens depend on, and fails when a plain column is
- * not present on the generated Row type — in CI, instead of on a handheld.
+ * This test resolves the column lists passed to `.select()` on the tables the
+ * floor screens depend on and fails when a plain column is missing from the
+ * generated Row type — in CI, instead of on a handheld.
  */
 
-const GUARDED_TABLES = ["locations", "pallets", "inventory_balances", "products", "putaway_tasks", "move_tasks"] as const;
+const GUARDED_TABLES = [
+  "locations",
+  "pallets",
+  "inventory_balances",
+  "products",
+  "putaway_tasks",
+  "move_tasks",
+  "pick_tasks",
+] as const;
 type GuardedTable = (typeof GUARDED_TABLES)[number];
 
-// Sample rows only exist at runtime, so build the key set from a typed helper:
-// the generated Row type is checked structurally below via a key map.
-const ROW_KEYS: Record<GuardedTable, Set<string>> = {
-  locations: keysOf<Database["public"]["Tables"]["locations"]["Row"]>(LOCATION_KEYS()),
-  pallets: keysOf<Database["public"]["Tables"]["pallets"]["Row"]>(PALLET_KEYS()),
-  inventory_balances: keysOf<Database["public"]["Tables"]["inventory_balances"]["Row"]>(INVENTORY_KEYS()),
-  products: keysOf<Database["public"]["Tables"]["products"]["Row"]>(PRODUCT_KEYS()),
-  putaway_tasks: keysOf<Database["public"]["Tables"]["putaway_tasks"]["Row"]>(PUTAWAY_KEYS()),
-  move_tasks: keysOf<Database["public"]["Tables"]["move_tasks"]["Row"]>(MOVE_TASK_KEYS()),
-};
+const TYPES_FILE = "src/integrations/supabase/types.ts";
 
-function keysOf<Row>(keys: (keyof Row & string)[]): Set<string> {
-  return new Set(keys);
+/** Pull `Row: { ... }` column names for a table out of the generated types. */
+function generatedRowColumns(table: string): Set<string> {
+  const source = readFileSync(TYPES_FILE, "utf8");
+  const tableAnchor = new RegExp(`^      ${table}: \\{$`, "m");
+  const anchorMatch = tableAnchor.exec(source);
+  if (!anchorMatch) throw new Error(`Table ${table} not found in ${TYPES_FILE}`);
+  const rowStart = source.indexOf("Row: {", anchorMatch.index);
+  const rowEnd = source.indexOf("\n        }", rowStart);
+  if (rowStart === -1 || rowEnd === -1) throw new Error(`Row block for ${table} not found`);
+  const block = source.slice(rowStart, rowEnd);
+  const columns = new Set<string>();
+  for (const match of block.matchAll(/^\s{10}([a-z_][a-z0-9_]*)\??:/gm)) columns.add(match[1]);
+  return columns;
 }
 
-// Each list below is type-checked against the generated Row type: a column that
-// is dropped from the database stops compiling here, and a column that never
-// existed can never be added.
-function LOCATION_KEYS() {
-  const keys: (keyof Database["public"]["Tables"]["locations"]["Row"] & string)[] = [
-    "id", "code", "status", "max_pallets", "temperature_class", "mixed_sku_allowed", "mixed_lot_allowed",
-    "max_height", "max_height_mm", "max_pallet_height_cm", "zone_id", "warehouse_id", "aisle", "bay", "level",
-    "position", "depth", "location_type", "pick_sequence", "putaway_sequence", "notes", "is_staging",
-    "level_style", "created_at", "updated_at",
-  ];
-  return keys;
-}
-function PALLET_KEYS() {
-  const keys: (keyof Database["public"]["Tables"]["pallets"]["Row"] & string)[] = [
-    "id", "pallet_barcode", "pallet_code", "status", "is_stored", "current_location_id", "current_warehouse_id",
-    "product_id", "client_id", "quantity", "available_quantity", "inventory_lot_id", "height", "standard_height_mm",
-    "length", "width", "weight", "created_at", "updated_at",
-  ];
-  return keys;
-}
-function INVENTORY_KEYS() {
-  const keys: (keyof Database["public"]["Tables"]["inventory_balances"]["Row"] & string)[] = [
-    "id", "pallet_id", "product_id", "client_id", "location_id", "zone_id", "warehouse_id", "status",
-    "quantity", "available_quantity", "created_at", "updated_at",
-  ];
-  return keys;
-}
-function PRODUCT_KEYS() {
-  const keys: (keyof Database["public"]["Tables"]["products"]["Row"] & string)[] = [
-    "id", "sku", "name", "temperature_requirement", "client_id", "created_at", "updated_at",
-  ];
-  return keys;
-}
-function PUTAWAY_KEYS() {
-  const keys: (keyof Database["public"]["Tables"]["putaway_tasks"]["Row"] & string)[] = [
-    "id", "task_number", "status", "pallet_id", "warehouse_id", "created_at", "updated_at",
-  ];
-  return keys;
-}
-function MOVE_TASK_KEYS() {
-  const keys: (keyof Database["public"]["Tables"]["move_tasks"]["Row"] & string)[] = [
-    "id", "task_number", "status", "pallet_id", "warehouse_id", "from_location_id", "to_location_id",
-    "reason", "completed_at", "created_at", "updated_at",
-  ];
-  return keys;
-}
+const ROW_COLUMNS = new Map<GuardedTable, Set<string>>(
+  GUARDED_TABLES.map((table) => [table, generatedRowColumns(table)] as const),
+);
 
 const SOURCE_ROOTS = ["src/features", "src/hooks", "src/lib", "src/components"];
 
@@ -106,7 +72,7 @@ function findProjections(file: string): Projection[] {
   const source = readFileSync(file, "utf8");
   const constants = stringConstants(source);
   const found: Projection[] = [];
-  const pattern = /(?:db|supabase\s*\.\s*from|\.from)\(\s*"(\w+)"\s*\)\s*(?:as any\s*)?\.\s*select\(\s*(?:"([^"]*)"|([A-Z0-9_]+))/g;
+  const pattern = /(?:db|from)\(\s*"(\w+)"\s*\)\s*(?:as any\s*)?\.?\s*\n?\s*\.select\(\s*(?:"([^"]*)"|([A-Z0-9_]+))/g;
   for (const match of source.matchAll(pattern)) {
     const table = match[1] as GuardedTable;
     if (!GUARDED_TABLES.includes(table)) continue;
@@ -119,8 +85,9 @@ function findProjections(file: string): Projection[] {
 
 /**
  * Split a PostgREST projection into the plain column names it reads on the base
- * table. Embedded relations (`zones(code)`), aliases (`warehouse_id:x`),
- * wildcards and aggregates are skipped — only base-table columns are asserted.
+ * table. Embedded relations (`zones(code)`), wildcards and computed entries are
+ * skipped — only base-table columns are asserted. `alias:column` resolves to the
+ * column side.
  */
 function baseColumns(projection: string): string[] {
   const columns: string[] = [];
@@ -130,9 +97,9 @@ function baseColumns(projection: string): string[] {
     const raw = current.trim();
     current = "";
     if (!raw || raw === "*" || raw.includes("(") || raw.includes("!")) return;
-    const aliased = raw.includes(":") ? raw.split(":")[1].trim() : raw;
-    if (!aliased || !/^[a-z_][a-z0-9_]*$/.test(aliased)) return;
-    columns.push(aliased);
+    const resolved = raw.includes(":") ? raw.split(":")[1].trim() : raw;
+    if (!resolved || !/^[a-z_][a-z0-9_]*$/.test(resolved)) return;
+    columns.push(resolved);
   };
   for (const char of projection) {
     if (char === "(") depth += 1;
@@ -158,10 +125,9 @@ describe("PostgREST projections match the generated database schema", () => {
   it("never selects a column that does not exist on the table", () => {
     const offenders: string[] = [];
     for (const projection of projections) {
+      const known = ROW_COLUMNS.get(projection.table)!;
       for (const column of baseColumns(projection.columns)) {
-        if (!ROW_KEYS[projection.table].has(column)) {
-          offenders.push(`${projection.file}: ${projection.table}.${column}`);
-        }
+        if (!known.has(column)) offenders.push(`${projection.file}: ${projection.table}.${column}`);
       }
     }
     expect(offenders).toEqual([]);
