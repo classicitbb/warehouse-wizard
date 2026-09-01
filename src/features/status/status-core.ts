@@ -107,9 +107,20 @@ export async function changePalletStatus(input: z.infer<typeof statusChangeSchem
   const { data: balance, error: balanceError } = await db("inventory_balances").select("*").eq("pallet_id", palletId).single();
   if (balanceError) throw balanceError;
 
+  // "Release" is not a stored status: a pallet returning from Hold goes back to
+  // the stage it is physically at — Available when it still holds a bin,
+  // otherwise Put-Away so it is queued for a location.
+  let resolvedStatus: string = payload.new_status;
+  if (resolvedStatus === "release") {
+    const { data: pallet } = await db("pallets").select("current_location_id, is_stored").eq("id", palletId).maybeSingle();
+    const stored = Boolean(pallet?.current_location_id ?? balance.location_id) && pallet?.is_stored !== false;
+    resolvedStatus = stored ? "available" : "putaway";
+  }
+
   await Promise.all([
-    db("pallets").update({ status: payload.new_status }).eq("id", palletId),
-    db("inventory_balances").update({ status: payload.new_status }).eq("id", balance.id),
+    db("pallets").update({ status: resolvedStatus }).eq("id", palletId),
+    db("inventory_balances").update({ status: resolvedStatus }).eq("id", balance.id),
+
     upsertRecord("stock_adjustments", {
       adjustment_number: buildPalletCode("STS"),
       pallet_id: palletId,
