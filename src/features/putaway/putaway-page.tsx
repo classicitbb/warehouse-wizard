@@ -79,7 +79,10 @@ import {
   logPutawayBaySelection,
   getPutawayTasks,
   getPutawayTaskHistory,
+  listOrphanPutawayPallets,
+  queuePutawayTaskForPallet,
   revalidatePutawayTaskPosition,
+
   getReportData,
   parseCsvForResource,
   commitImportRows,
@@ -248,7 +251,70 @@ function loadPutawayScannerFirstPreference() {
   return window.localStorage.getItem(PUTAWAY_SCANNER_FIRST_KEY) === "true";
 }
 
+/**
+ * A pallet can be marked as waiting for Put-Away without an open task (for
+ * example when it is released from Missing). It would then never show in the
+ * queue, so it is surfaced here with a one-tap fix.
+ */
+function OrphanPutawayBanner({ warehouseId }: { warehouseId: string | null }) {
+  const queryClient = useQueryClient();
+  const { data: orphans = [] } = useQuery({
+    queryKey: ["putaway-orphan-pallets", warehouseId],
+    queryFn: () => listOrphanPutawayPallets(warehouseId),
+  });
+  const queueTask = useMutation({
+    mutationFn: (palletId: string) => queuePutawayTaskForPallet(palletId),
+    onSuccess: async (result) => {
+      alertToast.success(
+        result.created
+          ? `Put-Away task ${result.taskNumber ?? ""} queued`.trim()
+          : "This pallet already has an open Put-Away task",
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["putaway-orphan-pallets"] }),
+      ]);
+    },
+    onError: (error: unknown) => {
+      alertToast.noGo(error instanceof Error ? error.message : "Could not queue a Put-Away task");
+    },
+  });
+
+  if (orphans.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+      <p className="font-medium">
+        {orphans.length} pallet{orphans.length === 1 ? " is" : "s are"} waiting for Put-Away with no task
+      </p>
+      <p className="mt-1 text-xs sm:text-sm">These pallets will not appear in the queue until a task is queued for them.</p>
+      <ul className="mt-2 grid gap-1">
+        {orphans.map((orphan) => (
+          <li key={orphan.palletId} className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-300/70 bg-background/60 px-2 py-1">
+            <span className="text-xs">
+              <span className="font-mono">{orphan.palletBarcode}</span>
+              {orphan.sku ? <> · {orphan.sku}</> : null}
+              {orphan.productName ? <> · {orphan.productName}</> : null}
+              {" · qty "}{orphan.quantity}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={queueTask.isPending}
+              onClick={() => queueTask.mutate(orphan.palletId)}
+            >
+              Queue Put-Away
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function PutawayTasksPage() {
+
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1040,7 +1106,9 @@ export function PutawayTasksPage() {
           <p className="mt-1 text-xs sm:text-sm">Your current task position stays on this device. When the signal returns, the app will refresh live bin state before it lets you confirm.</p>
         </div>
       ) : null}
+      <OrphanPutawayBanner warehouseId={activeWarehouseId} />
       {resumeNotice ? (
+
         <div
           className={cn(
             "rounded-lg border px-4 py-3 text-sm",

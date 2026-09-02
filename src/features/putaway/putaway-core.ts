@@ -274,3 +274,57 @@ export async function revertPutawayToDraft(taskId: string): Promise<void> {
   const { error } = await (supabase.rpc as any)("return_putaway_to_receiving_draft", { in_task_id: taskId });
   if (error) throw new Error(formatSupabaseError(error, "Could not return this Put-Away task to Receiving."));
 }
+
+// ── Orphaned Put-Away pallets ─────────────────────────────────────────────
+// A pallet can end up marked "putaway" with no bin and no open task (for
+// example after a status change from Missing). It is then invisible to the
+// floor. These two helpers list those pallets and queue a task for them.
+
+export type OrphanPutawayPallet = {
+  palletId: string;
+  palletBarcode: string;
+  quantity: number;
+  productName: string | null;
+  sku: string | null;
+};
+
+export async function listOrphanPutawayPallets(warehouseId?: string | null): Promise<OrphanPutawayPallet[]> {
+  let query = db("pallets")
+    .select("id, pallet_barcode, quantity, current_warehouse_id, products(name, sku)")
+    .eq("status", "putaway")
+    .eq("is_stored", false)
+    .is("current_location_id", null)
+    .is("correction_state", null)
+    .limit(50);
+  if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  const pallets = (data ?? []) as any[];
+  if (pallets.length === 0) return [];
+
+  const { data: openTasks, error: taskError } = await db("putaway_tasks")
+    .select("pallet_id")
+    .in("pallet_id", pallets.map((p) => p.id))
+    .in("status", ["draft", "queued", "assigned", "in_progress", "exception"]);
+  if (taskError) throw taskError;
+  const withTask = new Set((openTasks ?? []).map((t: any) => t.pallet_id));
+
+  return pallets
+    .filter((p) => !withTask.has(p.id))
+    .map((p) => ({
+      palletId: p.id,
+      palletBarcode: p.pallet_barcode,
+      quantity: Number(p.quantity ?? 0),
+      productName: p.products?.name ?? null,
+      sku: p.products?.sku ?? null,
+    }));
+}
+
+export async function queuePutawayTaskForPallet(palletId: string): Promise<{ taskNumber: string | null; created: boolean }> {
+  const { data, error } = await (supabase.rpc as any)("ensure_putaway_task_for_pallet", { in_pallet_id: palletId });
+  if (error) throw new Error(formatSupabaseError(error, "Could not queue a Put-Away task for this pallet."));
+  const row = Array.isArray(data) ? data[0] : data;
+  return { taskNumber: row?.putaway_task_number ?? null, created: Boolean(row?.created) };
+}
+
