@@ -9,6 +9,22 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.3",
+    date: "September 2026",
+    changes: [
+      "A hot fix can now be pushed onto every open session instead of waiting for each tablet to be closed: Settings → Environment → Release control has a Force everyone onto this build button, a grace period, and an optional note that operators see",
+      "Sessions on the floor show a countdown banner when they are behind — \"New version required — reloading in 9:58\" — with a Reload now button, and the reload waits until the scan or confirm in progress is finished",
+      "Release control lists how many sessions are running which build, so it is visible whether the fix actually reached the floor rather than assumed",
+      "A tab left open overnight refreshes itself once each morning (04:00 by default, configurable), clearing its caches so the shift starts on the published build",
+      "Optional nightly sign-out: a device idle across the cutoff hour starts the morning at the login screen",
+    ],
+    fixes: [
+      "The app now checks for a new build every 5 minutes instead of every 30, so a fix is picked up in minutes",
+      "A forced reload that does not actually land on the newer build stops after two attempts and says so, instead of leaving a device reloading in a loop",
+      "Caches are never cleared while a device is offline, which previously risked leaving a disconnected tablet with no app at all",
+    ],
+  },
+  {
     version: "1.29.2",
     date: "September 2026",
     changes: [

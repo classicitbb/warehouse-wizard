@@ -1,10 +1,20 @@
 # Work Handoff
 
 - Repository: `classicitbb/warehouse-wizard`
-- Status: Incomplete — Copilot composer implementation awaits authorized browser verification and deployment approval
-- Last updated: 2026-08-30
+- Status: Incomplete — Release policy / fleet freshness awaits database migration and deployment approval; Copilot composer still awaits authorized browser verification
+- Last updated: 2026-09-02
 
 ## Current state
+
+### Release policy and fleet freshness — 2026-09-02
+
+- Objective: stop a shift-long tab on a floor tablet from staying on a stale build, without adding friction when nothing is pending. If there is no update, straight to work; if there is an update, work pauses until it completes.
+- Completed: additive migration `20260902160000_app_release_policy_and_client_heartbeat.sql` creates `public.app_release_policy` (singleton; readable by every authenticated user, writable only via `has_role` admin/developer) and `public.app_client_heartbeat` (keyed `(device_id, user_id)` so shared tablets do not collide under RLS). New `src/lib/release-policy.ts` (version comparison, grace clamping, reload-attempt cap, policy read/write, fleet rollup, `useReleasePolicy`), `src/lib/daily-refresh.ts` (`decideDailyRefresh`, activity snapshot, nightly sign-out predicate), `src/components/release-gate.tsx` (heartbeat + nightly sign-out + banner composition), `src/components/forced-update-banner.tsx` (countdown UI), `src/features/shared/release-control-panel.tsx` (Settings → Environment). Service-worker update poll tightened 30 → 5 minutes. Version bumped to 1.29.3 with release notes and a `release-control` Help Center article.
+- Safety properties worth preserving if this is edited: forced reloads are capped at 2 attempts per target version so a bad policy value cannot loop the fleet; caches are never purged while offline; the grace deadline is clamped locally into `[15s, grace_minutes]` against device clock skew; the morning refresh consults `performance.timeOrigin` so a tablet switched on after the cutoff is not reloaded; the nightly sign-out reads an activity snapshot pinned at page load, never the live stamp.
+- Verification: `npm run typecheck`, `npm run build`, and the full `npx vitest run` suite pass. New tests cover version comparison, grace/skew clamping, the daily-refresh decision, the attempt cap, the countdown/deferral/no-loop banner behaviour, and the heartbeat + nightly sign-out.
+- Deployment/environment state: local changes only. **The migration has not been applied to any database.** The Lovable MCP connector available in this session exposes only design-import and new-project tools — it cannot run migrations or message the existing project — so the migration could not be applied as requested. Supabase CLI 2.116.0 is installed locally but the project is not linked and applying schema + RLS to production is an approval gate under `AGENTS.override.md`.
+- Approval required: applying the migration to the Supabase project (schema, GRANTs and RLS policy creation).
+- Exact next action: apply `supabase/migrations/20260902160000_app_release_policy_and_client_heartbeat.sql` to the Supabase project — either by letting the Lovable publish pipeline pick it up, or with `npx supabase link --project-ref gxfvxmxplngvxdkpmxgw` followed by `npx supabase db push` once the database password is supplied by the owner. Until it is applied, `useReleasePolicy` falls back to the cached default policy and the gate stays inert (fail-open, no operator impact).
 
 ### PR 12 CI typecheck repair — 2026-09-01
 
