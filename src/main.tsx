@@ -93,8 +93,8 @@ const isInIframe = (() => {
 const isPreviewHost =
   typeof window !== "undefined" &&
   (window.location.hostname.includes("lovableproject.com") ||
-    window.location.hostname.includes("lovable.app") ||
-    window.location.hostname.includes("id-preview--"));
+    window.location.hostname.startsWith("id-preview--"));
+
 
 if (!isInIframe && !isPreviewHost) {
   // One-shot cache/SW purge per app version. Ensures returning users on the
