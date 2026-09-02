@@ -22,12 +22,13 @@ export function isInIframe(): boolean {
 export function isPreviewHost(): boolean {
   if (typeof window === "undefined") return false;
   const host = window.location.hostname;
-  return (
-    host.includes("lovableproject.com") ||
-    host.includes("lovable.app") ||
-    host.includes("id-preview--")
-  );
+  // Only the sandbox/preview hosts count. The *published* app also lives on a
+  // `*.lovable.app` subdomain (threeplmgmt.lovable.app), and treating that as a
+  // preview would permanently disable forced updates and the morning refresh
+  // for everyone using that URL.
+  return host.includes("lovableproject.com") || host.startsWith("id-preview--");
 }
+
 
 /** True when a hard reload would break the preview proxy / dev session. */
 export function isPreviewEnvironment(): boolean {
