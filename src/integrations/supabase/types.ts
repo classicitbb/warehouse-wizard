@@ -110,6 +110,69 @@ export type Database = {
         }
         Relationships: []
       }
+      app_client_heartbeat: {
+        Row: {
+          app_version: string
+          device_id: string
+          last_seen_at: string
+          user_id: string
+          user_label: string | null
+        }
+        Insert: {
+          app_version: string
+          device_id: string
+          last_seen_at?: string
+          user_id?: string
+          user_label?: string | null
+        }
+        Update: {
+          app_version?: string
+          device_id?: string
+          last_seen_at?: string
+          user_id?: string
+          user_label?: string | null
+        }
+        Relationships: []
+      }
+      app_release_policy: {
+        Row: {
+          daily_refresh_enabled: boolean
+          daily_refresh_hour: number
+          force_after: string | null
+          grace_minutes: number
+          id: boolean
+          message: string | null
+          min_required_version: string | null
+          nightly_signout_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          daily_refresh_enabled?: boolean
+          daily_refresh_hour?: number
+          force_after?: string | null
+          grace_minutes?: number
+          id?: boolean
+          message?: string | null
+          min_required_version?: string | null
+          nightly_signout_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          daily_refresh_enabled?: boolean
+          daily_refresh_hour?: number
+          force_after?: string | null
+          grace_minutes?: number
+          id?: boolean
+          message?: string | null
+          min_required_version?: string | null
+          nightly_signout_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       audit_events: {
         Row: {
           actor_user_id: string | null
