@@ -5,7 +5,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  {
+    ignores: [
+      "dist",
+      // Bundled output written by @lovable.dev/mcp-js via the Vite plugin on
+      // every build. It carries a "do not edit" banner and is regenerated from
+      // src/lib/mcp/**, so lint it there — not here. Linting the bundle was the
+      // sole source of the repository's ESLint errors (no-var, no-empty).
+      "supabase/functions/mcp/index.ts",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

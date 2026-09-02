@@ -128,24 +128,27 @@ function PageSpinner() {
   );
 }
 
-const DashboardPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.DashboardPage })));
-const AppShell = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.AppShell })));
+// Each route points at its own feature module, not the `wms-ui` barrel. Routing
+// every lazy() through one barrel collapsed all 15 pages into a single 554 kB
+// chunk, so the first navigation downloaded every screen in the app.
+const DashboardPage = lazy(() => import("@/features/dashboard/dashboard-page").then((mod) => ({ default: mod.DashboardPage })));
+const AppShell = lazy(() => import("@/features/shared/app-shell").then((mod) => ({ default: mod.AppShell })));
 const InventorySearchPage = lazy(() =>
-  import("@/components/wms-ui").then((mod) => ({ default: mod.InventorySearchPage })),
+  import("@/features/inventory/inventory-page").then((mod) => ({ default: mod.InventorySearchPage })),
 );
-const PickListsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PickListsPage })));
-const PutawayTasksPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.PutawayTasksPage })));
-const ReceivingPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReceivingPage })));
-const ReportsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ReportsPage })));
-const ResourcePage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.ResourcePage })));
-const SettingsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.SettingsPage })));
-const StatusPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.StatusPage })));
-const SystemLogPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.SystemLogPage })));
-const EmailLogPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.EmailLogPage })));
-const TransfersPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.TransfersPage })));
-const UsersRolesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.UsersRolesPage })));
-const CycleCountsPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.CycleCountsPage })));
-const LocationMovesPage = lazy(() => import("@/components/wms-ui").then((mod) => ({ default: mod.LocationMovesPage })));
+const PickListsPage = lazy(() => import("@/features/picking/picking-page").then((mod) => ({ default: mod.PickListsPage })));
+const PutawayTasksPage = lazy(() => import("@/features/putaway/putaway-page").then((mod) => ({ default: mod.PutawayTasksPage })));
+const ReceivingPage = lazy(() => import("@/features/receiving/receiving-page").then((mod) => ({ default: mod.ReceivingPage })));
+const ReportsPage = lazy(() => import("@/features/status/status-page").then((mod) => ({ default: mod.ReportsPage })));
+const ResourcePage = lazy(() => import("@/features/resources/resource-page").then((mod) => ({ default: mod.ResourcePage })));
+const SettingsPage = lazy(() => import("@/features/admin/admin-page").then((mod) => ({ default: mod.SettingsPage })));
+const StatusPage = lazy(() => import("@/features/status/status-page").then((mod) => ({ default: mod.StatusPage })));
+const SystemLogPage = lazy(() => import("@/features/system/system-page").then((mod) => ({ default: mod.SystemLogPage })));
+const EmailLogPage = lazy(() => import("@/features/system/system-page").then((mod) => ({ default: mod.EmailLogPage })));
+const TransfersPage = lazy(() => import("@/features/transfers/transfers-page").then((mod) => ({ default: mod.TransfersPage })));
+const UsersRolesPage = lazy(() => import("@/features/admin/admin-page").then((mod) => ({ default: mod.UsersRolesPage })));
+const CycleCountsPage = lazy(() => import("@/features/cycle-counts/cycle-counts-page").then((mod) => ({ default: mod.CycleCountsPage })));
+const LocationMovesPage = lazy(() => import("@/features/moves/moves-page").then((mod) => ({ default: mod.LocationMovesPage })));
 const PalletLabelPage = lazy(() =>
   import("@/components/pallet-label-page").then((mod) => ({ default: mod.PalletLabelPage })),
 );
@@ -153,13 +156,16 @@ const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
 const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
 const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
 const ProtectedShell = lazy(() =>
-  import("@/components/wms-ui").then((mod) => ({
+  Promise.all([
+    import("@/features/shared/app-shell"),
+    import("@/features/admin/admin-page"),
+  ]).then(([shell, admin]) => ({
     default: function ProtectedShellComponent({ children }: { children: ReactNode }) {
       return (
-        <mod.AppShell>
+        <shell.AppShell>
           {children}
-          <mod.MobileActionBar />
-        </mod.AppShell>
+          <admin.MobileActionBar />
+        </shell.AppShell>
       );
     },
   })),
