@@ -240,3 +240,36 @@ describe("self-disable prevention migration", () => {
     expect(preventSelfDisableMigration).toContain("CREATE TRIGGER trg_prevent_self_disable");
   });
 });
+
+describe("plpgsql variable conflict migration", () => {
+  const variableConflictMigration = readFileSync(
+    path.resolve(process.cwd(), "supabase/migrations/20260902143104_55a4eb55-9e7e-4b6f-838b-c1a8201686d6.sql"),
+    "utf8",
+  );
+
+  // RETURNS TABLE output names (pallet_id, pallet_barcode, location_id, ...)
+  // shadow real table columns inside the body and raise 42702. Every function
+  // below must keep the `#variable_conflict use_column` directive.
+  const patchedFunctions = [
+    "public.confirm_receiving_draft_labels_printed(uuid)",
+    "public.return_putaway_to_receiving_draft(uuid)",
+    "public.save_inventory_pallet_correction_as_draft(uuid,numeric,date,boolean)",
+    "public.begin_inventory_pallet_correction(uuid)",
+    "public.complete_inventory_pallet_correction(uuid,numeric,date,boolean)",
+    "public.complete_inventory_pallet_correction_in_place(uuid,numeric)",
+    "public.recover_missing_pallet_to_putaway(uuid)",
+    "public.recover_missing_pallet_to_draft(uuid,numeric)",
+  ];
+
+  it("applies the use_column directive to every pallet-returning function", () => {
+    expect(variableConflictMigration).toContain("#variable_conflict use_column");
+    for (const signature of patchedFunctions) {
+      expect(variableConflictMigration).toContain(signature);
+    }
+  });
+
+  it("skips non-plpgsql functions so SQL-language routines are left alone", () => {
+    expect(variableConflictMigration).toContain("position('LANGUAGE plpgsql' in def) = 0");
+    expect(variableConflictMigration).not.toContain("directed_putaway_candidates");
+  });
+});
