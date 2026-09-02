@@ -7,6 +7,7 @@ import { installConsoleErrorTelemetry, installToastTelemetry, logErrorTelemetry,
 import { installHabitTracking, recordAction } from "@/lib/habit-tracking";
 import { isActiveWorkInProgress } from "@/lib/active-work";
 import { notifyNewBuildAvailable } from "@/lib/build-notification";
+import { installDailyRefresh } from "@/lib/daily-refresh";
 
 import "./index.css";
 
@@ -141,10 +142,11 @@ if (!isInIframe && !isPreviewHost) {
   const updateSW = registerSW({
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
-      // Poll for updates every 30 minutes
+      // Poll for updates every 5 minutes, so a hot fix is detected quickly even
+      // before the release policy asks for it.
       setInterval(() => {
         registration.update().catch(() => {});
-      }, 30 * 60 * 1000);
+      }, 5 * 60 * 1000);
     },
     onNeedRefresh() {
       // Users who granted notification permission get an OS-level heads-up
@@ -199,6 +201,11 @@ if (!isInIframe && !isPreviewHost) {
       toast.success("Ready to work offline");
     },
   });
+
+  // Once-a-day cache purge + reload, so a tab left open across the night starts
+  // the morning on the published bundle. Self-guarded: it stamps before it
+  // reloads, skips while offline or mid-task, and never runs twice in a day.
+  installDailyRefresh();
 } else {
   // In preview / iframe: aggressively unregister any pre-existing SW
   // and clear caches so the latest build is always served. We do this

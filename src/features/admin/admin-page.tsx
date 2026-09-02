@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationSettingsPanel } from "@/features/shared/notification-settings";
 import { ScannerSettingsPanel } from "@/features/shared/scanner-settings";
+import { ReleaseControlPanel } from "@/features/shared/release-control-panel";
 import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, CircleOff, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, FileText, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, MessageSquare, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, Power, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, Volume2 } from "lucide-react";
 import {
   DndContext,
@@ -2125,6 +2126,7 @@ export function SettingsPage() {
 
         <TabsContent value="environment" className="mt-4 grid gap-6 xl:grid-cols-2">
           <ScannerSettingsPanel />
+          {isDeveloperOrAdmin ? <ReleaseControlPanel /> : null}
           <Card>
             <CardHeader>
               <CardTitle>Environment & Setup</CardTitle>

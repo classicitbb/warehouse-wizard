@@ -84,6 +84,7 @@ import { palletEditBlockedReason, palletOutsideStaging, PUTAWAY_STAGING_LOCATION
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { AiHintFailureAlert } from "@/components/ai-hint-alert";
+import { ReleaseGate } from "@/components/release-gate";
 import { ConnectionRecovery, WhatsNewOnUpdate } from "@/features/shared/app-runtime";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -2750,6 +2751,7 @@ const App = () => (
           <ConnectionRecovery />
           <WhatsNewOnUpdate release={RELEASE_HISTORY[0]} />
           <AiHintFailureAlert />
+          <ReleaseGate />
           <Analytics />
         </FeatureFlagProvider>
       </AuthProvider>

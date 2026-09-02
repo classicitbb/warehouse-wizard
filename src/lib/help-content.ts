@@ -298,14 +298,16 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
       "Open the Warehouse Structure tab for a live tree view of warehouses, zones, aisles, bays, and locations",
       "Launch the warehouse setup wizard or rebuild after a Reset All",
       "Run Reset All with the typed challenge when the environment must be rebuilt",
+      "Use Release control in the Environment tab to require a published build, set the grace period, and see which builds the floor is running",
     ],
     commonMistakes: [
       "Running reset without understanding that warehouse/setup data will be rebuilt",
       "Skipping the wizard after reset",
       "Editing structure without re-printing physical rack/zone labels to match",
+      "Requiring a build before it has finished publishing, so tablets are asked for a version they cannot fetch yet",
     ],
     permissions: "Visible to admins and warehouse managers. Reset is admin-only.",
-    wikiArticleIds: ["settings-reset", "warehouse-setup", "warehouse-structure-tool", "user-management", "netsuite-integration", "label-printing"],
+    wikiArticleIds: ["settings-reset", "release-control", "warehouse-setup", "warehouse-structure-tool", "user-management", "netsuite-integration", "label-printing"],
   },
   help: {
     id: "help",
@@ -383,6 +385,20 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "What Reset Does", content: ["Reset All clears warehouse setup and operational data while preserving users, approvals, and role assignments.", "Warehouse-scoped references are cleared so the environment can be rebuilt safely."] },
       { title: "After Reset", content: ["The next step is to launch the setup wizard and rebuild the warehouse structure.", "Starter operational data can be seeded automatically so the system is usable immediately."] },
+    ],
+  },
+  {
+    id: "release-control",
+    title: "Release Control and Daily Freshness",
+    module: "settings",
+    audience: "Admins and developers",
+    keywords: ["release", "version", "update", "hot fix", "reload", "build", "refresh", "sign out", "stale"],
+    sections: [
+      { title: "Why It Exists", content: ["A tablet left open for a whole shift keeps running the build it started on. Publishing a fix does not, by itself, move that tablet onto it.", "Release control turns a published build into a required one, so open sessions come forward instead of waiting to be closed."] },
+      { title: "Pushing a Hot Fix", content: ["Publish the build as normal, wait for it to finish, then open Settings → Environment → Release control and press Force everyone onto this build.", "The button can only ever require the build the admin is currently running, so it is not possible to demand a version that has not shipped.", "Set the grace period first (default 10 minutes) and add a short message if operators should know what changed."] },
+      { title: "What Operators See", content: ["A banner appears at the bottom of the screen: “New version required — reloading in 9:58”, with a Reload now button.", "The reload waits until the scan or confirm in progress is finished, and holds off entirely while the device is offline.", "If nothing is required there is no banner and no delay — operators go straight to work."] },
+      { title: "Checking It Landed", content: ["The card lists how many sessions are running which build, from a heartbeat each device sends every few minutes.", "Sessions active in the last 15 minutes are counted. Watch the old version drain to zero rather than assuming it did.", "A device that reloads twice and is still behind stops reloading and shows a report-this message, so a bad publish cannot put the floor in a reload loop."] },
+      { title: "Morning Refresh and Nightly Sign-Out", content: ["Once a day after the configured hour (default 04:00 local), a tab that has been open since before that hour clears its caches and reloads once onto the published build.", "A device switched on after the hour is already current, so it is left alone — no second start-up for the operator.", "Nightly sign-out is optional. With it on, a device that sat idle across the cutoff is signed out on next load, so the shift begins with a fresh login and a fresh bundle."] },
     ],
   },
   {
