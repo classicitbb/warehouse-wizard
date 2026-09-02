@@ -1790,11 +1790,15 @@ export function WarehouseStructureTab() {
     staleTime: 30_000,
   });
 
+  // Only loaded once the operator actually searches — the full location list
+  // is a heavy read and the tree itself renders zone by zone on expand.
   const { data: searchLocations = [] } = useQuery({
     queryKey: ["tree", "search-locations"],
     queryFn: fetchTreeSearchLocations,
+    enabled: normalizeTreeSearch(filter).length > 0,
     staleTime: 60_000,
   });
+
 
   // Settings opens on Warehouse Structure, so expose the top-level layout
   // immediately instead of making operators rediscover each warehouse.

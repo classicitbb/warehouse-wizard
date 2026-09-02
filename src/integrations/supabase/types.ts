@@ -4892,6 +4892,13 @@ export type Database = {
         }
         Returns: Json
       }
+      product_quantity_totals: {
+        Args: never
+        Returns: {
+          product_id: string
+          total_quantity: number
+        }[]
+      }
       purge_expired_system_log_archive: { Args: never; Returns: number }
       reclaim_stale_integration_sync_jobs: { Args: never; Returns: number }
       reconcile_location_occupancy: {
