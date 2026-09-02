@@ -140,6 +140,7 @@ import {
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
+import { RecordCount } from "@/components/record-count";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
@@ -627,6 +628,19 @@ export function EmailLogPage() {
     placeholderData: (previous) => previous,
   });
   const hasMoreEmails = paging.sync({ loadedCount: (rows as any[]).length, isFetching, enabled: !isFiltering });
+  // Only needed while browsing — a filtered view renders every match it holds,
+  // so the rendered count is already the number to report.
+  const { data: totalEmailCount } = useQuery({
+    queryKey: ["email-send-log", "count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("email_send_log" as any)
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !isFiltering,
+  });
 
   const filtered = (rows as any[]).filter((row) => {
     if (status !== "all" && row.status !== status) return false;
@@ -636,6 +650,7 @@ export function EmailLogPage() {
     }
     return true;
   });
+  const renderedEmails = filtered.slice(0, isFiltering ? filtered.length : paging.limit);
   const counts = (rows as any[]).reduce((acc: any, row: any) => { acc.total += 1; acc[row.status] = (acc[row.status] ?? 0) + 1; return acc; }, { total: 0 });
   const statusVariant = (s: string): "default" | "secondary" | "destructive" | "outline" =>
     s === "sent" ? "default" : s === "failed" || s === "dlq" || s === "bounced" ? "destructive" : s === "pending" || s === "rate_limited" ? "secondary" : "outline";
@@ -675,7 +690,14 @@ export function EmailLogPage() {
           </Select>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" className="pl-10" placeholder="Search recipient, template, message id, error…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input type="search" className="pl-10 pr-28" placeholder="Search recipient, template, message id, error…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <RecordCount
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              isLoading={isLoading}
+              isFiltering={isFiltering}
+              visible={renderedEmails.length}
+              total={totalEmailCount ?? null}
+            />
           </div>
         </CardContent>
       </Card>
@@ -698,7 +720,7 @@ export function EmailLogPage() {
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading email log…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No email log entries found.</TableCell></TableRow>
-                ) : filtered.slice(0, isFiltering ? filtered.length : paging.limit).map((row: any) => (
+                ) : renderedEmails.map((row: any) => (
                   <TableRow key={row.id} className="even:bg-muted/30 align-top">
                     <TableCell><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{row.template_name}</TableCell>

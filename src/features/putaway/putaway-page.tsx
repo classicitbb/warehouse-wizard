@@ -131,6 +131,7 @@ import {
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
+import { RecordCount } from "@/components/record-count";
 import { HintButton } from "@/components/hint-button";
 import { type ProductSearchHandle } from "@/components/product-search";
 
@@ -991,18 +992,25 @@ export function PutawayTasksPage() {
                       }}
                       placeholder="Search pallet, SKU, name, task #"
                       aria-label="Search open Put-Away tasks"
-                      className="h-9 pl-8 pr-8 text-sm"
+                      className="h-9 pl-8 pr-20 text-sm"
                     />
-                    {taskSearch ? (
-                      <button
-                        type="button"
-                        aria-label="Clear task search"
-                        className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                        onClick={() => setTaskSearch("")}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    ) : null}
+                    <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                      <RecordCount
+                        isLoading={isLoading}
+                        isFiltering={Boolean(normalizedTaskSearch)}
+                        visible={filteredPendingTasks.length}
+                      />
+                      {taskSearch ? (
+                        <button
+                          type="button"
+                          aria-label="Clear task search"
+                          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onClick={() => setTaskSearch("")}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </>
               ) : null}
@@ -1020,9 +1028,7 @@ export function PutawayTasksPage() {
                 Return tasks to Receiving
               </Button>
               <Badge variant="secondary" className="text-sm">
-                {!selectedTask && normalizedTaskSearch
-                  ? `${filteredPendingTasks.length} of ${pendingTasks.length} pending`
-                  : `${pendingTasks.length} pending`}
+                {pendingTasks.length} pending
               </Badge>
             </div>
           ) : null}

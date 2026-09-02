@@ -137,6 +137,7 @@ import {
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
+import { RecordCount } from "@/components/record-count";
 import { HintButton } from "@/components/hint-button";
 import { type ProductSearchHandle } from "@/components/product-search";
 
@@ -455,10 +456,18 @@ export function PickListsPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              className="pl-9"
+              className="pl-9 pr-24"
               value={pickSearch}
               onChange={(event) => setPickSearch(event.target.value)}
               placeholder="Search pick lists or barcodes"
+            />
+            {/* Counts both lanes on the tab — a term that only hits a completed
+                list still reports a match, so the collapsed section gets opened
+                instead of reading as "nothing found". */}
+            <RecordCount
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              isFiltering={Boolean(pickSearchTerm)}
+              visible={active.length + done.length}
             />
           </div>
           <BarcodeScanButton title="Scan pick list, pallet, or product barcode" onScan={handlePickHeaderScan} />

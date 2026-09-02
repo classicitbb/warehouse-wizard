@@ -34,6 +34,7 @@ import { describeReportContext } from "@/features/copilot/report-context";
 import { formatDate } from "@/lib/wms-core";
 import { cn } from "@/lib/utils";
 
+import { RecordCount } from "@/components/record-count";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -311,7 +312,13 @@ export function SupportRequestsPanel() {
                 placeholder="Search by ticket number, title, module, or reporter…"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="pl-9"
+                className="pl-9 pr-24"
+              />
+              <RecordCount
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                isLoading={isLoading}
+                isFiltering={Boolean(filter.trim()) || statusFilter !== "all"}
+                visible={filteredTickets.length}
               />
             </div>
           </div>

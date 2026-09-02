@@ -140,6 +140,7 @@ import {
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
+import { RecordCount } from "@/components/record-count";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
@@ -730,15 +731,13 @@ export function ResourcePage({
           value={filterQuery}
           onChange={(e) => setFilterQuery(e.target.value)}
         />
-        {filterQuery ? (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {filteredData.length} results
-          </span>
-        ) : (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">
-            {isLoading ? "" : usesIncrementalTable ? `${formatNumber(tableData.length)} of ${formatNumber(totalRecordCount ?? tableData.length)} loaded` : `${data.length} rows`}
-          </span>
-        )}
+        <RecordCount
+          className="absolute right-3 top-1/2 -translate-y-1/2"
+          isLoading={isLoading}
+          isFiltering={Boolean(filterQuery)}
+          visible={filteredData.length}
+          total={usesIncrementalTable ? totalRecordCount ?? tableData.length : null}
+        />
       </div>
 
       <Card className="flex min-h-0 flex-1 flex-col">

@@ -128,6 +128,7 @@ import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton, type ScanTelemetryEvent } from "@/components/barcode-scan-button";
 import { HintButton } from "@/components/hint-button";
+import { RecordCount } from "@/components/record-count";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
@@ -455,7 +456,7 @@ export function ReceivingPage() {
   const currentWarehouseId = shipmentForm.warehouse_id || defaultWarehouseId || (warehouses.length === 1 ? warehouses[0].id : "");
   const activeWarehouse = warehouses.find((item: any) => item.id === (shipmentForm.warehouse_id || currentWarehouseId));
   const activeClient = clients.find((item: any) => item.id === shipmentForm.client_id);
-  const { data: drafts = [], refetch: refetchDrafts } = useQuery({
+  const { data: drafts = [], refetch: refetchDrafts, isLoading: draftsLoading } = useQuery({
     queryKey: ["draft-receipts", currentWarehouseId],
     queryFn: () => listDraftReceipts(currentWarehouseId),
     enabled: Boolean(currentWarehouseId),
@@ -1317,10 +1318,16 @@ export function ReceivingPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
-                className="pl-9"
+                className="pl-9 pr-24"
                 value={draftSearch}
                 onChange={(event) => setDraftSearch(event.target.value)}
                 placeholder="Search container, PO, pallet, SKU, product, receipt"
+              />
+              <RecordCount
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                isLoading={draftsLoading}
+                isFiltering={Boolean(draftSearchTerm)}
+                visible={visibleDrafts.length}
               />
             </div>
             <BarcodeScanButton title="Scan container, PO, or pallet" enableTextRecognition onScan={applyDraftSearchScan} />

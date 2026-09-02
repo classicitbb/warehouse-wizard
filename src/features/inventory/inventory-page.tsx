@@ -115,6 +115,7 @@ import {
   receiveTransfer,
   resolveSystemLog,
   searchInventory,
+  countInventory,
   setProfileActive,
   snapshotRecordCounts,
   updateProfileDetails,
@@ -145,6 +146,7 @@ import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { HintButton } from "@/components/hint-button";
+import { RecordCount } from "@/components/record-count";
 import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
@@ -292,6 +294,22 @@ export function InventorySearchPage() {
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
   const loadMoreSentinelRef = paging.sentinelRef;
 
+  // A typed term or a structure scope is matched client-side over every
+  // matching row, so the rendered count is already the exact total there and
+  // the server count is only needed while browsing.
+  const isNarrowedSearch = Boolean(searchTerm.trim()) || Boolean(structureScopeLabel);
+  const { data: totalRecordCount } = useQuery({
+    queryKey: ["inventory-search-count", status, warehouseId, ageBucket, expiryWindow, includeHistoric],
+    queryFn: () => countInventory({
+      status,
+      warehouseId: warehouseId || undefined,
+      ageBucket: ageBucket as any,
+      expiryWindow: expiryWindow as any,
+      includeHistoric,
+    }),
+    enabled: !isNarrowedSearch,
+  });
+
 
 
   useEffect(() => {
@@ -381,16 +399,25 @@ export function InventorySearchPage() {
             <div className="flex min-w-0 flex-1 items-center gap-2 sm:min-w-[17rem]">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input type="search" className="h-11 min-w-0 pl-10 pr-20" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value.toUpperCase())} placeholder="Search SKU, pallet, container, PO, or location" />
-                <Button
-                  type="button"
-                  className="absolute right-2 top-1/2 h-8 -translate-y-1/2 px-2 text-xs"
-                  variant="ghost"
-                  onClick={clearInventoryFilters}
-                  disabled={!hasInventoryFilters}
-                >
-                  Clear
-                </Button>
+                <Input type="search" className="h-11 min-w-0 pl-10 pr-20 sm:pr-48" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value.toUpperCase())} placeholder="Search SKU, pallet, container, PO, or location" />
+                <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                  <RecordCount
+                    className="hidden sm:inline"
+                    isLoading={isLoading}
+                    isFiltering={isNarrowedSearch}
+                    visible={tableData.length}
+                    total={totalRecordCount ?? null}
+                  />
+                  <Button
+                    type="button"
+                    className="h-8 px-2 text-xs"
+                    variant="ghost"
+                    onClick={clearInventoryFilters}
+                    disabled={!hasInventoryFilters}
+                  >
+                    Clear
+                  </Button>
+                </div>
               </div>
               <BarcodeScanButton
                 className="h-11 w-20 sm:w-24"
@@ -399,6 +426,15 @@ export function InventorySearchPage() {
               />
             </div>
           </div>
+          {/* The scan button leaves no room inside the field on a handheld, so
+              the same count moves onto its own line there. */}
+          <RecordCount
+            className="sm:hidden"
+            isLoading={isLoading}
+            isFiltering={isNarrowedSearch}
+            visible={tableData.length}
+            total={totalRecordCount ?? null}
+          />
           {structureScopeLabel ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Showing contents of</span>

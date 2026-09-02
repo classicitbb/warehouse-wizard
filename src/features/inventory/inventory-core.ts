@@ -5,6 +5,7 @@ import {
   getStoredPalletCounts,
   getStoredPalletCount,
   isRetiredInventoryStatus,
+  RETIRED_INVENTORY_STATUSES,
   hasVisibleInventoryQuantity,
   DB_RETIRED_INVENTORY_STATUS_FILTER,
   fetchAllRows,
@@ -198,6 +199,78 @@ async function findOrphanPalletRows(term: string, knownPalletIds: Set<string>) {
     }));
 }
 
+/** The filters Postgres can apply. Shared so the row query and the total-row
+ *  count can never drift apart and report two different tables. */
+type InventoryServerFilters = {
+  warehouseId?: string;
+  status?: InventoryStatus | "all";
+  ageBucket?: InventoryAgeBucket | "";
+  expiryWindow?: InventoryExpiryWindow | "";
+};
+
+function applyInventoryServerFilters(query: any, filters: InventoryServerFilters) {
+  if (filters.warehouseId) {
+    query = query.eq("warehouse_id", filters.warehouseId);
+  }
+  if (filters.status && filters.status !== "all") {
+    query = query.eq("status", filters.status);
+  }
+  if (filters.ageBucket) {
+    const minimumDays = filters.ageBucket === "12m" ? 365 : filters.ageBucket === "6m" ? 180 : 90;
+    query = query.lte("received_at", new Date(Date.now() - minimumDays * 24 * 60 * 60 * 1000).toISOString());
+  }
+  if (filters.expiryWindow) {
+    const maximumDays = filters.expiryWindow === "30d" ? 30 : 60;
+    const today = new Date().toISOString().slice(0, 10);
+    const cutoff = new Date(Date.now() + maximumDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    query = query.gte("expiry_date", today).lte("expiry_date", cutoff);
+  }
+  return query;
+}
+
+/** PostgREST `in` list matching `isRetiredInventoryStatus`, built from the same
+ *  set so adding a status there also excludes it from the browse count. */
+const RETIRED_STATUS_IN_LIST = `(${Array.from(RETIRED_INVENTORY_STATUSES).join(",")})`;
+
+/** `col <> value` is NULL — and therefore false — for a NULL column, so every
+ *  "is not X" filter has to spell the NULL case out. */
+function isNot(column: string, value: string) {
+  return `${column}.is.null,${column}.neq.${value}`;
+}
+
+/**
+ * How many inventory rows the operator could reach with these filters, without
+ * transferring them. Mirrors the `isVisibleRow` rules `searchInventory` applies
+ * client-side, so "50 of 3,704 loaded" counts the same rows the table renders.
+ *
+ * Search terms and structure scopes are deliberately not accepted: those are
+ * matched client-side over the full result set, where the exact match count is
+ * already in hand.
+ */
+export async function countInventory(filters: InventoryServerFilters & { includeHistoric?: boolean }) {
+  const includeHistoric = Boolean(filters.includeHistoric);
+  if (!includeHistoric && filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) {
+    return 0;
+  }
+  let query = applyInventoryServerFilters(
+    db("inventory_search_view").select("inventory_balance_id", { count: "exact", head: true }),
+    filters,
+  );
+  // In-flight corrections are hidden either way — they duplicate the pallet
+  // being corrected.
+  query = query.or(isNot("correction_state", "pending")).or(isNot("pallet_correction_state", "pending"));
+  if (!includeHistoric) {
+    query = query
+      .or(isNot("correction_state", "superseded"))
+      .or(isNot("pallet_correction_state", "superseded"))
+      .or(`status.is.null,status.not.in.${RETIRED_STATUS_IN_LIST}`)
+      .or("available_quantity.gt.0,quantity.gt.0");
+  }
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function searchInventory(filters: {
   search?: string;
   warehouseId?: string;
@@ -223,26 +296,7 @@ export async function searchInventory(filters: {
   if (!includeHistoric && filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) {
     return [];
   }
-  let query = db("inventory_search_view").select("*");
-
-  if (filters.warehouseId) {
-    query = query.eq("warehouse_id", filters.warehouseId);
-  }
-
-  if (filters.status && filters.status !== "all") {
-    query = query.eq("status", filters.status);
-  }
-
-  if (filters.ageBucket) {
-    const minimumDays = filters.ageBucket === "12m" ? 365 : filters.ageBucket === "6m" ? 180 : 90;
-    query = query.lte("received_at", new Date(Date.now() - minimumDays * 24 * 60 * 60 * 1000).toISOString());
-  }
-  if (filters.expiryWindow) {
-    const maximumDays = filters.expiryWindow === "30d" ? 30 : 60;
-    const today = new Date().toISOString().slice(0, 10);
-    const cutoff = new Date(Date.now() + maximumDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    query = query.gte("expiry_date", today).lte("expiry_date", cutoff);
-  }
+  const query = applyInventoryServerFilters(db("inventory_search_view").select("*"), filters);
 
   // In-flight corrections ('pending') stay hidden either way — showing them
   // duplicates the pallet being corrected. 'superseded' rows are history, so
