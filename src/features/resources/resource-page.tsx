@@ -339,25 +339,22 @@ export function ResourcePage({
     queryKey: ["product-qty-totals"],
     enabled: isProducts,
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)("inventory_balances")
-        .select("product_id, available_quantity, quantity")
-        .eq("status", "available")
-        .gt("available_quantity", 0)
-        .not("location_id", "is", null)
-        .limit(10000);
+      // Aggregated server-side: reading every inventory_balances row here used
+      // to blow past the database statement timeout on large warehouses.
+      const { data, error } = await (supabase as any).rpc("product_quantity_totals");
       if (error) throw error;
-      return data as Array<{ product_id: string; available_quantity: number | null; quantity: number | null }>;
+      return (data ?? []) as Array<{ product_id: string; total_quantity: number | null }>;
     },
   });
   const productQtyMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of productQtyRows) {
-      const qty = Number(r.available_quantity ?? r.quantity ?? 0);
       if (!r.product_id) continue;
-      m.set(r.product_id, (m.get(r.product_id) ?? 0) + qty);
+      m.set(r.product_id, Number(r.total_quantity ?? 0));
     }
     return m;
   }, [productQtyRows]);
+
 
   const hasProductRef = resource.fields.some((f) => f.name === "product_id");
   const { data: productOptions = [] } = useQuery({

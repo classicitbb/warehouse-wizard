@@ -474,7 +474,11 @@ export async function fetchOptions(
     products: () => listRecords("products", "*", undefined, { includeHidden, archiveField: "active" }),
     packagingProfiles: () =>
       listRecords("product_packaging_profiles", "*", undefined, { includeHidden, archiveField: "is_hidden" }),
-    pallets: () => listRecords("pallets"),
+    // Only the transfer picker consumes this set — a narrow projection keeps
+    // the read well inside the database statement timeout.
+    pallets: () =>
+      listRecords("pallets", "id, pallet_barcode, pallet_code, status, current_warehouse_id, current_location_id, is_stored"),
+
     profiles: () => listRecords("profiles", "*", undefined, includeHidden ? undefined : { archiveField: "active" }),
     roles: () => listRecords("roles"),
     permissionFeatures: () => listRecords("permission_features", "*", { column: "sort_order" }),
