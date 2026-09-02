@@ -21,6 +21,7 @@ import {
   Bot,
   Boxes,
   Building2,
+  Camera,
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
@@ -3186,15 +3187,27 @@ export function BinCapacityBar({ locationCode }: { locationCode: string; taskId?
   );
 }
 
+/**
+ * Bay picker shared by Put-away and Location Moves.
+ *
+ * `zoneFilter` and `onScanInstead` are optional: Put-away passes both (it knows
+ * which zone the operator is working and offers a jump back to the camera),
+ * Location Moves passes neither and gets the unfiltered list with no Scan
+ * button. Both screens get the same touch targets.
+ */
 export function WarehouseBayBrowserDialog({
   open,
   warehouseId,
+  zoneFilter,
   onSelectBay,
+  onScanInstead,
   onClose,
 }: {
   open: boolean;
   warehouseId: string;
+  zoneFilter?: string;
   onSelectBay: (bayCode: string) => void;
+  onScanInstead?: () => void;
   onClose: () => void;
 }) {
   const { data: bays = [], isLoading, error } = useQuery<WarehouseBayGroup[]>({
@@ -3213,6 +3226,8 @@ export function WarehouseBayBrowserDialog({
       else next.add(zk);
       return next;
     });
+
+  const normalizedZoneFilter = normalizeScannerText(zoneFilter);
 
   // Group by zone (ordered by zone name), then by aisle within each zone
   const zoneGroups = useMemo(() => {
@@ -3236,12 +3251,36 @@ export function WarehouseBayBrowserDialog({
       }));
   }, [bays]);
 
+  // Narrow to the zone the operator is already working in, but never strand
+  // them on an empty dialog: an unmatched filter falls back to every zone.
+  const visibleZoneGroups = useMemo(() => {
+    if (!normalizedZoneFilter) return zoneGroups;
+    const matches = zoneGroups.filter((zone) => {
+      const zoneKey = normalizeScannerText(zone.zoneKey);
+      const zoneName = normalizeScannerText(zone.zoneName);
+      return zoneKey === normalizedZoneFilter ||
+        zoneKey.startsWith(normalizedZoneFilter) ||
+        zoneName.includes(normalizedZoneFilter);
+    });
+    return matches.length > 0 ? matches : zoneGroups;
+  }, [normalizedZoneFilter, zoneGroups]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Select a bay</DialogTitle>
-          <DialogDescription>Tap a bay to load its locations into the scan field.</DialogDescription>
+          <div className="flex items-start justify-between gap-3 pr-6">
+            <div>
+              <DialogTitle>Select a bay</DialogTitle>
+              <DialogDescription>Tap a bay to load its locations into the scan field.</DialogDescription>
+            </div>
+            {onScanInstead ? (
+              <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onScanInstead}>
+                <Camera className="mr-2 h-4 w-4" />
+                Scan
+              </Button>
+            ) : null}
+          </div>
         </DialogHeader>
         {isLoading && (
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
@@ -3258,7 +3297,7 @@ export function WarehouseBayBrowserDialog({
           <p className="py-4 text-center text-sm text-muted-foreground">No rack locations configured for this warehouse.</p>
         )}
         <div className="divide-y divide-border/40">
-          {zoneGroups.map((zone) => {
+          {visibleZoneGroups.map((zone) => {
             const collapsed = collapsedZones.has(zone.zoneKey);
             return (
               <div key={zone.zoneKey} className="py-3 first:pt-1">
@@ -3304,7 +3343,7 @@ export function WarehouseBayBrowserDialog({
                                 disabled={isFull}
                                 onClick={() => { onSelectBay(bay.bayCode); onClose(); }}
                                 className={cn(
-                                  "flex flex-col gap-1 rounded-md border p-2.5 text-left text-xs transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                                  "flex min-h-[4.25rem] min-w-[3.75rem] flex-col gap-1 rounded-md border p-3 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                                   isFull
                                     ? "cursor-not-allowed border-muted bg-muted/40 opacity-60"
                                     : "border-border bg-card hover:bg-secondary/60",
@@ -3482,18 +3521,30 @@ export function LocationOccupancyFixDialog({
   );
 }
 
+/**
+ * Bin grid for one bay, shared by Put-away and Location Moves.
+ *
+ * `onContentReady` fires once the grid has data (or has failed) so a caller can
+ * scroll it into view; Put-away uses it, Location Moves renders in place and
+ * omits it. Both screens get the per-cell occupancy-fix affordance.
+ */
 export function BayOccupancyGrid({
   locationCode,
   selectedLocationCode,
   onSelect,
+  onContentReady,
 }: {
   locationCode: string;
   selectedLocationCode?: string;
   onSelect: (locationCode: string) => void;
+  onContentReady?: () => void;
 }) {
   const isBayScan = isBaySelectorCode(locationCode);
   const selectedLocation = selectedLocationCode?.trim().toUpperCase() ?? "";
   const [fixLocation, setFixLocation] = useState<string | null>(null);
+  // Held in a ref so an inline arrow from the caller does not re-fire the effect.
+  const onContentReadyRef = useRef(onContentReady);
+  onContentReadyRef.current = onContentReady;
   const { data, error, isLoading } = useQuery({
     queryKey: ["bay-occupancy", locationCode],
     queryFn: () => getBayOccupancy(locationCode),
@@ -3501,6 +3552,11 @@ export function BayOccupancyGrid({
     staleTime: 0,
   });
 
+  useEffect(() => {
+    if (isLoading || (!data && !error)) return;
+    const timer = setTimeout(() => onContentReadyRef.current?.(), 0);
+    return () => clearTimeout(timer);
+  }, [data, error, isLoading, locationCode]);
 
   if (isLoading && !data) {
     return (
