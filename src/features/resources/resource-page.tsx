@@ -351,11 +351,14 @@ export function ResourcePage({
     queryFn: async () => {
       // Aggregated server-side: reading every inventory_balances row here used
       // to blow past the database statement timeout on large warehouses.
-      const { data, error } = await (supabase as any).rpc("product_quantity_totals");
-      if (error) throw error;
-      return (data ?? []) as Array<{ product_id: string; total_quantity: number | null }>;
+      // Paged with .range() because the API caps a single response at 1000 rows,
+      // which silently truncated totals once the catalogue passed 1000 products.
+      return fetchAllRows<{ product_id: string; total_quantity: number | null }>((from, to) =>
+        (supabase as any).rpc("product_quantity_totals").range(from, to),
+      );
     },
   });
+
   const productQtyMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of productQtyRows) {
