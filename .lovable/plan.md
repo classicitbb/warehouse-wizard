@@ -74,6 +74,10 @@ than per chunk.
   `coalesce(quantity, available_quantity, 0)` grouped by product, filtered to
   `status not in ('shipped','missing')`. Function stays `STABLE`, keeps its
   `search_path`, and remains readable by the same roles.
+- `listRecords` gains a chunked mode: loop `.range(offset, offset + 999)` until a
+  page returns fewer than 1,000 rows, concatenating results. This bypasses the
+  PostgREST 1,000-row response cap that currently truncates the ~4,000 products.
+  Applies to the products full read, quantity totals, and export.
 - `src/features/resources/resource-page.tsx`: add `sort` and `columnFilters` state
   scoped to the products table, applied after the existing `filteredData` memo and
   before rendering; the memo also feeds label/export paths so counts stay consistent.
