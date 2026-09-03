@@ -226,6 +226,164 @@ import {
   normalizeScannerText,
 } from "@/features/shared/ui-shared";
 
+/** Products table header cell: click to sort, funnel icon to filter. */
+function ProductColumnHeader({
+  columnKey,
+  label,
+  kind,
+  options,
+  align = "left",
+  className,
+  sortState,
+  setSortState,
+  filter,
+  setFilter,
+}: {
+  columnKey: string;
+  label: string;
+  kind: "text" | "number" | "select" | "boolean";
+  options?: Array<{ label: string; value: string }>;
+  align?: "left" | "right";
+  className?: string;
+  sortState: SortState;
+  setSortState: Dispatch<SetStateAction<SortState>>;
+  filter?: ColumnFilter;
+  setFilter: (next: ColumnFilter | null) => void;
+}) {
+  const active = sortState?.key === columnKey ? sortState.direction : null;
+  const filtered = !isFilterEmpty(filter);
+  return (
+    <TableHead className={cn("h-8 px-2 py-1 text-xs", align === "right" && "text-right", className)}>
+      <div className={cn("flex items-center gap-1", align === "right" && "justify-end")}>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+          onClick={() => setSortState((prev) => nextSortState(prev, columnKey))}
+          title={`Sort by ${label}`}
+        >
+          <span className="truncate">{label}</span>
+          {active === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : active === "desc" ? (
+            <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="h-3 w-3 opacity-30" />
+          )}
+        </button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Filter ${label}`}
+              title={`Filter ${label}`}
+              className={cn("shrink-0", filtered ? "text-primary" : "text-muted-foreground opacity-60 hover:opacity-100")}
+            >
+              <Filter className={cn("h-3 w-3", filtered && "fill-current")} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-56 space-y-2 p-3">
+            <p className="text-xs font-medium">{label}</p>
+            {kind === "text" ? (
+              <Input
+                autoFocus
+                className="h-8 text-xs"
+                placeholder="Contains…"
+                value={filter?.kind === "text" ? filter.value : ""}
+                onChange={(event) => setFilter({ kind: "text", value: event.target.value })}
+              />
+            ) : null}
+            {kind === "number" ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  className="h-8 text-xs"
+                  type="number"
+                  placeholder="Min"
+                  value={filter?.kind === "number" && filter.min != null ? String(filter.min) : ""}
+                  onChange={(event) =>
+                    setFilter({
+                      kind: "number",
+                      min: event.target.value === "" ? null : Number(event.target.value),
+                      max: filter?.kind === "number" ? filter.max ?? null : null,
+                    })
+                  }
+                />
+                <Input
+                  className="h-8 text-xs"
+                  type="number"
+                  placeholder="Max"
+                  value={filter?.kind === "number" && filter.max != null ? String(filter.max) : ""}
+                  onChange={(event) =>
+                    setFilter({
+                      kind: "number",
+                      min: filter?.kind === "number" ? filter.min ?? null : null,
+                      max: event.target.value === "" ? null : Number(event.target.value),
+                    })
+                  }
+                />
+              </div>
+            ) : null}
+            {kind === "select" ? (
+              <div className="space-y-1.5">
+                {(options ?? []).map((option) => {
+                  const selected = filter?.kind === "select" ? filter.values.includes(option.value) : false;
+                  return (
+                    <label key={option.value} className="flex items-center gap-2 text-xs">
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={(checked) => {
+                          const current = filter?.kind === "select" ? filter.values : [];
+                          const values = checked
+                            ? Array.from(new Set([...current, option.value]))
+                            : current.filter((value) => value !== option.value);
+                          setFilter({ kind: "select", values });
+                        }}
+                      />
+                      {option.label}
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+            {kind === "boolean" ? (
+              <div className="flex gap-1">
+                {[
+                  { label: "Any", value: null },
+                  { label: "Yes", value: true },
+                  { label: "No", value: false },
+                ].map((choice) => {
+                  const selected =
+                    choice.value === null ? filter == null : filter?.kind === "boolean" && filter.value === choice.value;
+                  return (
+                    <Button
+                      key={choice.label}
+                      size="sm"
+                      variant={selected ? "default" : "outline"}
+                      className="h-7 flex-1 px-2 text-xs"
+                      onClick={() =>
+                        setFilter(choice.value === null ? null : { kind: "boolean", value: choice.value })
+                      }
+                    >
+                      {choice.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-full px-2 text-xs text-muted-foreground"
+              onClick={() => setFilter(null)}
+            >
+              Clear
+            </Button>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </TableHead>
+  );
+}
+
 export function ResourcePage({
   resource,
 }: {
