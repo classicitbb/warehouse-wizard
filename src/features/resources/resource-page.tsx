@@ -256,15 +256,18 @@ export function ResourcePage({
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
   const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
-  const paging = useInfiniteRows({ resetKeys: [resource.table, includeHidden, activeFilter] });
+  // A search OR any column filter/quick link reads the whole permitted set, so a
+  // match is never hidden past the current page.
+  const fullReadActive = Boolean(activeFilter) || hasColumnFilters;
+  const paging = useInfiniteRows({ resetKeys: [resource.table, includeHidden, activeFilter, hasColumnFilters] });
   const visibleRecordLimit = paging.limit;
   const { data = [], isLoading, isFetching } = useQuery({
-    queryKey: [resource.table, includeHidden, usesIncrementalTable && !activeFilter ? visibleRecordLimit : "all"],
+    queryKey: [resource.table, includeHidden, usesIncrementalTable && !fullReadActive ? visibleRecordLimit : "all"],
     queryFn: () => {
       const options = { includeHidden, archiveField: resource.archiveField };
       // An explicit search intentionally reads the full permitted resource set,
       // so a matching product, zone, or location is never hidden past page 50.
-      if (usesIncrementalTable && !activeFilter) {
+      if (usesIncrementalTable && !fullReadActive) {
         return listRecordsPage(resource.table, resource.select ?? "*", resource.orderBy, { ...options, limit: visibleRecordLimit + 1 });
       }
       return listRecords(resource.table, resource.select ?? "*", resource.orderBy, options);
@@ -275,14 +278,15 @@ export function ResourcePage({
   const hasMoreRecords = paging.sync({
     loadedCount: data.length,
     isFetching,
-    enabled: usesIncrementalTable && !activeFilter,
+    enabled: usesIncrementalTable && !fullReadActive,
   });
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
   const { data: totalRecordCount } = useQuery({
     queryKey: [resource.table, includeHidden, "count"],
     queryFn: () => countRecords(resource.table, { includeHidden, archiveField: resource.archiveField }),
-    enabled: usesIncrementalTable && !activeFilter,
+    enabled: usesIncrementalTable,
   });
+
   const { data: locationRowsForLabels = [] } = useQuery({
     queryKey: ["locations", "label-source"],
     enabled: resource.table === "zones",
