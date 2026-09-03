@@ -52,11 +52,21 @@ A row of one-tap presets beneath the search bar:
 Each toggles the matching column filter, so they are visible and removable like any
 other filter.
 
-## 5. Full result set while filtering
+## 5. Full result set while filtering (all 4,000+ rows, not 1,000)
 
 Products already switch from paged loading to a full read when the search box is in
 use; the same applies when any column filter or quick link is active, so a filtered
 count is the true count and never capped at the current page.
+
+The "full read" itself is currently capped at 1,000 rows by the backend's hard
+response limit, which is why only about 1,000 of ~4,000 products appear. The full
+read becomes a chunked fetch: repeated 1,000-row pages are requested back to back
+until the last short page arrives, then merged into one list. The same chunked
+reader is used for the quantity totals and for exports, so counts, filters, sorts,
+and CSV output all cover the whole catalogue. A progress indicator shows while the
+chunks load, and the quantity aggregate is fetched once per catalogue load rather
+than per chunk.
+
 
 ## Technical notes
 
