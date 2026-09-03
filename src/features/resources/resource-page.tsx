@@ -225,6 +225,11 @@ export function ResourcePage({
   const [includeHidden, setIncludeHidden] = useState(false);
   const [editRecord, setEditRecord] = useState<Record<string, unknown> | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFilterMap>({});
+  const [belowMinimumOnly, setBelowMinimumOnly] = useState(false);
+  const [sortState, setSortState] = useState<SortState>(null);
+  const hasColumnFilters = Object.keys(columnFilters).length > 0 || belowMinimumOnly;
+
   
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
   const [deleteRecord, setDeleteRecord] = useState<Record<string, unknown> | null>(null);
