@@ -473,7 +473,7 @@ export function ResourcePage({
     return zone?.id;
   }, [data, locationWizardDefaultWarehouseId, zoneOptions]);
 
-  const filteredData = useMemo(() => {
+  const searchedData = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
     if (!q) return tableData;
     return tableData.filter((row: Record<string, unknown>) =>
@@ -484,6 +484,15 @@ export function ResourcePage({
       })
     );
   }, [filterQuery, resource.fields, tableData]);
+  const filteredData = useMemo(() => {
+    if (!isProducts) return searchedData;
+    let rows = filterProductRows(searchedData as Array<Record<string, unknown>>, columnFilters, productQtyMap);
+    if (belowMinimumOnly) {
+      rows = rows.filter((row) => isBelowMinimumStock(row, productQtyMap));
+    }
+    return sortProductRows(rows, sortState, productQtyMap);
+  }, [belowMinimumOnly, columnFilters, isProducts, productQtyMap, searchedData, sortState]);
+
   const tableFields = useMemo(() => {
     if (resource.table === "products") {
       return resource.fields.filter((field) =>
