@@ -775,6 +775,100 @@ export function ResourcePage({
         />
       </div>
 
+      {isProducts ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PRODUCT_QUICK_LINKS.map((link) => {
+            const active = Object.entries(link.filters).every(
+              ([key, filter]) => JSON.stringify(columnFilters[key]) === JSON.stringify(filter),
+            );
+            return (
+              <Button
+                key={link.id}
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => {
+                  setColumnFilters((prev) => {
+                    const next = { ...prev };
+                    if (active) {
+                      for (const key of Object.keys(link.filters)) delete next[key];
+                      return next;
+                    }
+                    return { ...next, ...link.filters };
+                  });
+                  if (!active && link.sort) setSortState(link.sort);
+                }}
+              >
+                {link.label}
+              </Button>
+            );
+          })}
+          <Button
+            size="sm"
+            variant={belowMinimumOnly ? "default" : "outline"}
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setBelowMinimumOnly((prev) => !prev)}
+          >
+            Below minimum stock
+          </Button>
+          {hasColumnFilters || sortState ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2.5 text-xs text-muted-foreground"
+              onClick={() => {
+                setColumnFilters({});
+                setBelowMinimumOnly(false);
+                setSortState(null);
+              }}
+            >
+              Clear all
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isProducts && hasColumnFilters ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {belowMinimumOnly ? (
+            <Badge variant="secondary" className="gap-1 text-xs font-normal">
+              Below minimum stock
+              <button
+                type="button"
+                aria-label="Remove below minimum stock filter"
+                onClick={() => setBelowMinimumOnly(false)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ) : null}
+          {Object.entries(columnFilters).map(([key, filter]) => {
+            const label =
+              key === PRODUCT_QTY_COLUMN
+                ? "Qty"
+                : tableFields.find((field) => field.name === key)?.label ?? key;
+            return (
+              <Badge key={key} variant="secondary" className="gap-1 text-xs font-normal">
+                {describeFilter(label, filter)}
+                <button
+                  type="button"
+                  aria-label={`Remove ${label} filter`}
+                  onClick={() =>
+                    setColumnFilters((prev) => {
+                      const next = { ...prev };
+                      delete next[key];
+                      return next;
+                    })
+                  }
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+        </div>
+      ) : null}
+
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <TableFrame className="h-full">
@@ -786,9 +880,54 @@ export function ResourcePage({
                       {resource.table === "locations" && field.name === "max_pallets" ? (
                         <TableHead className={cn("w-20", isLocations && "h-7 px-2 py-1 text-xs")}>Label</TableHead>
                       ) : null}
-                      <TableHead className={cn(isLocations && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
+                      {isProducts ? (
+                        <ProductColumnHeader
+                          columnKey={field.name}
+                          label={field.label}
+                          kind={
+                            field.type === "boolean"
+                              ? "boolean"
+                              : field.type === "number"
+                              ? "number"
+                              : field.type === "select"
+                              ? "select"
+                              : "text"
+                          }
+                          options={field.options}
+                          sortState={sortState}
+                          setSortState={setSortState}
+                          filter={columnFilters[field.name]}
+                          setFilter={(next) =>
+                            setColumnFilters((prev) => {
+                              const updated = { ...prev };
+                              if (!next || isFilterEmpty(next)) delete updated[field.name];
+                              else updated[field.name] = next;
+                              return updated;
+                            })
+                          }
+                        />
+                      ) : (
+                        <TableHead className={cn(isLocations && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
+                      )}
                       {isProducts && field.name === "name" ? (
-                        <TableHead className="w-20 text-right">Qty</TableHead>
+                        <ProductColumnHeader
+                          columnKey={PRODUCT_QTY_COLUMN}
+                          label="Qty"
+                          kind="number"
+                          align="right"
+                          className="w-24"
+                          sortState={sortState}
+                          setSortState={setSortState}
+                          filter={columnFilters[PRODUCT_QTY_COLUMN]}
+                          setFilter={(next) =>
+                            setColumnFilters((prev) => {
+                              const updated = { ...prev };
+                              if (!next || isFilterEmpty(next)) delete updated[PRODUCT_QTY_COLUMN];
+                              else updated[PRODUCT_QTY_COLUMN] = next;
+                              return updated;
+                            })
+                          }
+                        />
                       ) : null}
                     </Fragment>
                   ))}
