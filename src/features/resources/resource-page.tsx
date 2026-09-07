@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, X } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpDown, Filter, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -137,6 +137,20 @@ import {
   validateMoveDestination,
   type MoveValidationResult,
 } from "@/lib/wms-core";
+import { fetchAllRows } from "@/features/shared/core-types";
+import {
+  PRODUCT_QTY_COLUMN,
+  PRODUCT_QUICK_LINKS,
+  describeFilter,
+  filterProductRows,
+  isBelowMinimumStock,
+  isFilterEmpty,
+  nextSortState,
+  sortProductRows,
+  type ColumnFilter,
+  type ColumnFilterMap,
+  type SortState,
+} from "@/features/resources/product-table-filters";
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
@@ -185,6 +199,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 // removed unused dropdown-menu and drawer imports
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -212,6 +227,164 @@ import {
   normalizeScannerText,
 } from "@/features/shared/ui-shared";
 
+/** Products table header cell: click to sort, funnel icon to filter. */
+function ProductColumnHeader({
+  columnKey,
+  label,
+  kind,
+  options,
+  align = "left",
+  className,
+  sortState,
+  setSortState,
+  filter,
+  setFilter,
+}: {
+  columnKey: string;
+  label: string;
+  kind: "text" | "number" | "select" | "boolean";
+  options?: Array<{ label: string; value: string }>;
+  align?: "left" | "right";
+  className?: string;
+  sortState: SortState;
+  setSortState: Dispatch<SetStateAction<SortState>>;
+  filter?: ColumnFilter;
+  setFilter: (next: ColumnFilter | null) => void;
+}) {
+  const active = sortState?.key === columnKey ? sortState.direction : null;
+  const filtered = !isFilterEmpty(filter);
+  return (
+    <TableHead className={cn("h-8 px-2 py-1 text-xs", align === "right" && "text-right", className)}>
+      <div className={cn("flex items-center gap-1", align === "right" && "justify-end")}>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+          onClick={() => setSortState((prev) => nextSortState(prev, columnKey))}
+          title={`Sort by ${label}`}
+        >
+          <span className="truncate">{label}</span>
+          {active === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : active === "desc" ? (
+            <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="h-3 w-3 opacity-30" />
+          )}
+        </button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Filter ${label}`}
+              title={`Filter ${label}`}
+              className={cn("shrink-0", filtered ? "text-primary" : "text-muted-foreground opacity-60 hover:opacity-100")}
+            >
+              <Filter className={cn("h-3 w-3", filtered && "fill-current")} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-56 space-y-2 p-3">
+            <p className="text-xs font-medium">{label}</p>
+            {kind === "text" ? (
+              <Input
+                autoFocus
+                className="h-8 text-xs"
+                placeholder="Contains…"
+                value={filter?.kind === "text" ? filter.value : ""}
+                onChange={(event) => setFilter({ kind: "text", value: event.target.value })}
+              />
+            ) : null}
+            {kind === "number" ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  className="h-8 text-xs"
+                  type="number"
+                  placeholder="Min"
+                  value={filter?.kind === "number" && filter.min != null ? String(filter.min) : ""}
+                  onChange={(event) =>
+                    setFilter({
+                      kind: "number",
+                      min: event.target.value === "" ? null : Number(event.target.value),
+                      max: filter?.kind === "number" ? filter.max ?? null : null,
+                    })
+                  }
+                />
+                <Input
+                  className="h-8 text-xs"
+                  type="number"
+                  placeholder="Max"
+                  value={filter?.kind === "number" && filter.max != null ? String(filter.max) : ""}
+                  onChange={(event) =>
+                    setFilter({
+                      kind: "number",
+                      min: filter?.kind === "number" ? filter.min ?? null : null,
+                      max: event.target.value === "" ? null : Number(event.target.value),
+                    })
+                  }
+                />
+              </div>
+            ) : null}
+            {kind === "select" ? (
+              <div className="space-y-1.5">
+                {(options ?? []).map((option) => {
+                  const selected = filter?.kind === "select" ? filter.values.includes(option.value) : false;
+                  return (
+                    <label key={option.value} className="flex items-center gap-2 text-xs">
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={(checked) => {
+                          const current = filter?.kind === "select" ? filter.values : [];
+                          const values = checked
+                            ? Array.from(new Set([...current, option.value]))
+                            : current.filter((value) => value !== option.value);
+                          setFilter({ kind: "select", values });
+                        }}
+                      />
+                      {option.label}
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+            {kind === "boolean" ? (
+              <div className="flex gap-1">
+                {[
+                  { label: "Any", value: null },
+                  { label: "Yes", value: true },
+                  { label: "No", value: false },
+                ].map((choice) => {
+                  const selected =
+                    choice.value === null ? filter == null : filter?.kind === "boolean" && filter.value === choice.value;
+                  return (
+                    <Button
+                      key={choice.label}
+                      size="sm"
+                      variant={selected ? "default" : "outline"}
+                      className="h-7 flex-1 px-2 text-xs"
+                      onClick={() =>
+                        setFilter(choice.value === null ? null : { kind: "boolean", value: choice.value })
+                      }
+                    >
+                      {choice.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-full px-2 text-xs text-muted-foreground"
+              onClick={() => setFilter(null)}
+            >
+              Clear
+            </Button>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </TableHead>
+  );
+}
+
 export function ResourcePage({
   resource,
 }: {
@@ -225,6 +398,11 @@ export function ResourcePage({
   const [includeHidden, setIncludeHidden] = useState(false);
   const [editRecord, setEditRecord] = useState<Record<string, unknown> | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFilterMap>({});
+  const [belowMinimumOnly, setBelowMinimumOnly] = useState(false);
+  const [sortState, setSortState] = useState<SortState>(null);
+  const hasColumnFilters = Object.keys(columnFilters).length > 0 || belowMinimumOnly;
+
   
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
   const [deleteRecord, setDeleteRecord] = useState<Record<string, unknown> | null>(null);
@@ -251,15 +429,18 @@ export function ResourcePage({
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
   const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
-  const paging = useInfiniteRows({ resetKeys: [resource.table, includeHidden, activeFilter] });
+  // A search OR any column filter/quick link reads the whole permitted set, so a
+  // match is never hidden past the current page.
+  const fullReadActive = Boolean(activeFilter) || hasColumnFilters;
+  const paging = useInfiniteRows({ resetKeys: [resource.table, includeHidden, activeFilter, hasColumnFilters] });
   const visibleRecordLimit = paging.limit;
   const { data = [], isLoading, isFetching } = useQuery({
-    queryKey: [resource.table, includeHidden, usesIncrementalTable && !activeFilter ? visibleRecordLimit : "all"],
+    queryKey: [resource.table, includeHidden, usesIncrementalTable && !fullReadActive ? visibleRecordLimit : "all"],
     queryFn: () => {
       const options = { includeHidden, archiveField: resource.archiveField };
       // An explicit search intentionally reads the full permitted resource set,
       // so a matching product, zone, or location is never hidden past page 50.
-      if (usesIncrementalTable && !activeFilter) {
+      if (usesIncrementalTable && !fullReadActive) {
         return listRecordsPage(resource.table, resource.select ?? "*", resource.orderBy, { ...options, limit: visibleRecordLimit + 1 });
       }
       return listRecords(resource.table, resource.select ?? "*", resource.orderBy, options);
@@ -270,14 +451,15 @@ export function ResourcePage({
   const hasMoreRecords = paging.sync({
     loadedCount: data.length,
     isFetching,
-    enabled: usesIncrementalTable && !activeFilter,
+    enabled: usesIncrementalTable && !fullReadActive,
   });
   const tableData = hasMoreRecords ? data.slice(0, visibleRecordLimit) : data;
   const { data: totalRecordCount } = useQuery({
     queryKey: [resource.table, includeHidden, "count"],
     queryFn: () => countRecords(resource.table, { includeHidden, archiveField: resource.archiveField }),
-    enabled: usesIncrementalTable && !activeFilter,
+    enabled: usesIncrementalTable,
   });
+
   const { data: locationRowsForLabels = [] } = useQuery({
     queryKey: ["locations", "label-source"],
     enabled: resource.table === "zones",
@@ -342,11 +524,14 @@ export function ResourcePage({
     queryFn: async () => {
       // Aggregated server-side: reading every inventory_balances row here used
       // to blow past the database statement timeout on large warehouses.
-      const { data, error } = await (supabase as any).rpc("product_quantity_totals");
-      if (error) throw error;
-      return (data ?? []) as Array<{ product_id: string; total_quantity: number | null }>;
+      // Paged with .range() because the API caps a single response at 1000 rows,
+      // which silently truncated totals once the catalogue passed 1000 products.
+      return fetchAllRows<{ product_id: string; total_quantity: number | null }>((from, to) =>
+        (supabase as any).rpc("product_quantity_totals").range(from, to),
+      );
     },
   });
+
   const productQtyMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of productQtyRows) {
@@ -447,7 +632,7 @@ export function ResourcePage({
     return zone?.id;
   }, [data, locationWizardDefaultWarehouseId, zoneOptions]);
 
-  const filteredData = useMemo(() => {
+  const searchedData = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
     if (!q) return tableData;
     return tableData.filter((row: Record<string, unknown>) =>
@@ -458,6 +643,15 @@ export function ResourcePage({
       })
     );
   }, [filterQuery, resource.fields, tableData]);
+  const filteredData = useMemo(() => {
+    if (!isProducts) return searchedData;
+    let rows = filterProductRows(searchedData as Array<Record<string, unknown>>, columnFilters, productQtyMap);
+    if (belowMinimumOnly) {
+      rows = rows.filter((row) => isBelowMinimumStock(row, productQtyMap));
+    }
+    return sortProductRows(rows, sortState, productQtyMap);
+  }, [belowMinimumOnly, columnFilters, isProducts, productQtyMap, searchedData, sortState]);
+
   const tableFields = useMemo(() => {
     if (resource.table === "products") {
       return resource.fields.filter((field) =>
@@ -740,6 +934,100 @@ export function ResourcePage({
         />
       </div>
 
+      {isProducts ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PRODUCT_QUICK_LINKS.map((link) => {
+            const active = Object.entries(link.filters).every(
+              ([key, filter]) => JSON.stringify(columnFilters[key]) === JSON.stringify(filter),
+            );
+            return (
+              <Button
+                key={link.id}
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => {
+                  setColumnFilters((prev) => {
+                    const next = { ...prev };
+                    if (active) {
+                      for (const key of Object.keys(link.filters)) delete next[key];
+                      return next;
+                    }
+                    return { ...next, ...link.filters };
+                  });
+                  if (!active && link.sort) setSortState(link.sort);
+                }}
+              >
+                {link.label}
+              </Button>
+            );
+          })}
+          <Button
+            size="sm"
+            variant={belowMinimumOnly ? "default" : "outline"}
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setBelowMinimumOnly((prev) => !prev)}
+          >
+            Below minimum stock
+          </Button>
+          {hasColumnFilters || sortState ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2.5 text-xs text-muted-foreground"
+              onClick={() => {
+                setColumnFilters({});
+                setBelowMinimumOnly(false);
+                setSortState(null);
+              }}
+            >
+              Clear all
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isProducts && hasColumnFilters ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {belowMinimumOnly ? (
+            <Badge variant="secondary" className="gap-1 text-xs font-normal">
+              Below minimum stock
+              <button
+                type="button"
+                aria-label="Remove below minimum stock filter"
+                onClick={() => setBelowMinimumOnly(false)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ) : null}
+          {Object.entries(columnFilters).map(([key, filter]) => {
+            const label =
+              key === PRODUCT_QTY_COLUMN
+                ? "Qty"
+                : tableFields.find((field) => field.name === key)?.label ?? key;
+            return (
+              <Badge key={key} variant="secondary" className="gap-1 text-xs font-normal">
+                {describeFilter(label, filter)}
+                <button
+                  type="button"
+                  aria-label={`Remove ${label} filter`}
+                  onClick={() =>
+                    setColumnFilters((prev) => {
+                      const next = { ...prev };
+                      delete next[key];
+                      return next;
+                    })
+                  }
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+        </div>
+      ) : null}
+
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <TableFrame className="h-full">
@@ -751,9 +1039,54 @@ export function ResourcePage({
                       {resource.table === "locations" && field.name === "max_pallets" ? (
                         <TableHead className={cn("w-20", isLocations && "h-7 px-2 py-1 text-xs")}>Label</TableHead>
                       ) : null}
-                      <TableHead className={cn(isLocations && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
+                      {isProducts ? (
+                        <ProductColumnHeader
+                          columnKey={field.name}
+                          label={field.label}
+                          kind={
+                            field.type === "boolean"
+                              ? "boolean"
+                              : field.type === "number"
+                              ? "number"
+                              : field.type === "select"
+                              ? "select"
+                              : "text"
+                          }
+                          options={field.options}
+                          sortState={sortState}
+                          setSortState={setSortState}
+                          filter={columnFilters[field.name]}
+                          setFilter={(next) =>
+                            setColumnFilters((prev) => {
+                              const updated = { ...prev };
+                              if (!next || isFilterEmpty(next)) delete updated[field.name];
+                              else updated[field.name] = next;
+                              return updated;
+                            })
+                          }
+                        />
+                      ) : (
+                        <TableHead className={cn(isLocations && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
+                      )}
                       {isProducts && field.name === "name" ? (
-                        <TableHead className="w-20 text-right">Qty</TableHead>
+                        <ProductColumnHeader
+                          columnKey={PRODUCT_QTY_COLUMN}
+                          label="Qty"
+                          kind="number"
+                          align="right"
+                          className="w-24"
+                          sortState={sortState}
+                          setSortState={setSortState}
+                          filter={columnFilters[PRODUCT_QTY_COLUMN]}
+                          setFilter={(next) =>
+                            setColumnFilters((prev) => {
+                              const updated = { ...prev };
+                              if (!next || isFilterEmpty(next)) delete updated[PRODUCT_QTY_COLUMN];
+                              else updated[PRODUCT_QTY_COLUMN] = next;
+                              return updated;
+                            })
+                          }
+                        />
                       ) : null}
                     </Fragment>
                   ))}

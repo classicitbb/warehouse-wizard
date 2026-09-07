@@ -133,7 +133,16 @@ export async function changePalletStatus(input: z.infer<typeof statusChangeSchem
     }),
   ]);
 
+  // A pallet that ends up waiting for Put-Away must have an open Put-Away task,
+  // otherwise it is invisible to the floor. Best effort: the status change
+  // itself already succeeded and must not be rolled back by a queueing failure.
+  if (resolvedStatus === "putaway") {
+    const ensure = await (supabase.rpc as any)("ensure_putaway_task_for_pallet", { in_pallet_id: palletId });
+    if (ensure.error) console.error("[changePalletStatus] ensure_putaway_task_for_pallet failed:", ensure.error);
+  }
+
   const statusAudit = await (supabase.rpc as any)("log_audit_event", {
+
     in_event_type: "status_change",
     in_entity_table: "pallets",
     in_entity_id: palletId,

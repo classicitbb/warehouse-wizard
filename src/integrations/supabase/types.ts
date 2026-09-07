@@ -4885,6 +4885,14 @@ export type Database = {
         Args: { in_clearance_mm: number; in_margin_mm: number }
         Returns: number
       }
+      ensure_putaway_task_for_pallet: {
+        Args: { in_pallet_id: string }
+        Returns: {
+          created: boolean
+          putaway_task_id: string
+          putaway_task_number: string
+        }[]
+      }
       evaluate_reorder_alert: {
         Args: { in_product_id: string; in_warehouse_id: string }
         Returns: undefined
