@@ -110,10 +110,13 @@ import { cn } from "@/lib/utils";
 import { extractIso6346ContainerNumber, normalizeContainerNumber } from "@/lib/container-number";
 import {
   sanitizeDashboardLayout,
+  dashboardTileSpanClass,
+  normalizeDashboardCardSize,
   type DashboardTileConfig,
   type DashboardTileDefinition,
   type DashboardVisibilityMap,
 } from "@/lib/dashboard-preferences";
+
 import {
   type DashboardMode,
   type DockHandoffLoad,
