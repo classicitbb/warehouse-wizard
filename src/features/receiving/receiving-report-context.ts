@@ -29,7 +29,7 @@ export type ReceivingReportLine = {
   lotNumber?: string;
   batchNumber?: string;
   /** Where the qty per pallet came from, and what was learned for the SKU. */
-  perPalletSource: "learned" | "entered" | "unknown";
+  perPalletSource: "standard" | "learned" | "entered" | "unknown";
   learnedQty?: { suggestedQty: number; sampleCount: number } | null;
   /** Validation messages showing on the line right now. */
   issues?: string[];
@@ -103,6 +103,7 @@ function describePerPalletSource(line: ReceivingReportLine): string {
         line.learnedQty.sampleCount === 1 ? "" : "s"
       }`
     : "nothing learned for this SKU yet";
+  if (line.perPalletSource === "standard") return `applied the SKU pack standard (${learned})`;
   if (line.perPalletSource === "learned") return `applied the learned qty (${learned})`;
   if (line.perPalletSource === "entered") return `typed by the operator (${learned})`;
   return `not set — still the default (${learned})`;

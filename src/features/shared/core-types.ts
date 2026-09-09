@@ -527,6 +527,35 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
       { name: "weight", label: "Weight", type: "number" },
       { name: "barcode", label: "Barcode", type: "text" },
       { name: "is_default", label: "Default", type: "boolean" },
+      // Pack-standard columns. These are hidden from the generic field loop and
+      // rendered by PackStandardSection, which keeps the mm values in step with
+      // the legacy cm ones above. The four generated columns
+      // (packages_per_pallet, units_per_pallet, standard_height_mm,
+      // standard_gross_weight_kg) must never appear here: normalizeResourceValues
+      // emits every field listed, cleanPayload does not filter them, and Postgres
+      // rejects a write to a generated column with 428C9.
+      { name: "packages_per_layer", label: "Packages per layer", type: "number", description: "Cases in one layer — the 12 in a 12 × 7 build." },
+      { name: "layers_per_pallet", label: "Layers per pallet", type: "number", description: "Layers in a full pallet — the 7 in a 12 × 7 build." },
+      { name: "layer_pattern", label: "Layer pattern", type: "select", options: [
+        { label: "Block", value: "block" },
+        { label: "Brick (alternate 90°)", value: "brick" },
+        { label: "Pinwheel", value: "pinwheel" },
+        { label: "Column", value: "column" },
+        { label: "Custom", value: "custom" },
+      ] },
+      { name: "layer_columns", label: "Grid across", type: "number" },
+      { name: "package_length_mm", label: "Package length (mm)", type: "number" },
+      { name: "package_width_mm", label: "Package width (mm)", type: "number" },
+      { name: "package_height_mm", label: "Package height (mm)", type: "number" },
+      { name: "pallet_footprint_length_mm", label: "Pallet length (mm)", type: "number" },
+      { name: "pallet_footprint_width_mm", label: "Pallet width (mm)", type: "number" },
+      { name: "pallet_base_height_mm", label: "Deck height (mm)", type: "number" },
+      { name: "slip_sheet_height_mm", label: "Slip sheet (mm)", type: "number" },
+      { name: "pallet_tare_kg", label: "Pallet tare (kg)", type: "number" },
+      { name: "max_stack_pallets", label: "Max stacked pallets", type: "number" },
+      { name: "quantity_tolerance", label: "Quantity tolerance", type: "number" },
+      { name: "is_pallet_standard", label: "Pallet standard", type: "boolean" },
+      { name: "build_notes", label: "Build notes", type: "text" },
     ],
   },
 };

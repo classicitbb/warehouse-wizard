@@ -1,6 +1,13 @@
 # Pallet Pack Standards — implementation plan
 
-**Status:** Phase 1 in build. Phases 2–5 planned.
+**Status:** Phases 1–3 shipped, plus the Phase 4 permission work. Phase 5 planned.
+**Shipped beyond the original plan:** the Pallet Pak Designer on the Command Center
+Packing tab, gated by `permission_features.is_released` — a generic release switch an
+admin flips without a deploy. Unreleased features are developer-only.
+**Open question 1 closed:** the pallet space allowance is **1250 × 1250 mm**
+(`warehouses.pallet_space_allowance_*`); the pallet itself stays 1200 × 1000 and the
+renderer draws the envelope so overhang is visible.
+**Open question 2 closed:** an off-standard receipt warns and records, never blocks.
 **Ratified:** height is a **hard block** at put-away (no override, no reason code); bin
 clearances move to mm in Phase 1; clearance safety margin is **3 in / 76 mm**; container
 staff are promoted through the existing Role Matrix; matrix enforcement may widen

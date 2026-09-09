@@ -9,7 +9,8 @@
 // Imports only src/lib/* and src/components/ui/*, deliberately: no ui-shared
 // import, so no cycle with the dialogs that host it.
 
-import { useId } from "react";
+import { useId, useMemo } from "react";
+import type { UseFormReturn } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { formatPackCode } from "@/lib/measure";
 import { type LayerPattern, gridFor } from "@/lib/pallet-geometry";
-import { type PackStandardDraft } from "@/lib/pack-standard-payload";
+import { packStandardDraftFromProfile, type PackStandardDraft } from "@/lib/pack-standard-payload";
 import { cn } from "@/lib/utils";
 
 const LAYER_PATTERNS: Array<{ value: LayerPattern; label: string }> = [
@@ -322,6 +323,92 @@ export function PackStandardSection({
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * The columns the pack section owns. The dialogs hide these from the generic
+ * field loop and render this section instead.
+ */
+export const PACK_SECTION_FIELDS: ReadonlySet<string> = new Set([
+  "packages_per_layer", "layers_per_pallet", "layer_pattern", "layer_columns",
+  "package_length_mm", "package_width_mm", "package_height_mm",
+  "pallet_footprint_length_mm", "pallet_footprint_width_mm",
+  "pallet_base_height_mm", "slip_sheet_height_mm", "pallet_tare_kg",
+  "max_stack_pallets", "quantity_tolerance", "is_pallet_standard", "build_notes",
+]);
+
+const DRAFT_TO_COLUMN: Record<keyof PackStandardDraft, string> = {
+  packagesPerLayer: "packages_per_layer",
+  layersPerPallet: "layers_per_pallet",
+  layerColumns: "layer_columns",
+  layerPattern: "layer_pattern",
+  packageLengthMm: "package_length_mm",
+  packageWidthMm: "package_width_mm",
+  packageHeightMm: "package_height_mm",
+  footprintLengthMm: "pallet_footprint_length_mm",
+  footprintWidthMm: "pallet_footprint_width_mm",
+  palletBaseHeightMm: "pallet_base_height_mm",
+  slipSheetHeightMm: "slip_sheet_height_mm",
+  palletTareKg: "pallet_tare_kg",
+  maxStackPallets: "max_stack_pallets",
+  quantityTolerance: "quantity_tolerance",
+  isPalletStandard: "is_pallet_standard",
+  buildNotes: "build_notes",
+};
+
+/** mm column -> the legacy centimetre column it must stay in step with. */
+const MM_TO_CM_COLUMN: Record<string, string> = {
+  package_length_mm: "length",
+  package_width_mm: "width",
+  package_height_mm: "height",
+};
+
+/**
+ * Adapter between the react-hook-form dialogs and the draft-shaped section.
+ *
+ * The one thing it must not get wrong: a carton dimension written in
+ * millimetres also writes its centimetre twin in the same form state, so the
+ * generic submit path emits both. mm alone leaves the legacy cm columns stale
+ * for every reader that still uses them; the sync trigger would then overwrite
+ * our mm from a stale cm on the next update.
+ */
+export function PackStandardFormSection({
+  form,
+  className,
+  disabled,
+}: {
+  form: UseFormReturn<Record<string, unknown>>;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const values = form.watch();
+
+  const draft = useMemo(
+    () => packStandardDraftFromProfile(values as Record<string, unknown>),
+    [values],
+  );
+
+  const handleChange = (patch: Partial<PackStandardDraft>) => {
+    for (const [key, value] of Object.entries(patch)) {
+      const column = DRAFT_TO_COLUMN[key as keyof PackStandardDraft];
+      if (!column) continue;
+      form.setValue(column, value as never, { shouldDirty: true });
+      const cmColumn = MM_TO_CM_COLUMN[column];
+      if (cmColumn) {
+        form.setValue(cmColumn, (value === null ? null : Number(value) / 10) as never, { shouldDirty: true });
+      }
+    }
+  };
+
+  return (
+    <PackStandardSection
+      draft={draft}
+      onChange={handleChange}
+      controls="fields"
+      disabled={disabled}
+      className={className}
+    />
   );
 }
 
