@@ -98,7 +98,11 @@ export type EnterpriseReportData = {
   aiRecommendations?: AiRecommendationRow[];
 };
 
-export type DashboardMode = "floor" | "dock" | "office";
+// "packing" is a full-bleed workspace, not a tile grid: dashboard_tile_visibility
+// constrains its own mode column to the three tile modes, so packing must never
+// reach it. DashboardModeKey in dashboard-preferences.ts is the persistence type
+// and stays narrow on purpose.
+export type DashboardMode = "floor" | "dock" | "office" | "packing";
 
 export type WarehouseBrainRecommendation = {
   id: string;
