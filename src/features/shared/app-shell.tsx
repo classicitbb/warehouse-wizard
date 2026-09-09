@@ -781,33 +781,79 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [profile?.default_warehouse_id, queryClient, roles, user?.id]);
 
-  const renderNavigation = (compactTop = false, collapsed = sidebarCollapsed) => (
+  // Rows are full-bleed now, so the old compact-top padding tweak is a no-op.
+  const renderNavigation = (_compactTop = false, collapsed = sidebarCollapsed) => (
       <div
         className={cn(
           "flex h-full flex-col overflow-hidden bg-sidebar",
-          collapsed ? "items-center bg-teal-500 px-1.5 py-3" : compactTop ? "px-2.5 py-0" : "px-2.5 py-3"
+          collapsed ? "bg-teal-500" : "",
         )}
       >
-
-
-
-      <nav className={cn("flex-1 overflow-y-auto", compactTop && "pt-0")}>
-        <div className="flex flex-col gap-0.0">
+      <nav
+        className={cn(
+          "flex-1 overflow-y-auto",
+          // The 10px themed scrollbar would eat a sixth of the 4rem-wide rail and push
+          // the icons off-centre — hide it, wheel/keyboard scrolling still works.
+          collapsed && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        <div className="flex flex-col">
           {items.map((item) => {
             const Icon = navIcons[item.to] ?? LayoutDashboard;
             const isActive = pathname === item.to;
-            const showSeparator = !collapsed && item.to === "/warehouses";
+            const showSeparator = item.to === "/warehouses";
             const badgeCount = getNavBadgeCount(item.to);
+            const icon = (
+              <Icon
+                data-active-icon={isActive ? "true" : "false"}
+                className={cn(
+                  "shrink-0",
+                  collapsed ? "h-6 w-6" : "h-[1.125rem] w-[1.125rem]",
+                  isActive && "text-accent",
+                )}
+              />
+            );
+            const badge = badgeCount > 0 ? (
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center rounded-full bg-destructive font-semibold leading-none text-destructive-foreground",
+                  collapsed
+                    // Anchored to the icon, not the cell: at 8.25rem tall a corner badge floats away from it.
+                    ? "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[9px]"
+                    : "ml-auto h-5 min-w-5 px-1.5 text-[10px]",
+                )}
+                aria-label={getNavBadgeLabel(item.to, badgeCount)}
+              >
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </span>
+            ) : null;
+            // Padding lives on the wrapper: box-sizing is border-box, so py on the
+            // sized <svg> itself would eat the glyph instead of spacing it.
+            const iconBox = (
+              <span className="relative flex shrink-0 items-center justify-center py-5">
+                {icon}
+                {collapsed ? badge : null}
+              </span>
+            );
             const link = (
               <NavLink
                 key={item.to}
                 className={({ isActive: navActive }) =>
                   cn(
-                    "group relative flex min-h-[3.375rem] items-center gap-2 rounded-md px-2 text-sm font-medium transition-all duration-100 active:scale-[0.96] active:transition-transform",
-                    collapsed && "h-11 min-h-11 w-11 justify-center p-0",
+                    "group relative flex items-center gap-3 border-b text-sm font-medium transition-colors duration-100 last:border-b-0",
+                    // min-h (not h) so rows never compress when the list overflows the column.
+                    "shrink-0",
+                    collapsed
+                      // 4rem = the 24px icon plus its 20px padding either side.
+                      ? "min-h-[4rem] w-full justify-center gap-0 border-teal-600/25 px-0"
+                      : "min-h-[3.125rem] border-sidebar-border/60 px-3",
                     navActive || isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      ? collapsed
+                        ? "bg-teal-700 text-white hover:bg-teal-300 hover:text-teal-950"
+                        : "bg-primary text-primary-foreground hover:bg-teal-300 hover:text-teal-950"
+                      : collapsed
+                        ? "text-sidebar-primary-foreground hover:bg-teal-400"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )
                 }
                 to={toPath(item.to)}
@@ -816,22 +862,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onFocus={() => prefetchRouteData(item.to)}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <Icon
-                  data-active-icon={isActive ? "true" : "false"}
-                  className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4", isActive && "text-accent")}
-                />
-                {collapsed ? null : <span className="truncate">{item.label}</span>}
-                {badgeCount > 0 ? (
-                  <span
-                    className={cn(
-                      "ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold leading-none text-destructive-foreground",
-                      collapsed && "absolute right-0 top-1 ml-0",
-                    )}
-                    aria-label={getNavBadgeLabel(item.to, badgeCount)}
-                  >
-                    {badgeCount > 99 ? "99+" : badgeCount}
-                  </span>
-                ) : null}
+                {collapsed ? (
+                  iconBox
+                ) : (
+                  <>
+                    {iconBox}
+                    <span className="truncate">{item.label}</span>
+                    {badge}
+                  </>
+                )}
               </NavLink>
             );
 
@@ -845,7 +884,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             if (showSeparator) {
               return (
                 <div key={item.to} className="contents">
-                  <div className="my-1 border-t border-sidebar-border" />
+                  <div
+                    aria-hidden
+                    className={cn("h-px", collapsed ? "bg-teal-700/40" : "bg-sidebar-border")}
+                  />
                   {node}
                 </div>
               );
@@ -855,9 +897,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <div className={cn("mt-2 hidden border-t border-sidebar-border pt-2 lg:landscape:flex", collapsed ? "justify-center" : "justify-end")}>
+      <div
+        className={cn(
+          "mt-auto hidden border-t border-sidebar-border py-1.5 lg:landscape:flex",
+          collapsed ? "justify-center border-teal-600/30 px-0" : "justify-end px-2",
+        )}
+      >
         <Button
-          className="h-8 w-8 shrink-0"
+          className={cn(
+            "h-8 w-8 shrink-0",
+            collapsed
+              ? "text-sidebar-primary-foreground hover:bg-teal-400 hover:text-sidebar-primary-foreground"
+              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          )}
           size="icon"
           variant="ghost"
           onClick={() => setSidebarCollapsed((c) => !c)}
@@ -876,7 +928,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           // Mobile + portrait-desktop: top header + content. Landscape-desktop: sidebar + content.
           "grid h-full w-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden",
           "lg:landscape:grid-cols-[minmax(11rem,max-content)_minmax(0,1fr)]",
-          sidebarCollapsed && "lg:landscape:grid-cols-[64px_minmax(0,1fr)]",
+          sidebarCollapsed && "lg:landscape:grid-cols-[4rem_minmax(0,1fr)]",
         )}
       >
         {/* Mobile header */}
