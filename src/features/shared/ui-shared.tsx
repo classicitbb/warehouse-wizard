@@ -267,12 +267,12 @@ function dashboardMetricLink(metricKey: DashboardMetricKey) {
   return DASHBOARD_METRIC_ROUTES[metricKey];
 }
 const DEFAULT_FLOOR_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "Inbound", label: "Inbound", size: "2x1", moduleKey: "receiving" },
-  { id: "Putaway", label: "Put-Away", size: "2x1", moduleKey: "putaway" },
-  { id: "Warehouse Intelligence", label: "Warehouse Intelligence", size: "2x1" },
-  { id: "Outbound", label: "Outbound", size: "2x1", moduleKey: "pick-lists" },
-  { id: "Moves & Counts", label: "Moves & Counts", size: "2x1", moduleKey: "location-moves" },
-  { id: "Blocked Exceptions", label: "Blocked Exceptions", size: "2x1", moduleKey: "status" },
+  { id: "Inbound", label: "Inbound", size: "2x2", moduleKey: "receiving" },
+  { id: "Putaway", label: "Put-Away", size: "2x2", moduleKey: "putaway" },
+  { id: "Warehouse Intelligence", label: "Warehouse Intelligence", size: "2x2" },
+  { id: "Outbound", label: "Outbound", size: "2x2", moduleKey: "pick-lists" },
+  { id: "Moves & Counts", label: "Moves & Counts", size: "2x2", moduleKey: "location-moves" },
+  { id: "Blocked Exceptions", label: "Blocked Exceptions", size: "2x2", moduleKey: "status" },
 ];
 
 const DEFAULT_DOCK_TILES: DashboardTileDefinition<ModuleKey>[] = [
@@ -281,16 +281,16 @@ const DEFAULT_DOCK_TILES: DashboardTileDefinition<ModuleKey>[] = [
   { id: "loading", label: "Loading", size: "1x1", moduleKey: "pick-lists" },
   { id: "blocked", label: "Blocked", size: "1x1", moduleKey: "pick-lists" },
   { id: "loaded", label: "Loaded", size: "1x1", moduleKey: "pick-lists" },
-  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x1", moduleKey: "copilot" },
+  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x2", moduleKey: "copilot" },
 ];
 
 const DEFAULT_OFFICE_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "Fill level", label: "Fill level", size: "2x1", moduleKey: "locations" },
-  { id: "Inventory turn watch", label: "Inventory turn watch", size: "2x1", moduleKey: "inventory" },
-  { id: "Expiration risk", label: "Expiration risk", size: "2x1", moduleKey: "inventory" },
-  { id: "DPMO", label: "DPMO", size: "2x1", moduleKey: "cycle-counts" },
-  { id: "setup-checklist", label: "Setup Checklist", size: "2x1", moduleKey: "settings" },
-  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x1", moduleKey: "copilot" },
+  { id: "Fill level", label: "Fill level", size: "2x2", moduleKey: "locations" },
+  { id: "Inventory turn watch", label: "Inventory turn watch", size: "2x2", moduleKey: "inventory" },
+  { id: "Expiration risk", label: "Expiration risk", size: "2x2", moduleKey: "inventory" },
+  { id: "DPMO", label: "DPMO", size: "2x2", moduleKey: "cycle-counts" },
+  { id: "setup-checklist", label: "Setup Checklist", size: "2x2", moduleKey: "settings" },
+  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x2", moduleKey: "copilot" },
 ];
 
 export const DEFAULT_FLOOR_LAYOUT: DashboardTileDefinition<ModuleKey>[] = [...DEFAULT_DASHBOARD_CARDS, ...DEFAULT_FLOOR_TILES];
@@ -555,7 +555,7 @@ function SortableDashboardTile({
   return (
     <div ref={setNodeRef} style={style} className={cn(dashboardTileSpanClass(tile.size), "min-h-0", className)} onPointerDownCapture={handleLockedPointerDownCapture}>
       <div
-        className={cn("group relative h-full", editMode && "cursor-grab active:cursor-grabbing")}
+        className={cn("group relative h-full min-h-0 overflow-auto", editMode && "cursor-grab active:cursor-grabbing")}
         {...(editMode ? { ...attributes, ...listeners } : {})}
       >
         {children}
