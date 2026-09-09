@@ -151,6 +151,7 @@ import {
   loadDashboardDeviceLayout,
   loadDashboardTileVisibility,
   sanitizeDashboardLayout,
+  nextDashboardCardSize,
   saveDashboardDeviceLayout,
   saveDashboardTileVisibility,
   visibleDashboardTiles,
@@ -460,10 +461,26 @@ export function DashboardPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Tabs value={mode} onValueChange={(value) => setMode(value as DashboardMode)}>
-            <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit">
+            <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit sm:grid-cols-5">
               <TabsTrigger value="floor" className="gap-1.5"><Forklift className="h-3.5 w-3.5" /> Floor</TabsTrigger>
               <TabsTrigger value="dock" className="gap-1.5"><Truck className="h-3.5 w-3.5" /> Dock</TabsTrigger>
               <TabsTrigger value="office" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" /> Office</TabsTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-flex">
+                    <TabsTrigger value="3d" disabled className="gap-1.5 opacity-60"><Lock className="h-3.5 w-3.5" /> 3D</TabsTrigger>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>3D warehouse view — coming soon</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-flex">
+                    <TabsTrigger value="packing" disabled className="gap-1.5 opacity-60"><Lock className="h-3.5 w-3.5" /> Packing</TabsTrigger>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Packing stations — coming soon</TooltipContent>
+              </Tooltip>
             </TabsList>
           </Tabs>
           <Tooltip>
