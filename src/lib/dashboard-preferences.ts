@@ -79,7 +79,8 @@ export function sanitizeDashboardLayout(
       seen.add(tile.id);
       return true;
     })
-    .map((tile) => ({ id: tile.id, size: tile.size === "lg" ? "lg" : "sm" as DashboardCardSize }));
+    .map((tile) => ({ id: tile.id, size: normalizeDashboardCardSize(tile.size) }));
+
   const missing = defaults.filter((tile) => !seen.has(tile.id));
   return [...sanitized, ...missing];
 }
