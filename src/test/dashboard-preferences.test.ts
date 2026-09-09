@@ -36,9 +36,9 @@ import {
 import { getDashboardMetricKeysForModules } from "@/lib/wms-core";
 
 const defaults: DashboardTileConfig[] = [
-  { id: "totalPallets", size: "lg" },
-  { id: "openReceipts", size: "sm" },
-  { id: "Inbound", size: "lg" },
+  { id: "totalPallets", size: "2x1" },
+  { id: "openReceipts", size: "1x1" },
+  { id: "Inbound", size: "2x1" },
 ];
 
 describe("dashboard preference sanitizing", () => {
@@ -49,17 +49,17 @@ describe("dashboard preference sanitizing", () => {
   it("drops unknown tiles, de-duplicates known tiles, and appends new defaults", () => {
     const layout = sanitizeDashboardLayout(
       [
-        { id: "missing", size: "lg" },
-        { id: "openReceipts", size: "lg" },
-        { id: "openReceipts", size: "sm" },
+        { id: "missing", size: "2x1" },
+        { id: "openReceipts", size: "2x1" },
+        { id: "openReceipts", size: "1x1" },
       ],
       defaults,
     );
 
     expect(layout).toEqual([
-      { id: "openReceipts", size: "lg" },
-      { id: "totalPallets", size: "lg" },
-      { id: "Inbound", size: "lg" },
+      { id: "openReceipts", size: "2x1" },
+      { id: "totalPallets", size: "2x1" },
+      { id: "Inbound", size: "2x1" },
     ]);
   });
 
@@ -73,9 +73,9 @@ describe("dashboard preference sanitizing", () => {
 
   it("filters tile definitions by enabled modules", () => {
     const definitions: Array<DashboardTileDefinition<"inventory" | "receiving">> = [
-      { id: "totalPallets", label: "Total Pallets", size: "lg", moduleKey: "inventory" },
-      { id: "openReceipts", label: "Open Receipts", size: "sm", moduleKey: "receiving" },
-      { id: "warehouse-brain", label: "Warehouse Brain", size: "lg" },
+      { id: "totalPallets", label: "Total Pallets", size: "2x1", moduleKey: "inventory" },
+      { id: "openReceipts", label: "Open Receipts", size: "1x1", moduleKey: "receiving" },
+      { id: "warehouse-brain", label: "Warehouse Brain", size: "2x1" },
     ];
 
     expect(filterDashboardTileDefinitions(definitions, (key) => key !== "receiving").map((tile) => tile.id)).toEqual([

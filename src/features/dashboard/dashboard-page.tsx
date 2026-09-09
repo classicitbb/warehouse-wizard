@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { HintButton } from "@/components/hint-button";
+import { getDashboardMetricKeysForModules } from "@/features/shared/core-types";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { canAccessCopilot, useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
