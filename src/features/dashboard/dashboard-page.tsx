@@ -279,9 +279,13 @@ export function DashboardPage() {
   const immersiveMode = isFullscreen || simulatedFullscreen;
 
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["dashboard-metrics", profile?.default_warehouse_id, flags],
+    // Key intentionally excludes feature flags so the sidebar counters and the
+    // Command Center share a single fetch of the server-side summary.
+    queryKey: ["dashboard-metrics", profile?.default_warehouse_id ?? null],
     queryFn: () => getDashboardMetrics(profile?.default_warehouse_id, flags),
-    refetchInterval: 15_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
   const { data: reorderAlerts = [] } = useQuery({
     queryKey: ["reorder-alerts", "command-center"],
@@ -293,18 +297,21 @@ export function DashboardPage() {
       return data ?? [];
     },
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
   const { data: reports } = useQuery({
     queryKey: ["reports", "enterprise-dashboard", profile?.default_warehouse_id],
     queryFn: () => getReportData({ warehouseId: profile?.default_warehouse_id }),
+    staleTime: 60_000,
   });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, reports), [metrics, reports]);
   const summaryCardsById = useMemo(() => {
-    const returnedMetricKeys = metrics?.dashboardMetricKeys ? new Set(metrics.dashboardMetricKeys) : null;
+    const allowedMetricKeys = new Set(getDashboardMetricKeysForModules(flags));
     const cards = (filterDashboardTileDefinitions(DEFAULT_DASHBOARD_CARDS, isEnabled) as DashboardCardConfig[])
-      .filter((card) => !returnedMetricKeys || returnedMetricKeys.has(card.metricKey));
+      .filter((card) => allowedMetricKeys.has(card.metricKey));
     return new Map(cards.map((card) => [card.id, card]));
-  }, [isEnabled, metrics?.dashboardMetricKeys]);
+  }, [flags, isEnabled]);
+
   const floorDefinitionById = useMemo(() => new Map(floorDefinitions.map((tile) => [tile.id, tile])), [floorDefinitions]);
   const dockDefinitionById = useMemo(() => new Map(dockDefinitions.map((tile) => [tile.id, tile])), [dockDefinitions]);
   const officeDefinitionById = useMemo(() => new Map(officeDefinitions.map((tile) => [tile.id, tile])), [officeDefinitions]);
