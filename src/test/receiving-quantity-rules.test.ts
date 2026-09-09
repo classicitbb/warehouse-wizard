@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  reconcilePackToQuantity,
   shipmentQuantityFacts,
   shouldRedistributeOnTotal,
   validateShipmentQuantities,
 } from "@/features/receiving/receiving-quantity-rules";
+import { parsePackCode } from "@/lib/measure";
 
 const line = (overrides: Partial<Parameters<typeof validateShipmentQuantities>[0]["line"]> = {}) => ({
   total_quantity: 100,
@@ -127,5 +129,114 @@ describe("shouldRedistributeOnTotal", () => {
 
   it("leaves a half-typed total alone", () => {
     expect(shouldRedistributeOnTotal({ nextTotal: "", perPalletSource: "learned" })).toBeUndefined();
+  });
+});
+
+describe("reconcilePackToQuantity", () => {
+  const pack = parsePackCode("12x7")!;
+
+  describe("the cases-versus-units trap", () => {
+    // A pack code counts CASES; quantity_per_pallet counts STOCK UNITS. They
+    // coincide only when units_per_package is 1, which is exactly why this is
+    // wrong the first time somebody reads the number without checking.
+    it("multiplies by units per package when the SKU is packed in multiples", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 12, quantityPerPallet: 1008 })!;
+      expect(r.expected).toBe(1008);
+      expect(r.conformance).toBe("standard");
+      expect(r.countedIn).toBe("units");
+    });
+
+    it("calls 84 units short when a case holds 12", () => {
+      // 84 would be a full pallet in cases and is a twelfth of one in units.
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 12, quantityPerPallet: 84 })!;
+      expect(r.conformance).toBe("short");
+      expect(r.difference).toBe(-924);
+    });
+
+    it("treats the two as the same only when a case holds one", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: 84 })!;
+      expect(r.expected).toBe(84);
+      expect(r.conformance).toBe("standard");
+    });
+
+    it("falls back to counting cases and says so when units per package is unknown", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: null, quantityPerPallet: 84 })!;
+      expect(r.countedIn).toBe("packages");
+      expect(r.expected).toBe(84);
+      expect(r.message).toContain("no units-per-package set");
+    });
+  });
+
+  describe("conformance", () => {
+    it("describes a short pallet in layers plus remainder", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: 63 })!;
+      expect(r.conformance).toBe("short");
+      expect(r.fullLayers).toBe(5);
+      expect(r.topCount).toBe(3);
+      expect(r.message).toContain("short 21");
+      expect(r.message).toContain("5 full layers");
+      expect(r.message).toContain("3 of 12 on top");
+    });
+
+    it("omits the remainder clause on an exact layer boundary", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: 60 })!;
+      expect(r.fullLayers).toBe(5);
+      expect(r.topCount).toBe(0);
+      expect(r.message).not.toContain("on top");
+    });
+
+    it("flags an overpack", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: 96 })!;
+      expect(r.conformance).toBe("overpack");
+      expect(r.difference).toBe(12);
+    });
+
+    it("counts an empty pallet as short rather than throwing", () => {
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: 0 })!;
+      expect(r.conformance).toBe("short");
+      expect(r.fullLayers).toBe(0);
+    });
+  });
+
+  describe("absent or unusable input", () => {
+    it("returns null without a parsed code", () => {
+      expect(reconcilePackToQuantity({ parsed: null, unitsPerPackage: 1, quantityPerPallet: 84 })).toBeNull();
+    });
+
+    it("returns null on a blank or non-numeric quantity", () => {
+      expect(reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: "" })).toBeNull();
+      expect(reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: "abc" })).toBeNull();
+    });
+  });
+
+  describe("it never blocks a receipt", () => {
+    // A short last pallet is normal — the final pallet of a run almost always
+    // is. A blocked receipt gets worked around invisibly; a recorded variance
+    // is data the fit test and slotting can use.
+    it("leaves validateShipmentQuantities().blocking untouched whatever the pack says", () => {
+      const shortLine = line({ total_quantity: 63, quantity_per_pallet: 63, pallet_count: 1 });
+      const before = validateShipmentQuantities({ line: shortLine, perPalletSource: "entered" }).blocking;
+      const r = reconcilePackToQuantity({ parsed: pack, unitsPerPackage: 1, quantityPerPallet: 63 })!;
+      expect(r.conformance).toBe("short");
+      // Reconciliation is a separate, non-blocking signal.
+      expect(validateShipmentQuantities({ line: shortLine, perPalletSource: "entered" }).blocking).toBe(before);
+    });
+  });
+});
+
+describe("perPalletSource: standard", () => {
+  it("is accepted by the quantity rules as a settled source", () => {
+    // A declared standard must not trip the "qty per pallet not known" guard
+    // that holds the pallet count on an unconfirmed default.
+    const issues = validateShipmentQuantities({
+      line: line({ total_quantity: 168, quantity_per_pallet: 84, pallet_count: 2 }),
+      perPalletSource: "standard",
+    });
+    expect(issues.blocking).toBe("");
+    expect(issues.perPallet).toBe("");
+  });
+
+  it("redistributes on a retyped total, like any settled source", () => {
+    expect(shouldRedistributeOnTotal({ nextTotal: "500", perPalletSource: "standard" })).toBe("total");
   });
 });

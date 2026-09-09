@@ -133,14 +133,19 @@ import { type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
 import { collectIso6346ContainerCandidates, extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
+import { formatPackCode, parsePackCode, resolveUnitsPerPallet } from "@/lib/measure";
+import { resolveDefaultProfileForProduct } from "@/lib/pack-standard-payload";
 import { getProductPalletQtyHint, type PalletQtyHint } from "@/lib/ai-assist";
 import {
+  reconcilePackToQuantity,
   shouldRedistributeOnTotal,
   validateShipmentQuantities,
   type PerPalletSource,
   type ShipmentQuantityIssues,
 } from "@/features/receiving/receiving-quantity-rules";
 import { buildReceivingReportContext, type ReceivingReportLine } from "@/features/receiving/receiving-report-context";
+import { PackStandardCaptureDialog } from "@/features/receiving/pack-standard-capture";
+import { useFeaturePermission } from "@/hooks/use-feature-permission";
 import { useReportContext } from "@/features/copilot/report-context";
 import { getOrCreateDeviceId } from "@/lib/device-identity";
 import { invalidateWarehouseData } from "@/lib/query-invalidation";
@@ -349,6 +354,21 @@ function ShipmentExpiryPicker({
   );
 }
 
+/** A pack standard this receipt is evidence for, awaiting the operator's yes. */
+type PackStandardProposal = {
+  productId: string;
+  packagesPerLayer: number;
+  layersPerPallet: number;
+  rationale: string;
+};
+
+/**
+ * Cases-per-layer values worth proposing from an observed quantity. A pallet
+ * quantity divides many ways; these are the layer counts real pallets use, and
+ * the smallest sensible one wins so the layer count stays plausible.
+ */
+const PROPOSAL_LAYER_CANDIDATES = [4, 5, 6, 8, 9, 10, 12, 15, 16, 20, 24];
+
 export function ReceivingPage() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -385,6 +405,16 @@ export function ReceivingPage() {
   /** Line id → the product the operator typed a qty per pallet for. State, not
    *  a ref, because whether the qty per pallet is known decides what the line
    *  renders. */
+  // Free-text pack code the operator declares for this receipt, per line.
+  const [packCodeInputs, setPackCodeInputs] = useState<Record<string, string>>({});
+  // The line whose pack standard is being captured, and the proposal awaiting
+  // approval after a receipt.
+  const [captureLineId, setCaptureLineId] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<PackStandardProposal | null>(null);
+  // Declined proposals, so a dismissal is never re-prompted. A prompt an
+  // operator learns to dismiss reflexively is worse than no prompt.
+  const declinedProposalsRef = useRef<Set<string>>(new Set());
+  const packagingPermission = useFeaturePermission("packaging");
   const [perPalletEntered, setPerPalletEntered] = useState<Record<string, string>>({});
   const totalTypedRefs = useRef<Record<string, boolean>>({});
   const containerAutoAdvanceRef = useRef("");
@@ -577,6 +607,8 @@ export function ReceivingPage() {
           const hint = palletQtyHints[line.id];
           if (!hint || !line.product_id) return false;
           if (perPalletEntered[line.id] === line.product_id) return false;
+          // A declared standard wins over an observed hint.
+          if (packStandardFor(line)) return false;
           if (!totalTypedRefs.current[line.id]) return false;
           if (Number(line.total_quantity) <= 0) return false;
           return Number(line.quantity_per_pallet) !== hint.suggestedQty;
@@ -637,10 +669,64 @@ export function ReceivingPage() {
    * found, and never replaced by the operator, leaves the field on its default
    * of 1 — which would otherwise turn a total of 500 into 500 pallets.
    */
+  /**
+   * Whether this receipt is good enough evidence to propose a pack standard
+   * for a SKU that has none.
+   *
+   * Evidence is ranked. A typed pack code is a *declaration* by someone who may
+   * set master data — enough on its own. The AI hint is an *observation* of what
+   * operators did before, so it needs repetition and it has to factor cleanly
+   * into whole layers; a hint that does not divide is not a pack standard, and
+   * proposing it would offer a number nobody can build to.
+   */
+  function proposalForLine(line: ReceivingShipmentLineState): PackStandardProposal | null {
+    if (!line.product_id) return null;
+    if (declinedProposalsRef.current.has(line.product_id)) return null;
+    if (!packagingPermission.canEdit) return null;
+    const hasStandard = (packagingProfiles as any[]).some(
+      (profile) => profile.product_id === line.product_id && profile.is_pallet_standard === true,
+    );
+    if (hasStandard) return null;
+
+    const declared = parsePackCode(packCodeInputs[line.id] ?? "");
+    if (declared) {
+      return {
+        productId: line.product_id,
+        packagesPerLayer: declared.packagesPerLayer,
+        layersPerPallet: declared.layersPerPallet,
+        rationale: `You recorded this container as ${declared.packagesPerLayer} × ${declared.layersPerPallet}. Save it as the standard for this SKU?`,
+      };
+    }
+
+    const hint = palletQtyHints[line.id];
+    const qty = Number(line.quantity_per_pallet);
+    if (!hint || hint.sampleCount < 3 || !Number.isFinite(qty) || qty <= 0) return null;
+    if (hint.suggestedQty !== qty) return null;
+    // Only propose when the observed quantity actually splits into layers.
+    const perLayer = PROPOSAL_LAYER_CANDIDATES.find((candidate) => qty % candidate === 0 && qty / candidate > 1);
+    if (!perLayer) return null;
+    return {
+      productId: line.product_id,
+      packagesPerLayer: perLayer,
+      layersPerPallet: qty / perLayer,
+      rationale: `${hint.sampleCount} prior pallets of this SKU came in at ${qty}. Save ${perLayer} × ${qty / perLayer} as the standard?`,
+    };
+  }
+
+  function packStandardFor(line: ReceivingShipmentLineState): any | null {
+    if (!line.packaging_profile_id) return null;
+    const profile = (packagingProfiles as any[]).find((row) => String(row.id) === line.packaging_profile_id);
+    return profile && resolveUnitsPerPallet(profile) !== null ? profile : null;
+  }
+
   function perPalletSourceFor(line: ReceivingShipmentLineState): PerPalletSource {
+    // A declared standard outranks an observed hint, and both outrank the
+    // default — but anything the operator typed themselves outranks all three.
+    if (line.product_id && perPalletEntered[line.id] === line.product_id) return "entered";
+    const standard = packStandardFor(line);
+    if (standard && Number(line.quantity_per_pallet) === resolveUnitsPerPallet(standard)) return "standard";
     const hint = palletQtyHints[line.id];
     if (hint && Number(line.quantity_per_pallet) === hint.suggestedQty) return "learned";
-    if (line.product_id && perPalletEntered[line.id] === line.product_id) return "entered";
     return "unknown";
   }
 
@@ -720,6 +806,10 @@ export function ReceivingPage() {
     }),
   });
   useReportContext(reportContext);
+
+  const captureLine = captureLineId
+    ? shipmentForm.lines.find((line) => line.id === captureLineId && line.product_id) ?? null
+    : null;
 
   const saveBlockedReason = shipmentEntryMode === "pallet"
     ? !shipmentForm.warehouse_id
@@ -810,6 +900,12 @@ export function ReceivingPage() {
       await queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       setEditingDraft(null);
       if (result.mode === "receive" && !result.edited) {
+        // Offered once per SKU per receipt, and only after the receipt is
+        // safely saved — never as a gate on completing it.
+        for (const line of shipmentForm.lines) {
+          const candidate = proposalForLine(line);
+          if (candidate) { setProposal(candidate); break; }
+        }
         setShipmentOpen(false);
         setPrintContainer(result.containerNumber);
         setSelectedDraftIds(new Set(result.draftIds));
@@ -1105,8 +1201,13 @@ export function ReceivingPage() {
 
   async function selectShipmentProduct(line: ReceivingShipmentLineState, value: string) {
     const product = productOptions.find((item) => item.id === value);
+    // Selecting a SKU assigns its pack standard. Without this the profile field
+    // stays empty inside a collapsed section and nothing downstream ever sees a
+    // standard, which is what made the Phase 1 columns inert.
+    const standard = resolveDefaultProfileForProduct(packagingProfiles as any[], value);
     updateLine(line.id, {
       product_id: value,
+      packaging_profile_id: standard ? String(standard.id) : "",
       expiry_date: productRequiresExpiry(product) && !line.expiry_date ? defaultExpiryDate() : line.expiry_date,
     });
     setPendingProductCommit((current) => ({ ...current, [line.id]: Boolean(value) }));
@@ -1566,6 +1667,20 @@ export function ReceivingPage() {
                   const productCommitPending = Boolean(pendingProductCommit[line.id] && line.product_id);
                   const palletQtyHint = palletQtyHints[line.id];
                   const perPalletSource = perPalletSourceFor(line);
+                  // Only this SKU's profiles. The field used to list every
+                  // profile in the database whatever the line held.
+                  const lineProfiles = (packagingProfiles as any[]).filter(
+                    (profile) => Boolean(profile?.id) && profile.product_id === line.product_id,
+                  );
+                  const packStandard = packStandardFor(line);
+                  const standardUnitsPerPallet = packStandard ? resolveUnitsPerPallet(packStandard) : null;
+                  const packCodeText = packStandard ? formatPackCode(packStandard) : "";
+                  const declaredPack = parsePackCode(packCodeInputs[line.id] ?? "");
+                  const packReconciliation = reconcilePackToQuantity({
+                    parsed: declaredPack,
+                    unitsPerPackage: packStandard?.units_per_package ?? null,
+                    quantityPerPallet: line.quantity_per_pallet,
+                  });
                   const palletQtyHintApplied = Boolean(
                     palletQtyHint
                     && Number(line.total_quantity) > 0
@@ -1711,7 +1826,29 @@ export function ReceivingPage() {
                             ) : null}
                           </div>
                           <div className="grid min-w-0 gap-1.5">
-                            <ShipmentFieldLabel>Qty per pallet</ShipmentFieldLabel>
+                            <div className="flex items-center justify-between gap-2">
+                              <ShipmentFieldLabel>Qty per pallet</ShipmentFieldLabel>
+                              {packCodeText && standardUnitsPerPallet ? (
+                                <span className="flex items-center gap-1.5">
+                                  <span className="rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                                    {packCodeText} · {standardUnitsPerPallet}
+                                  </span>
+                                  {Number(line.quantity_per_pallet) !== standardUnitsPerPallet ? (
+                                    <button
+                                      type="button"
+                                      tabIndex={-1}
+                                      className="text-[10px] font-medium text-primary underline-offset-2 hover:underline"
+                                      onClick={() => {
+                                        setPerPalletEntered((current) => ({ ...current, [line.id]: line.product_id }));
+                                        updateLine(line.id, { quantity_per_pallet: String(standardUnitsPerPallet) }, "perPallet");
+                                      }}
+                                    >
+                                      Use standard
+                                    </button>
+                                  ) : null}
+                                </span>
+                              ) : null}
+                            </div>
                             <Input
                               ref={(node) => { perPalletRefs.current[line.id] = node; }}
                               type="number"
@@ -1834,12 +1971,75 @@ export function ReceivingPage() {
                                   <SelectValue placeholder="Optional" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {packagingProfiles.length === 0 ? <SelectItem value="__no_packaging" disabled>No packaging profiles</SelectItem> : null}
-                                  {packagingProfiles.filter((profile: any) => Boolean(profile.id)).map((profile: any) => <SelectItem key={profile.id} value={profile.id}>{profile.profile_name}</SelectItem>)}
+                                  {/* Filtered to the line's SKU. Listing every profile in the
+                                      database for every SKU is what made this field noise. */}
+                                  {lineProfiles.length === 0 ? (
+                                    <SelectItem value="__no_packaging" disabled>
+                                      {line.product_id ? "No packaging profiles for this SKU" : "Select a SKU first"}
+                                    </SelectItem>
+                                  ) : null}
+                                  {lineProfiles.map((profile: any) => {
+                                    const code = formatPackCode(profile);
+                                    return (
+                                      <SelectItem key={profile.id} value={profile.id}>
+                                        {code ? `${profile.profile_name} · ${code}` : profile.profile_name}
+                                      </SelectItem>
+                                    );
+                                  })}
                                 </SelectContent>
                               </Select>
                             </div>
+                            <div className="grid gap-1.5">
+                              <ShipmentFieldLabel>Pack code</ShipmentFieldLabel>
+                              <Input
+                                tabIndex={-1}
+                                aria-label="Pack code"
+                                inputMode="text"
+                                placeholder="12 x 7"
+                                className="h-9 sm:h-10"
+                                value={packCodeInputs[line.id] ?? ""}
+                                onChange={(e) => setPackCodeInputs((current) => ({ ...current, [line.id]: e.target.value }))}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                tabIndex={-1}
+                                className="h-8 w-fit text-xs"
+                                // Master data created offline races duplicate
+                                // names in from several devices; the receipt
+                                // itself still queues safely.
+                                disabled={!line.product_id || !online || !packagingPermission.canEdit}
+                                title={
+                                  !line.product_id ? "Select a SKU first"
+                                    : !online ? "Pack standards are created online only"
+                                      : !packagingPermission.canEdit ? "Needs the packaging permission"
+                                        : undefined
+                                }
+                                onClick={() => setCaptureLineId(line.id)}
+                              >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Create Package Standard
+                              </Button>
+                            </div>
                           </CollapsibleContent>
+                          {/* Conformance is recorded, never blocking: a short last
+                              pallet is normal, and a blocked receipt gets worked
+                              around invisibly where a variance is data. */}
+                          {packReconciliation ? (
+                            <p className={cn(
+                              "mt-2 text-xs font-medium",
+                              packReconciliation.conformance === "standard"
+                                ? "text-muted-foreground"
+                                : "text-amber-600 dark:text-amber-400",
+                            )}>
+                              {packReconciliation.message}
+                            </p>
+                          ) : (packCodeInputs[line.id] ?? "").trim() !== "" ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Enter a pack code as cases per layer × layers, e.g. 12 x 7.
+                            </p>
+                          ) : null}
                         </Collapsible>
                       </div>
                       {quantities?.showRemainder && (
@@ -1905,6 +2105,49 @@ export function ReceivingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {captureLine ? (
+        <PackStandardCaptureDialog
+          open
+          onOpenChange={(next) => { if (!next) setCaptureLineId(null); }}
+          productId={captureLine.product_id}
+          productLabel={productOptions.find((product) => product.id === captureLine.product_id)?.sku}
+          takenNames={(packagingProfiles as any[])
+            .filter((profile) => profile.product_id === captureLine.product_id)
+            .map((profile) => String(profile.profile_name ?? ""))}
+          packagesPerLayer={parsePackCode(packCodeInputs[captureLine.id] ?? "")?.packagesPerLayer ?? null}
+          layersPerPallet={parsePackCode(packCodeInputs[captureLine.id] ?? "")?.layersPerPallet ?? null}
+          hasExistingStandard={(packagingProfiles as any[]).some(
+            (profile) => profile.product_id === captureLine.product_id && profile.is_pallet_standard === true,
+          )}
+          onSaved={(profileId) => {
+            updateLine(captureLine.id, { packaging_profile_id: profileId });
+            setCaptureLineId(null);
+          }}
+        />
+      ) : null}
+
+      {proposal ? (
+        <PackStandardCaptureDialog
+          open
+          onOpenChange={(next) => {
+            if (next) return;
+            // A decline is remembered for the session: re-asking teaches the
+            // operator to dismiss the prompt without reading it.
+            declinedProposalsRef.current.add(proposal.productId);
+            setProposal(null);
+          }}
+          productId={proposal.productId}
+          productLabel={productOptions.find((product) => product.id === proposal.productId)?.sku}
+          takenNames={(packagingProfiles as any[])
+            .filter((profile) => profile.product_id === proposal.productId)
+            .map((profile) => String(profile.profile_name ?? ""))}
+          packagesPerLayer={proposal.packagesPerLayer}
+          layersPerPallet={proposal.layersPerPallet}
+          rationale={proposal.rationale}
+          onSaved={() => setProposal(null)}
+        />
+      ) : null}
 
       <Dialog open={printOpen} onOpenChange={setPrintOpen}>
         <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">

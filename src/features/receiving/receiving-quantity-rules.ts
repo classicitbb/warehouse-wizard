@@ -91,7 +91,13 @@ function plural(count: number, word: string) {
  * receipts, typed by the operator, or carried in from a saved draft — as
  * opposed to the untouched default.
  */
-export type PerPalletSource = "learned" | "entered" | "unknown";
+/**
+ * Where the qty per pallet came from. "standard" outranks "learned": a pack
+ * standard is *declared* by someone who may set master data, while a hint is
+ * *observed* from prior pallets and launders yesterday's mistakes into today's
+ * default.
+ */
+export type PerPalletSource = "standard" | "learned" | "entered" | "unknown";
 
 export function validateShipmentQuantities(input: {
   line: ShipmentQuantityLine;
@@ -155,4 +161,89 @@ export function shouldRedistributeOnTotal(input: {
 }): "total" | undefined {
   if (input.nextTotal.trim() === "") return undefined;
   return input.perPalletSource === "unknown" ? undefined : "total";
+}
+
+// ── Pack-code conformance ────────────────────────────────────────────────────
+
+export type PackConformance = "standard" | "short" | "overpack";
+
+export interface PackReconciliation {
+  /** Display form of the declared code, e.g. `12 × 7`. */
+  code: string;
+  packagesPerPallet: number;
+  /** What the declared pack expects, in whatever unit `countedIn` names. */
+  expected: number;
+  actual: number;
+  /** actual - expected. Negative is short. */
+  difference: number;
+  fullLayers: number;
+  topCount: number;
+  conformance: PackConformance;
+  message: string;
+  /**
+   * A pack code counts **cases**; quantity_per_pallet counts **stock units**.
+   * They coincide only when units_per_package is 1, so the comparison says
+   * which unit it made.
+   */
+  countedIn: "units" | "packages";
+}
+
+/**
+ * Compares a typed pack code against what is actually going on one pallet.
+ *
+ * Compared against `quantity_per_pallet`, not the shipment total: a pack code
+ * describes one pallet.
+ *
+ * **This never blocks a receipt.** It contributes nothing to
+ * `validateShipmentQuantities().blocking`. A short last pallet is normal — the
+ * final pallet of a run almost always is. A blocked receipt gets worked around
+ * invisibly; a recorded variance is data the fit test and slotting can use.
+ */
+export function reconcilePackToQuantity(input: {
+  parsed: { packagesPerLayer: number; layersPerPallet: number } | null;
+  unitsPerPackage: number | null | undefined;
+  quantityPerPallet: number | string;
+}): PackReconciliation | null {
+  const parsed = input.parsed;
+  if (!parsed) return null;
+
+  const actual = parseQuantity(input.quantityPerPallet);
+  if (!Number.isFinite(actual) || actual < 0) return null;
+
+  const packagesPerPallet = parsed.packagesPerLayer * parsed.layersPerPallet;
+  const perPackage = Number(input.unitsPerPackage);
+  const countedIn: "units" | "packages" =
+    Number.isFinite(perPackage) && perPackage > 0 ? "units" : "packages";
+  const multiplier = countedIn === "units" ? perPackage : 1;
+  const expected = packagesPerPallet * multiplier;
+
+  // Layer arithmetic is always in cases, whichever unit the comparison used.
+  const actualPackages = Math.floor(actual / multiplier);
+  const fullLayers = Math.floor(actualPackages / parsed.packagesPerLayer);
+  const topCount = actualPackages - fullLayers * parsed.packagesPerLayer;
+
+  const difference = actual - expected;
+  const code = `${parsed.packagesPerLayer} × ${parsed.layersPerPallet}`;
+  const unitWord = countedIn === "units" ? "unit" : "case";
+
+  let conformance: PackConformance = "standard";
+  let message = `${code} · ${expected} ${unitWord}${expected === 1 ? "" : "s"} — matches this pallet.`;
+  if (difference < 0) {
+    conformance = "short";
+    const top = topCount > 0 ? ` plus ${topCount} of ${parsed.packagesPerLayer} on top` : "";
+    message =
+      `${code} · short ${Math.abs(difference)} ${unitWord}${Math.abs(difference) === 1 ? "" : "s"} ` +
+      `of ${expected} — ${fullLayers} full layer${fullLayers === 1 ? "" : "s"}${top}.`;
+  } else if (difference > 0) {
+    conformance = "overpack";
+    message = `${code} · ${difference} ${unitWord}${difference === 1 ? "" : "s"} over the ${expected} this pack holds.`;
+  }
+  if (countedIn === "packages") {
+    message += " Counted in cases — this SKU has no units-per-package set.";
+  }
+
+  return {
+    code, packagesPerPallet, expected, actual, difference,
+    fullLayers, topCount, conformance, message, countedIn,
+  };
 }
