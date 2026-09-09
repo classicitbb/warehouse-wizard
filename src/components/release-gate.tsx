@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { ForcedUpdateBanner } from "@/components/forced-update-banner";
 import { useAuth } from "@/hooks/use-auth";
 import { isActiveWorkInProgress } from "@/lib/active-work";
-import { markActivity, readActivityAtLoad, shouldSignOutForNight } from "@/lib/daily-refresh";
+import { markActivity, pinActivitySnapshot, readActivityAtLoad, shouldSignOutForNight } from "@/lib/daily-refresh";
 import { isPreviewEnvironment } from "@/lib/preview-env";
 import {
   HEARTBEAT_INTERVAL_MS,
