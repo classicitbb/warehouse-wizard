@@ -59,11 +59,15 @@ function NightlySignOut({ policy }: { policy: ReleasePolicy }) {
         return;
       }
       // Stamp before signing out so the fresh login is not immediately
-      // signed out again.
-      markActivity(Date.now());
+      // signed out again — both the stored stamp and the pinned load-time
+      // snapshot, since no reload happens here to re-read it.
+      const now = Date.now();
+      markActivity(now);
+      pinActivitySnapshot(now);
       void signOut().catch(() => {
         /* a failed sign-out just leaves the session in place until next load */
       });
+
     };
 
     check();
