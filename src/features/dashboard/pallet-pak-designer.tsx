@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useFeaturePermission } from "@/hooks/use-feature-permission";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { fetchOptions, upsertRecord } from "@/features/admin/admin-core";
-import { formatPackCode } from "@/lib/measure";
+import { LENGTH_UNIT_LABELS, formatLength, formatPackCode, type LengthUnit } from "@/lib/measure";
 import {
   EMPTY_PACK_STANDARD_DRAFT,
   buildPackStandardPayload,
@@ -83,6 +83,7 @@ export function PalletPakDesigner() {
     packageHeightMm: 220,
   });
   const [binClearanceMm, setBinClearanceMm] = useState(2000);
+  const [unit, setUnit] = useState<LengthUnit>("mm");
   const [actualPackages, setActualPackages] = useState<number | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const [details, setDetails] = useState<SaveDetails>({
@@ -206,12 +207,11 @@ export function PalletPakDesigner() {
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0 pb-3">
           <div className="flex min-w-0 items-center gap-3">
             <CardTitle className="text-base">Pallet Pak Designer</CardTitle>
-            {packCode ? <Badge variant="outline" className="font-mono">{packCode} · {perPallet}</Badge> : null}
             {!permission.isReleased ? (
               <Badge variant="secondary" className="text-xs">Developer preview</Badge>
             ) : null}
           </div>
-          <div className="w-full sm:w-72">
+          <div className="w-full sm:w-[36rem]">
             <ProductSearch
               value={productId}
               onChange={selectProduct}
@@ -221,7 +221,35 @@ export function PalletPakDesigner() {
           </div>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-4">
-          <div className="rounded-md border border-border bg-muted/20 p-3">
+          <div className="relative rounded-md border border-border bg-muted/20 p-3">
+            {/* The pack code is the thing an operator reads across a room, so it
+                lives on the stage at display size rather than in a chip. */}
+            <div className="pointer-events-none absolute left-4 top-3 z-10 grid gap-0.5">
+              <span className="font-mono text-5xl font-bold leading-none tracking-tight text-primary sm:text-6xl lg:text-7xl">
+                {packCode || "—"}
+              </span>
+              <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                {perPallet > 0 ? `${perPallet} cases per pallet` : "Set the build"}
+              </span>
+            </div>
+            <div className="absolute right-3 top-3 z-10 inline-flex overflow-hidden rounded border border-border">
+              {(Object.keys(LENGTH_UNIT_LABELS) as LengthUnit[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={unit === option}
+                  onClick={() => setUnit(option)}
+                  className={cn(
+                    "px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors",
+                    unit === option
+                      ? "bg-primary/20 text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {LENGTH_UNIT_LABELS[option]}
+                </button>
+              ))}
+            </div>
             <PalletStackPreview spec={spec} className="max-h-[26rem]" />
           </div>
           <PackStandardSection
@@ -232,6 +260,7 @@ export function PalletPakDesigner() {
             onBinClearanceChange={setBinClearanceMm}
             actualPackages={actualPackages ?? perPallet}
             onActualPackagesChange={setActualPackages}
+            lengthUnit={unit}
           />
         </CardContent>
       </Card>
@@ -243,16 +272,21 @@ export function PalletPakDesigner() {
               <span className="font-mono text-3xl font-bold tabular-nums text-primary">{perPallet || "—"}</span>
               <span className="text-xs uppercase tracking-wider text-muted-foreground">Cases on pallet</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-0.5">
-                <span className="font-mono text-xl font-semibold tabular-nums">{metrics.stackHeightMm || "—"}</span>
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Height mm</span>
-              </div>
+            <div className="grid gap-3">
               <div className="grid gap-0.5">
                 <span className="font-mono text-xl font-semibold tabular-nums">
-                  {Math.round(draft.footprintLengthMm)}×{Math.round(draft.footprintWidthMm)}
+                  {metrics.stackHeightMm ? formatLength(metrics.stackHeightMm, unit) : "—"}
                 </span>
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Footprint mm</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Built height</span>
+              </div>
+              <div className="grid gap-0.5">
+                {/* One unit mark for the pair, or the readout wraps to two lines. */}
+                <span className="font-mono text-xl font-semibold tabular-nums">
+                  {unit === "mm"
+                    ? `${Math.round(draft.footprintLengthMm)} × ${Math.round(draft.footprintWidthMm)} mm`
+                    : `${formatLength(draft.footprintLengthMm, unit)} × ${formatLength(draft.footprintWidthMm, unit)}`}
+                </span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Footprint</span>
               </div>
             </div>
           </CardContent>
@@ -260,7 +294,7 @@ export function PalletPakDesigner() {
 
         <div className={cn("rounded-md border p-3 text-sm", FIT_TONE[metrics.fit])}>
           <p className="font-mono text-xs font-semibold uppercase tracking-wider">{metrics.fit}</p>
-          <p className="mt-1 leading-snug">{describeStackFit(metrics)}</p>
+          <p className="mt-1 leading-snug">{describeStackFit(metrics, unit === "mm" ? undefined : (mm) => formatLength(mm, unit))}</p>
         </div>
 
         <div className={cn("rounded-md border p-3 text-sm", CONFORMANCE_TONE[metrics.conformance])}>

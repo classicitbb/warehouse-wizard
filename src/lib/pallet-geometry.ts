@@ -511,22 +511,36 @@ export function buildPalletStackGeometry(spec: PalletStackSpec): PalletStackGeom
  * display cannot show a 6 mm difference, and an operator who cannot see why
  * they are blocked will work around it.
  */
-export function describeStackFit(metrics: PalletStackMetrics): string {
+export function describeStackFit(
+  metrics: PalletStackMetrics,
+  /**
+   * Renders a length in the viewer's chosen unit. Applies to the passing
+   * verdicts only — a blocked message always quotes raw millimetres, whatever
+   * the preference, because a quarter-inch display cannot show a 6 mm
+   * difference and an operator who cannot see why they are blocked will work
+   * around it.
+   */
+  formatLengthMm?: (mm: number) => string,
+): string {
   const { fit, stackHeightMm, usableHeightMm, headroomMm, marginMm, maxLayersThatFit } = metrics;
   if (fit === "unknown" || usableHeightMm === null || headroomMm === null) {
     return "No bin clearance recorded — fit not checked.";
   }
-  const ceiling = `${usableHeightMm} mm usable (${marginMm} mm margin)`;
   if (fit === "blocked") {
     const remedy = maxLayersThatFit !== null && maxLayersThatFit > 0
       ? ` Drop to ${maxLayersThatFit} layer${maxLayersThatFit === 1 ? "" : "s"}, or slot a taller bay.`
       : " No layer count fits this bin.";
-    return `Blocked — ${stackHeightMm} mm pallet against ${ceiling}, over by ${Math.abs(headroomMm)} mm.${remedy}`;
+    return (
+      `Blocked — ${stackHeightMm} mm pallet against ${usableHeightMm} mm usable ` +
+      `(${marginMm} mm margin), over by ${Math.abs(headroomMm)} mm.${remedy}`
+    );
   }
+  const render = formatLengthMm ?? ((mm: number) => `${mm} mm`);
+  const ceiling = `${render(usableHeightMm)} usable (${render(marginMm)} margin)`;
   if (fit === "tight") {
-    return `Tight — ${headroomMm} mm clear of ${ceiling}. Best-fit slotting will prefer it.`;
+    return `Tight — ${render(headroomMm)} clear of ${ceiling}. Best-fit slotting will prefer it.`;
   }
-  return `Fits — ${headroomMm} mm clear of ${ceiling}.`;
+  return `Fits — ${render(headroomMm)} clear of ${ceiling}.`;
 }
 
 /** The conformance verdict in words: is this pallet the standard build? */

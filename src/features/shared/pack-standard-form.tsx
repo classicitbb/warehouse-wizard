@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { formatPackCode } from "@/lib/measure";
+import { formatLength, formatPackCode, type LengthUnit } from "@/lib/measure";
 import { type LayerPattern, gridFor } from "@/lib/pallet-geometry";
 import { packStandardDraftFromProfile, type PackStandardDraft } from "@/lib/pack-standard-payload";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,8 @@ export interface PackStandardSectionProps {
   /** Actual cases on this pallet, for the short/overpack preview. */
   actualPackages?: number | null;
   onActualPackagesChange?: (count: number) => void;
+  /** Display unit for the length sliders. Values stay millimetres. */
+  lengthUnit?: LengthUnit;
 }
 
 function numberOrNull(raw: string): number | null {
@@ -53,7 +55,7 @@ function numberOrNull(raw: string): number | null {
 
 /** A slider row with its live value in the label, as in the prototype. */
 function SliderRow({
-  label, value, min, max, step = 1, suffix, disabled, onChange,
+  label, value, min, max, step = 1, suffix, disabled, onChange, format,
 }: {
   label: string;
   value: number;
@@ -63,6 +65,8 @@ function SliderRow({
   suffix?: string;
   disabled?: boolean;
   onChange: (value: number) => void;
+  /** Renders the readout. The slider itself always works in millimetres. */
+  format?: (value: number) => string;
 }) {
   const id = useId();
   return (
@@ -70,7 +74,7 @@ function SliderRow({
       <Label htmlFor={id} className="flex items-baseline justify-between gap-2 text-xs uppercase tracking-wider text-muted-foreground">
         <span>{label}</span>
         <span className="font-mono font-semibold tabular-nums text-primary">
-          {value}{suffix ? ` ${suffix}` : ""}
+          {format ? format(value) : `${value}${suffix ? ` ${suffix}` : ""}`}
         </span>
       </Label>
       <Slider
@@ -125,7 +129,9 @@ export function PackStandardSection({
   onBinClearanceChange,
   actualPackages,
   onActualPackagesChange,
+  lengthUnit = "mm",
 }: PackStandardSectionProps) {
+  const showLength = (mm: number) => formatLength(mm, lengthUnit);
   const perLayer = draft.packagesPerLayer ?? 0;
   const layers = draft.layersPerPallet ?? 0;
   const perPallet = perLayer * layers;
@@ -159,7 +165,7 @@ export function PackStandardSection({
           />
           <SliderRow
             label="Carton height" value={draft.packageHeightMm ?? 220} min={40} max={800} step={5}
-            suffix="mm" disabled={disabled}
+            format={showLength} disabled={disabled}
             onChange={(value) => onChange({ packageHeightMm: value })}
           />
           {onActualPackagesChange ? (
@@ -171,7 +177,7 @@ export function PackStandardSection({
           {onBinClearanceChange ? (
             <SliderRow
               label="Bin clearance" value={binClearanceMm ?? 2000} min={800} max={3200} step={10}
-              suffix="mm" disabled={disabled} onChange={onBinClearanceChange}
+              format={showLength} disabled={disabled} onChange={onBinClearanceChange}
             />
           ) : null}
         </div>
@@ -193,7 +199,7 @@ export function PackStandardSection({
           </div>
           <SliderRow
             label="Slip sheet" value={draft.slipSheetHeightMm} min={0} max={60} disabled={disabled}
-            suffix="mm" onChange={(value) => onChange({ slipSheetHeightMm: value })}
+            format={showLength} onChange={(value) => onChange({ slipSheetHeightMm: value })}
           />
         </div>
       </div>

@@ -96,6 +96,50 @@ export function formatMm(mm: number | null | undefined): string {
   return value === null ? "" : `${Math.round(value)} mm`;
 }
 
+/** Quarter-inch fractions as the glyphs a tape measure reads. */
+const QUARTER_GLYPHS = ["", "¼", "½", "¾"] as const;
+
+/**
+ * Feet and inches to the nearest quarter, e.g. `6' 3¼"`. Whole feet drop the
+ * inch part entirely rather than printing `6' 0"`.
+ */
+export function formatFeetInches(mm: number | null | undefined): string {
+  const value = finite(mm);
+  if (value === null) return "";
+  const negative = value < 0;
+  const quarters = mmToQuarterInches(Math.abs(value));
+  const feet = Math.floor(quarters / 48);
+  const remainder = quarters - feet * 48;
+  const inches = Math.floor(remainder / 4);
+  const glyph = QUARTER_GLYPHS[remainder % 4];
+  const sign = negative ? "-" : "";
+  if (remainder === 0) return `${sign}${feet}'`;
+  if (feet === 0) return `${sign}${inches}${glyph}"`;
+  return `${sign}${feet}' ${inches}${glyph}"`;
+}
+
+/** The length units an operator can choose between. */
+export type LengthUnit = "mm" | "in" | "ftin";
+
+export const LENGTH_UNIT_LABELS: Record<LengthUnit, string> = {
+  mm: "mm",
+  in: "inch",
+  ftin: "ft/in",
+};
+
+/**
+ * One length rendered in the viewer's chosen unit. Inches round to the nearest
+ * quarter, which is the finest division that survives a tape measure — and the
+ * reason the height-block message quotes raw millimetres regardless.
+ */
+export function formatLength(mm: number | null | undefined, unit: LengthUnit): string {
+  const value = finite(mm);
+  if (value === null) return "";
+  if (unit === "ftin") return formatFeetInches(value);
+  if (unit === "in") return formatInches(value);
+  return formatMm(value);
+}
+
 // ── Bin clearance ────────────────────────────────────────────────────────────
 
 export interface LocationClearanceFields {

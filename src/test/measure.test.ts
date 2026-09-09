@@ -7,6 +7,8 @@ import {
   cmToMm,
   exceedsClearance,
   formatClearanceBlockReason,
+  formatFeetInches,
+  formatLength,
   formatPackCode,
   formatPackCodeAscii,
   parsePackCode,
@@ -277,5 +279,54 @@ describe("formatPackCodeAscii", () => {
   it("returns an empty string when the profile carries no layer data", () => {
     expect(formatPackCodeAscii({ packages_per_layer: 12 })).toBe("");
     expect(formatPackCodeAscii(null)).toBe("");
+  });
+});
+
+
+describe("formatFeetInches", () => {
+  it("renders whole feet without a redundant inch part", () => {
+    expect(formatFeetInches(1828.8)).toBe("6'");   // exactly 72 in
+    expect(formatFeetInches(304.8)).toBe("1'");    // exactly 12 in
+  });
+
+  it("renders feet and inches with tape-measure fractions", () => {
+    // 1905 mm is exactly 75 in, so there is no fraction to show.
+    expect(formatFeetInches(1905)).toBe("6' 3\"");
+    // 1720 mm is 67.72 in, which snaps to 67 3/4.
+    expect(formatFeetInches(1720)).toBe("5' 7¾\"");
+  });
+
+  it("drops the feet part below a foot", () => {
+    expect(formatFeetInches(225)).toBe("8¾\"");
+    expect(formatFeetInches(25.4)).toBe("1\"");
+  });
+
+  it("rounds to the nearest quarter inch, like the other readouts", () => {
+    // 220 mm is 8.66 in, which snaps to 8 3/4.
+    expect(formatFeetInches(220)).toBe("8¾\"");
+  });
+
+  it("handles zero and a negative headroom", () => {
+    expect(formatFeetInches(0)).toBe("0'");
+    expect(formatFeetInches(-1905)).toBe("-6' 3\"");
+  });
+
+  it("returns an empty string for a missing value rather than throwing", () => {
+    expect(formatFeetInches(null)).toBe("");
+    expect(formatFeetInches(undefined)).toBe("");
+  });
+});
+
+describe("formatLength", () => {
+  it("renders the same length in each unit an operator can pick", () => {
+    expect(formatLength(1905, "mm")).toBe("1905 mm");
+    expect(formatLength(1905, "in")).toBe("75 in");
+    expect(formatLength(1905, "ftin")).toBe("6' 3\"");
+  });
+
+  it("is empty for a missing length in every unit", () => {
+    for (const unit of ["mm", "in", "ftin"] as const) {
+      expect(formatLength(null, unit)).toBe("");
+    }
   });
 });
