@@ -392,7 +392,8 @@ export function DashboardPage() {
 
   const handleTileResize = useCallback((id: string, modeKey: DashboardMode, key: string, setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>) => {
     setTiles((prev) => {
-      const next = prev.map((tile) => tile.id === id ? { ...tile, size: (tile.size === "sm" ? "lg" : "sm") as DashboardCardSize } : tile);
+      const next = prev.map((tile) => tile.id === id ? { ...tile, size: nextDashboardCardSize(tile.size) } : tile);
+
       persistLayout(modeKey, key, next);
       return next;
     });
