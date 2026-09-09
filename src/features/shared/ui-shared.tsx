@@ -103,6 +103,7 @@ import {
   type LocationOccupancyFixResult,
 } from "@/lib/wms-core";
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
+import { PACK_SECTION_FIELDS, PackStandardFormSection } from "@/features/shared/pack-standard-form";
 
 import { buildPalletLabelBatchPrintHtml, type PalletLabelPageProps } from "@/components/pallet-label-page";
 
@@ -1056,6 +1057,7 @@ export function ResourceFormDialog({
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
   const isZones = resource.table === "zones";
   const isLocations = resource.table === "locations";
+  const isPackagingProfiles = resource.table === "product_packaging_profiles";
   const [locationDefaultsOpen, setLocationDefaultsOpen] = useState(false);
   const { data: options } = useQuery({
     queryKey: ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
@@ -1141,7 +1143,7 @@ export function ResourceFormDialog({
           Add {resource.singular}
         </Button>}
       </DialogTrigger>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className={cn("flex max-h-[90vh] flex-col overflow-hidden p-0", isPackagingProfiles ? "sm:max-w-4xl" : "sm:max-w-2xl")}>
         <DialogHeader className="shrink-0 border-b px-6 py-4">
           <DialogTitle>Create {resource.singular}</DialogTitle>
           <DialogDescription>{resource.description}</DialogDescription>
@@ -1177,6 +1179,15 @@ export function ResourceFormDialog({
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
+                </>
+              ) : isPackagingProfiles ? (
+                <>
+                  {resource.fields
+                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name))
+                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                  <div className="border-t border-border pt-4">
+                    <PackStandardFormSection form={form} />
+                  </div>
                 </>
               ) : (
                 resource.fields.map((field) => renderField(field, form, getResourceFieldOptions(field, options)))
@@ -1225,6 +1236,7 @@ export function ResourceEditDialog({
 
   // For locations: watch status to show disable-reason notice
   const isLocations = resource.table === "locations";
+  const isEditPackagingProfiles = resource.table === "product_packaging_profiles";
   const watchedStatus = isLocations ? (form.watch("status") as string | undefined) : undefined;
   const isBeingDisabled = watchedStatus === "disabled" || watchedStatus === "maintenance";
   const wasAlreadyDisabled = isLocations && (editRecord.status === "disabled" || editRecord.status === "maintenance");
@@ -1276,7 +1288,7 @@ export function ResourceEditDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className={cn("flex max-h-[90vh] flex-col overflow-hidden p-0", isEditPackagingProfiles ? "sm:max-w-4xl" : "sm:max-w-2xl")}>
         <DialogHeader className="shrink-0 border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4" />
@@ -1288,7 +1300,16 @@ export function ResourceEditDialog({
           <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit(handleSubmit)}>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
               <div className="flex flex-col gap-4 pr-4">
-              {resource.fields.map((field) => (
+              {isEditPackagingProfiles ? (
+                <>
+                  {resource.fields
+                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name))
+                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                  <div className="border-t border-border pt-4">
+                    <PackStandardFormSection form={form} />
+                  </div>
+                </>
+              ) : resource.fields.map((field) => (
                 <div key={field.name}>
                   {renderField(field, form, getResourceFieldOptions(field, options))}
                   {/* Disable-with-reason notice for locations status field */}
@@ -2451,6 +2472,18 @@ export function defaultFieldValue(field: FieldDefinition) {
   if (field.name === "supervisor_approval_cap") return 1000;
   if (field.name === "freeze_default_hours") return 4;
   if (field.name === "max_pallets") return 1;
+  // Pack-standard column defaults. pallet_base_height_mm and
+  // slip_sheet_height_mm must never reach the database as null: the generated
+  // standard_height_mm is base + layers * (height + slip), so one null makes
+  // the whole expression null. The standard then exists with no height and
+  // every clearance check silently passes.
+  if (field.name === "pallet_base_height_mm") return 145;
+  if (field.name === "slip_sheet_height_mm") return 0;
+  if (field.name === "max_stack_pallets") return 1;
+  if (field.name === "quantity_tolerance") return 0;
+  if (field.name === "pallet_footprint_length_mm") return 1200;
+  if (field.name === "pallet_footprint_width_mm") return 1000;
+  if (field.name === "layer_pattern") return "block";
   if (["minimum_stock_level", "maximum_stock_level", "pick_down_to_level", "supplier_lead_time_days"].includes(field.name)) return 0;
   if (field.type === "number") return "";
   if (field.name === "temperature_class" || field.name === "temperature_requirement") return "ambient";

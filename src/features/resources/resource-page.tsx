@@ -661,6 +661,18 @@ export function ResourcePage({
         !["barcode", "description", "client_owner_id", "product_family"].includes(field.name),
       );
     }
+    if (resource.table === "product_packaging_profiles") {
+      // The pack-standard columns take the field list from 10 to 26. All of
+      // them belong on the form; only the ones an operator scans for belong in
+      // the table.
+      const shown = [
+        "profile_name", "product_id", "package_type", "units_per_package",
+        "packages_per_layer", "layers_per_pallet", "is_pallet_standard", "is_default",
+      ];
+      return shown
+        .map((name) => resource.fields.find((field) => field.name === name))
+        .filter(Boolean) as typeof resource.fields;
+    }
     if (resource.table !== "locations") return resource.fields;
     const fieldMap = new Map(resource.fields.map((field) => [field.name, field]));
     const orderedNames = [
