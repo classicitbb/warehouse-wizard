@@ -2541,7 +2541,7 @@ export function WarehouseFloorMode({
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-h-0 auto-rows-[minmax(9.5rem,1fr)] gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]">
+          <div className="grid min-h-0 auto-rows-[10rem] gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
             {tiles.map((tile) => {
               const summaryTile = renderSummaryTile(tile, onResize, onHide);
               if (summaryTile) return summaryTile;
@@ -2697,7 +2697,7 @@ export function DockHandoffBoard({
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-w-0 auto-rows-[minmax(9.5rem,1fr)] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,13rem),1fr))]">
+          <div className="grid min-w-0 auto-rows-[10rem] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
             {tiles.map((tile) => {
               const summaryTile = renderSummaryTile(tile, onResize, onHide);
               if (summaryTile) return summaryTile;
@@ -2781,7 +2781,7 @@ export function OfficeMonitoringMode({
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-w-0 auto-rows-[minmax(9.5rem,1fr)] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]">
+          <div className="grid min-w-0 auto-rows-[10rem] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
             {tiles.map((tile) => {
               const summaryTile = renderSummaryTile(tile, onResize, onHide);
               if (summaryTile) return summaryTile;
