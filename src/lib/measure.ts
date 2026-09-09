@@ -291,3 +291,47 @@ export function formatPackCode(profile: PackStandardFields | null | undefined): 
   if (perLayer === null || layers === null) return "";
   return `${perLayer} × ${layers}`;
 }
+
+/**
+ * ASCII form of the pack code for anything stored or scanned, e.g. `6x8`.
+ * `formatPackCode` emits U+00D7 for display; a non-ASCII character in a stored
+ * profile name has to survive CSV import/export and scanner keyboards, so the
+ * two forms are kept deliberately separate.
+ */
+export function formatPackCodeAscii(profile: PackStandardFields | null | undefined): string {
+  const perLayer = positive(profile?.packages_per_layer);
+  const layers = positive(profile?.layers_per_pallet);
+  if (perLayer === null || layers === null) return "";
+  return `${perLayer}x${layers}`;
+}
+
+export interface ParsedPackCode {
+  packagesPerLayer: number;
+  layersPerPallet: number;
+}
+
+/** Per-layer first, layers second — the same order `formatPackCode` prints. */
+const PACK_CODE_PATTERN = /^(\d{1,4})\s*(?:x|×|\*|by)\s*(\d{1,4})$/;
+
+/**
+ * The inverse of `formatPackCode`: reads what an operator types on the floor.
+ * Accepts `12x7`, `12X7`, `12 x 7`, `12 × 7`, `12*7`, `12 by 7`.
+ *
+ * Returns `null` for anything else — never throws, never a partial result.
+ * This re-parses on every keystroke, so throwing would mean a try/catch per
+ * key, and a half-parsed `{ perLayer: 12, layers: NaN }` would propagate NaN
+ * into height arithmetic and null into a payload Postgres accepts.
+ *
+ * A bare number is rejected on purpose: `84` is a *quantity*, and reading it
+ * as `84 × 1` would silently create an 84-per-layer, single-layer standard.
+ */
+export function parsePackCode(input: string | null | undefined): ParsedPackCode | null {
+  if (typeof input !== "string") return null;
+  const match = PACK_CODE_PATTERN.exec(input.trim().toLowerCase().replace(/\s+/g, " "));
+  if (!match) return null;
+  const packagesPerLayer = Number(match[1]);
+  const layersPerPallet = Number(match[2]);
+  if (!Number.isInteger(packagesPerLayer) || packagesPerLayer <= 0) return null;
+  if (!Number.isInteger(layersPerPallet) || layersPerPallet <= 0) return null;
+  return { packagesPerLayer, layersPerPallet };
+}

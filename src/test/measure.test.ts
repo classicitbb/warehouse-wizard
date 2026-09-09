@@ -7,6 +7,9 @@ import {
   cmToMm,
   exceedsClearance,
   formatClearanceBlockReason,
+  formatPackCode,
+  formatPackCodeAscii,
+  parsePackCode,
   formatInches,
   formatMm,
   inchesToMm,
@@ -202,5 +205,77 @@ describe("formatClearanceBlockReason", () => {
     expect(
       formatClearanceBlockReason({ palletHeightMm: 1905, clearanceMm: 1900, marginMm: null }),
     ).toContain("76 mm margin");
+  });
+});
+
+describe("parsePackCode", () => {
+  it.each([
+    ["12x7", 12, 7],
+    ["12X7", 12, 7],
+    ["12 x 7", 12, 7],
+    ["12 × 7", 12, 7],
+    ["12*7", 12, 7],
+    ["12 by 7", 12, 7],
+    ["12 BY 7", 12, 7],
+    ["  12   by   7  ", 12, 7],
+    ["1x1", 1, 1],
+  ])("reads %s as a pack code", (input, perLayer, layers) => {
+    expect(parsePackCode(input)).toEqual({ packagesPerLayer: perLayer, layersPerPallet: layers });
+  });
+
+  it("rejects a bare number, because that is a quantity and not a pack code", () => {
+    // Reading 84 as 84 x 1 would silently create an 84-per-layer standard.
+    expect(parsePackCode("84")).toBeNull();
+  });
+
+  it.each([
+    ["12x7x3", "three numbers is a dimension triple"],
+    ["12.5x7", "cases per layer is a whole number"],
+    ["0x7", "zero cases per layer"],
+    ["12x0", "zero layers"],
+    ["-12x7", "negative"],
+    ["x7", "missing left operand"],
+    ["12x", "missing right operand"],
+    ["", "empty"],
+    ["   ", "whitespace only"],
+    ["twelve by seven", "words"],
+    ["12 7", "no operator"],
+    ["12x7 = 84", "trailing total"],
+  ])("returns null for %s (%s)", (input) => {
+    expect(parsePackCode(input)).toBeNull();
+  });
+
+  it("never throws on a non-string", () => {
+    expect(parsePackCode(null)).toBeNull();
+    expect(parsePackCode(undefined)).toBeNull();
+  });
+
+  it("round-trips against formatPackCode across the usable range", () => {
+    for (let perLayer = 1; perLayer <= 20; perLayer += 1) {
+      for (let layers = 1; layers <= 20; layers += 1) {
+        const profile = { packages_per_layer: perLayer, layers_per_pallet: layers };
+        expect(parsePackCode(formatPackCode(profile))).toEqual({
+          packagesPerLayer: perLayer,
+          layersPerPallet: layers,
+        });
+        expect(parsePackCode(formatPackCodeAscii(profile))).toEqual({
+          packagesPerLayer: perLayer,
+          layersPerPallet: layers,
+        });
+      }
+    }
+  });
+});
+
+describe("formatPackCodeAscii", () => {
+  it("stores an ASCII code while the display form stays typographic", () => {
+    const profile = { packages_per_layer: 12, layers_per_pallet: 7 };
+    expect(formatPackCodeAscii(profile)).toBe("12x7");
+    expect(formatPackCode(profile)).toBe("12 × 7");
+  });
+
+  it("returns an empty string when the profile carries no layer data", () => {
+    expect(formatPackCodeAscii({ packages_per_layer: 12 })).toBe("");
+    expect(formatPackCodeAscii(null)).toBe("");
   });
 });
