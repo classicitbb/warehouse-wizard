@@ -387,6 +387,39 @@ describe("ceiling guides", () => {
   });
 });
 
+describe("layer-count bracket", () => {
+  it("draws a vertical rule capped with a tick at each end", () => {
+    const { rules } = buildPalletStackGeometry(BASE_SPEC);
+    const spine = rules.find((r) => r.key === "bracket")!;
+    expect(spine.x1).toBe(spine.x2);
+    expect(rules.find((r) => r.key === "bracket-top")).toBeDefined();
+    expect(rules.find((r) => r.key === "bracket-bottom")).toBeDefined();
+  });
+
+  it("spans exactly the cargo, not the pallet deck", () => {
+    const { rules } = buildPalletStackGeometry(BASE_SPEC);
+    const spine = rules.find((r) => r.key === "bracket")!;
+    const top = rules.find((r) => r.key === "bracket-top")!;
+    const bottom = rules.find((r) => r.key === "bracket-bottom")!;
+    // Screen y decreases upward, so the top tick is the smaller value.
+    expect(top.y1).toBeLessThan(bottom.y1);
+    expect(Math.min(spine.y1, spine.y2)).toBeCloseTo(top.y1, 5);
+    expect(Math.max(spine.y1, spine.y2)).toBeCloseTo(bottom.y1, 5);
+  });
+
+  it("labels the count and singularises one layer", () => {
+    const many = buildPalletStackGeometry(BASE_SPEC).labels;
+    expect(many.find((l) => l.key === "layer-count")?.text).toBe("7");
+    expect(many.find((l) => l.key === "layer-caption")?.text).toBe("LAYERS");
+    const one = buildPalletStackGeometry({ ...BASE_SPEC, layersPerPallet: 1 }).labels;
+    expect(one.find((l) => l.key === "layer-caption")?.text).toBe("LAYER");
+  });
+
+  it("emits no rules for an unusable build", () => {
+    expect(buildPalletStackGeometry({ ...BASE_SPEC, layersPerPallet: 0 }).rules).toHaveLength(0);
+  });
+});
+
 describe("box sizing", () => {
   it("leaves a gap between neighbouring cases", () => {
     const geometry = buildPalletStackGeometry({ ...BASE_SPEC, layersPerPallet: 1 });

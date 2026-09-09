@@ -50,6 +50,15 @@ const demoEnabled =
     !/^threeplmgmt\.lovable\.app$/.test(window.location.hostname));
 
 const demoUsers: Record<string, { id: string; fullName: string; roles: RoleCode[]; userCode: string; badgeCode: string }> = {
+  // Dev-only, like every entry here. Without a developer demo login there is
+  // no way to reach a developer-gated surface on a dev build.
+  "dev@warehousewizard.local": {
+    id: "00000000-0000-0000-0000-000000000000",
+    fullName: "Developer",
+    roles: ["developer", "admin", "warehouse_manager", "inventory_clerk", "warehouse_operator"],
+    userCode: "DEV01",
+    badgeCode: "BADGE-DEV01",
+  },
   "admin@warehousewizard.local": {
     id: "11111111-1111-1111-1111-111111111111",
     fullName: "System Admin",

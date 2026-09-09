@@ -157,6 +157,7 @@ import {
   saveDashboardTileVisibility,
   visibleDashboardTiles,
   type DashboardCardSize,
+  type DashboardModeKey,
   type DashboardTileConfig,
   type DashboardTileDefinition,
   type DashboardVisibilityMap,
@@ -169,6 +170,8 @@ import {
   type EnterpriseDashboardSnapshot,
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
+import { PalletPakDesigner } from "@/features/dashboard/pallet-pak-designer";
+import { useFeaturePermission } from "@/hooks/use-feature-permission";
 import { HelpSidebar } from "@/components/help-sidebar";
 import { ZoneLabelPage } from "@/components/zone-label-page";
 import { LocationLabelPage } from "@/components/location-label-page";
@@ -225,6 +228,15 @@ export function DashboardPage() {
   const { toPath } = useTenantPath();
   const { flags, isEnabled } = useFeatureFlags();
   const [mode, setMode] = useState<DashboardMode>("floor");
+  // Gated on the stored release switch rather than a role literal, so
+  // releasing the designer never means editing this file.
+  const packDesignerPermission = useFeaturePermission("pack_designer");
+  const canSeeDesigner = packDesignerPermission.canView;
+  useEffect(() => {
+    // An admin can revoke the grant mid-session; without this the tab strip
+    // is left with no active trigger.
+    if (mode === "packing" && !canSeeDesigner && !packDesignerPermission.isLoading) setMode("floor");
+  }, [mode, canSeeDesigner, packDesignerPermission.isLoading]);
   const [editMode, setEditMode] = useState(false);
   const deviceId = useMemo(() => (typeof window === "undefined" ? "server-render-device" : getOrCreateDeviceId()), []);
   const hasCopilotAccess = canAccessCopilot(roles);
@@ -322,7 +334,7 @@ export function DashboardPage() {
     let cancelled = false;
 
     async function loadMode(
-      modeKey: DashboardMode,
+      modeKey: DashboardModeKey,
       storageKey: string,
       defaults: DashboardTileConfig[],
       setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>,
@@ -367,7 +379,7 @@ export function DashboardPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const persistLayout = useCallback((modeKey: DashboardMode, key: string, tiles: DashboardTileConfig[]) => {
+  const persistLayout = useCallback((modeKey: DashboardModeKey, key: string, tiles: DashboardTileConfig[]) => {
     saveFallbackJson(key, tiles);
     if (profile?.id) {
       saveDashboardDeviceLayout(profile.id, deviceId, modeKey, tiles).catch((error) => {
@@ -377,7 +389,7 @@ export function DashboardPage() {
     }
   }, [deviceId, profile?.id]);
 
-  const handleTileDragEnd = useCallback((event: DragEndEvent, modeKey: DashboardMode, key: string, setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>) => {
+  const handleTileDragEnd = useCallback((event: DragEndEvent, modeKey: DashboardModeKey, key: string, setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>) => {
     if (!editMode) return;
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -392,7 +404,7 @@ export function DashboardPage() {
     }
   }, [editMode, persistLayout]);
 
-  const handleTileResize = useCallback((id: string, modeKey: DashboardMode, key: string, setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>) => {
+  const handleTileResize = useCallback((id: string, modeKey: DashboardModeKey, key: string, setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>) => {
     setTiles((prev) => {
       const next = prev.map((tile) => tile.id === id ? { ...tile, size: nextDashboardCardSize(tile.size) } : tile);
 
@@ -403,7 +415,7 @@ export function DashboardPage() {
 
   const handleTileVisibility = useCallback((
     id: string,
-    modeKey: DashboardMode,
+    modeKey: DashboardModeKey,
     visible: boolean,
     setVisibility: Dispatch<SetStateAction<DashboardVisibilityMap>>,
   ) => {
@@ -474,14 +486,18 @@ export function DashboardPage() {
                 </TooltipTrigger>
                 <TooltipContent>3D warehouse view — coming soon</TooltipContent>
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0} className="inline-flex">
-                    <TabsTrigger value="packing" disabled className="gap-1.5 opacity-60"><Lock className="h-3.5 w-3.5" /> Packing</TabsTrigger>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Packing stations — coming soon</TooltipContent>
-              </Tooltip>
+              {canSeeDesigner ? (
+                <TabsTrigger value="packing" className="gap-1.5"><Boxes className="h-3.5 w-3.5" /> Packing</TabsTrigger>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} className="inline-flex">
+                      <TabsTrigger value="packing" disabled className="gap-1.5 opacity-60"><Lock className="h-3.5 w-3.5" /> Packing</TabsTrigger>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Pallet Pak Designer — not released yet</TooltipContent>
+                </Tooltip>
+              )}
             </TabsList>
           </Tabs>
           <Tooltip>
@@ -571,6 +587,7 @@ export function DashboardPage() {
             onRestore={(id) => handleTileVisibility(id, "office", true, setOfficeVisibility)}
           />
         ) : null}
+        {mode === "packing" && canSeeDesigner ? <PalletPakDesigner /> : null}
       </div>
     </div>
   );

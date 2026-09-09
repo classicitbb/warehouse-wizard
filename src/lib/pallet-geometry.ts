@@ -92,6 +92,17 @@ export interface StackLabel {
   size: number;
 }
 
+/** Straight rules: the layer-count dimension bracket and its ticks. */
+export interface StackRule {
+  key: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  tone: "muted" | "primary";
+  width: number;
+}
+
 export interface PalletStackMetrics {
   packagesPerLayer: number;
   layersPerPallet: number;
@@ -115,6 +126,7 @@ export interface PalletStackGeometry {
   quads: StackQuad[];
   guides: StackGuide[];
   labels: StackLabel[];
+  rules: StackRule[];
   viewBox: string;
   collapsed: boolean;
   metrics: PalletStackMetrics;
@@ -272,7 +284,7 @@ export function buildPalletStackGeometry(spec: PalletStackSpec): PalletStackGeom
   const packageHeight = positiveNumber(spec.packageHeightMm) ?? 0;
 
   const empty: PalletStackGeometry = {
-    quads: [], guides: [], labels: [], viewBox: "0 0 100 100", collapsed: false, metrics,
+    quads: [], guides: [], labels: [], rules: [], viewBox: "0 0 100 100", collapsed: false, metrics,
   };
   // No usable build: draw nothing rather than a pallet with NaN corners.
   if (perLayer <= 0 || layers <= 0 || packageHeight <= 0) return empty;
@@ -364,6 +376,7 @@ export function buildPalletStackGeometry(spec: PalletStackSpec): PalletStackGeom
   const quads: StackQuad[] = [];
   const guides: StackGuide[] = [];
   const labels: StackLabel[] = [];
+  const rules: StackRule[] = [];
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
   const track = (points: Array<[number, number]>) => {
@@ -445,17 +458,36 @@ export function buildPalletStackGeometry(spec: PalletStackSpec): PalletStackGeom
     }
   }
 
-  // Layer-count bracket off the right-hand corner of the stack.
+  // Layer-count dimension bracket off the right-hand corner of the stack:
+  // a vertical rule spanning the cargo, capped with a tick at each end.
   const bracketX = maxX + 20 * scale;
   const topY = project(footL, 0, base + layers * layerPitch, SCALE)[1];
+  const botY = project(footL, 0, base, SCALE)[1];
+  const tick = 7 * scale;
+  const ruleWidth = 1.1 * scale;
+  rules.push(
+    { key: "bracket", x1: bracketX, y1: topY, x2: bracketX, y2: botY, tone: "primary", width: ruleWidth },
+    { key: "bracket-top", x1: bracketX - tick, y1: topY, x2: bracketX + tick, y2: topY, tone: "primary", width: ruleWidth },
+    { key: "bracket-bottom", x1: bracketX - tick, y1: botY, x2: bracketX + tick, y2: botY, tone: "primary", width: ruleWidth },
+  );
+  const midY = (topY + botY) / 2;
   labels.push({
     key: "layer-count",
     x: bracketX + 12 * scale,
-    y: (topY + project(footL, 0, base, SCALE)[1]) / 2,
+    y: midY - 4 * scale,
     text: String(layers),
     anchor: "start",
     tone: "primary",
     size: 30 * scale,
+  });
+  labels.push({
+    key: "layer-caption",
+    x: bracketX + 12 * scale,
+    y: midY + 18 * scale,
+    text: layers === 1 ? "LAYER" : "LAYERS",
+    anchor: "start",
+    tone: "muted",
+    size: 11 * scale,
   });
   maxX = bracketX + 74 * scale;
   if (topY < minY) minY = topY;
@@ -467,7 +499,7 @@ export function buildPalletStackGeometry(spec: PalletStackSpec): PalletStackGeom
     (maxY - minY + VIEWBOX_PADDING * 2).toFixed(1),
   ].join(" ");
 
-  return { quads, guides, labels, viewBox, collapsed, metrics };
+  return { quads, guides, labels, rules, viewBox, collapsed, metrics };
 }
 
 // ── verdict copy ─────────────────────────────────────────────────────────────
