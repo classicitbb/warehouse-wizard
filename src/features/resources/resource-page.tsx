@@ -429,10 +429,13 @@ export function ResourcePage({
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
   const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
-  // A search OR any column filter/quick link reads the whole permitted set, so a
-  // match is never hidden past the current page.
-  const fullReadActive = Boolean(activeFilter) || hasColumnFilters;
-  const paging = useInfiniteRows({ resetKeys: [resource.table, includeHidden, activeFilter, hasColumnFilters] });
+  // A search, any column filter/quick link, OR an active sort reads the whole
+  // permitted set — sorting one loaded page would show a false "top" list.
+  const fullReadActive = Boolean(activeFilter) || hasColumnFilters || Boolean(sortState);
+  const paging = useInfiniteRows({
+    resetKeys: [resource.table, includeHidden, activeFilter, hasColumnFilters, Boolean(sortState)],
+  });
+
   const visibleRecordLimit = paging.limit;
   const { data = [], isLoading, isFetching } = useQuery({
     queryKey: [resource.table, includeHidden, usesIncrementalTable && !fullReadActive ? visibleRecordLimit : "all"],
