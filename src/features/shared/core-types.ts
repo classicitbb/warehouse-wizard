@@ -264,11 +264,16 @@ export function getDashboardMetricKeysForModules(enabledModules?: Partial<Record
     ["putaway", "openPutawayTasks"],
     ["pick-lists", "openPickLists"],
     ["location-moves", "openMoveTasks"],
+    ["cycle-counts", "openCycleCounts"],
+    ["inventory", "availablePallets"],
+    ["status", "holdStock"],
+    ["status", "quarantineStock"],
     ["inventory", "expiryWarning30"],
     ["inventory", "expiryWarning60"],
     ["inventory", "stockAge3Months"],
     ["inventory", "stockAge6Months"],
     ["inventory", "stockAge12Months"],
+
   ];
 
   return metricModules.flatMap(([moduleKey, metricKey]) => moduleEnabled(moduleKey) ? [metricKey] : []);
