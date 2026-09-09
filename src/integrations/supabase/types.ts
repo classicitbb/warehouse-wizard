@@ -4867,6 +4867,10 @@ export type Database = {
         Args: { in_quantity: number; in_task_id: string }
         Returns: Json
       }
+      dashboard_metrics_summary: {
+        Args: { p_warehouse_id?: string }
+        Returns: Json
+      }
       delete_client_cascade: { Args: { in_id: string }; Returns: Json }
       delete_location_cascade: { Args: { in_id: string }; Returns: Json }
       delete_product_cascade: { Args: { in_id: string }; Returns: Json }

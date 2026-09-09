@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { HintButton } from "@/components/hint-button";
+import { getDashboardMetricKeysForModules } from "@/features/shared/core-types";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { canAccessCopilot, useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
@@ -151,6 +152,7 @@ import {
   loadDashboardDeviceLayout,
   loadDashboardTileVisibility,
   sanitizeDashboardLayout,
+  nextDashboardCardSize,
   saveDashboardDeviceLayout,
   saveDashboardTileVisibility,
   visibleDashboardTiles,
@@ -279,9 +281,13 @@ export function DashboardPage() {
   const immersiveMode = isFullscreen || simulatedFullscreen;
 
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["dashboard-metrics", profile?.default_warehouse_id, flags],
+    // Key intentionally excludes feature flags so the sidebar counters and the
+    // Command Center share a single fetch of the server-side summary.
+    queryKey: ["dashboard-metrics", profile?.default_warehouse_id ?? null],
     queryFn: () => getDashboardMetrics(profile?.default_warehouse_id, flags),
-    refetchInterval: 15_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
   const { data: reorderAlerts = [] } = useQuery({
     queryKey: ["reorder-alerts", "command-center"],
@@ -293,18 +299,21 @@ export function DashboardPage() {
       return data ?? [];
     },
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
   const { data: reports } = useQuery({
     queryKey: ["reports", "enterprise-dashboard", profile?.default_warehouse_id],
     queryFn: () => getReportData({ warehouseId: profile?.default_warehouse_id }),
+    staleTime: 60_000,
   });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, reports), [metrics, reports]);
   const summaryCardsById = useMemo(() => {
-    const returnedMetricKeys = metrics?.dashboardMetricKeys ? new Set(metrics.dashboardMetricKeys) : null;
+    const allowedMetricKeys = new Set(getDashboardMetricKeysForModules(flags));
     const cards = (filterDashboardTileDefinitions(DEFAULT_DASHBOARD_CARDS, isEnabled) as DashboardCardConfig[])
-      .filter((card) => !returnedMetricKeys || returnedMetricKeys.has(card.metricKey));
+      .filter((card) => allowedMetricKeys.has(card.metricKey));
     return new Map(cards.map((card) => [card.id, card]));
-  }, [isEnabled, metrics?.dashboardMetricKeys]);
+  }, [flags, isEnabled]);
+
   const floorDefinitionById = useMemo(() => new Map(floorDefinitions.map((tile) => [tile.id, tile])), [floorDefinitions]);
   const dockDefinitionById = useMemo(() => new Map(dockDefinitions.map((tile) => [tile.id, tile])), [dockDefinitions]);
   const officeDefinitionById = useMemo(() => new Map(officeDefinitions.map((tile) => [tile.id, tile])), [officeDefinitions]);
@@ -385,7 +394,8 @@ export function DashboardPage() {
 
   const handleTileResize = useCallback((id: string, modeKey: DashboardMode, key: string, setTiles: Dispatch<SetStateAction<DashboardTileConfig[]>>) => {
     setTiles((prev) => {
-      const next = prev.map((tile) => tile.id === id ? { ...tile, size: (tile.size === "sm" ? "lg" : "sm") as DashboardCardSize } : tile);
+      const next = prev.map((tile) => tile.id === id ? { ...tile, size: nextDashboardCardSize(tile.size) } : tile);
+
       persistLayout(modeKey, key, next);
       return next;
     });
@@ -452,10 +462,26 @@ export function DashboardPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Tabs value={mode} onValueChange={(value) => setMode(value as DashboardMode)}>
-            <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit">
+            <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit sm:grid-cols-5">
               <TabsTrigger value="floor" className="gap-1.5"><Forklift className="h-3.5 w-3.5" /> Floor</TabsTrigger>
               <TabsTrigger value="dock" className="gap-1.5"><Truck className="h-3.5 w-3.5" /> Dock</TabsTrigger>
               <TabsTrigger value="office" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" /> Office</TabsTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-flex">
+                    <TabsTrigger value="3d" disabled className="gap-1.5 opacity-60"><Lock className="h-3.5 w-3.5" /> 3D</TabsTrigger>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>3D warehouse view — coming soon</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="inline-flex">
+                    <TabsTrigger value="packing" disabled className="gap-1.5 opacity-60"><Lock className="h-3.5 w-3.5" /> Packing</TabsTrigger>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Packing stations — coming soon</TooltipContent>
+              </Tooltip>
             </TabsList>
           </Tabs>
           <Tooltip>

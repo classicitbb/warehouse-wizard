@@ -110,10 +110,13 @@ import { cn } from "@/lib/utils";
 import { extractIso6346ContainerNumber, normalizeContainerNumber } from "@/lib/container-number";
 import {
   sanitizeDashboardLayout,
+  dashboardTileSpanClass,
+  normalizeDashboardCardSize,
   type DashboardTileConfig,
   type DashboardTileDefinition,
   type DashboardVisibilityMap,
 } from "@/lib/dashboard-preferences";
+
 import {
   type DashboardMode,
   type DockHandoffLoad,
@@ -210,17 +213,22 @@ export type DashboardCardConfig = DashboardTileDefinition<ModuleKey> & {
 };
 
 export const DEFAULT_DASHBOARD_CARDS: DashboardCardConfig[] = [
-  { id: "totalPallets", label: "Total Pallets", metricKey: "totalPallets", size: "lg", moduleKey: "inventory" },
-  { id: "warehousePallets", label: "This Warehouse", metricKey: "warehousePallets", size: "lg", moduleKey: "inventory" },
-  { id: "openReceipts", label: "Open Receipts", metricKey: "openReceipts", size: "sm", moduleKey: "receiving" },
-  { id: "openPutawayTasks", label: "Open Put-Away", metricKey: "openPutawayTasks", size: "sm", moduleKey: "putaway" },
-  { id: "openPickLists", label: "Open Pick Lists", metricKey: "openPickLists", size: "sm", moduleKey: "pick-lists" },
-  { id: "openMoveTasks", label: "Open Moves", metricKey: "openMoveTasks", size: "sm", moduleKey: "location-moves" },
-  { id: "expiryWarning30", label: "Expiry 30 Days", metricKey: "expiryWarning30", size: "sm", moduleKey: "inventory" },
-  { id: "expiryWarning60", label: "Expiry 60 Days", metricKey: "expiryWarning60", size: "sm", moduleKey: "inventory" },
-  { id: "stockAge3Months", label: "Aging 3+ Mo", metricKey: "stockAge3Months", size: "sm", moduleKey: "inventory" },
-  { id: "stockAge6Months", label: "Aging 6+ Mo", metricKey: "stockAge6Months", size: "sm", moduleKey: "inventory" },
-  { id: "stockAge12Months", label: "Aging 12+ Mo", metricKey: "stockAge12Months", size: "sm", moduleKey: "inventory" },
+  { id: "totalPallets", label: "Total Pallets", metricKey: "totalPallets", size: "2x1", moduleKey: "inventory" },
+  { id: "warehousePallets", label: "This Warehouse", metricKey: "warehousePallets", size: "2x1", moduleKey: "inventory" },
+  { id: "openReceipts", label: "Open Receipts", metricKey: "openReceipts", size: "1x1", moduleKey: "receiving" },
+  { id: "openPutawayTasks", label: "Open Put-Away", metricKey: "openPutawayTasks", size: "1x1", moduleKey: "putaway" },
+  { id: "openPickLists", label: "Open Pick Lists", metricKey: "openPickLists", size: "1x1", moduleKey: "pick-lists" },
+  { id: "openMoveTasks", label: "Open Moves", metricKey: "openMoveTasks", size: "1x1", moduleKey: "location-moves" },
+  { id: "openCycleCounts", label: "Open Counts", metricKey: "openCycleCounts", size: "1x1", moduleKey: "cycle-counts" },
+  { id: "availablePallets", label: "Available Pallets", metricKey: "availablePallets", size: "1x1", moduleKey: "inventory" },
+  { id: "holdStock", label: "On Hold", metricKey: "holdStock", size: "1x1", moduleKey: "status" },
+  { id: "quarantineStock", label: "Quarantine", metricKey: "quarantineStock", size: "1x1", moduleKey: "status" },
+
+  { id: "expiryWarning30", label: "Expiry 30 Days", metricKey: "expiryWarning30", size: "1x1", moduleKey: "inventory" },
+  { id: "expiryWarning60", label: "Expiry 60 Days", metricKey: "expiryWarning60", size: "1x1", moduleKey: "inventory" },
+  { id: "stockAge3Months", label: "Aging 3+ Mo", metricKey: "stockAge3Months", size: "1x1", moduleKey: "inventory" },
+  { id: "stockAge6Months", label: "Aging 6+ Mo", metricKey: "stockAge6Months", size: "1x1", moduleKey: "inventory" },
+  { id: "stockAge12Months", label: "Aging 12+ Mo", metricKey: "stockAge12Months", size: "1x1", moduleKey: "inventory" },
 ];
 
 export const DASHBOARD_FLOOR_LAYOUT_KEY = "wms.dashboard.floor.surface.layout.v1";
@@ -259,30 +267,30 @@ function dashboardMetricLink(metricKey: DashboardMetricKey) {
   return DASHBOARD_METRIC_ROUTES[metricKey];
 }
 const DEFAULT_FLOOR_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "Inbound", label: "Inbound", size: "lg", moduleKey: "receiving" },
-  { id: "Putaway", label: "Put-Away", size: "lg", moduleKey: "putaway" },
-  { id: "Warehouse Intelligence", label: "Warehouse Intelligence", size: "lg" },
-  { id: "Outbound", label: "Outbound", size: "lg", moduleKey: "pick-lists" },
-  { id: "Moves & Counts", label: "Moves & Counts", size: "lg", moduleKey: "location-moves" },
-  { id: "Blocked Exceptions", label: "Blocked Exceptions", size: "lg", moduleKey: "status" },
+  { id: "Inbound", label: "Inbound", size: "2x2", moduleKey: "receiving" },
+  { id: "Putaway", label: "Put-Away", size: "2x2", moduleKey: "putaway" },
+  { id: "Warehouse Intelligence", label: "Warehouse Intelligence", size: "2x2" },
+  { id: "Outbound", label: "Outbound", size: "2x2", moduleKey: "pick-lists" },
+  { id: "Moves & Counts", label: "Moves & Counts", size: "2x2", moduleKey: "location-moves" },
+  { id: "Blocked Exceptions", label: "Blocked Exceptions", size: "2x2", moduleKey: "status" },
 ];
 
 const DEFAULT_DOCK_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "ready", label: "Ready", size: "sm", moduleKey: "pick-lists" },
-  { id: "called", label: "Called", size: "sm", moduleKey: "pick-lists" },
-  { id: "loading", label: "Loading", size: "sm", moduleKey: "pick-lists" },
-  { id: "blocked", label: "Blocked", size: "sm", moduleKey: "pick-lists" },
-  { id: "loaded", label: "Loaded", size: "sm", moduleKey: "pick-lists" },
-  { id: "warehouse-brain", label: "Warehouse Brain", size: "lg", moduleKey: "copilot" },
+  { id: "ready", label: "Ready", size: "1x1", moduleKey: "pick-lists" },
+  { id: "called", label: "Called", size: "1x1", moduleKey: "pick-lists" },
+  { id: "loading", label: "Loading", size: "1x1", moduleKey: "pick-lists" },
+  { id: "blocked", label: "Blocked", size: "1x1", moduleKey: "pick-lists" },
+  { id: "loaded", label: "Loaded", size: "1x1", moduleKey: "pick-lists" },
+  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x2", moduleKey: "copilot" },
 ];
 
 const DEFAULT_OFFICE_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "Fill level", label: "Fill level", size: "lg", moduleKey: "locations" },
-  { id: "Inventory turn watch", label: "Inventory turn watch", size: "lg", moduleKey: "inventory" },
-  { id: "Expiration risk", label: "Expiration risk", size: "lg", moduleKey: "inventory" },
-  { id: "DPMO", label: "DPMO", size: "lg", moduleKey: "cycle-counts" },
-  { id: "setup-checklist", label: "Setup Checklist", size: "lg", moduleKey: "settings" },
-  { id: "warehouse-brain", label: "Warehouse Brain", size: "lg", moduleKey: "copilot" },
+  { id: "Fill level", label: "Fill level", size: "2x2", moduleKey: "locations" },
+  { id: "Inventory turn watch", label: "Inventory turn watch", size: "2x2", moduleKey: "inventory" },
+  { id: "Expiration risk", label: "Expiration risk", size: "2x2", moduleKey: "inventory" },
+  { id: "DPMO", label: "DPMO", size: "2x2", moduleKey: "cycle-counts" },
+  { id: "setup-checklist", label: "Setup Checklist", size: "2x2", moduleKey: "settings" },
+  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x2", moduleKey: "copilot" },
 ];
 
 export const DEFAULT_FLOOR_LAYOUT: DashboardTileDefinition<ModuleKey>[] = [...DEFAULT_DASHBOARD_CARDS, ...DEFAULT_FLOOR_TILES];
@@ -545,9 +553,9 @@ function SortableDashboardTile({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={cn(tile.size === "lg" ? "sm:col-span-2" : undefined, className)} onPointerDownCapture={handleLockedPointerDownCapture}>
+    <div ref={setNodeRef} style={style} className={cn(dashboardTileSpanClass(tile.size), "min-h-0", className)} onPointerDownCapture={handleLockedPointerDownCapture}>
       <div
-        className={cn("group relative h-full", editMode && "cursor-grab active:cursor-grabbing")}
+        className={cn("group relative h-full min-h-0 overflow-auto", editMode && "cursor-grab active:cursor-grabbing")}
         {...(editMode ? { ...attributes, ...listeners } : {})}
       >
         {children}
@@ -565,9 +573,10 @@ function SortableDashboardTile({
               type="button"
               onClick={() => onResize(tile.id)}
               className="grid h-6 w-6 place-items-center rounded-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-              aria-label="Resize tile"
+              aria-label={`Resize tile (currently ${normalizeDashboardCardSize(tile.size)})`}
             >
-              {tile.size === "sm" ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+              {normalizeDashboardCardSize(tile.size) === "2x2" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+
             </button>
             <button
               type="button"
@@ -2532,7 +2541,7 @@ export function WarehouseFloorMode({
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-h-0 gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]">
+          <div className="grid min-h-0 auto-rows-[10rem] gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
             {tiles.map((tile) => {
               const summaryTile = renderSummaryTile(tile, onResize, onHide);
               if (summaryTile) return summaryTile;
@@ -2688,7 +2697,7 @@ export function DockHandoffBoard({
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-w-0 gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,13rem),1fr))]">
+          <div className="grid min-w-0 auto-rows-[10rem] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
             {tiles.map((tile) => {
               const summaryTile = renderSummaryTile(tile, onResize, onHide);
               if (summaryTile) return summaryTile;
@@ -2772,7 +2781,7 @@ export function OfficeMonitoringMode({
     <div className="grid gap-3">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-w-0 gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]">
+          <div className="grid min-w-0 auto-rows-[10rem] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
             {tiles.map((tile) => {
               const summaryTile = renderSummaryTile(tile, onResize, onHide);
               if (summaryTile) return summaryTile;

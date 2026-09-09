@@ -9,6 +9,19 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.4",
+    date: "September 2026",
+    changes: [
+      "The Command Center loads far faster: all of its numbers now come from one small server-side summary instead of downloading thousands of rows to each device",
+      "Dashboard tiles can now be square, wide, tall or large, and the board reflows to fill the screen neatly on any device",
+      "New tiles: Open Counts, Available Pallets, On Hold and Quarantine",
+      "Two new tabs are visible but locked for now: 3D and Packing",
+    ],
+    fixes: [
+      "Pallet and capacity totals were previously capped at 1,000 records, so busy warehouses saw understated counts on the dashboard",
+    ],
+  },
+  {
     version: "1.29.3",
     date: "September 2026",
     changes: [

@@ -7,7 +7,36 @@ const DASHBOARD_PREFERENCE_TABLES = [
 ];
 
 export type DashboardModeKey = "floor" | "dock" | "office";
-export type DashboardCardSize = "sm" | "lg";
+/** Tile footprint in grid cells: columns x rows. */
+export type DashboardCardSize = "1x1" | "2x1" | "1x2" | "2x2";
+
+export const DASHBOARD_CARD_SIZES: DashboardCardSize[] = ["1x1", "2x1", "2x2", "1x2"];
+
+/** Older saved layouts only knew "sm"/"lg". */
+export function normalizeDashboardCardSize(value: unknown): DashboardCardSize {
+  if (value === "sm") return "1x1";
+  if (value === "lg") return "2x1";
+  return DASHBOARD_CARD_SIZES.includes(value as DashboardCardSize) ? (value as DashboardCardSize) : "1x1";
+}
+
+export function nextDashboardCardSize(value: unknown): DashboardCardSize {
+  const current = normalizeDashboardCardSize(value);
+  const index = DASHBOARD_CARD_SIZES.indexOf(current);
+  return DASHBOARD_CARD_SIZES[(index + 1) % DASHBOARD_CARD_SIZES.length];
+}
+
+export function dashboardTileSpanClass(value: unknown): string {
+  switch (normalizeDashboardCardSize(value)) {
+    case "2x1":
+      return "sm:col-span-2 row-span-1";
+    case "1x2":
+      return "col-span-1 row-span-2";
+    case "2x2":
+      return "sm:col-span-2 row-span-2";
+    default:
+      return "col-span-1 row-span-1";
+  }
+}
 
 export type DashboardTileConfig = {
   id: string;
@@ -20,6 +49,7 @@ export type DashboardTileDefinition<ModuleKey extends string = string> = Dashboa
 };
 
 export type DashboardVisibilityMap = Record<string, boolean>;
+
 
 function isMissingDashboardPreferenceTable(error: unknown) {
   if (!error || typeof error !== "object") return false;
@@ -49,7 +79,8 @@ export function sanitizeDashboardLayout(
       seen.add(tile.id);
       return true;
     })
-    .map((tile) => ({ id: tile.id, size: tile.size === "lg" ? "lg" : "sm" as DashboardCardSize }));
+    .map((tile) => ({ id: tile.id, size: normalizeDashboardCardSize(tile.size) }));
+
   const missing = defaults.filter((tile) => !seen.has(tile.id));
   return [...sanitized, ...missing];
 }

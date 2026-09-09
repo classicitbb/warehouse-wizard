@@ -538,11 +538,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   });
   const putawayTaskCount = putawayNavTasks.length;
   const { data: navDashboardMetrics } = useQuery({
-    queryKey: ["dashboard-metrics", profile?.default_warehouse_id, "nav-counts"],
+    // Shares one cache entry with the Command Center so the summary is fetched
+    // once per warehouse instead of once per surface.
+    queryKey: ["dashboard-metrics", profile?.default_warehouse_id ?? null],
     queryFn: () => getDashboardMetrics(profile?.default_warehouse_id),
     enabled: canAccessReceiving || canAccessPickLists,
     staleTime: 30_000,
   });
+
   const routeBadgeCounts = useMemo<Partial<Record<AppRoute, number>>>(() => ({
     "/receiving": navDashboardMetrics?.openReceipts ?? 0,
     "/putaway-tasks": putawayTaskCount,
