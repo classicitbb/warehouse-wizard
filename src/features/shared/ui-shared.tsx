@@ -219,6 +219,11 @@ export const DEFAULT_DASHBOARD_CARDS: DashboardCardConfig[] = [
   { id: "openPutawayTasks", label: "Open Put-Away", metricKey: "openPutawayTasks", size: "1x1", moduleKey: "putaway" },
   { id: "openPickLists", label: "Open Pick Lists", metricKey: "openPickLists", size: "1x1", moduleKey: "pick-lists" },
   { id: "openMoveTasks", label: "Open Moves", metricKey: "openMoveTasks", size: "1x1", moduleKey: "location-moves" },
+  { id: "openCycleCounts", label: "Open Counts", metricKey: "openCycleCounts", size: "1x1", moduleKey: "cycle-counts" },
+  { id: "availablePallets", label: "Available Pallets", metricKey: "availablePallets", size: "1x1", moduleKey: "inventory" },
+  { id: "holdStock", label: "On Hold", metricKey: "holdStock", size: "1x1", moduleKey: "status" },
+  { id: "quarantineStock", label: "Quarantine", metricKey: "quarantineStock", size: "1x1", moduleKey: "status" },
+
   { id: "expiryWarning30", label: "Expiry 30 Days", metricKey: "expiryWarning30", size: "1x1", moduleKey: "inventory" },
   { id: "expiryWarning60", label: "Expiry 60 Days", metricKey: "expiryWarning60", size: "1x1", moduleKey: "inventory" },
   { id: "stockAge3Months", label: "Aging 3+ Mo", metricKey: "stockAge3Months", size: "1x1", moduleKey: "inventory" },
