@@ -545,7 +545,7 @@ function SortableDashboardTile({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={cn(tile.size === "lg" ? "sm:col-span-2" : undefined, className)} onPointerDownCapture={handleLockedPointerDownCapture}>
+    <div ref={setNodeRef} style={style} className={cn(dashboardTileSpanClass(tile.size), "min-h-0", className)} onPointerDownCapture={handleLockedPointerDownCapture}>
       <div
         className={cn("group relative h-full", editMode && "cursor-grab active:cursor-grabbing")}
         {...(editMode ? { ...attributes, ...listeners } : {})}
@@ -565,9 +565,10 @@ function SortableDashboardTile({
               type="button"
               onClick={() => onResize(tile.id)}
               className="grid h-6 w-6 place-items-center rounded-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-              aria-label="Resize tile"
+              aria-label={`Resize tile (currently ${normalizeDashboardCardSize(tile.size)})`}
             >
-              {tile.size === "sm" ? <Maximize2 className="h-3.5 w-3.5" /> : <Minimize2 className="h-3.5 w-3.5" />}
+              {normalizeDashboardCardSize(tile.size) === "2x2" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+
             </button>
             <button
               type="button"
