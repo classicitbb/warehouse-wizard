@@ -134,6 +134,18 @@ export function __resetActivitySnapshotForTests(): void {
   activityAtLoad = undefined;
 }
 
+/**
+ * Re-pin the load-time snapshot without reloading the page.
+ *
+ * The nightly sign-out needs this: it signs out inside the same document, and
+ * the operator signs straight back in. Leaving the pre-cutoff snapshot pinned
+ * would sign them out again on every login, trapping them at the login screen.
+ */
+export function pinActivitySnapshot(nowMs: number = Date.now()): void {
+  activityAtLoad = nowMs;
+}
+
+
 export function markActivity(nowMs: number = Date.now()) {
   const last = readStamp(LAST_ACTIVITY_KEY);
   if (last !== null && nowMs - last < ACTIVITY_WRITE_THROTTLE_MS) return;
