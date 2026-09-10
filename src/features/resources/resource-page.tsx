@@ -858,15 +858,17 @@ export function ResourcePage({
                     </DropdownMenuItem>
                   </>
                 ) : null}
-                <ResourceFormDialog
-                  resource={resource}
-                  trigger={
-                    <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add {resource.singular}
-                    </DropdownMenuItem>
-                  }
-                />
+                {createOutsideGear ? null : (
+                  <ResourceFormDialog
+                    resource={resource}
+                    trigger={
+                      <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add {resource.singular}
+                      </DropdownMenuItem>
+                    }
+                  />
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
