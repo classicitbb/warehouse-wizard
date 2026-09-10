@@ -1182,8 +1182,14 @@ export function ResourceFormDialog({
                 </>
               ) : isPackagingProfiles ? (
                 <>
+                  {/* SKU first, then the pack code — the two things someone
+                      knows standing at a container door. */}
                   {resource.fields
-                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name))
+                    .filter((field) => field.name === "product_id")
+                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                  <PackagingProfileQuickStart form={form} />
+                  {resource.fields
+                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name) && field.name !== "product_id")
                     .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
                   <div className="border-t border-border pt-4">
                     <PackStandardFormSection form={form} />
