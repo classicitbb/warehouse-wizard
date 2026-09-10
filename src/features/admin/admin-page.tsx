@@ -581,6 +581,25 @@ function UsersRolesPageImpl() {
     }
   };
 
+  /**
+   * The public/locked switch for a whole module. Role permissions say who may
+   * use a feature; `is_released` says whether anyone but a developer sees it at
+   * all, which is how the Packing tab stays locked until it is ready.
+   */
+  const updateFeatureRelease = async (featureId: string, released: boolean) => {
+    if (!canOperateRoles) return;
+    const key = `${featureId}:is_released`;
+    setPermissionSaving(key);
+    try {
+      await upsertRecord("permission_features", { id: featureId, is_released: released });
+      await invalidateOptions();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Release update failed");
+    } finally {
+      setPermissionSaving(null);
+    }
+  };
+
   const profiles = (options?.profiles ?? []) as ProfileRow[];
 
   return (
@@ -841,6 +860,10 @@ function UsersRolesPageImpl() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="sticky left-0 z-10 min-w-[220px] bg-card">Feature</TableHead>
+                      <TableHead className="min-w-[110px] text-center">
+                        <div className="font-semibold">Released</div>
+                        <div className="mt-1 text-[11px] font-normal text-muted-foreground">Visible to non-developers</div>
+                      </TableHead>
                       {((options?.roles ?? []) as any[])
                         .filter((role) => canOperateRoles || role.code !== "developer")
                         .map((role) => (
@@ -859,6 +882,14 @@ function UsersRolesPageImpl() {
                         <TableCell className="sticky left-0 z-[1] bg-card">
                           <div className="font-medium">{feature.name}</div>
                           <div className="text-xs text-muted-foreground">{feature.description}</div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={feature.is_released !== false}
+                            disabled={!canOperateRoles || permissionSaving !== null}
+                            aria-label={`${feature.name} released to non-developers`}
+                            onCheckedChange={(checked) => updateFeatureRelease(feature.id, checked)}
+                          />
                         </TableCell>
                         {((options?.roles ?? []) as any[])
                           .filter((role) => canOperateRoles || role.code !== "developer")

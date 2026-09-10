@@ -2388,6 +2388,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_released: boolean
           name: string
           sort_order: number
           updated_at: string
@@ -2397,6 +2398,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_released?: boolean
           name: string
           sort_order?: number
           updated_at?: string
@@ -2406,6 +2408,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_released?: boolean
           name?: string
           sort_order?: number
           updated_at?: string

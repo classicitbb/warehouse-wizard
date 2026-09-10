@@ -9,6 +9,20 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.5",
+    date: "September 2026",
+    changes: [
+      "Pallet Pak Designer: choose a product and its saved pack standard opens for editing; products without one are marked \"Not created yet\" so it is obvious what still needs building",
+      "The product list in the designer shows a green dot for products that already have a pack standard and an amber dot for those that do not",
+      "The designer now works properly on phones and tablets: the picture, the pack code and the save button all stay reachable without pinching",
+      "The pack code is now repeated in the side panel alongside cases per pallet, height and footprint",
+      "Pallets are drawn in timber orange instead of ghosted grey",
+      "Packaging Profiles: Export, archived, template and import moved into the gear menu, with New profile as its own button",
+      "Creating a packaging profile now starts from the product and a typed pack code such as 12x7 — the profile name, package type and units per package fill themselves in — plus a Save and add another button for working through a container",
+      "Settings → Users & Roles → Role Matrix has a Released switch that makes a locked module public",
+    ],
+  },
+  {
     version: "1.29.4",
     date: "September 2026",
     changes: [

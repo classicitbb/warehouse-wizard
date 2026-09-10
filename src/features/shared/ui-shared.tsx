@@ -104,6 +104,7 @@ import {
 } from "@/lib/wms-core";
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
 import { PACK_SECTION_FIELDS, PackStandardFormSection } from "@/features/shared/pack-standard-form";
+import { PackagingProfileQuickStart } from "@/features/shared/packaging-profile-quick-start";
 
 import { buildPalletLabelBatchPrintHtml, type PalletLabelPageProps } from "@/components/pallet-label-page";
 
@@ -1108,12 +1109,19 @@ export function ResourceFormDialog({
     }
   }, [isZones, watchedWarehouseId, watchedCode, watchedName, options?.zones, form]);
 
+  // Set by "Save and add another": profiles are entered in runs of five or ten
+  // off one container, and reopening the dialog each time loses that rhythm.
+  const keepOpenAfterSaveRef = useRef(false);
   const createMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => upsertRecord(resource.table, normalizeResourceValues(resource, values, options)),
     onSuccess: () => {
       toast.success(`${resource.singular} saved`);
       queryClient.invalidateQueries({ queryKey: [resource.table] });
       form.reset();
+      if (keepOpenAfterSaveRef.current) {
+        keepOpenAfterSaveRef.current = false;
+        return;
+      }
       setOpen(false);
     },
     onError: (error) => {
@@ -1182,8 +1190,14 @@ export function ResourceFormDialog({
                 </>
               ) : isPackagingProfiles ? (
                 <>
+                  {/* SKU first, then the pack code — the two things someone
+                      knows standing at a container door. */}
                   {resource.fields
-                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name))
+                    .filter((field) => field.name === "product_id")
+                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                  <PackagingProfileQuickStart form={form} />
+                  {resource.fields
+                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name) && field.name !== "product_id")
                     .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
                   <div className="border-t border-border pt-4">
                     <PackStandardFormSection form={form} />
@@ -1198,10 +1212,22 @@ export function ResourceFormDialog({
               <p className="text-xs text-muted-foreground" aria-live="polite">
                 {createMissingFields.length > 0 ? `Required: ${createMissingFields.join(", ")}` : "All required fields are complete."}
               </p>
-              <Button type="submit" disabled={createMutation.isPending || !canCreate}>
-                {createMutation.isPending ? <Loader2 className="animate-spin" /> : null}
-                Save {resource.singular}
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {isPackagingProfiles ? (
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    disabled={createMutation.isPending || !canCreate}
+                    onClick={() => { keepOpenAfterSaveRef.current = true; }}
+                  >
+                    Save and add another
+                  </Button>
+                ) : null}
+                <Button type="submit" disabled={createMutation.isPending || !canCreate}>
+                  {createMutation.isPending ? <Loader2 className="animate-spin" /> : null}
+                  Save {resource.singular}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

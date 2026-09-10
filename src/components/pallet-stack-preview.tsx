@@ -41,8 +41,11 @@ import { cn } from "@/lib/utils";
 const FACE_OPACITY: Record<QuadFace, number> = { top: 1, right: 0.66, left: 0.42 };
 
 const KIND_FILL: Record<QuadKind, string | null> = {
-  "pallet-block": "hsl(var(--muted-foreground))",
-  "pallet-deck": "hsl(var(--muted-foreground))",
+  // Timber, not filler: the deck and blocks are drawn in the warning (orange)
+  // token so the pallet under the cargo reads as a pallet rather than as
+  // ghosted-out background.
+  "pallet-block": "hsl(var(--warning))",
+  "pallet-deck": "hsl(var(--warning))",
   full: "hsl(var(--primary))",
   slab: "hsl(var(--primary))",
   part: "hsl(var(--accent))",
