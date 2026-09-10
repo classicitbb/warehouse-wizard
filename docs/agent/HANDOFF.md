@@ -4,6 +4,15 @@
 - Status: Incomplete — Release policy / fleet freshness awaits database migration and deployment approval; Copilot composer still awaits authorized browser verification
 - Last updated: 2026-09-02
 
+## Packing flow verification — 2026-09-10
+
+- Objective: review the latest build and exercise the authenticated Packing workspace with the documented Russell Hunte test account.
+- Build review: `7986448` (`Pack designer: display-size pack code, ft/in units, wider SKU search`); worktree was clean before verification. `npm run typecheck`, `npm run build`, `npm run test -- --run src/test/measure.test.ts` (1 file, 61 tests), and `git diff --check` passed. Build retained the existing dynamic-import advisory and large-chunk warnings.
+- External browser proof: external Edge reached `https://warehousewizard.app/dashboard`, showed signed-in `RH Russell Hunte`, and reported app version `1.29.4`. Packing opened from the Dashboard tab; SKU search returned live product options; selecting `CHC9CL-S` loaded its designer state; mm, inch, and ft/in controls updated displayed dimensions; changing cases per layer from 12 to 13 recalculated the pallet from 84 to 91 cases.
+- Safety boundary: `Save as pack standard` was enabled after SKU selection but was not clicked, so no packaging master-data write was made.
+- Finding: browser console recorded `[useFeaturePermission] lookup failed: Object` from the production bundle during the session. The developer identity still received the preview surface, so this did not block the observed flow. Non-developer permission behavior remains unverified.
+- Exact next action: inspect the production `role_permissions` lookup response for `pack_designer` under a non-developer test account, then repeat the Packing flow without relying on the developer-preview bypass.
+
 ## Current state
 
 ### Release policy and fleet freshness — 2026-09-02
