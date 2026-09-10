@@ -176,6 +176,16 @@ export const ProductSearch = forwardRef<ProductSearchHandle, Props>(function Pro
                   <Check
                     className={cn("mr-2 h-4 w-4 shrink-0", value === product.id ? "opacity-100" : "opacity-0")}
                   />
+                  {product.packStatus ? (
+                    <span
+                      aria-hidden
+                      title={product.packStatus === "saved" ? "Pack standard saved" : "No pack standard yet"}
+                      className={cn(
+                        "mr-2 h-2 w-2 shrink-0 rounded-full",
+                        product.packStatus === "saved" ? "bg-success" : "bg-warning",
+                      )}
+                    />
+                  ) : null}
                   {product.meta ? (
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <div className="flex items-baseline justify-between gap-2">
