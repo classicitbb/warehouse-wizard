@@ -21,6 +21,11 @@ export type ProductOption = {
   sku: string;
   name: string;
   barcode?: string;
+  /**
+   * Pack-standard state, shown as a dot in the list. Green means this SKU
+   * already has a saved standard, amber means it still has to be created.
+   */
+  packStatus?: "saved" | "none";
   meta?: {
     totalQty: number;
     palletCount: number;
