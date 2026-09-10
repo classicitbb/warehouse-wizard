@@ -139,6 +139,12 @@ import {
 } from "@/lib/wms-core";
 import { fetchAllRows } from "@/features/shared/core-types";
 import {
+  formatPackStandardLine,
+  resolveDefaultProfileForProduct,
+  summarizePackStandard,
+  type PackStandardSummary,
+} from "@/lib/pack-standard-payload";
+import {
   PRODUCT_QTY_COLUMN,
   PRODUCT_QUICK_LINKS,
   describeFilter,
@@ -474,7 +480,7 @@ export function ResourcePage({
   });
   const queryClient = useQueryClient();
   const hasTrailingLabelColumn = ["warehouses", "zones"].includes(resource.table);
-  const extraColumnCount = (resource.supportsHide ? 1 : 0) + (hasTrailingLabelColumn ? 1 : 0) + 1 + (resource.table === "products" ? 1 : 0);
+  const extraColumnCount = (resource.supportsHide ? 1 : 0) + (hasTrailingLabelColumn ? 1 : 0) + 1 + (resource.table === "products" ? 2 : 0);
   const isProducts = resource.table === "products";
   const isLocations = resource.table === "locations";
   const { data: reorderAlerts = [] } = useQuery({
@@ -547,6 +553,38 @@ export function ResourcePage({
     }
     return m;
   }, [productQtyRows]);
+
+  // The saved pallet build for each SKU, so the Products table can show the
+  // pack standard without opening the Packing tab. Reads only the layer columns
+  // a picker cares about, paged past the 1000-row API cap.
+  const { data: productPackRows = [] } = useQuery({
+    queryKey: ["product_packaging_profiles", "pack-standards-table"],
+    enabled: isProducts,
+    queryFn: () =>
+      fetchAllRows<Record<string, unknown>>((from, to) =>
+        (supabase.from as any)("product_packaging_profiles")
+          .select("product_id, profile_name, packages_per_layer, layers_per_pallet, units_per_package, is_pallet_standard, is_default, is_hidden")
+          .or("is_hidden.is.null,is_hidden.eq.false")
+          .range(from, to),
+      ),
+  });
+
+  const productPackMap = useMemo(() => {
+    const byProduct = new Map<string, Record<string, unknown>[]>();
+    for (const row of productPackRows) {
+      const id = String(row.product_id ?? "");
+      if (!id) continue;
+      const bucket = byProduct.get(id);
+      if (bucket) bucket.push(row);
+      else byProduct.set(id, [row]);
+    }
+    const m = new Map<string, PackStandardSummary>();
+    byProduct.forEach((rows, id) => {
+      const summary = summarizePackStandard(resolveDefaultProfileForProduct(rows, id));
+      if (summary) m.set(id, summary);
+    });
+    return m;
+  }, [productPackRows]);
 
 
   const hasProductRef = resource.fields.some((f) => f.name === "product_id");
@@ -1110,6 +1148,9 @@ export function ResourcePage({
                           }
                         />
                       ) : null}
+                      {isProducts && field.name === "name" ? (
+                        <TableHead className="h-8 w-40 px-2 py-1 text-xs">Pack std</TableHead>
+                      ) : null}
                     </Fragment>
                   ))}
                   {hasTrailingLabelColumn ? <TableHead className="w-28">Label</TableHead> : null}
@@ -1217,11 +1258,20 @@ export function ResourcePage({
                         }
                         if (isProducts && field.name === "name") {
                           const qty = productQtyMap.get(String((row as Record<string, unknown>).id ?? "")) ?? 0;
+                          const packSummary = productPackMap.get(String((row as Record<string, unknown>).id ?? ""));
+                          const packLine = formatPackStandardLine(packSummary);
                           return (
                             <Fragment key={field.name}>
                               {cell}
                               <TableCell className="w-20 whitespace-nowrap text-right font-mono text-xs font-semibold">
                                 {formatNumber(qty)}
+                              </TableCell>
+                              <TableCell className="w-40 px-2 py-1 font-mono text-xs">
+                                {packLine ? (
+                                  <span title={packSummary?.profileName || undefined}>{packLine}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                             </Fragment>
                           );

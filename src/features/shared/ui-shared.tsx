@@ -104,6 +104,10 @@ import {
 } from "@/lib/wms-core";
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
 import { PACK_SECTION_FIELDS, PackStandardFormSection } from "@/features/shared/pack-standard-form";
+import { ProductPackStandardNotice } from "@/features/shared/product-pack-standard-notice";
+import { PalletStackPreview } from "@/components/pallet-stack-preview";
+import { formatPackCode } from "@/lib/measure";
+import { packStandardDraftFromProfile } from "@/lib/pack-standard-payload";
 import { PackagingProfileQuickStart } from "@/features/shared/packaging-profile-quick-start";
 import {
   PRODUCT_PACK_OPTIONS_KEY,
@@ -1065,7 +1069,8 @@ function PackagingProfileFormFields({
 }) {
   const productRef = useRef<ProductSearchHandle | null>(null);
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="flex min-w-0 flex-col gap-4">
       {/* SKU first, then the pack code — the two things someone
           knows standing at a container door. */}
       <FormField
@@ -1114,6 +1119,60 @@ function PackagingProfileFormFields({
       <div className="border-t border-border pt-4">
         <PackStandardFormSection form={form} />
       </div>
+      </div>
+      <div className="lg:sticky lg:top-0 lg:self-start">
+        <PackagingProfilePreview form={form} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Live isometric preview of the pallet the dialog is currently describing.
+ * Reads the same form state `PackStandardFormSection` writes, so it moves as
+ * the cases-per-layer and layers fields change and shows what will be saved.
+ */
+function PackagingProfilePreview({
+  form,
+}: {
+  form: ReturnType<typeof useForm<Record<string, unknown>>>;
+}) {
+  const values = form.watch();
+  const draft = useMemo(
+    () => packStandardDraftFromProfile(values as Record<string, unknown>),
+    [values],
+  );
+  const perLayer = draft.packagesPerLayer ?? 0;
+  const layers = draft.layersPerPallet ?? 0;
+  const perPallet = perLayer * layers;
+  const packCode = formatPackCode({
+    packages_per_layer: draft.packagesPerLayer,
+    layers_per_pallet: draft.layersPerPallet,
+  });
+
+  return (
+    <div className="grid content-start gap-2 rounded-lg border border-border bg-muted/20 p-3">
+      <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        {packCode ? `${packCode} · ${perPallet} case${perPallet === 1 ? "" : "s"} per pallet` : "Pallet preview"}
+      </p>
+      <PalletStackPreview
+        spec={{
+          packagesPerLayer: draft.packagesPerLayer,
+          layersPerPallet: draft.layersPerPallet,
+          packageHeightMm: draft.packageHeightMm ?? 220,
+          layerColumns: draft.layerColumns,
+          layerPattern: draft.layerPattern,
+          footprintLengthMm: draft.footprintLengthMm,
+          footprintWidthMm: draft.footprintWidthMm,
+          palletBaseHeightMm: draft.palletBaseHeightMm,
+          slipSheetHeightMm: draft.slipSheetHeightMm,
+        }}
+        showCeilings={false}
+        className="max-h-[16rem] sm:max-h-[20rem]"
+      />
+      <p className="text-xs text-muted-foreground">
+        Updates as you set cases per layer, layers, and carton height.
+      </p>
     </div>
   );
 }
@@ -1249,7 +1308,7 @@ export function ResourceFormDialog({
           Add {resource.singular}
         </Button>}
       </DialogTrigger>
-      <DialogContent className={cn("flex max-h-[90vh] flex-col overflow-hidden p-0", isPackagingProfiles ? "sm:max-w-4xl" : "sm:max-w-2xl")}>
+      <DialogContent className={cn("flex max-h-[90vh] flex-col overflow-hidden p-0", isPackagingProfiles ? "sm:max-w-6xl" : "sm:max-w-2xl")}>
         <DialogHeader className="shrink-0 border-b px-6 py-4">
           <DialogTitle>Create {resource.singular}</DialogTitle>
           <DialogDescription>{resource.description}</DialogDescription>
@@ -1423,7 +1482,7 @@ export function ResourceEditDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className={cn("flex max-h-[90vh] flex-col overflow-hidden p-0", isEditPackagingProfiles ? "sm:max-w-4xl" : "sm:max-w-2xl")}>
+      <DialogContent className={cn("flex max-h-[90vh] flex-col overflow-hidden p-0", isEditPackagingProfiles ? "sm:max-w-6xl" : "sm:max-w-2xl")}>
         <DialogHeader className="shrink-0 border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4" />
@@ -1437,7 +1496,11 @@ export function ResourceEditDialog({
               <div className="flex flex-col gap-4 pr-4">
               {isEditPackagingProfiles ? (
                 <PackagingProfileFormFields resource={resource} form={form} options={options} />
-              ) : resource.fields.map((field) => (
+              ) : (<>
+              {resource.table === "products" && editRecord.id ? (
+                <ProductPackStandardNotice productId={String(editRecord.id)} />
+              ) : null}
+              {resource.fields.map((field) => (
                 <div key={field.name}>
                   {renderField(field, form, getResourceFieldOptions(field, options))}
                   {/* Disable-with-reason notice for locations status field */}
@@ -1453,6 +1516,7 @@ export function ResourceEditDialog({
                   )}
                 </div>
               ))}
+              </>)}
               </div>
             </div>
             <DialogFooter className="shrink-0 border-t bg-card px-6 py-3 sm:justify-between">
