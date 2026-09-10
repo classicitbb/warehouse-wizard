@@ -70,6 +70,12 @@ import {
 } from "@/lib/wms-core";
 import { beginActiveWork } from "@/lib/active-work";
 import {
+  casesForQuantity,
+  formatPackStandardLine,
+  resolveDefaultProfileForProduct,
+  summarizePackStandard,
+} from "@/lib/pack-standard-payload";
+import {
   clearPickTaskResumeSnapshot,
   loadPickTaskResumeSnapshot,
   savePickTaskResumeSnapshot,
@@ -2218,11 +2224,25 @@ function PickTaskCard({
     );
   }
 
+  const packSummary = summarizePackStandard(
+    resolveDefaultProfileForProduct(product?.product_packaging_profiles, product?.id),
+  );
+  const packStandardValue = (() => {
+    const line = formatPackStandardLine(packSummary);
+    if (!line) return "";
+    const cases = casesForQuantity(palletQuantity ?? task.requested_quantity, packSummary);
+    if (cases === null) return line;
+    const exact = Number.isInteger(cases);
+    const shown = exact ? cases : `≈${Math.round(cases)}`;
+    return `${line} · pick ${shown} ${cases === 1 ? "case" : "cases"}`;
+  })();
+
   const instructionRows = [
     { label: "Go to:", value: locationDescriptor.goTo },
     { label: "Pallet:", value: palletBarcode || "assigned pallet" },
     { label: "Product:", value: `${product?.sku ? `${product.sku} · ` : ""}${product?.name ?? "assigned product"}` },
     { label: "Pallet qty:", value: formatNumber(Number(palletQuantity ?? 0)) },
+    ...(packStandardValue ? [{ label: "Pack standard:", value: packStandardValue }] : []),
   ];
 
   const handleSubmit = form.handleSubmit((values) => {

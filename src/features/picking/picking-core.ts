@@ -148,7 +148,7 @@ export async function createPickListFlow(input: z.infer<typeof pickListSchema>) 
 
 export async function listPickLists(warehouseId?: string | null) {
   let query = db("pick_lists")
-    .select("*, pick_tasks(*, pallets:pallets!pick_tasks_pallet_id_fkey(pallet_barcode, pallet_code, quantity, available_quantity, products(*)), locations:locations!pick_tasks_location_id_fkey(code, aisle, bay, level, position))")
+    .select("*, pick_tasks(*, pallets:pallets!pick_tasks_pallet_id_fkey(pallet_barcode, pallet_code, quantity, available_quantity, products(*, product_packaging_profiles(product_id, profile_name, packages_per_layer, layers_per_pallet, units_per_package, is_pallet_standard, is_default, is_hidden))), locations:locations!pick_tasks_location_id_fkey(code, aisle, bay, level, position))")
     .order("created_at", { ascending: false });
   if (warehouseId) {
     query = query.eq("warehouse_id", warehouseId);
@@ -162,7 +162,7 @@ export async function getPickExecution(pickListId: string) {
   const [pickList, pickTasks] = await Promise.all([
     db("pick_lists").select("*").eq("id", pickListId).single(),
     db("pick_tasks")
-      .select("*, pallets:pallets!pick_tasks_pallet_id_fkey(pallet_barcode, pallet_code, quantity, available_quantity, products(sku, name)), locations:locations!pick_tasks_location_id_fkey(code, aisle, bay, level, position)")
+      .select("*, pallets:pallets!pick_tasks_pallet_id_fkey(pallet_barcode, pallet_code, quantity, available_quantity, products(id, sku, name, product_packaging_profiles(product_id, profile_name, packages_per_layer, layers_per_pallet, units_per_package, is_pallet_standard, is_default, is_hidden))), locations:locations!pick_tasks_location_id_fkey(code, aisle, bay, level, position)")
       .eq("pick_list_id", pickListId)
       .order("created_at", { ascending: true }),
   ]);

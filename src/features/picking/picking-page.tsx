@@ -134,6 +134,12 @@ import {
   validateMoveDestination,
   type MoveValidationResult,
 } from "@/lib/wms-core";
+import {
+  casesForQuantity,
+  formatPackStandardLine,
+  resolveDefaultProfileForProduct,
+  summarizePackStandard,
+} from "@/lib/pack-standard-payload";
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
@@ -517,6 +523,14 @@ export function PickListsPage() {
               <CardContent className="grid gap-0 px-0 pb-0 sm:gap-3 sm:px-6 sm:pb-6">
                 {tasks.map((task: any) => {
                   const product = task.pallets?.products as any;
+                  const packSummary = summarizePackStandard(
+                    resolveDefaultProfileForProduct(product?.product_packaging_profiles, product?.id),
+                  );
+                  const packLine = formatPackStandardLine(packSummary);
+                  const packCases = casesForQuantity(
+                    task.requested_quantity ?? task.quantity,
+                    packSummary,
+                  );
                   return (
                     <div
                       key={task.id}
@@ -527,6 +541,14 @@ export function PickListsPage() {
                         {product?.sku && <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>}
                         {task.pallets?.pallet_barcode && (
                           <p className="font-mono text-xs text-muted-foreground">Pallet: {task.pallets.pallet_barcode}</p>
+                        )}
+                        {packLine && (
+                          <p className="font-mono text-xs text-muted-foreground">
+                            Pack: {packLine}
+                            {packCases !== null
+                              ? ` · pick ${Number.isInteger(packCases) ? packCases : `≈${Math.round(packCases)}`} ${packCases === 1 ? "case" : "cases"}`
+                              : ""}
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center justify-between gap-2 sm:shrink-0 sm:justify-start">

@@ -8,7 +8,10 @@
 import {
   DEFAULT_PALLET_BASE_HEIGHT_MM,
   cmToMm,
+  formatPackCode,
   formatPackCodeAscii,
+  resolvePackagesPerPallet,
+  type PackStandardFields,
 } from "@/lib/measure";
 import {
   PALLET_FOOTPRINT_LENGTH_MM,
@@ -188,6 +191,63 @@ export function suggestProfileName(draft: PackStandardDraft, taken: string[]): s
     if (!used.has(candidate.toLowerCase())) return candidate;
   }
   return `${base} (${Date.now()})`;
+}
+
+export interface PackStandardSummary {
+  /** Saved profile name, e.g. `12x7`. Empty when the row has none. */
+  profileName: string;
+  /** Display pack code, e.g. `12 × 7`. Empty when layer data is incomplete. */
+  packCode: string;
+  /** Cases on a full standard pallet, or null when not derivable. */
+  casesPerPallet: number | null;
+  /** Stock units in one case, or null when not recorded. */
+  unitsPerPackage: number | null;
+}
+
+/**
+ * A one-line reading of a product's pallet build, for the picking list and the
+ * Products table. Returns null when the profile carries no usable layer data,
+ * so the caller falls back to showing the raw quantity alone.
+ */
+export function summarizePackStandard(
+  profile: Record<string, unknown> | null | undefined,
+): PackStandardSummary | null {
+  if (!profile) return null;
+  const fields = profile as PackStandardFields;
+  const casesPerPallet = resolvePackagesPerPallet(fields);
+  const packCode = formatPackCode(fields);
+  if (!packCode && casesPerPallet === null) return null;
+  const unitsPerPackage = Number((profile as Record<string, unknown>).units_per_package);
+  return {
+    profileName: typeof profile.profile_name === "string" ? profile.profile_name : "",
+    packCode,
+    casesPerPallet,
+    unitsPerPackage: Number.isFinite(unitsPerPackage) && unitsPerPackage > 0 ? unitsPerPackage : null,
+  };
+}
+
+/**
+ * The whole-case count a stock-unit quantity represents under a pack standard,
+ * or null when the case size is unknown. Not rounded — the display layer
+ * decides whether to show `≈`.
+ */
+export function casesForQuantity(
+  quantity: number | null | undefined,
+  summary: PackStandardSummary | null | undefined,
+): number | null {
+  const qty = Number(quantity);
+  if (!summary || !summary.unitsPerPackage || !Number.isFinite(qty) || qty <= 0) return null;
+  return qty / summary.unitsPerPackage;
+}
+
+/** `12 × 7 · 84 cases/pallet`, or just the pack code, or an empty string. */
+export function formatPackStandardLine(summary: PackStandardSummary | null | undefined): string {
+  if (!summary) return "";
+  if (summary.casesPerPallet !== null) {
+    const cases = `${summary.casesPerPallet} case${summary.casesPerPallet === 1 ? "" : "s"}/pallet`;
+    return summary.packCode ? `${summary.packCode} · ${cases}` : cases;
+  }
+  return summary.packCode;
 }
 
 /**
