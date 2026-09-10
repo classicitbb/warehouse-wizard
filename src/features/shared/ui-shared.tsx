@@ -104,6 +104,7 @@ import {
 } from "@/lib/wms-core";
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
 import { PACK_SECTION_FIELDS, PackStandardFormSection } from "@/features/shared/pack-standard-form";
+import { PackagingProfileQuickStart } from "@/features/shared/packaging-profile-quick-start";
 
 import { buildPalletLabelBatchPrintHtml, type PalletLabelPageProps } from "@/components/pallet-label-page";
 
