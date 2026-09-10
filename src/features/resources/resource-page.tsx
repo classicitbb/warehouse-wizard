@@ -483,6 +483,11 @@ export function ResourcePage({
   const extraColumnCount = (resource.supportsHide ? 1 : 0) + (hasTrailingLabelColumn ? 1 : 0) + 1 + (resource.table === "products" ? 2 : 0);
   const isProducts = resource.table === "products";
   const isLocations = resource.table === "locations";
+  const isPackagingProfiles = resource.table === "product_packaging_profiles";
+  // Packaging Profiles uses the same compact rows as Products and Locations,
+  // sized like Locations (px-2, not the wider Products px-4).
+  const denseRows = isProducts || isLocations || isPackagingProfiles;
+  const denseCompact = isLocations || isPackagingProfiles;
   const { data: reorderAlerts = [] } = useQuery({
     queryKey: ["reorder-alerts"],
     enabled: isProducts,
@@ -1126,7 +1131,7 @@ export function ResourcePage({
                           }
                         />
                       ) : (
-                        <TableHead className={cn(isLocations && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
+                        <TableHead className={cn(denseCompact && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
                       )}
                       {isProducts && field.name === "name" ? (
                         <ProductColumnHeader
@@ -1154,8 +1159,8 @@ export function ResourcePage({
                     </Fragment>
                   ))}
                   {hasTrailingLabelColumn ? <TableHead className="w-28">Label</TableHead> : null}
-                  {resource.supportsHide ? <TableHead className={cn("w-32", isLocations && "h-7 px-2 py-1 text-xs")}>Visibility</TableHead> : null}
-                  <TableHead className={cn("w-16", isLocations && "h-7 px-2 py-1")} />
+                  {resource.supportsHide ? <TableHead className={cn("w-32", denseCompact && "h-7 px-2 py-1 text-xs")}>Visibility</TableHead> : null}
+                  <TableHead className={cn("w-16", denseCompact && "h-7 px-2 py-1")} />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1220,7 +1225,7 @@ export function ResourcePage({
                         }
                         const denseCellClass = isProducts
                           ? "px-4 py-1 text-xs leading-tight"
-                          : isLocations
+                          : denseCompact
                           ? "px-2 py-1 text-xs leading-tight"
                           : undefined;
                         const cell = <TableCell key={field.name} className={denseCellClass}>{displayValue}</TableCell>;
@@ -1307,7 +1312,7 @@ export function ResourcePage({
                         </TableCell>
                       ) : null}
                       {resource.supportsHide ? (
-                        <TableCell className={cn(isProducts && "px-4 py-1", isLocations && "px-2 py-1")}>
+                        <TableCell className={cn(isProducts && "px-4 py-1", denseCompact && "px-2 py-1")}>
                           {(() => {
                             const record = row as Record<string, unknown>;
                             const isArchived = resource.archiveField === "active"
@@ -1318,7 +1323,7 @@ export function ResourcePage({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={cn(isProducts && "h-6 px-2 text-xs", isLocations && "h-6 px-2 text-xs")}
+                            className={cn(denseRows && "h-6 px-2 text-xs")}
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
@@ -1341,26 +1346,26 @@ export function ResourcePage({
                           })()}
                         </TableCell>
                       ) : null}
-                      <TableCell className={cn(isProducts && "px-4 py-1", isLocations && "px-2 py-1")}>
+                      <TableCell className={cn(isProducts && "px-4 py-1", denseCompact && "px-2 py-1")}>
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={cn("h-7 w-7 p-0", (isProducts || isLocations) && "h-6 w-6")}
+                            className={cn("h-7 w-7 p-0", denseRows && "h-6 w-6")}
                             onClick={(e) => { e.stopPropagation(); setEditRecord(row as Record<string, unknown>); }}
                             title={`Edit ${resource.singular}`}
                           >
-                            <Pencil className={cn("h-3.5 w-3.5", (isProducts || isLocations) && "h-3 w-3")} />
+                            <Pencil className={cn("h-3.5 w-3.5", denseRows && "h-3 w-3")} />
                           </Button>
                           {cascadeSupported && canHardDelete ? (
                             <Button
                               size="sm"
                               variant="ghost"
-                              className={cn("h-7 w-7 p-0 text-destructive hover:text-destructive", (isProducts || isLocations) && "h-6 w-6")}
+                              className={cn("h-7 w-7 p-0 text-destructive hover:text-destructive", denseRows && "h-6 w-6")}
                               onClick={(e) => { e.stopPropagation(); setDeleteBlockers(null); setDeleteChallenge(""); setDeleteRecord(row as Record<string, unknown>); }}
                               title={`Delete ${resource.singular} permanently`}
                             >
-                              <Trash2 className={cn("h-3.5 w-3.5", (isProducts || isLocations) && "h-3 w-3")} />
+                              <Trash2 className={cn("h-3.5 w-3.5", denseRows && "h-3 w-3")} />
                             </Button>
                           ) : null}
                         </div>
