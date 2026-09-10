@@ -89,7 +89,7 @@ const DialogContent = React.forwardRef<
             <LifeBuoy className="h-4 w-4" />
           </DialogPrimitive.Close>
         )}
-        <DialogPrimitive.Close className="absolute right-0 top-0 inline-flex h-8 w-10 items-center justify-center rounded-none rounded-tr-lg bg-destructive text-destructive-foreground ring-offset-background transition-colors hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <DialogPrimitive.Close className="absolute -right-px -top-px inline-flex h-8 w-10 items-center justify-center rounded-none rounded-tr-lg bg-destructive text-destructive-foreground ring-offset-background transition-colors hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
