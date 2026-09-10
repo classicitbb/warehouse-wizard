@@ -425,7 +425,11 @@ export function ResourcePage({
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
-  const useGearActions = ["warehouses", "zones", "locations", "products"].includes(resource.table);
+  const useGearActions = ["warehouses", "zones", "locations", "products", "product_packaging_profiles"].includes(resource.table);
+  // Packaging Profiles keeps creating a profile as a standing primary button —
+  // it is the one action people come to that screen to repeat — while the CSV
+  // and archive actions move behind the gear with everything else.
+  const createOutsideGear = resource.table === "product_packaging_profiles";
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
   const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
