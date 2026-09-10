@@ -1069,7 +1069,10 @@ export function ResourceFormDialog({
   const packagingProductRef = useRef<ProductSearchHandle | null>(null);
   const { data: options } = useQuery({
     queryKey: isPackagingProfiles
-      ? PRODUCT_PACK_OPTIONS_KEY
+      // Same source data, different result shape from the designer's query, so
+      // it must not share that cache entry — otherwise the designer reads an
+      // empty profile list and calls saved SKUs "not created yet".
+      ? [...PRODUCT_PACK_OPTIONS_KEY, "resource-form"]
       : ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
     queryFn: async () => {
       if (isPackagingProfiles) {
