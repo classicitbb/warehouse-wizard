@@ -883,6 +883,14 @@ function UsersRolesPageImpl() {
                           <div className="font-medium">{feature.name}</div>
                           <div className="text-xs text-muted-foreground">{feature.description}</div>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={feature.is_released !== false}
+                            disabled={!canOperateRoles || permissionSaving !== null}
+                            aria-label={`${feature.name} released to non-developers`}
+                            onCheckedChange={(checked) => updateFeatureRelease(feature.id, checked)}
+                          />
+                        </TableCell>
                         {((options?.roles ?? []) as any[])
                           .filter((role) => canOperateRoles || role.code !== "developer")
                           .flatMap((role) => {
