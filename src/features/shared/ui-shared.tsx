@@ -1051,6 +1051,73 @@ function RackLocationCodeBuilder({
   );
 }
 
+// The Packaging Profile form body — shared verbatim between the create and edit
+// dialogs so both read the same: SKU (with scan) first, then the spoken pack
+// code, then the derived fields, then the pallet pack standard.
+function PackagingProfileFormFields({
+  resource,
+  form,
+  options,
+}: {
+  resource: ResourceDefinition;
+  form: ReturnType<typeof useForm<Record<string, unknown>>>;
+  options: Awaited<ReturnType<typeof fetchOptions>> | undefined;
+}) {
+  const productRef = useRef<ProductSearchHandle | null>(null);
+  return (
+    <>
+      {/* SKU first, then the pack code — the two things someone
+          knows standing at a container door. */}
+      <FormField
+        control={form.control}
+        name="product_id"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>
+              Product<span className="ml-1 text-destructive" aria-hidden="true">*</span>
+            </FormLabel>
+            <FormControl>
+              <div className="flex min-w-0 max-w-full flex-wrap gap-2 sm:flex-nowrap">
+                <BarcodeScanButton
+                  className="h-9 shrink-0 self-start sm:h-10"
+                  title="Scan product"
+                  onScan={(value) => {
+                    const matched = productRef.current?.scanBarcode(value);
+                    if (!matched) toast.warning("No product matched that scan. Search results are open.");
+                  }}
+                />
+                <div className="order-3 min-w-0 max-w-full flex-1 basis-full sm:order-none sm:basis-0">
+                  <ProductSearch
+                    ref={productRef}
+                    value={String(field.value ?? "")}
+                    options={(options?.products ?? []).map((product: any) => ({
+                      id: String(product.id),
+                      sku: String(product.sku ?? ""),
+                      name: String(product.name ?? ""),
+                      barcode: product.barcode ? String(product.barcode) : undefined,
+                      packStatus: product.hasProfile ? "saved" as const : "none" as const,
+                    }))}
+                    placeholder="Select SKU"
+                    onChange={field.onChange}
+                  />
+                </div>
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <PackagingProfileQuickStart form={form} />
+      {resource.fields
+        .filter((field) => !PACK_SECTION_FIELDS.has(field.name) && field.name !== "product_id")
+        .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+      <div className="border-t border-border pt-4">
+        <PackStandardFormSection form={form} />
+      </div>
+    </>
+  );
+}
+
 export function ResourceFormDialog({
   resource,
   trigger,
@@ -1066,7 +1133,6 @@ export function ResourceFormDialog({
   const isLocations = resource.table === "locations";
   const isPackagingProfiles = resource.table === "product_packaging_profiles";
   const [locationDefaultsOpen, setLocationDefaultsOpen] = useState(false);
-  const packagingProductRef = useRef<ProductSearchHandle | null>(null);
   const { data: options } = useQuery({
     queryKey: isPackagingProfiles
       ? PRODUCT_PACK_OPTIONS_KEY
@@ -1218,56 +1284,7 @@ export function ResourceFormDialog({
                   </Collapsible>
                 </>
               ) : isPackagingProfiles ? (
-                <>
-                  {/* SKU first, then the pack code — the two things someone
-                      knows standing at a container door. */}
-                  <FormField
-                    control={form.control}
-                    name="product_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Product<span className="ml-1 text-destructive" aria-hidden="true">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <div className="flex min-w-0 max-w-full flex-wrap gap-2 sm:flex-nowrap">
-                            <BarcodeScanButton
-                              className="h-9 shrink-0 self-start sm:h-10"
-                              title="Scan product"
-                              onScan={(value) => {
-                                const matched = packagingProductRef.current?.scanBarcode(value);
-                                if (!matched) toast.warning("No product matched that scan. Search results are open.");
-                              }}
-                            />
-                            <div className="order-3 min-w-0 max-w-full flex-1 basis-full sm:order-none sm:basis-0">
-                              <ProductSearch
-                                ref={packagingProductRef}
-                                value={String(field.value ?? "")}
-                                options={(options?.products ?? []).map((product: any) => ({
-                                  id: String(product.id),
-                                  sku: String(product.sku ?? ""),
-                                  name: String(product.name ?? ""),
-                                  barcode: product.barcode ? String(product.barcode) : undefined,
-                                  packStatus: product.hasProfile ? "saved" as const : "none" as const,
-                                }))}
-                                placeholder="Select SKU"
-                                onChange={field.onChange}
-                              />
-                            </div>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <PackagingProfileQuickStart form={form} />
-                  {resource.fields
-                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name) && field.name !== "product_id")
-                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
-                  <div className="border-t border-border pt-4">
-                    <PackStandardFormSection form={form} />
-                  </div>
-                </>
+                <PackagingProfileFormFields resource={resource} form={form} options={options} />
               ) : (
                 resource.fields.map((field) => renderField(field, form, getResourceFieldOptions(field, options)))
               )}
@@ -1313,9 +1330,34 @@ export function ResourceEditDialog({
   const queryClient = useQueryClient();
   const { roles, profile } = useAuth();
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
+  const isEditPackagingProfiles = resource.table === "product_packaging_profiles";
   const { data: options } = useQuery({
-    queryKey: ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
-    queryFn: () => fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
+    queryKey: isEditPackagingProfiles
+      // Shares the create dialog's result shape, not the designer's, so it uses
+      // the same "resource-form" cache entry rather than PRODUCT_PACK_OPTIONS_KEY.
+      ? [...PRODUCT_PACK_OPTIONS_KEY, "resource-form"]
+      : ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
+    queryFn: async () => {
+      if (isEditPackagingProfiles) {
+        const packOptions = await fetchProductPackOptions();
+        return {
+          warehouses: packOptions.warehouses,
+          zones: [],
+          locations: [],
+          clients: [],
+          products: packOptions.products,
+          packagingProfiles: packOptions.profiles,
+          pallets: [],
+          profiles: [],
+          roles: [],
+          userRoles: [],
+          permissionFeatures: [],
+          rolePermissions: [],
+          loadErrors: [],
+        };
+      }
+      return fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id });
+    },
   });
   const form = useForm<Record<string, unknown>>({
     resolver: zodResolver(baseFormSchema),
@@ -1327,7 +1369,6 @@ export function ResourceEditDialog({
 
   // For locations: watch status to show disable-reason notice
   const isLocations = resource.table === "locations";
-  const isEditPackagingProfiles = resource.table === "product_packaging_profiles";
   const watchedStatus = isLocations ? (form.watch("status") as string | undefined) : undefined;
   const isBeingDisabled = watchedStatus === "disabled" || watchedStatus === "maintenance";
   const wasAlreadyDisabled = isLocations && (editRecord.status === "disabled" || editRecord.status === "maintenance");
@@ -1392,14 +1433,7 @@ export function ResourceEditDialog({
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
               <div className="flex flex-col gap-4 pr-4">
               {isEditPackagingProfiles ? (
-                <>
-                  {resource.fields
-                    .filter((field) => !PACK_SECTION_FIELDS.has(field.name))
-                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
-                  <div className="border-t border-border pt-4">
-                    <PackStandardFormSection form={form} />
-                  </div>
-                </>
+                <PackagingProfileFormFields resource={resource} form={form} options={options} />
               ) : resource.fields.map((field) => (
                 <div key={field.name}>
                   {renderField(field, form, getResourceFieldOptions(field, options))}
