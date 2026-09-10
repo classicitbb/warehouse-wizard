@@ -860,6 +860,10 @@ function UsersRolesPageImpl() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="sticky left-0 z-10 min-w-[220px] bg-card">Feature</TableHead>
+                      <TableHead className="min-w-[110px] text-center">
+                        <div className="font-semibold">Released</div>
+                        <div className="mt-1 text-[11px] font-normal text-muted-foreground">Visible to non-developers</div>
+                      </TableHead>
                       {((options?.roles ?? []) as any[])
                         .filter((role) => canOperateRoles || role.code !== "developer")
                         .map((role) => (
