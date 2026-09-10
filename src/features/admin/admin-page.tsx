@@ -581,6 +581,25 @@ function UsersRolesPageImpl() {
     }
   };
 
+  /**
+   * The public/locked switch for a whole module. Role permissions say who may
+   * use a feature; `is_released` says whether anyone but a developer sees it at
+   * all, which is how the Packing tab stays locked until it is ready.
+   */
+  const updateFeatureRelease = async (featureId: string, released: boolean) => {
+    if (!canOperateRoles) return;
+    const key = `${featureId}:is_released`;
+    setPermissionSaving(key);
+    try {
+      await upsertRecord("permission_features", { id: featureId, is_released: released });
+      await invalidateOptions();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Release update failed");
+    } finally {
+      setPermissionSaving(null);
+    }
+  };
+
   const profiles = (options?.profiles ?? []) as ProfileRow[];
 
   return (
