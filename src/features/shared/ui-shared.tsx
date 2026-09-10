@@ -1065,7 +1065,7 @@ function PackagingProfileFormFields({
 }) {
   const productRef = useRef<ProductSearchHandle | null>(null);
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {/* SKU first, then the pack code — the two things someone
           knows standing at a container door. */}
       <FormField
@@ -1114,7 +1114,7 @@ function PackagingProfileFormFields({
       <div className="border-t border-border pt-4">
         <PackStandardFormSection form={form} />
       </div>
-    </>
+    </div>
   );
 }
 
