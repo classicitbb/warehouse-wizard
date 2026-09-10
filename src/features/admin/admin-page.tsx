@@ -591,7 +591,10 @@ function UsersRolesPageImpl() {
     const key = `${featureId}:is_released`;
     setPermissionSaving(key);
     try {
-      await upsertRecord("permission_features", { id: featureId, is_released: released });
+      // An upsert here would be an INSERT ... ON CONFLICT with only two
+      // columns, which the table's NOT NULL code/name reject; this row always
+      // exists, so update it directly.
+      await updateRecord("permission_features", featureId, { is_released: released });
       await invalidateOptions();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Release update failed");
