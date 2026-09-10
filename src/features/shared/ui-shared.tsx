@@ -1109,12 +1109,19 @@ export function ResourceFormDialog({
     }
   }, [isZones, watchedWarehouseId, watchedCode, watchedName, options?.zones, form]);
 
+  // Set by "Save and add another": profiles are entered in runs of five or ten
+  // off one container, and reopening the dialog each time loses that rhythm.
+  const keepOpenAfterSaveRef = useRef(false);
   const createMutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => upsertRecord(resource.table, normalizeResourceValues(resource, values, options)),
     onSuccess: () => {
       toast.success(`${resource.singular} saved`);
       queryClient.invalidateQueries({ queryKey: [resource.table] });
       form.reset();
+      if (keepOpenAfterSaveRef.current) {
+        keepOpenAfterSaveRef.current = false;
+        return;
+      }
       setOpen(false);
     },
     onError: (error) => {
