@@ -1212,10 +1212,22 @@ export function ResourceFormDialog({
               <p className="text-xs text-muted-foreground" aria-live="polite">
                 {createMissingFields.length > 0 ? `Required: ${createMissingFields.join(", ")}` : "All required fields are complete."}
               </p>
-              <Button type="submit" disabled={createMutation.isPending || !canCreate}>
-                {createMutation.isPending ? <Loader2 className="animate-spin" /> : null}
-                Save {resource.singular}
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {isPackagingProfiles ? (
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    disabled={createMutation.isPending || !canCreate}
+                    onClick={() => { keepOpenAfterSaveRef.current = true; }}
+                  >
+                    Save and add another
+                  </Button>
+                ) : null}
+                <Button type="submit" disabled={createMutation.isPending || !canCreate}>
+                  {createMutation.isPending ? <Loader2 className="animate-spin" /> : null}
+                  Save {resource.singular}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>
