@@ -895,6 +895,7 @@ export function ResourcePage({
               <ResourceFormDialog resource={resource} />
             </>
           )}
+          {createOutsideGear ? <ResourceFormDialog resource={resource} /> : null}
         </div>
       </div>
 
