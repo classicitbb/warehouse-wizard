@@ -105,8 +105,14 @@ import {
 import { requestCopilotReport } from "@/features/copilot/copilot-core";
 import { PACK_SECTION_FIELDS, PackStandardFormSection } from "@/features/shared/pack-standard-form";
 import { PackagingProfileQuickStart } from "@/features/shared/packaging-profile-quick-start";
+import {
+  PRODUCT_PACK_OPTIONS_KEY,
+  fetchProductPackOptions,
+} from "@/features/shared/product-pack-options";
 
 import { buildPalletLabelBatchPrintHtml, type PalletLabelPageProps } from "@/components/pallet-label-page";
+import { BarcodeScanButton } from "@/components/barcode-scan-button";
+import { ProductSearch, type ProductSearchHandle } from "@/components/product-search";
 
 import { cn } from "@/lib/utils";
 import { extractIso6346ContainerNumber, normalizeContainerNumber } from "@/lib/container-number";
@@ -1060,11 +1066,34 @@ export function ResourceFormDialog({
   const isLocations = resource.table === "locations";
   const isPackagingProfiles = resource.table === "product_packaging_profiles";
   const [locationDefaultsOpen, setLocationDefaultsOpen] = useState(false);
+  const packagingProductRef = useRef<ProductSearchHandle | null>(null);
   const { data: options } = useQuery({
-    queryKey: ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
-    queryFn: () => isLocations
-      ? fetchLocationCreationOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id })
-      : fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
+    queryKey: isPackagingProfiles
+      ? PRODUCT_PACK_OPTIONS_KEY
+      : ["options", resource.table, restrictedToDefaultWarehouse, profile?.default_warehouse_id],
+    queryFn: async () => {
+      if (isPackagingProfiles) {
+        const packOptions = await fetchProductPackOptions();
+        return {
+          warehouses: packOptions.warehouses,
+          zones: [],
+          locations: [],
+          clients: [],
+          products: packOptions.products,
+          packagingProfiles: packOptions.profiles,
+          pallets: [],
+          profiles: [],
+          roles: [],
+          userRoles: [],
+          permissionFeatures: [],
+          rolePermissions: [],
+          loadErrors: [],
+        };
+      }
+      return isLocations
+        ? fetchLocationCreationOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id })
+        : fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id });
+    },
   });
   // Fields controlled by the location code builder — hidden from the generic loop
   const builderControlledFields = new Set(["code", "aisle", "bay", "level", "position", "depth", "location_type"]);
@@ -1192,9 +1221,45 @@ export function ResourceFormDialog({
                 <>
                   {/* SKU first, then the pack code — the two things someone
                       knows standing at a container door. */}
-                  {resource.fields
-                    .filter((field) => field.name === "product_id")
-                    .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+                  <FormField
+                    control={form.control}
+                    name="product_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Product<span className="ml-1 text-destructive" aria-hidden="true">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <div className="flex min-w-0 max-w-full flex-wrap gap-2 sm:flex-nowrap">
+                            <BarcodeScanButton
+                              className="h-9 shrink-0 self-start sm:h-10"
+                              title="Scan product"
+                              onScan={(value) => {
+                                const matched = packagingProductRef.current?.scanBarcode(value);
+                                if (!matched) toast.warning("No product matched that scan. Search results are open.");
+                              }}
+                            />
+                            <div className="order-3 min-w-0 max-w-full flex-1 basis-full sm:order-none sm:basis-0">
+                              <ProductSearch
+                                ref={packagingProductRef}
+                                value={String(field.value ?? "")}
+                                options={(options?.products ?? []).map((product: any) => ({
+                                  id: String(product.id),
+                                  sku: String(product.sku ?? ""),
+                                  name: String(product.name ?? ""),
+                                  barcode: product.barcode ? String(product.barcode) : undefined,
+                                  packStatus: product.hasProfile ? "saved" as const : "none" as const,
+                                }))}
+                                placeholder="Select SKU"
+                                onChange={field.onChange}
+                              />
+                            </div>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <PackagingProfileQuickStart form={form} />
                   {resource.fields
                     .filter((field) => !PACK_SECTION_FIELDS.has(field.name) && field.name !== "product_id")
