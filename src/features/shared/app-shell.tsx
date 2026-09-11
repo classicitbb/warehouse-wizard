@@ -819,7 +819,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const badge = badgeCount > 0 ? (
               <span
                 className={cn(
-                  "inline-flex items-center justify-center rounded-full bg-destructive font-semibold leading-none text-destructive-foreground",
+                  "inline-flex items-center justify-center rounded-none bg-destructive font-semibold leading-none text-destructive-foreground",
                   collapsed
                     // Anchored to the icon, not the cell: at 8.25rem tall a corner badge floats away from it.
                     ? "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[9px]"
@@ -1227,7 +1227,7 @@ function MobileActionBar({
               <Icon className={cn("h-5 w-5", isActive && "text-accent")} data-active-icon={isActive ? "true" : "false"} />
               {badgeCount > 0 ? (
                 <span
-                  className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground"
+                  className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-none bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground"
                   aria-label={getNavBadgeLabel(item.to, badgeCount)}
                 >
                   {badgeCount > 99 ? "99+" : badgeCount}

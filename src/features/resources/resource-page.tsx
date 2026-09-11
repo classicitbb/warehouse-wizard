@@ -1153,7 +1153,7 @@ export function ResourcePage({
                           }
                         />
                       ) : null}
-                      {isProducts && field.name === "name" ? (
+                      {isProducts && field.name === "supplier_lead_time_days" ? (
                         <TableHead className="h-8 w-40 px-2 py-1 text-xs">Pack std</TableHead>
                       ) : null}
                     </Fragment>
@@ -1263,14 +1263,21 @@ export function ResourcePage({
                         }
                         if (isProducts && field.name === "name") {
                           const qty = productQtyMap.get(String((row as Record<string, unknown>).id ?? "")) ?? 0;
-                          const packSummary = productPackMap.get(String((row as Record<string, unknown>).id ?? ""));
-                          const packLine = formatPackStandardLine(packSummary);
                           return (
                             <Fragment key={field.name}>
                               {cell}
                               <TableCell className="w-20 whitespace-nowrap text-right font-mono text-xs font-semibold">
                                 {formatNumber(qty)}
                               </TableCell>
+                            </Fragment>
+                          );
+                        }
+                        if (isProducts && field.name === "supplier_lead_time_days") {
+                          const packSummary = productPackMap.get(String((row as Record<string, unknown>).id ?? ""));
+                          const packLine = formatPackStandardLine(packSummary);
+                          return (
+                            <Fragment key={field.name}>
+                              {cell}
                               <TableCell className="w-40 px-2 py-1 font-mono text-xs">
                                 {packLine ? (
                                   <span title={packSummary?.profileName || undefined}>{packLine}</span>
