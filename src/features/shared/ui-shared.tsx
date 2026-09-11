@@ -787,7 +787,7 @@ export function TableFrame({
   className?: string;
 }) {
   return (
-    <div className={cn("h-[calc(100svh-14rem)] min-h-48 w-full min-w-0 overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] [&_table]:min-w-max", className)}>
+    <div className={cn("h-[calc(100svh-14rem)] min-h-48 w-full min-w-0 overflow-auto overscroll-contain rounded-t-[7px] [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] [&_table]:min-w-max", className)}>
       {children}
     </div>
   );
