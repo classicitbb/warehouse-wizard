@@ -200,6 +200,7 @@ export const deleteZoneCascade = (id: string) => callCascadeDelete("delete_zone_
 export const deleteLocationCascade = (id: string) => callCascadeDelete("delete_location_cascade", id);
 export const deleteProductCascade = (id: string) => callCascadeDelete("delete_product_cascade", id);
 export const deleteClientCascade = (id: string) => callCascadeDelete("delete_client_cascade", id);
+export const deletePackagingProfileCascade = (id: string) => callCascadeDelete("delete_packaging_profile_cascade", id);
 
 export async function deleteResourceCascade(table: string, id: string): Promise<CascadeDeleteResult> {
   switch (table) {
@@ -208,6 +209,7 @@ export async function deleteResourceCascade(table: string, id: string): Promise<
     case "locations": return deleteLocationCascade(id);
     case "products": return deleteProductCascade(id);
     case "clients": return deleteClientCascade(id);
+    case "product_packaging_profiles": return deletePackagingProfileCascade(id);
     default: throw new Error(`No cascade delete available for ${table}`);
   }
 }

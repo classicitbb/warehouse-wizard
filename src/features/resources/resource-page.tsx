@@ -399,8 +399,17 @@ export function ResourcePage({
   const navigate = useNavigate();
   const { toPath } = useTenantPath();
   const { roles: viewerRoles, profile } = useAuth();
-  const canHardDelete = viewerRoles.some((r) => ["admin", "developer"].includes(r));
-  const cascadeSupported = ["warehouses", "zones", "locations", "products", "clients"].includes(resource.table);
+  // Packaging profiles are master data a supervisor curates day to day, so the
+  // delete gate there reaches down to supervisors and managers. Every other
+  // cascade delete (warehouses, zones, locations, products, clients) stays
+  // admin/developer only.
+  const isPackagingProfileTable = resource.table === "product_packaging_profiles";
+  const canHardDelete = viewerRoles.some((r) =>
+    (isPackagingProfileTable
+      ? ["admin", "developer", "warehouse_manager", "warehouse_supervisor"]
+      : ["admin", "developer"]
+    ).includes(r));
+  const cascadeSupported = ["warehouses", "zones", "locations", "products", "clients", "product_packaging_profiles"].includes(resource.table);
   const [includeHidden, setIncludeHidden] = useState(false);
   const [editRecord, setEditRecord] = useState<Record<string, unknown> | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
