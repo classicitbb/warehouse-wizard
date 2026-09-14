@@ -273,3 +273,36 @@ describe("plpgsql variable conflict migration", () => {
     expect(variableConflictMigration).not.toContain("directed_putaway_candidates");
   });
 });
+
+describe("packaging profile permanent delete", () => {
+  const sql = readFileSync(
+    path.resolve(process.cwd(), "drizzle/migrations/0000_packaging_profile_delete_and_cycle_count_warehouse_scope.sql"),
+    "utf8",
+  );
+
+  it("lets supervisors and above create, edit and delete packaging profiles", () => {
+    for (const policy of [
+      "Supervisors delete product_packaging_profiles",
+      "Supervisors update product_packaging_profiles",
+      "Supervisors write product_packaging_profiles",
+    ]) {
+      expect(sql).toContain(policy);
+    }
+    expect(sql).toContain("has_min_role(auth.uid(), 'warehouse_supervisor')");
+  });
+
+  it("guards the cascade delete and refuses profiles still referenced by work", () => {
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION public.delete_packaging_profile_cascade(in_id uuid)");
+    expect(sql).toContain("SECURITY DEFINER");
+    expect(sql).toContain("set search_path");
+    expect(sql).toContain("from public.pallets where packaging_profile_id = in_id");
+    expect(sql).toContain("from public.receipt_lines where packaging_profile_id = in_id");
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.delete_packaging_profile_cascade(uuid) TO authenticated");
+    expect(sql).toContain("REVOKE EXECUTE ON FUNCTION public.delete_packaging_profile_cascade(uuid) FROM PUBLIC, anon");
+  });
+
+  it("scopes supervisor cycle count reads to accessible warehouses", () => {
+    expect(sql).toContain("can_access_warehouse(warehouse_id)");
+    expect(sql).toContain("can_access_warehouse(header.warehouse_id)");
+  });
+});
