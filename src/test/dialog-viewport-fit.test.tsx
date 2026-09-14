@@ -46,10 +46,16 @@ describe("dialog viewport fit", () => {
     const header = document.querySelector("[data-dialog-header='true']") as HTMLElement;
     const controls = document.querySelector("[data-dialog-controls='true']") as HTMLElement;
     expect(header.className).toContain("sticky");
+    expect(header.className).toContain("top-0");
     expect(header.className).toContain("shrink-0");
-    expect(controls.className).toContain("sticky");
+    expect(header.className).not.toContain("-mt-6");
+    expect(header.className).not.toContain("-top-6");
+    expect(controls.className).toContain("fixed");
+    expect(controls.className).toContain("right-0");
+    expect(controls.className).toContain("top-0");
     const close = screen.getByRole("button", { name: /^close$/i });
-    expect(close.style.right).toContain("--dialog-padding-right");
+    expect(close.className).toContain("right-0");
+    expect(close.className).toContain("top-0");
     expect(close.className).toContain("rounded-none");
     expect(close.className).toContain("hover:bg-destructive");
     expect(close.className).toContain("active:bg-destructive/80");
@@ -66,7 +72,10 @@ describe("dialog viewport fit", () => {
     render(<TallDialog />);
     const footer = document.querySelector("[data-dialog-footer='true']") as HTMLElement;
     expect(footer.className).toContain("sticky");
+    expect(footer.className).toContain("bottom-0");
     expect(footer.className).toContain("shrink-0");
+    expect(footer.className).not.toContain("-mb-6");
+    expect(footer.className).not.toContain("-bottom-6");
     for (const label of ["Cancel", "Save & New", "Save & Receive"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
@@ -106,9 +115,9 @@ describe("dialog viewport fit", () => {
       );
       const close = screen.getByRole("button", { name: /^close$/i });
       const controls = result.container.ownerDocument.querySelector("[data-dialog-controls='true']") as HTMLElement;
-      expect(controls.className).toContain("sticky");
-      expect(close.className).toContain("-top-px");
-      expect(close.style.right).toBe("calc(-1 * var(--dialog-padding-right, 1.5rem) - 1px)");
+      expect(controls.className).toContain("fixed");
+      expect(close.className).toContain("right-0");
+      expect(close.className).toContain("top-0");
       expect(close.className).toContain("hover:bg-destructive");
       expect(close.className).toContain("active:bg-destructive/80");
       cleanup();
