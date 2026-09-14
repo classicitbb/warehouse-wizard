@@ -75,18 +75,10 @@ export const ProductSearch = forwardRef<ProductSearchHandle, Props>(function Pro
           })
           .slice(0, 60);
 
-  // USB/Bluetooth HID scanner: exact barcode match → auto-select
-  useEffect(() => {
-    if (!query) return;
-    const match = options.find((o) => o.barcode && o.barcode === query);
-    if (match) {
-      preventCloseAutoFocusRef.current = Boolean(onSelectComplete);
-      onChange(match.id);
-      setQuery("");
-      setOpen(false);
-      setTimeout(() => onSelectComplete?.(), 0);
-    }
-  }, [query, options, onChange, onSelectComplete]);
+  // Typing never selects on its own. Short barcodes (CF8, M8, 70…) are prefixes
+  // of longer SKUs, so auto-matching mid-typing made codes like CF850
+  // impossible to type. Scans come in through scanBarcode() instead.
+
 
   useImperativeHandle(
     ref,
