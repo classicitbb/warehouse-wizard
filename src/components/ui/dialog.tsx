@@ -120,8 +120,8 @@ const DialogContent = React.forwardRef<
             </DialogPrimitive.Close>
           )}
           <DialogPrimitive.Close
-            className="pointer-events-auto absolute top-0 inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground hover:bg-destructive active:bg-destructive/80 focus:outline-none focus-visible:outline-none disabled:pointer-events-none"
-            style={{ right: "calc(-1 * var(--dialog-padding-right, 1.5rem))" }}
+            className="pointer-events-auto absolute -top-px inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground hover:bg-destructive active:bg-destructive/80 focus:outline-none focus-visible:outline-none disabled:pointer-events-none"
+            style={{ right: "calc(-1 * var(--dialog-padding-right, 1.5rem) - 1px)" }}
           >
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
