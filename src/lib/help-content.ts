@@ -155,9 +155,10 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
       "Export, import, templates, and archived profiles live under the gear menu",
       "Align barcodes to physical packaging",
       "Hide obsolete profiles without losing audit history",
+      "Admins, managers, and supervisors can delete a profile permanently with the trash button — only when no pallets or receipt lines still use it",
     ],
     commonMistakes: ["Creating multiple defaults for one product", "Using wrong units-per-package during receiving", "Reading the pack code backwards — cases per layer first, layers second"],
-    permissions: "Managed by admins, managers, and inventory clerks.",
+    permissions: "Managed by admins, managers, supervisors, and inventory clerks. Permanent delete is limited to admins, managers, and supervisors.",
     wikiArticleIds: ["packaging-profiles", "receiving-flow"],
   },
   receiving: {

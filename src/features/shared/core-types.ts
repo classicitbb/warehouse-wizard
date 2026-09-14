@@ -510,7 +510,7 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     description: "Unit, carton, pallet, and custom packed forms for each product.",
     singular: "packaging profile",
     helpId: "packaging-profiles",
-    roles: ["admin", "warehouse_manager", "inventory_clerk"],
+    roles: ["admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"],
     orderBy: { column: "profile_name" },
     importable: true,
     exportable: true,

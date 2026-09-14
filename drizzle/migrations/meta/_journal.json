@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789406590881,
+      "tag": "0000_packaging_profile_delete_and_cycle_count_warehouse_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789406614924,
+      "tag": "0001_cycle_count_lines_unassigned_visibility",
+      "breakpoints": true
+    }
+  ]
+}
