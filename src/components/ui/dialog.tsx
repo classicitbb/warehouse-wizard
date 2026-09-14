@@ -139,7 +139,7 @@ const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   <div
     data-dialog-header="true"
     className={cn(
-      "sticky -top-6 z-10 shrink-0 bg-background pb-2 pt-6 -mt-6 flex flex-col space-y-1.5 text-center sm:text-left",
+      "sticky top-0 z-10 shrink-0 bg-background pb-2 flex flex-col space-y-1.5 text-center sm:text-left",
       className,
     )}
     {...props}
@@ -151,7 +151,7 @@ const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   <div
     data-dialog-footer="true"
     className={cn(
-      "sticky -bottom-6 z-10 shrink-0 bg-background pb-6 pt-2 -mb-6 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "sticky bottom-0 z-10 shrink-0 bg-background pt-2 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
       className,
     )}
     {...props}

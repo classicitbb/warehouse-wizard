@@ -46,7 +46,10 @@ describe("dialog viewport fit", () => {
     const header = document.querySelector("[data-dialog-header='true']") as HTMLElement;
     const controls = document.querySelector("[data-dialog-controls='true']") as HTMLElement;
     expect(header.className).toContain("sticky");
+    expect(header.className).toContain("top-0");
     expect(header.className).toContain("shrink-0");
+    expect(header.className).not.toContain("-mt-6");
+    expect(header.className).not.toContain("-top-6");
     expect(controls.className).toContain("sticky");
     const close = screen.getByRole("button", { name: /^close$/i });
     expect(close.style.right).toContain("--dialog-padding-right");
@@ -66,7 +69,10 @@ describe("dialog viewport fit", () => {
     render(<TallDialog />);
     const footer = document.querySelector("[data-dialog-footer='true']") as HTMLElement;
     expect(footer.className).toContain("sticky");
+    expect(footer.className).toContain("bottom-0");
     expect(footer.className).toContain("shrink-0");
+    expect(footer.className).not.toContain("-mb-6");
+    expect(footer.className).not.toContain("-bottom-6");
     for (const label of ["Cancel", "Save & New", "Save & Receive"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
