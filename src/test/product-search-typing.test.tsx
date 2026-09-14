@@ -3,6 +3,10 @@ import { createRef } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ProductSearch, type ProductSearchHandle, type ProductOption } from "@/components/product-search";
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
 // cmdk observes its list size; jsdom has no ResizeObserver.
 if (!(globalThis as any).ResizeObserver) {
   (globalThis as any).ResizeObserver = class {
