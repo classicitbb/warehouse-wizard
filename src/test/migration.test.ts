@@ -294,7 +294,7 @@ describe("packaging profile permanent delete", () => {
   it("guards the cascade delete and refuses profiles still referenced by work", () => {
     expect(sql).toContain("CREATE OR REPLACE FUNCTION public.delete_packaging_profile_cascade(in_id uuid)");
     expect(sql).toContain("SECURITY DEFINER");
-    expect(sql).toContain("set search_path");
+    expect(sql).toContain("SET search_path TO 'public'");
     expect(sql).toContain("from public.pallets where packaging_profile_id = in_id");
     expect(sql).toContain("from public.receipt_lines where packaging_profile_id = in_id");
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.delete_packaging_profile_cascade(uuid) TO authenticated");
