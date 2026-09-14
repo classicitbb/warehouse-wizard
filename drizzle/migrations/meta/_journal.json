@@ -15,6 +15,13 @@
       "when": 1789406614924,
       "tag": "0001_cycle_count_lines_unassigned_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789407169484,
+      "tag": "0002_profiles_self_insert_cannot_self_approve",
+      "breakpoints": true
     }
   ]
 }
