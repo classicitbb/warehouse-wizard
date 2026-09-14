@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import {
   Dialog,
   DialogContent,
@@ -32,12 +32,13 @@ function TallDialog() {
 }
 
 describe("dialog viewport fit", () => {
-  it("caps the frame to the window height and scrolls its content", () => {
+  it("caps the frame to the window height and keeps a trackless draggable scrollbar", () => {
     render(<TallDialog />);
     const content = document.querySelector("[data-dialog-viewport-fit='true']") as HTMLElement;
     expect(content).toBeTruthy();
     expect(content.className).toContain("max-h-[calc(100svh-2rem)]");
     expect(content.className).toContain("overflow-y-auto");
+    expect(content.className).toContain("dialog-scrollbar");
   });
 
   it("pins the title row and the close/report controls", () => {
@@ -47,6 +48,13 @@ describe("dialog viewport fit", () => {
     expect(header.className).toContain("sticky");
     expect(header.className).toContain("shrink-0");
     expect(controls.className).toContain("sticky");
+    const close = screen.getByRole("button", { name: /^close$/i });
+    expect(close.style.right).toContain("--dialog-padding-right");
+    expect(close.className).toContain("rounded-none");
+    expect(close.className).toContain("hover:bg-destructive");
+    expect(close.className).toContain("active:bg-destructive/80");
+    expect(close.className).not.toContain("focus:ring");
+    expect(close.className).not.toContain("focus-visible:ring");
     expect(screen.getByText("Create shipment")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
     expect(
@@ -61,6 +69,49 @@ describe("dialog viewport fit", () => {
     expect(footer.className).toContain("shrink-0");
     for (const label of ["Cancel", "Save & New", "Save & Receive"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it("keeps controls corner-anchored for every dialog layout used in the app", () => {
+    const knownDialogLayouts = [
+      "",
+      "sm:max-w-xs",
+      "sm:max-w-sm",
+      "max-w-sm",
+      "sm:max-w-md",
+      "max-w-md",
+      "sm:max-w-lg",
+      "max-w-lg",
+      "max-h-[86vh] sm:max-w-lg",
+      "max-h-[90vh] overflow-y-auto sm:max-w-2xl",
+      "max-h-[92vh] overflow-y-auto sm:max-w-lg",
+      "max-h-[92vh] overflow-hidden sm:max-w-3xl",
+      "max-h-[90vh] overflow-hidden sm:max-w-3xl",
+      "p-4 sm:max-w-sm",
+      "overflow-hidden p-0 shadow-lg",
+      "flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-6xl",
+      "flex flex-col w-[95vw] max-w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0",
+      "h-[calc(100dvh-0.75rem)] max-h-[calc(100dvh-0.75rem)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-hidden bg-card p-0",
+      "max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl",
+    ];
+
+    for (const layout of knownDialogLayouts) {
+      const result = render(
+        <Dialog open>
+          <DialogContent className={layout} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>Known dialog</DialogTitle></DialogHeader>
+            <DialogFooter><Button>Commit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>,
+      );
+      const close = screen.getByRole("button", { name: /^close$/i });
+      const controls = result.container.ownerDocument.querySelector("[data-dialog-controls='true']") as HTMLElement;
+      expect(controls.className).toContain("sticky");
+      expect(close.className).toContain("-top-px");
+      expect(close.style.right).toBe("calc(-1 * var(--dialog-padding-right, 1.5rem) - 1px)");
+      expect(close.className).toContain("hover:bg-destructive");
+      expect(close.className).toContain("active:bg-destructive/80");
+      cleanup();
     }
   });
 });

@@ -251,6 +251,16 @@
   *::-webkit-scrollbar-corner {
     background: hsl(var(--muted));
   }
+
+  /* Dialog thumbs remain draggable while their window track stays invisible. */
+  .dialog-scrollbar {
+    scrollbar-color: hsl(var(--primary) / 0.5) transparent;
+  }
+
+  .dialog-scrollbar::-webkit-scrollbar-track,
+  .dialog-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /* ── Help Center light mode ──────────────────────────────── */
