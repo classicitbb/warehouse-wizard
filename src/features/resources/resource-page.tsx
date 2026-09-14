@@ -432,6 +432,9 @@ export function ResourcePage({
         setDeleteBlockers(null);
         setDeleteChallenge("");
         queryClient.invalidateQueries({ queryKey: [resource.table] });
+        // The pack-standard pickers cache their own narrow product/profile read,
+        // so a deleted profile would keep showing as "Saved" without this.
+        void queryClient.invalidateQueries({ queryKey: ["product-pack-options"] });
         void invalidateWarehouseData(queryClient);
       } else {
         setDeleteBlockers(result.blocked_by);
