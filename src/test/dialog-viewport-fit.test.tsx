@@ -32,12 +32,13 @@ function TallDialog() {
 }
 
 describe("dialog viewport fit", () => {
-  it("caps the frame to the window height and scrolls its content", () => {
+  it("caps the frame to the window height and keeps a trackless draggable scrollbar", () => {
     render(<TallDialog />);
     const content = document.querySelector("[data-dialog-viewport-fit='true']") as HTMLElement;
     expect(content).toBeTruthy();
     expect(content.className).toContain("max-h-[calc(100svh-2rem)]");
     expect(content.className).toContain("overflow-y-auto");
+    expect(content.className).toContain("dialog-scrollbar");
   });
 
   it("pins the title row and the close/report controls", () => {
@@ -47,6 +48,13 @@ describe("dialog viewport fit", () => {
     expect(header.className).toContain("sticky");
     expect(header.className).toContain("shrink-0");
     expect(controls.className).toContain("sticky");
+    const close = screen.getByRole("button", { name: /^close$/i });
+    expect(close.style.right).toContain("--dialog-padding-right");
+    expect(close.className).toContain("rounded-none");
+    expect(close.className).toContain("hover:bg-destructive");
+    expect(close.className).toContain("active:bg-destructive/80");
+    expect(close.className).not.toContain("focus:ring");
+    expect(close.className).not.toContain("focus-visible:ring");
     expect(screen.getByText("Create shipment")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
     expect(

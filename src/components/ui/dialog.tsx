@@ -48,6 +48,22 @@ const DialogContent = React.forwardRef<
     [ref],
   );
 
+  React.useLayoutEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+
+    const syncPadding = () => {
+      const style = window.getComputedStyle(node);
+      node.style.setProperty("--dialog-padding-top", style.paddingTop);
+      node.style.setProperty("--dialog-padding-right", style.paddingRight);
+    };
+
+    syncPadding();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncPadding);
+    observer?.observe(node);
+    return () => observer?.disconnect();
+  }, [className]);
+
   function reportProblem() {
     const title = contentRef.current?.querySelector("h2")?.textContent?.trim();
     const route = typeof window === "undefined" ? "" : window.location.pathname;
@@ -77,25 +93,36 @@ const DialogContent = React.forwardRef<
           // The frame never grows past the visible window height: content
           // scrolls inside, while the title row, close/report controls and the
           // footer commit buttons stay pinned and fully visible.
-          "fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100svh-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+          "dialog-scrollbar fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100svh-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
           className,
         )}
         {...props}
       >
-        {/* Zero-height sticky rail keeps the window controls at the top of the
-            scroll port instead of scrolling away with the content. */}
-        <div className="pointer-events-none sticky -top-6 z-20 -mx-6 -mb-4 h-0" data-dialog-controls="true">
+        {/* Runtime padding variables keep this rail on the frame corner even
+            when a dialog replaces the shared padding with p-0 or p-4. */}
+        <div
+          className="pointer-events-none sticky z-20 -mb-4 h-0"
+          data-dialog-controls="true"
+          style={{
+            top: "calc(-1 * var(--dialog-padding-top, 1.5rem))",
+            marginTop: "calc(-1 * var(--dialog-padding-top, 1.5rem))",
+          }}
+        >
           {hideReportButton ? null : (
             <DialogPrimitive.Close
               onClick={reportProblem}
-              className="pointer-events-auto absolute right-11 top-0 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground ring-offset-background transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+              className="pointer-events-auto absolute top-0 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+              style={{ right: "calc(var(--dialog-padding-right, 1.5rem) * -1 + 2.75rem)" }}
               title="Report a problem or send feedback"
               aria-label="Report a problem or send feedback"
             >
               <LifeBuoy className="h-4 w-4" />
             </DialogPrimitive.Close>
           )}
-          <DialogPrimitive.Close className="pointer-events-auto absolute -right-px -top-px inline-flex h-8 w-10 items-center justify-center rounded-none rounded-tr-lg bg-destructive text-destructive-foreground ring-offset-background transition-colors hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+          <DialogPrimitive.Close
+            className="pointer-events-auto absolute top-0 inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground hover:bg-destructive active:bg-destructive/80 focus:outline-none focus-visible:outline-none disabled:pointer-events-none"
+            style={{ right: "calc(-1 * var(--dialog-padding-right, 1.5rem))" }}
+          >
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
