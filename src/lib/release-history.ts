@@ -9,6 +9,15 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.6",
+    date: "September 2026",
+    changes: [
+      "Packaging profiles can now be deleted permanently by admins, managers, and supervisors — type DELETE to confirm",
+      "A profile still used by pallets or receipt lines cannot be deleted; the dialog shows what is holding it, so archive it instead",
+      "Supervisors can now open the Packaging Profiles screen to create, edit, and delete profiles",
+    ],
+  },
+  {
     version: "1.29.5",
     date: "September 2026",
     changes: [
