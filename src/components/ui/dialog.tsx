@@ -48,22 +48,6 @@ const DialogContent = React.forwardRef<
     [ref],
   );
 
-  React.useLayoutEffect(() => {
-    const node = contentRef.current;
-    if (!node) return;
-
-    const syncPadding = () => {
-      const style = window.getComputedStyle(node);
-      node.style.setProperty("--dialog-padding-top", style.paddingTop);
-      node.style.setProperty("--dialog-padding-right", style.paddingRight);
-    };
-
-    syncPadding();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncPadding);
-    observer?.observe(node);
-    return () => observer?.disconnect();
-  }, [className]);
-
   function reportProblem() {
     const title = contentRef.current?.querySelector("h2")?.textContent?.trim();
     const route = typeof window === "undefined" ? "" : window.location.pathname;
@@ -98,21 +82,15 @@ const DialogContent = React.forwardRef<
         )}
         {...props}
       >
-        {/* Runtime padding variables keep this rail on the frame corner even
-            when a dialog replaces the shared padding with p-0 or p-4. */}
         <div
-          className="pointer-events-none sticky z-20 -mb-4 h-0"
+          className="pointer-events-none fixed right-0 top-0 z-20 h-0"
           data-dialog-controls="true"
-          style={{
-            top: "calc(-1 * var(--dialog-padding-top, 1.5rem))",
-            marginTop: "calc(-1 * var(--dialog-padding-top, 1.5rem))",
-          }}
         >
           {hideReportButton ? null : (
             <DialogPrimitive.Close
               onClick={reportProblem}
               className="pointer-events-auto absolute top-0 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
-              style={{ right: "calc(var(--dialog-padding-right, 1.5rem) * -1 + 2.75rem)" }}
+              style={{ right: "2.75rem" }}
               title="Report a problem or send feedback"
               aria-label="Report a problem or send feedback"
             >
@@ -120,8 +98,7 @@ const DialogContent = React.forwardRef<
             </DialogPrimitive.Close>
           )}
           <DialogPrimitive.Close
-            className="pointer-events-auto absolute -top-px inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground hover:bg-destructive active:bg-destructive/80 focus:outline-none focus-visible:outline-none disabled:pointer-events-none"
-            style={{ right: "calc(-1 * var(--dialog-padding-right, 1.5rem) - 1px)" }}
+            className="pointer-events-auto absolute right-0 top-0 inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground hover:bg-destructive active:bg-destructive/80 focus:outline-none focus-visible:outline-none disabled:pointer-events-none"
           >
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
