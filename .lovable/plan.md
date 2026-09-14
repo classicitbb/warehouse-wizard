@@ -20,7 +20,7 @@
 - Update the shared dialog tests to verify the X is corner-anchored and independent of dialog padding.
 - Verify the X has no hover, focus-ring, rounded-outline, or border styling and has a pressed-state shade only.
 - Verify tall dialogs remain height-bounded and scrollable with no visible scrollbar styling.
-- Test representative layouts shown in the screenshots: New Shipment, Scan pallet for Put-Away, and Edit User.
+- Test all known dialogs, including the screenshot examples: New Shipment, Scan pallet for Put-Away, and Edit User.
 - Check desktop and a short mobile/tablet viewport to confirm the controls do not move, overlap titles, or clip.
 - Run the focused dialog tests, full typecheck, and confirm the preview build remains clean.
 
