@@ -4876,6 +4876,10 @@ export type Database = {
       }
       delete_client_cascade: { Args: { in_id: string }; Returns: Json }
       delete_location_cascade: { Args: { in_id: string }; Returns: Json }
+      delete_packaging_profile_cascade: {
+        Args: { in_id: string }
+        Returns: Json
+      }
       delete_product_cascade: { Args: { in_id: string }; Returns: Json }
       delete_warehouse_cascade: { Args: { in_id: string }; Returns: Json }
       delete_zone_cascade: { Args: { in_id: string }; Returns: Json }
