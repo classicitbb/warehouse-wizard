@@ -11,7 +11,7 @@
 ## Scrolling behavior
 
 - Keep tall dialog content usable within the visible screen height, but hide the scrollbar drawn on the dialog window itself.
-- Preserve wheel, touch, trackpad, and keyboard scrolling; only the visible scrollbar track/thumb disappears.
+- Preserve wheel, touch, trackpad, keyboard, and clickable-thumb scrolling; keep the thumb visible and remove only the scrollbar track background.
 - Keep title and commit controls visible while the middle content moves, without adding a second nested scrollbar.
 - Remove or neutralize dialog-specific overflow rules that override the shared behavior where they cause duplicate or visible window scrollbars.
 
