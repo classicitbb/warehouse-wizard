@@ -3,6 +3,15 @@ import { createRef } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ProductSearch, type ProductSearchHandle, type ProductOption } from "@/components/product-search";
 
+// cmdk observes its list size; jsdom has no ResizeObserver.
+if (!(globalThis as any).ResizeObserver) {
+  (globalThis as any).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 const options: ProductOption[] = [
   { id: "short", sku: "CF8", name: "Country Farm 8lb Rice", barcode: "CF8" },
   { id: "long", sku: "CF850", name: "Country Farm 850 Rice", barcode: "CF850" },
