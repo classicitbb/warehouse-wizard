@@ -554,6 +554,7 @@ function UsersRolesPageImpl() {
       // Approving/disabling an account changes the pending-access banner; without
       // this it stays up until its own 60s poll comes round.
       queryClient.invalidateQueries({ queryKey: ["pending-access-requests"] }),
+      queryClient.invalidateQueries({ queryKey: ["user-role-events"] }),
     ]);
   }, [queryClient]);
 
