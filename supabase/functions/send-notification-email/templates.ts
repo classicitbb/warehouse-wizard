@@ -83,9 +83,51 @@ export function renderReorderAlert(input: ReorderAlertInput): Omit<RenderedEmail
   return { subject, bodyHtml, text }
 }
 
+export type PickListCreatedInput = {
+  pickListNumber: string
+  orderNumber: string | null
+  warehouseName: string | null
+  lineCount: number
+}
+
+/** A pick ticket was released and is ready to pick. */
+export function renderPickListCreated(input: PickListCreatedInput): Omit<RenderedEmail, "html"> & {
+  bodyHtml: string
+} {
+  const subject = `Pick ticket ${input.pickListNumber} released`
+  const bodyHtml =
+    `<p style="${PARA}">Pick ticket <strong>${escapeHtml(input.pickListNumber)}</strong> has been released and is ready to pick${
+      input.warehouseName ? ` at ${escapeHtml(input.warehouseName)}` : ""
+    }.</p>` +
+    '<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;">' +
+    row("Pick ticket", input.pickListNumber) +
+    (input.orderNumber ? row("Order", input.orderNumber) : "") +
+    (input.warehouseName ? row("Warehouse", input.warehouseName) : "") +
+    (input.lineCount ? row("Lines", String(input.lineCount)) : "") +
+    '</table>' +
+    `<p style="${PARA}">Open Pick Lists in Warehouse Wizard to start picking.</p>`
+
+  const text =
+    `${subject}
+
+` +
+    (input.orderNumber ? `Order: ${input.orderNumber}
+` : "") +
+    (input.warehouseName ? `Warehouse: ${input.warehouseName}
+` : "") +
+    (input.lineCount ? `Lines: ${input.lineCount}
+` : "") +
+    `
+Open Pick Lists in Warehouse Wizard to start picking.
+
+— Warehouse Wizard (automated notification)`
+
+  return { subject, bodyHtml, text }
+}
+
 function round(value: number): string {
   const n = Number(value ?? 0)
-  return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '0'
+  return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : "0"
 }
 
 export type TicketInput = {
