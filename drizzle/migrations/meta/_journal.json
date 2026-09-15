@@ -36,6 +36,13 @@
       "when": 1789485722470,
       "tag": "0004_rls_scope_caching_dashboard_rebuild_role_history",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789485765542,
+      "tag": "0005_restore_exact_policy_semantics",
+      "breakpoints": true
     }
   ]
 }
