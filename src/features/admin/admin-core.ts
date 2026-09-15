@@ -140,6 +140,28 @@ export async function assignUserRole(userId: string, roleId: string) {
   return data as any;
 }
 
+export type UserRoleEvent = {
+  id: string;
+  user_id: string;
+  role_id: string | null;
+  role_code: string | null;
+  warehouse_id: string | null;
+  action: string;
+  actor_id: string | null;
+  created_at: string;
+};
+
+/** Role assignment history, written by a database trigger on every
+ *  assign / archive / unarchive / remove so the record cannot be bypassed. */
+export async function listUserRoleEvents(limit = 100) {
+  const { data, error } = await (supabase.from as any)("user_role_events")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as UserRoleEvent[];
+}
+
 export async function updateRecord(
   table: string,
   id: string,

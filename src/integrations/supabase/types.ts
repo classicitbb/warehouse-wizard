@@ -4345,6 +4345,42 @@ export type Database = {
           },
         ]
       }
+      user_role_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          id: string
+          role_code: string | null
+          role_id: string | null
+          user_id: string
+          user_role_id: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          role_code?: string | null
+          role_id?: string | null
+          user_id: string
+          user_role_id?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          role_code?: string | null
+          role_id?: string | null
+          user_id?: string
+          user_role_id?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_by: string | null
@@ -4741,6 +4777,8 @@ export type Database = {
     }
     Functions: {
       _delete_guard_check: { Args: never; Returns: boolean }
+      accessible_transfer_pallet_ids: { Args: never; Returns: string[] }
+      accessible_warehouse_ids: { Args: never; Returns: string[] }
       admin_delete_user: { Args: { in_user_id: string }; Returns: undefined }
       admin_invite_user: {
         Args: {

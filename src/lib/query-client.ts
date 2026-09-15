@@ -5,12 +5,28 @@ import { assertOnline } from "@/hooks/use-network-status";
 import { recordAction } from "@/lib/habit-tracking";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
 
+/**
+ * Postgres cancels a read that outruns the statement timeout (SQLSTATE 57014).
+ * That is almost always transient contention rather than a broken query, so it
+ * is worth one extra attempt and a message an operator can act on.
+ */
+export function isStatementTimeout(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : "";
+  return code === "57014" || /statement timeout|canceling statement/i.test(message);
+}
+
+export const TIMEOUT_MESSAGE =
+  "That took too long to load. Retrying — narrow the search or filter by warehouse if it keeps happening.";
+
 export const queryClientDefaultOptions = {
   queries: {
     staleTime: 30_000,
     gcTime: 10 * 60_000,
     // Retry once with exponential back-off; skip retrying on 4xx client errors.
+    // Statement timeouts get one extra attempt because they are transient.
     retry: (failureCount: number, error: unknown) => {
+      if (isStatementTimeout(error)) return failureCount < 3;
       if (failureCount >= 2) return false;
       if (error instanceof Error && /4\d\d/.test(error.message)) return false;
       return true;
@@ -54,6 +70,7 @@ function mutationKeyLabel(mutation: { options: { mutationKey?: unknown } }) {
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
+  if (isStatementTimeout(error)) return TIMEOUT_MESSAGE;
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {

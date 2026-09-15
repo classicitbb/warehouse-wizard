@@ -9,6 +9,18 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.7",
+    date: "September 2026",
+    changes: [
+      "Command Center and the big list screens load much faster — stock counts are now worked out in one pass instead of twenty",
+      "Notifications panel is wider, taller and easier to tap on phones and tablets, with section headings that stay in view while you scroll",
+      "New Role history list under Users & Roles shows every role assigned, archived, restored or removed, by whom and when",
+    ],
+    fixes: [
+      "Pages that showed \"canceling statement due to statement timeout\" now retry on their own and explain what to do if it happens again",
+    ],
+  },
+  {
     version: "1.29.6",
     date: "September 2026",
     changes: [

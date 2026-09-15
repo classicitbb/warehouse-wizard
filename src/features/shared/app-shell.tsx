@@ -426,25 +426,30 @@ function NotificationBell({
           ) : null}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        collisionPadding={12}
+        className="w-[min(26rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
+      >
         <div className="border-b border-border px-3 py-2">
           <p className="text-sm font-semibold">Notifications</p>
           <p className="text-xs text-muted-foreground">Warehouse work, connectivity and inventory alerts</p>
         </div>
-        <div className="max-h-80 overflow-y-auto">
-          <p className="bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Connectivity</p>
+        <div className="max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain">
+          <p className="sticky top-0 z-10 bg-muted px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Connectivity</p>
           <div className="p-1">
             {connectivityCount === 0 ? (
               <p className="px-2 py-2 text-sm text-muted-foreground">No RF connectivity notifications.</p>
             ) : null}
             {offline ? (
-              <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm">
+              <div className="min-h-11 rounded-md bg-amber-500/10 px-3 py-2.5 text-sm">
                 <p className="font-medium text-amber-900 dark:text-amber-100">This RF device is offline</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">Live warehouse commits are frozen until the backend connection is restored.</p>
               </div>
             ) : null}
             {alerts.map((alert) => (
-              <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+              <div key={alert.id} className="min-h-11 rounded-md px-3 py-2.5 text-sm hover:bg-accent">
                 <p className="font-medium">{alert.title}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{alert.message ?? "A warehouse-floor device lost connectivity and is frozen for live commits."}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
@@ -453,13 +458,13 @@ function NotificationBell({
           </div>
           {showReorder ? (
             <>
-              <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Reorder alerts</p>
+              <p className="sticky top-0 z-10 border-t border-border bg-muted px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Reorder alerts</p>
               <div className="p-1">
                 {reorderCount === 0 ? (
                   <p className="px-2 py-2 text-sm text-muted-foreground">No active reorder alerts.</p>
                 ) : null}
                 {reorderAlerts.map((alert) => (
-                  <div key={alert.id} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                  <div key={alert.id} className="min-h-11 rounded-md px-3 py-2.5 text-sm hover:bg-accent">
                     <p className="font-medium">{alert.products?.sku ?? "Product"}{alert.products?.name ? ` — ${alert.products.name}` : ""}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {alert.warehouses?.code ?? alert.warehouses?.name ?? "Warehouse"} · {Number(alert.available_quantity ?? 0)} available · replenish {Number(alert.recommended_quantity ?? 0)}
@@ -470,7 +475,7 @@ function NotificationBell({
               </div>
             </>
           ) : null}
-          <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Warehouse activity</p>
+          <p className="sticky top-0 z-10 border-t border-border bg-muted px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Warehouse activity</p>
           <div className="p-1">
             {warehouseGroups.length === 0 ? (
               <p className="px-2 py-2 text-sm text-muted-foreground">No new pick tickets or put-away work.</p>
@@ -481,7 +486,7 @@ function NotificationBell({
               if (event.kind === "pick_list_created") {
                 const orderNumber = typeof payload.order_number === "string" ? payload.order_number : null;
                 return (
-                  <div key={key} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                  <div key={key} className="min-h-11 rounded-md px-3 py-2.5 text-sm hover:bg-accent">
                     <p className="font-medium">Pick ticket {String(payload.pick_list_number ?? "")} released</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {[orderNumber ? `Order ${orderNumber}` : null, warehouseCode].filter(Boolean).join(" · ") || "Ready to pick"}
@@ -493,7 +498,7 @@ function NotificationBell({
               const containerNumber = typeof payload.container_number === "string" ? payload.container_number : null;
               const poNumber = typeof payload.po_number === "string" ? payload.po_number : null;
               return (
-                <div key={key} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                <div key={key} className="min-h-11 rounded-md px-3 py-2.5 text-sm hover:bg-accent">
                   <p className="font-medium">{count === 1 ? "1 pallet" : `${count} pallets`} ready for put-away</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {[containerNumber ? `Container ${containerNumber}` : null, poNumber ? `PO ${poNumber}` : null, warehouseCode]
@@ -507,9 +512,9 @@ function NotificationBell({
           </div>
           {showSetupReminder ? (
             <>
-              <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Setup</p>
+              <p className="sticky top-0 z-10 border-t border-border bg-muted px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Setup</p>
               <div className="p-1">
-                <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm">
+                <div className="min-h-11 rounded-md bg-amber-500/10 px-3 py-2.5 text-sm">
                   <p className="font-medium text-amber-900 dark:text-amber-100">Notifications are off on this device</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     You will not hear new pick tickets or see put-away work while the app is closed.
