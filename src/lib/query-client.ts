@@ -70,6 +70,7 @@ function mutationKeyLabel(mutation: { options: { mutationKey?: unknown } }) {
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
+  if (isStatementTimeout(error)) return TIMEOUT_MESSAGE;
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
