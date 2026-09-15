@@ -25,9 +25,31 @@ export default defineConfig(({ mode }) => ({
     process.platform !== "win32" && mcpPlugin(),
     VitePWA({
       registerType: "prompt",
+      // injectManifest rather than the default generateSW: the app needs its
+      // own `push` / `notificationclick` handlers for warehouse alerts, and
+      // generateSW has no way to express them. The worker source is src/sw.ts;
+      // vite-plugin-pwa resolves a .ts source to an sw.js output, so /sw.js
+      // stays the registered path that index.html and the TWA expect.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       includeAssets: ["favicon.ico", "robots.txt", "icon.svg", "icon-maskable.svg"],
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
+      injectManifest: {
+        // Headroom over workbox's 2MB default. The largest chunk is ~850KB
+        // today, but a file above the limit is dropped from the precache with
+        // only a build warning — a silent offline regression.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
+      // `workbox.navigateFallbackDenylist` has no injectManifest equivalent —
+      // InjectManifestOptions omits every generateSW-only key — so that
+      // denylist is reimplemented on the NavigationRoute in src/sw.ts.
+      devOptions: {
+        // Without this there is no service worker under `vite dev` at all,
+        // so push handlers could only ever be exercised from a prod build.
+        enabled: true,
+        type: "module",
+        navigateFallback: "index.html",
+        suppressWarnings: true,
       },
       manifest: {
         name: "Warehouse Wizard WMS",

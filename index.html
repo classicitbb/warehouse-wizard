@@ -44,17 +44,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Register the app-shell service worker. Required for TWA/PWA
-      // installability (Chrome checks for a controlling SW with a fetch
-      // handler). Safe no-op in unsupported browsers.
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").catch(() => {
-            /* non-fatal: app still works without offline support */
-          });
-        });
-      }
-    </script>
   </body>
 </html>
