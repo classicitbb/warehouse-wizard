@@ -15,6 +15,12 @@ project_id = "gxfvxmxplngvxdkpmxgw"
     verify_jwt = false
   [functions.preview-transactional-email]
     verify_jwt = false
+  [functions.push-notify]
+    verify_jwt = true
+  # Opened from an email client by someone who is not signed in, and often
+  # prefetched by the mail provider. The random token is the only credential.
+  [functions.email-unsubscribe]
+    verify_jwt = false
 
 
 [functions.copilot-transcribe]

@@ -34,6 +34,13 @@ import { useNetworkStatus } from "@/hooks/use-network-status";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
 import { useNotificationPermission } from "@/hooks/use-notification-permission";
 import { useReorderAlertNotifications } from "@/hooks/use-reorder-alert-notifications";
+import { useWebPushNotifications, type NotificationEventRow } from "@/hooks/use-web-push";
+import { ensurePushSubscription } from "@/lib/push-subscription";
+import {
+  loadAccountNotificationPreferences,
+  markNotificationReminderShown,
+  shouldRemindAboutNotifications,
+} from "@/lib/notification-preferences";
 import { isActiveWorkInProgress } from "@/lib/active-work";
 import {
   NAVIGATION,
@@ -367,15 +374,33 @@ function NotificationBell({
   offline,
   reorderAlerts,
   showReorder,
+  warehouseEvents,
+  showSetupReminder,
+  onSetupReminderAction,
 }: {
   alerts: OfflineSupervisorAlert[];
   offline: boolean;
   reorderAlerts: ReorderAlertBellRow[];
   showReorder: boolean;
+  warehouseEvents: NotificationEventRow[];
+  showSetupReminder: boolean;
+  onSetupReminderAction: () => void | Promise<void>;
 }) {
   const connectivityCount = alerts.length + (offline ? 1 : 0);
   const reorderCount = showReorder ? reorderAlerts.length : 0;
-  const notificationCount = connectivityCount + reorderCount;
+  // Put-away events share a group_key, one per batch - count the batch, not
+  // the pallets, or a container reads as twelve notifications.
+  const warehouseGroups = Array.from(
+    warehouseEvents.reduce((map, event) => {
+      const key = event.group_key ?? event.id;
+      const existing = map.get(key);
+      if (existing) existing.count += 1;
+      else map.set(key, { event, count: 1 });
+      return map;
+    }, new Map<string, { event: NotificationEventRow; count: number }>()),
+  ).map(([key, value]) => ({ key, ...value }));
+  const notificationCount =
+    connectivityCount + reorderCount + warehouseGroups.length + (showSetupReminder ? 1 : 0);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -404,7 +429,7 @@ function NotificationBell({
       <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
         <div className="border-b border-border px-3 py-2">
           <p className="text-sm font-semibold">Notifications</p>
-          <p className="text-xs text-muted-foreground">Connectivity and inventory alerts</p>
+          <p className="text-xs text-muted-foreground">Warehouse work, connectivity and inventory alerts</p>
         </div>
         <div className="max-h-80 overflow-y-auto">
           <p className="bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Connectivity</p>
@@ -442,6 +467,66 @@ function NotificationBell({
                     <p className="mt-1 text-[11px] text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p>
                   </div>
                 ))}
+              </div>
+            </>
+          ) : null}
+          <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Warehouse activity</p>
+          <div className="p-1">
+            {warehouseGroups.length === 0 ? (
+              <p className="px-2 py-2 text-sm text-muted-foreground">No new pick tickets or put-away work.</p>
+            ) : null}
+            {warehouseGroups.map(({ key, event, count }) => {
+              const payload = (event.payload ?? {}) as Record<string, unknown>;
+              const warehouseCode = typeof payload.warehouse_code === "string" ? payload.warehouse_code : null;
+              if (event.kind === "pick_list_created") {
+                const orderNumber = typeof payload.order_number === "string" ? payload.order_number : null;
+                return (
+                  <div key={key} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                    <p className="font-medium">Pick ticket {String(payload.pick_list_number ?? "")} released</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[orderNumber ? `Order ${orderNumber}` : null, warehouseCode].filter(Boolean).join(" · ") || "Ready to pick"}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>
+                  </div>
+                );
+              }
+              const containerNumber = typeof payload.container_number === "string" ? payload.container_number : null;
+              const poNumber = typeof payload.po_number === "string" ? payload.po_number : null;
+              return (
+                <div key={key} className="rounded-md px-3 py-2 text-sm hover:bg-accent">
+                  <p className="font-medium">{count === 1 ? "1 pallet" : `${count} pallets`} ready for put-away</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {[containerNumber ? `Container ${containerNumber}` : null, poNumber ? `PO ${poNumber}` : null, warehouseCode]
+                      .filter(Boolean)
+                      .join(" · ") || "Waiting in receiving"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>
+                </div>
+              );
+            })}
+          </div>
+          {showSetupReminder ? (
+            <>
+              <p className="border-t border-border bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Setup</p>
+              <div className="p-1">
+                <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm">
+                  <p className="font-medium text-amber-900 dark:text-amber-100">Notifications are off on this device</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    You will not hear new pick tickets or see put-away work while the app is closed.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-7"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void onSetupReminderAction();
+                    }}
+                  >
+                    Turn on notifications
+                  </Button>
+                </div>
               </div>
             </>
           ) : null}
@@ -569,8 +654,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const canReceiveReorderNotifications = roles.some((role) =>
     ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(role),
   );
-  const { permission: notificationPermission } = useNotificationPermission();
+  const { permission: notificationPermission, requestPermission: requestNotificationPermission } =
+    useNotificationPermission();
   useReorderAlertNotifications(canReceiveReorderNotifications && notificationPermission === "granted");
+
+  // Warehouse work notifications go to everyone, not just supervisors: a
+  // released pick ticket is for whoever is free to pick it.
+  const { data: accountNotificationPrefs } = useQuery({
+    queryKey: ["notification-preferences", user?.id],
+    queryFn: () => loadAccountNotificationPreferences(user!.id),
+    enabled: Boolean(user?.id),
+    staleTime: 5 * 60_000,
+    meta: { suppressGlobalError: true },
+  });
+  const { events: warehouseNotifications } = useWebPushNotifications(
+    Boolean(user?.id) && online,
+    { pickListRing: accountNotificationPrefs?.pickListRing !== false },
+  );
+  // Browser permission is per device, so the reminder is too: granted on the
+  // office desktop says nothing about the floor tablet. Bell only - no toast,
+  // no banner.
+  const showNotificationSetupReminder = shouldRemindAboutNotifications(notificationPermission, user?.id ?? null);
+  const handleNotificationSetup = useCallback(async () => {
+    // Stamp first: whichever way this goes, the weekly window restarts, so a
+    // user who declines is not asked again until next week.
+    markNotificationReminderShown(user?.id ?? null);
+    const result = await requestNotificationPermission();
+    if (result === "granted") await ensurePushSubscription();
+  }, [requestNotificationPermission, user?.id]);
   const { data: headerOptions } = useQuery({
     queryKey: ["header-warehouse-options", canSwitchWarehouses],
     queryFn: () => fetchOptions(false),
@@ -976,6 +1087,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               offline={connectionConfirmed && !online}
               reorderAlerts={reorderAlertsForBell}
               showReorder={canReceiveReorderNotifications}
+              warehouseEvents={warehouseNotifications}
+              showSetupReminder={showNotificationSetupReminder}
+              onSetupReminderAction={handleNotificationSetup}
             />
             <HelpSidebar pathname={pathname} />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -1130,6 +1244,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 offline={connectionConfirmed && !online}
                 reorderAlerts={reorderAlertsForBell}
                 showReorder={canReceiveReorderNotifications}
+                warehouseEvents={warehouseNotifications}
+                showSetupReminder={showNotificationSetupReminder}
+                onSetupReminderAction={handleNotificationSetup}
               />
               <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => requestAppRefresh()} />
             </div>

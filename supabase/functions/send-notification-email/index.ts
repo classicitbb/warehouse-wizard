@@ -13,6 +13,7 @@ import { EmailAPIError, sendLovableEmail } from 'npm:@lovable.dev/email-js@0.1.0
 import {
   normaliseRecipients,
   renderOperatorTicket,
+  renderPickListCreated,
   renderReorderAlert,
   shell,
 } from './templates.ts'
@@ -74,6 +75,8 @@ async function deliver(
     text: string
     label: string
     idempotencyKey: string
+    /** Rendered into the footer by shell(). Omit for mail nobody may opt out of. */
+    unsubscribeUrl?: string | null
   },
 ): Promise<boolean> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
@@ -101,7 +104,7 @@ async function deliver(
         from: FROM,
         sender_domain: SENDER_DOMAIN,
         subject: input.subject,
-        html: shell(input.title, input.bodyHtml),
+        html: shell(input.title, input.bodyHtml, input.unsubscribeUrl ?? null),
         text: input.text,
         purpose: 'transactional',
         label: input.label,
@@ -124,6 +127,145 @@ async function deliver(
   return true
 }
 
+
+/**
+ * Every active, approved user with an address, minus anyone who has opted out.
+ *
+ * Two different opt-outs are honoured here, and both matter:
+ *  - user_notification_preferences.email_pick_list is the soft toggle in
+ *    Settings ("keep the ring, stop the inbox").
+ *  - suppressed_emails is the hard unsubscribe, written by the emailed link
+ *    and by provider bounce/complaint webhooks. It is a LOCAL table, so the
+ *    delivery provider does not know about link-unsubscribes; filtering here
+ *    is what actually makes the unsubscribe link work.
+ */
+async function pickListEmailRecipients(sb: Client): Promise<string[]> {
+  const { data: profiles, error } = await sb
+    .from('profiles')
+    .select('id, email, active, approved')
+  if (error) {
+    console.error('Could not read pick ticket recipients', error)
+    return []
+  }
+
+  const candidates = (profiles ?? []).filter(
+    (row: { email?: string | null; active?: boolean | null; approved?: boolean | null }) =>
+      row.active !== false && row.approved !== false && Boolean(row.email),
+  ) as Array<{ id: string; email: string }>
+  if (candidates.length === 0) return []
+
+  const { data: prefs } = await sb
+    .from('user_notification_preferences')
+    .select('user_id, email_pick_list')
+    .in('user_id', candidates.map((row) => row.id))
+  const optedOut = new Set(
+    ((prefs ?? []) as Array<{ user_id: string; email_pick_list?: boolean | null }>)
+      .filter((row) => row.email_pick_list === false)
+      .map((row) => row.user_id),
+  )
+
+  const wanted = candidates
+    .filter((row) => !optedOut.has(row.id))
+    .map((row) => row.email.toLowerCase())
+  if (wanted.length === 0) return []
+
+  const { data: suppressed } = await sb.from('suppressed_emails').select('email').in('email', wanted)
+  const blocked = new Set(
+    ((suppressed ?? []) as Array<{ email: string }>).map((row) => String(row.email).toLowerCase()),
+  )
+
+  return normaliseRecipients(wanted.filter((email) => !blocked.has(email)))
+}
+
+/**
+ * A released pick ticket. Driven by a notification_events row rather than by
+ * the pick list itself, so push and email share one dispatch record and one
+ * already-sent guard.
+ */
+async function sendPickListCreated(sb: Client, eventId: string) {
+  const { data: event, error } = await sb
+    .from('notification_events')
+    .select('id, kind, entity_id, warehouse_id, payload, email_dispatched_at')
+    .eq('id', eventId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!event) return { skipped: 'event not found', sent: 0 }
+
+  const row = event as {
+    kind: string
+    entity_id: string | null
+    warehouse_id: string | null
+    payload: Record<string, unknown> | null
+    email_dispatched_at: string | null
+  }
+  if (row.kind !== 'pick_list_created') return { skipped: 'wrong event kind', sent: 0 }
+  if (row.email_dispatched_at) return { skipped: 'already notified', sent: 0 }
+
+  const payload = row.payload ?? {}
+  const pickListNumber = String(payload.pick_list_number ?? 'Pick ticket')
+  const orderNumber = typeof payload.order_number === 'string' ? payload.order_number : null
+
+  let warehouseName: string | null = null
+  if (row.warehouse_id) {
+    const { data: warehouse } = await sb
+      .from('warehouses')
+      .select('name')
+      .eq('id', row.warehouse_id)
+      .maybeSingle()
+    warehouseName = (warehouse as { name?: string } | null)?.name ?? null
+  }
+
+  // Counted at send time: pick_tasks are written after the pick_lists header,
+  // so the trigger could never have recorded a meaningful number.
+  let lineCount = 0
+  if (row.entity_id) {
+    const { count } = await sb
+      .from('pick_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('pick_list_id', row.entity_id)
+    lineCount = count ?? 0
+  }
+
+  const rendered = renderPickListCreated({ pickListNumber, orderNumber, warehouseName, lineCount })
+  const recipients = await pickListEmailRecipients(sb)
+
+  // The link points straight at the edge function rather than at an app route:
+  // it is opened by someone who is not signed in, often from a mail client
+  // that will not run the SPA.
+  const functionsBase = (Deno.env.get('SUPABASE_URL') ?? '') + '/functions/v1/email-unsubscribe'
+
+  let sent = 0
+  for (const to of recipients) {
+    let unsubscribeUrl: string | null = null
+    const { data: token } = await sb.rpc('get_or_create_unsubscribe_token', { in_email: to })
+    if (typeof token === 'string' && token) {
+      unsubscribeUrl = functionsBase + '?t=' + encodeURIComponent(token)
+    }
+
+    if (
+      await deliver(sb, {
+        to,
+        subject: rendered.subject,
+        title: rendered.subject,
+        bodyHtml: rendered.bodyHtml,
+        text: rendered.text,
+        label: 'pick-list-created',
+        idempotencyKey: 'pick-list-created-' + eventId + '-' + to,
+        unsubscribeUrl,
+      })
+    ) {
+      sent += 1
+    }
+  }
+
+  await sb.rpc('complete_notification_dispatch', {
+    in_event_ids: [eventId],
+    in_channel: 'email',
+    in_error: null,
+  })
+
+  return { sent, recipients: recipients.length }
+}
 
 async function sendReorderAlert(sb: Client, alertId: string) {
   const { data: alert, error } = await sb
@@ -290,6 +432,7 @@ Deno.serve(async (req) => {
 
   try {
     if (body.kind === 'reorder_alert') return json(await sendReorderAlert(sb, id))
+    if (body.kind === 'pick_list_created') return json(await sendPickListCreated(sb, id))
     if (body.kind === 'operator_ticket') return json(await sendOperatorTicket(sb, id))
     return json({ error: `Unknown notification kind: ${body.kind ?? '(none)'}` }, 400)
   } catch (error) {

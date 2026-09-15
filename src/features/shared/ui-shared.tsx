@@ -192,6 +192,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { getFloorAudioContext } from "@/lib/audio-unlock";
 
 let dashboardLayoutLockedToastAt = 0;
 
@@ -357,22 +358,19 @@ export function flashInput(el: HTMLElement | null, colour: "orange" | "blue") {
 // Audio so there are no audio files to bundle or load.
 // ---------------------------------------------------------------------------
 
-let floorAlertCtx: AudioContext | null = null;
-
-function getFloorAlertCtx(): AudioContext {
-  if (!floorAlertCtx) {
-    floorAlertCtx = new (window.AudioContext ?? (window as any).webkitAudioContext)();
-  }
-  if (floorAlertCtx.state === "suspended") {
-    floorAlertCtx.resume();
-  }
-  return floorAlertCtx;
+// The context itself lives in src/lib/audio-unlock.ts, which also owns the
+// first-gesture primer. Before that existed every caller here ran inside a
+// click or a scan, so a suspended context never showed up; the pick ticket
+// ring fires from a push message instead and would have been silent.
+function getFloorAlertCtx(): AudioContext | null {
+  return getFloorAudioContext();
 }
 
 function playFloorTone(freq: number, duration: number, opts: { type?: OscillatorType; volume?: number; delay?: number } = {}) {
   const { type = "square", volume = 1.0, delay = 0 } = opts;
   try {
     const ctx = getFloorAlertCtx();
+    if (!ctx) return;
     const startTime = ctx.currentTime + delay;
 
     const compressor = ctx.createDynamicsCompressor();
@@ -463,6 +461,29 @@ export function playAttentionTone() {
   }
   flashScreen("rgba(217,119,6,0.5)");
   floorVibrate([150, 80, 150]);
+}
+
+/**
+ * A pick ticket was released. Three bell strikes about 1.4s apart, so it
+ * carries across a noisy floor from whatever page the operator is on.
+ *
+ * A perfect fifth (C6 -> G6) on sine waves, which reads as a doorbell rather
+ * than an alarm; playFloorTone still layers an octave harmonic and a
+ * compressor over it for cut-through. Deliberately no flashScreen: unlike
+ * playAttentionTone this can fire while someone is mid-scan on another
+ * screen, and stealing the whole display there would be hostile.
+ *
+ * Only audible with the context primed - see isFloorAudioPrimed(). A service
+ * worker has no AudioContext, so with the app fully closed the OS plays its
+ * own notification sound instead and this never runs.
+ */
+export function playPickTicketRing() {
+  for (let strike = 0; strike < 3; strike += 1) {
+    const at = strike * 1.4;
+    playFloorTone(1046.5, 0.22, { type: "sine", volume: 0.85, delay: at });
+    playFloorTone(1568.0, 0.42, { type: "sine", volume: 0.7, delay: at + 0.16 });
+  }
+  floorVibrate([120, 90, 120, 90, 120]);
 }
 
 /** No-go — blocking failure that stops the task (scan mismatch, confirm failed). Loudest, rapid-fire. */

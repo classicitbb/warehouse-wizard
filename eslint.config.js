@@ -8,6 +8,11 @@ export default tseslint.config(
   {
     ignores: [
       "dist",
+      // Task worktrees are full checkouts of this repo living inside it, so
+      // without this every file is linted twice and the generated mcp bundle
+      // below escapes its own ignore, turning `npm run lint` red locally for
+      // anyone with a worktree open. Git already excludes the directory.
+      ".claude/worktrees",
       // Bundled output written by @lovable.dev/mcp-js via the Vite plugin on
       // every build. It carries a "do not edit" banner and is regenerated from
       // src/lib/mcp/**, so lint it there — not here. Linting the bundle was the

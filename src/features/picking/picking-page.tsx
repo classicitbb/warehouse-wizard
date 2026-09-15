@@ -208,6 +208,7 @@ import {
   statusBadgeVariant,
   alertToast,
 } from "@/features/shared/ui-shared";
+import { dispatchNotificationForEntity } from "@/hooks/use-web-push";
 
 export function PickListsPage() {
   const navigate = useNavigate();
@@ -273,7 +274,13 @@ export function PickListsPage() {
 
   const mutation = useMutation({
     mutationFn: async (values: z.infer<typeof pickListSchema>) => createPickListFlow(values),
-    onSuccess: async () => {
+    onSuccess: async (pickList) => {
+      // Ring every subscribed device. Fire-and-forget on purpose: the list is
+      // already released, and a notification must never make that look like a
+      // failure. Anything lost here the sweeper picks up within a minute.
+      // Fired from the page rather than createPickListFlow so the core stays a
+      // pure data function, matching how reorder alert emails are sent.
+      void dispatchNotificationForEntity("pick_lists", (pickList as { id: string }).id);
       alertToast.success("Pick list released");
       form.reset({
         warehouse_id: profile?.default_warehouse_id || undefined,

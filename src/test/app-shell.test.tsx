@@ -308,4 +308,29 @@ describe("AppShell", () => {
 
     await waitFor(() => expect(sonnerMocks.custom).toHaveBeenCalledTimes(1));
   });
+
+  it("counts the notification reminder in the bell, and drops it once granted", async () => {
+    // The weekly check the user asked for: detectable as on => take no action;
+    // otherwise remind in the notification bell. Asserted through the bell's
+    // own aria-label rather than by opening the menu, because Radix renders
+    // the dropdown into a portal that jsdom will not open on a synthetic click.
+    const notification = { permission: "default", requestPermission: vi.fn() };
+    Object.defineProperty(window, "Notification", { configurable: true, writable: true, value: notification });
+    window.localStorage.removeItem("warehouseWizard.notifications.permissionNagShownAt.user-1");
+
+    const { unmount } = renderShell();
+    expect((await screen.findAllByRole("button", { name: /^1 notification$/i })).length).toBeGreaterThan(0);
+    // Bell only - the reminder never raises a toast.
+    expect(sonnerMocks.custom).not.toHaveBeenCalled();
+    unmount();
+
+    notification.permission = "granted";
+    renderShell();
+    await waitFor(() =>
+      expect(screen.queryAllByRole("button", { name: /^1 notification$/i })).toHaveLength(0),
+    );
+    expect((await screen.findAllByRole("button", { name: /^notifications$/i })).length).toBeGreaterThan(0);
+
+    Reflect.deleteProperty(window, "Notification");
+  });
 });
