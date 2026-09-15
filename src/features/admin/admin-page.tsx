@@ -77,6 +77,7 @@ import {
   resetWmsData,
   deleteAllProducts,
   removeUserRoleAssignment,
+  listUserRoleEvents,
   downloadCsv,
   downloadCsvTemplate,
   fetchOptions,
@@ -381,6 +382,63 @@ const SECTION_LABELS: Partial<Record<AdminOptionKey, string>> = {
   rolePermissions: "Role Matrix",
   warehouses: "Warehouses",
 };
+
+
+const ROLE_EVENT_LABELS: Record<string, string> = {
+  assigned: "Assigned",
+  archived: "Archived",
+  unarchived: "Restored",
+  removed: "Removed",
+  warehouse_changed: "Warehouse changed",
+};
+
+function RoleHistoryList({ profiles }: { profiles: any[] }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["user-role-events"],
+    queryFn: () => listUserRoleEvents(100),
+    staleTime: 60_000,
+  });
+
+  const nameFor = (id: string | null) => {
+    if (!id) return "System";
+    const profile = profiles.find((p) => p.id === id);
+    return profile?.full_name ?? profile?.email ?? "Unknown user";
+  };
+
+  if (isLoading) {
+    return (
+      <p className="flex items-center gap-2 px-6 py-4 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading role history…
+      </p>
+    );
+  }
+  if (error) {
+    return <p className="px-6 py-4 text-sm text-muted-foreground">Role history could not be loaded.</p>;
+  }
+  if (!data || data.length === 0) {
+    return <p className="px-6 py-4 text-sm text-muted-foreground">No role changes recorded yet.</p>;
+  }
+
+  return (
+    <div className="max-h-96 divide-y divide-border overflow-y-auto border-t border-border">
+      {data.map((event) => (
+        <div key={event.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+          <div className="min-w-0">
+            <p className="truncate font-medium">
+              {ROLE_EVENT_LABELS[event.action] ?? event.action} · {event.role_code ?? "role"}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {nameFor(event.user_id)} · changed by {nameFor(event.actor_id)}
+            </p>
+          </div>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {new Date(event.created_at).toLocaleString()}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function UsersRolesPageImpl() {
   const queryClient = useQueryClient();
@@ -844,6 +902,16 @@ function UsersRolesPageImpl() {
                       </div>
                     );
                   })}
+              </CardContent>
+            </Card>
+
+            <Card className="xl:col-span-full">
+              <CardHeader>
+                <CardTitle className="text-base">Role history</CardTitle>
+                <CardDescription>Who changed which role, and when.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <RoleHistoryList profiles={profiles} />
               </CardContent>
             </Card>
           </div>
