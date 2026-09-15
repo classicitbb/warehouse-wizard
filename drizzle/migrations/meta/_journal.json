@@ -43,6 +43,13 @@
       "when": 1789485765542,
       "tag": "0005_restore_exact_policy_semantics",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789485827056,
+      "tag": "0006_dashboard_metrics_allow_service_role",
+      "breakpoints": true
     }
   ]
 }
