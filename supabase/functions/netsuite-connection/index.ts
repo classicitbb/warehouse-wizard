@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
     clientId?: string
     clientSecret?: string
     webhookSecret?: string
+    queueRunnerSecret?: string
     enabled?: boolean
     search?: string
     limit?: number
@@ -143,16 +144,18 @@ Deno.serve(async (req) => {
     if (action === 'status') {
       const connection = await loadConnection()
       if (!connection) {
-        return json({ configured: false, enabled: false, accountIdMasked: null, clientIdMasked: null, lastTestedAt: null })
+        return json({ configured: false, enabled: false, accountIdMasked: null, clientIdMasked: null, queueRunnerConfigured: false, lastTestedAt: null })
       }
       const config = (connection.config ?? {}) as Record<string, unknown>
       const clientId = await loadSecret(connection.id, 'netsuite_client_id')
       const clientSecret = await loadSecret(connection.id, 'netsuite_client_secret')
+      const queueRunnerSecret = await loadSecret(connection.id, 'netsuite_queue_runner_secret')
       return json({
         configured: Boolean(clientId && clientSecret && config.account_id),
         enabled: Boolean(connection.enabled),
         accountIdMasked: maskTail(typeof config.account_id === 'string' ? config.account_id : null),
         clientIdMasked: maskTail(clientId),
+        queueRunnerConfigured: Boolean(queueRunnerSecret),
         lastTestedAt: typeof config.last_tested_at === 'string' ? config.last_tested_at : null,
       })
     }
@@ -207,27 +210,39 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Webhook secret: use provided value, else preserve existing, else generate.
-      let webhookSecret = (body.webhookSecret ?? '').trim()
-      let webhookSecretReturned: string | null = null
-      const existingWebhook = await loadSecret(connectionId, 'netsuite_webhook_secret')
-      if (!webhookSecret && !existingWebhook) {
-        webhookSecret = randomHex(32)
-        webhookSecretReturned = webhookSecret
+      // Shared secrets for the two server-to-server callers: the NetSuite
+      // SuiteScript hitting netsuite-webhook, and the scheduled runner hitting
+      // process-netsuite-queue. Use a caller-provided value, else preserve what
+      // is stored, else generate. The plaintext is returned exactly once - on
+      // generation, or when the caller set it deliberately - and is never read
+      // back to the browser afterwards.
+      async function ensureSharedSecret(secretType: string, provided: string | undefined): Promise<string | null> {
+        let value = (provided ?? '').trim()
+        let reveal: string | null = null
+        const existing = await loadSecret(connectionId, secretType)
+        if (!value && !existing) {
+          value = randomHex(32)
+          reveal = value
+        }
+        if (value) {
+          await admin.from('integration_secrets').upsert(
+            { connection_id: connectionId, secret_type: secretType, secret_value: value },
+            { onConflict: 'connection_id,secret_type' },
+          )
+          if (provided) reveal = value
+        }
+        return reveal
       }
-      if (webhookSecret) {
-        await admin.from('integration_secrets').upsert(
-          { connection_id: connectionId, secret_type: 'netsuite_webhook_secret', secret_value: webhookSecret },
-          { onConflict: 'connection_id,secret_type' },
-        )
-        if (body.webhookSecret) webhookSecretReturned = webhookSecret
-      }
+
+      const webhookSecretReturned = await ensureSharedSecret('netsuite_webhook_secret', body.webhookSecret)
+      const queueRunnerSecretReturned = await ensureSharedSecret('netsuite_queue_runner_secret', body.queueRunnerSecret)
 
       return json({
         ok: true,
         accountIdMasked: maskTail(accountId),
         clientIdMasked: maskTail(clientId),
         webhookSecret: webhookSecretReturned,
+        queueRunnerSecret: queueRunnerSecretReturned,
       })
     }
 

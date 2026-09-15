@@ -26,3 +26,16 @@ project_id = "gxfvxmxplngvxdkpmxgw"
 [functions.copilot-transcribe]
 enabled = true
 verify_jwt = true
+
+# Called server-to-server by a NetSuite SuiteScript, which has no Supabase
+# session and cannot mint a JWT. The shared `netsuite_webhook_secret`, compared
+# in constant time, is the only credential.
+[functions.netsuite-webhook]
+verify_jwt = false
+
+# Drained on a schedule by .github/workflows/netsuite-queue.yml, which presents
+# the scoped `netsuite_queue_runner_secret` rather than the service-role key.
+# A service-role JWT is still accepted for manual invocation; the handler
+# checks both itself.
+[functions.process-netsuite-queue]
+verify_jwt = false

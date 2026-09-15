@@ -1549,12 +1549,28 @@ function ModulesSettingsPanel({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+/**
+ * One-time reveal for a server-generated shared secret. The plaintext is
+ * returned by netsuite-connection only on the save that creates it, so this is
+ * the single opportunity the operator has to copy it.
+ */
+function RevealedSecret({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+      <div className="mb-1 font-medium text-amber-700 dark:text-amber-300">{label} — copy now, it will not be shown again:</div>
+      <code className="block break-all rounded bg-background/60 p-2 font-mono text-[11px]">{value}</code>
+      <p className="mt-2 text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
 function NetSuiteIntegrationCard() {
   const [status, setStatus] = useState<{
     configured: boolean;
     enabled: boolean;
     accountIdMasked: string | null;
     clientIdMasked: string | null;
+    queueRunnerConfigured: boolean;
     lastTestedAt: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1565,6 +1581,7 @@ function NetSuiteIntegrationCard() {
   const [clientSecret, setClientSecret] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<string | null>(null);
+  const [revealedQueueSecret, setRevealedQueueSecret] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1591,6 +1608,7 @@ function NetSuiteIntegrationCard() {
     }
     setSaving(true);
     setRevealedWebhookSecret(null);
+    setRevealedQueueSecret(null);
     try {
       const { data, error } = await supabase.functions.invoke("netsuite-connection", {
         body: {
@@ -1602,8 +1620,9 @@ function NetSuiteIntegrationCard() {
         },
       });
       if (error) throw error;
-      const result = data as { ok: boolean; webhookSecret?: string | null };
+      const result = data as { ok: boolean; webhookSecret?: string | null; queueRunnerSecret?: string | null };
       if (result?.webhookSecret) setRevealedWebhookSecret(result.webhookSecret);
+      if (result?.queueRunnerSecret) setRevealedQueueSecret(result.queueRunnerSecret);
       toast.success("NetSuite connection saved");
       setClientSecret("");
       await refresh();
@@ -1651,6 +1670,7 @@ function NetSuiteIntegrationCard() {
               <div>Status: <span className="font-medium text-foreground">{status?.configured ? "Configured" : "Not configured"}</span> · {status?.enabled ? "Enabled" : "Disabled"}</div>
               {status?.accountIdMasked && <div>Account: <span className="font-mono">{status.accountIdMasked}</span></div>}
               {status?.clientIdMasked && <div>Client ID: <span className="font-mono">{status.clientIdMasked}</span></div>}
+              <div>Queue runner secret: <span className="font-medium text-foreground">{status?.queueRunnerConfigured ? "Configured" : "Not configured"}</span></div>
               {status?.lastTestedAt && <div>Last tested: {new Date(status.lastTestedAt).toLocaleString()}</div>}
             </div>
 
@@ -1683,10 +1703,19 @@ function NetSuiteIntegrationCard() {
             </div>
 
             {revealedWebhookSecret && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-                <div className="mb-1 font-medium text-amber-700 dark:text-amber-300">Webhook shared secret — copy now, it will not be shown again:</div>
-                <code className="block break-all rounded bg-background/60 p-2 font-mono text-[11px]">{revealedWebhookSecret}</code>
-              </div>
+              <RevealedSecret
+                label="Webhook shared secret"
+                value={revealedWebhookSecret}
+                hint="Send this as the X-Webhook-Secret header from the NetSuite SuiteScript."
+              />
+            )}
+
+            {revealedQueueSecret && (
+              <RevealedSecret
+                label="Queue runner secret"
+                value={revealedQueueSecret}
+                hint="Store as the NETSUITE_QUEUE_RUNNER_SECRET repository secret so the scheduled queue drain can authenticate."
+              />
             )}
 
             <div className="flex flex-wrap gap-2">

@@ -1,0 +1,89 @@
+name: NetSuite queue
+
+# Drains integration_sync_jobs into NetSuite.
+#
+# This lives in CI rather than in the database because the project has no
+# pg_net (see supabase/migrations/20260915120000_web_push_notifications.sql),
+# so pg_cron cannot call an edge function. Nothing invoked
+# process-netsuite-queue before this workflow existed: putaway enqueued
+# inventory_adjustment jobs that were never sent.
+#
+# It authenticates with the scoped netsuite_queue_runner_secret rather than the
+# service-role key, so a leaked CI secret drains a queue instead of owning the
+# database. Rotate it by re-saving the connection in Settings, which reveals a
+# new value once, then update the repository secret.
+#
+# Required repository secrets:
+#   SUPABASE_FUNCTIONS_URL         https://<project-ref>.supabase.co/functions/v1
+#   NETSUITE_QUEUE_RUNNER_SECRET   revealed once when the connection is saved
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub's scheduler is best-effort and can run late under
+    # load; the queue is durable, so a delayed tick only delays a sync.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  # Never overlap two drains. The claim is FOR UPDATE SKIP LOCKED so an overlap
+  # would be safe, but serialising keeps the run history readable.
+  group: netsuite-queue
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    name: Drain NetSuite sync queue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke process-netsuite-queue
+        env:
+          FUNCTIONS_URL: ${{ secrets.SUPABASE_FUNCTIONS_URL }}
+          QUEUE_SECRET: ${{ secrets.NETSUITE_QUEUE_RUNNER_SECRET }}
+        run: |
+          set -euo pipefail
+
+          # Forks and environments that have not configured NetSuite should not
+          # fail this job - there is simply nothing to drain.
+          if [ -z "${FUNCTIONS_URL}" ] || [ -z "${QUEUE_SECRET}" ]; then
+            echo "NetSuite queue secrets are not configured; skipping." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # -sS keeps curl quiet but still reports transport errors. The HTTP
+          # status is checked explicitly so a non-2xx fails the job loudly,
+          # rather than leaving a broken queue silent for weeks.
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST "${FUNCTIONS_URL%/}/process-netsuite-queue" \
+            -H "X-Queue-Secret: ${QUEUE_SECRET}" \
+            -H 'Content-Type: application/json' \
+            --max-time 120)
+
+          echo "HTTP ${http_status}"
+          cat response.json
+          echo
+
+          {
+            echo "### NetSuite queue drain"
+            echo ""
+            echo "HTTP \`${http_status}\`"
+            echo ""
+            echo '```json'
+            cat response.json
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${http_status}" -lt 200 ] || [ "${http_status}" -ge 300 ]; then
+            echo "::error::process-netsuite-queue returned ${http_status}"
+            exit 1
+          fi
+
+          # A non-zero deadLettered count means jobs gave up after MAX_RETRIES.
+          # Surface it as a warning: the run succeeded, but someone needs to
+          # look at integration_dead_letters. Tolerate a non-JSON body so a
+          # parse failure cannot fail a drain that actually worked.
+          dead=$(jq -r '.deadLettered // 0' response.json 2>/dev/null || echo 0)
+          if [ "${dead}" != "0" ]; then
+            echo "::warning::${dead} NetSuite job(s) dead-lettered this run"
+          fi

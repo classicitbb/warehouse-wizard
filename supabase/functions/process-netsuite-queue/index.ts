@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { buildNetSuiteInventoryAdjustment } from '../_shared/netsuite.ts'
+import { buildNetSuiteInventoryAdjustment, timingSafeEqual } from '../_shared/netsuite.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -7,6 +7,14 @@ import { buildNetSuiteInventoryAdjustment } from '../_shared/netsuite.ts'
 // dead-letter, log every attempt to integration_payload_logs.
 const MAX_RETRIES = 5
 const BATCH_SIZE = 20
+
+// Job types this worker knows how to push to NetSuite. Inbound record types
+// (purchase_order, sales_order, transfer_order, fulfillment, inventory) also
+// sit in integration_sync_jobs as 'queued', parked by netsuite-webhook for
+// processors that do not exist yet. Claiming them here would run them through
+// the isPermanent branch below and dead-letter them permanently, so the claim
+// is filtered to the types that actually have an outbound implementation.
+const OUTBOUND_JOB_TYPES = ['inventory_adjustment']
 
 function parseJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split('.')
@@ -42,24 +50,25 @@ Deno.serve(async (req) => {
     })
   }
 
+  // Two credentials are accepted:
+  //   1. a service_role JWT, for manual or administrative invocation
+  //   2. the scoped 'netsuite_queue_runner_secret' in X-Queue-Secret, used by
+  //      .github/workflows/netsuite-queue.yml so the scheduler never has to
+  //      hold the service-role key
+  // The runner secret hangs off the connection row, so that half of the check
+  // has to wait until the connection is loaded below.
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
+  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : ''
+  const hasServiceRoleJwt = bearer ? parseJwtClaims(bearer)?.role === 'service_role' : false
+  const providedQueueSecret = req.headers.get('x-queue-secret') ?? ''
+
+  if (!hasServiceRoleJwt && !providedQueueSecret) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401, headers: { 'Content-Type': 'application/json' },
     })
   }
-  const token = authHeader.slice('Bearer '.length).trim()
-  const claims = parseJwtClaims(token)
-  if (claims?.role !== 'service_role') {
-    return new Response(JSON.stringify({ error: 'Forbidden' }), {
-      status: 403, headers: { 'Content-Type': 'application/json' },
-    })
-  }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey)
-
-  // Reclaim any jobs stuck in 'running' from a crashed prior run.
-  await supabase.rpc('reclaim_stale_integration_sync_jobs')
 
   // 1. Load the enabled NetSuite connection. No-op if none.
   const { data: connection, error: connErr } = await supabase
@@ -76,10 +85,37 @@ Deno.serve(async (req) => {
     })
   }
   if (!connection) {
+    // With no connection there is no runner secret to compare against, so a
+    // caller holding only a secret must not learn from this response whether
+    // the connection is merely absent or their secret is wrong.
+    if (!hasServiceRoleJwt) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { 'Content-Type': 'application/json' },
+      })
+    }
     return new Response(JSON.stringify({ skipped: true, reason: 'no_netsuite_connection' }), {
       headers: { 'Content-Type': 'application/json' },
     })
   }
+
+  if (!hasServiceRoleJwt) {
+    const { data: runnerSecretRow } = await supabase
+      .from('integration_secrets')
+      .select('secret_value')
+      .eq('connection_id', connection.id)
+      .eq('secret_type', 'netsuite_queue_runner_secret')
+      .maybeSingle()
+    const expectedQueueSecret = runnerSecretRow?.secret_value ?? ''
+    if (!expectedQueueSecret || !timingSafeEqual(providedQueueSecret, expectedQueueSecret)) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Reclaim any jobs stuck in 'running' from a crashed prior run. Deliberately
+  // after authorization - it mutates rows.
+  await supabase.rpc('reclaim_stale_integration_sync_jobs')
 
   const config = (connection.config ?? {}) as Record<string, unknown>
   const accountId = typeof config.account_id === 'string' ? config.account_id : ''
@@ -147,6 +183,7 @@ Deno.serve(async (req) => {
   const { data: claimed, error: claimErr } = await supabase.rpc('claim_integration_sync_jobs', {
     p_connection_id: connection.id,
     p_limit: BATCH_SIZE,
+    p_job_types: OUTBOUND_JOB_TYPES,
   })
   if (claimErr) {
     console.error('Failed to claim NetSuite jobs', claimErr)

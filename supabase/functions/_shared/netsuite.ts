@@ -227,3 +227,31 @@ export function timingSafeEqual(a: string, b: string): boolean {
   for (let i = 0; i < ab.byteLength; i++) diff |= ab[i] ^ bb[i];
   return diff === 0;
 }
+
+/**
+ * Deterministic serialisation used to derive an idempotency key from a webhook
+ * body. Keys are sorted recursively because NetSuite does not guarantee
+ * property order, and two byte-different serialisations of the same record
+ * must not yield two different keys.
+ */
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+}
+
+/** Short SHA-256 of `canonicalJson(value)`, for idempotency keys. */
+export async function payloadDigest(value: unknown, chars = 16): Promise<string> {
+  const bytes = new TextEncoder().encode(canonicalJson(value));
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, chars);
+}

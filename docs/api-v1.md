@@ -2,6 +2,12 @@
 
 This document defines the first shippable API surface for Warehouse Wizard Enterprise WMS. The current app remains Supabase-backed; production deployments can expose these routes through Supabase Edge Functions or a small server layer.
 
+> **Status: planned surface, not shipped.** Of the ten routes below, only the NetSuite
+> webhook exists today, as the `netsuite-webhook` edge function. Everything else is a
+> design target. An integrator building against this table will find nine of the ten
+> endpoints absent — see the NetSuite integration specification for what is actually
+> callable.
+
 ## Authentication
 
 - All routes require an authenticated user or integration token.

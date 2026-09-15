@@ -12,7 +12,9 @@
 //     "action":     "create" | "update" | "delete",   // optional, informational
 //     "payload":    { ... }          // record-shaped body (see mapNetSuiteItemToProduct
 //                                    //   for the "item" shape we consume today)
-//     "lastModified": string | number // optional; folded into idempotency key
+//     "lastModified": string | number // optional, but send it: it is folded
+//                                    //   into the idempotency key, and without it
+//                                    //   we fall back to hashing the body
 //   }
 //
 // Response: { received: true, jobId, recordType, processed: boolean }
@@ -20,7 +22,7 @@
 // types are logged + queued for a future processor and return processed=false.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { mapNetSuiteItemToProduct, timingSafeEqual, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
+import { mapNetSuiteItemToProduct, payloadDigest, timingSafeEqual, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
 
 const SUPPORTED_RECORD_TYPES = new Set([
   'item',
@@ -104,7 +106,13 @@ Deno.serve(async (req) => {
     return json({ error: 'externalId is required' }, 400)
   }
 
-  const lastModifiedKey = body.lastModified ?? (payload as { lastModified?: string | number }).lastModified ?? Date.now()
+  // The fallback is a digest of the body, never a timestamp. NetSuite retries a
+  // failed delivery with the *same* body, so a Date.now() fallback made every
+  // redelivery a fresh idempotency key and defeated the unique constraint that
+  // this whole design rests on.
+  const lastModifiedKey = body.lastModified
+    ?? (payload as { lastModified?: string | number }).lastModified
+    ?? `sha256-${await payloadDigest(body)}`
   const idempotencyKey = `${recordType}:${externalId}:${lastModifiedKey}`
 
   // ── 4. Insert sync job (idempotent on connection_id + idempotency_key) ───
