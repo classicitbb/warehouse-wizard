@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
         : `WHERE isinactive = 'F'`
       const q = `SELECT id, itemid, displayname, upccode, isinactive FROM item ${where} ORDER BY itemid`
 
-      const suiteqlUrl = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`
+      const suiteqlUrl = `https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`
       let suiteqlRes: Response
       try {
         suiteqlRes = await fetch(suiteqlUrl, {
