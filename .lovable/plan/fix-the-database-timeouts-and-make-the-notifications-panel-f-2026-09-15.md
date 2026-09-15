@@ -14,25 +14,20 @@ Confirmed cause: every permission rule re-runs the "is this person approved / ca
 ## The fix
 
 1. **Evaluate permission checks once per query, not once per row**
-   - Rewrite the read rules so the approval check is computed a single time, and warehouse access compares against a pre-computed list of the warehouses the person may see.
-   - Replace the per-row open-transfer check with a single small pre-computed list of pallets on open transfers.
-   - No change to who can see what — same rules, same results, far less repeated work.
-
+  - Rewrite the read rules so the approval check is computed a single time, and warehouse access compares against a pre-computed list of the warehouses the person may see.
+  - Replace the per-row open-transfer check with a single small pre-computed list of pallets on open transfers.
+  - No change to who can see what — same rules, same results, far less repeated work.
 2. **Rebuild the Command Center metrics call**
-   - Compute all counts in one or two passes over the stock table using conditional aggregates instead of ~20 separate sub-counts.
-   - Run it with fixed elevated rights plus an explicit warehouse-access check at the top, so internal counting does not re-pay row-level checks.
-
+  - Compute all counts in one or two passes over the stock table using conditional aggregates instead of ~20 separate sub-counts.
+  - Run it with fixed elevated rights plus an explicit warehouse-access check at the top, so internal counting does not re-pay row-level checks.
 3. **Add the missing indexes**
-   - History ordered by date, pallets by warehouse + status, receipts by warehouse + status + date, role lookups by person.
-
+  - History ordered by date, pallets by warehouse + status, receipts by warehouse + status + date, role lookups by person.
 4. **Make Inventory Search cheaper**
-   - Always scope the first page to the active warehouse and a bounded page size, keeping the existing scroll-to-load behaviour.
-
+  - Always scope the first page to the active warehouse and a bounded page size, keeping the existing scroll-to-load behaviour.
 5. **Friendly failure instead of raw database text**
-   - If a read still times out, show "That took too long — retrying" with one automatic retry, rather than the current "canceling statement due to statement timeout" toast.
-
+  - If a read still times out, show "That took too long — retrying" with one automatic retry, rather than the current "canceling statement due to statement timeout" toast.
 6. **Verify**
-   - Re-run timing on the metrics call and Inventory Search before/after, then re-check the logs for new timeouts.
+  - Re-run timing on the metrics call and Inventory Search before/after, then re-check the logs for new timeouts.
 
 ## Notifications panel
 
@@ -50,4 +45,6 @@ Currently a fixed 22rem dropdown with a fixed 20rem scroll area, so on a phone o
 - Indexes: `audit_events(created_at desc)`, `audit_events(warehouse_id, created_at desc)`, `pallets(current_warehouse_id, status)`, `receipts(warehouse_id, status, created_at desc)`, `user_roles(user_id) where is_hidden = false`.
 - Client: timeout-aware retry for Postgres `57014` in the shared query layer; Inventory Search first page scoped to the active warehouse.
 - `src/features/shared/app-shell.tsx` notification dropdown: responsive width, `svh`-based max height, sticky section headers.
-- Verification: `EXPLAIN (ANALYZE, BUFFERS)` on the rewritten RPC and view read, `supabase--slow_queries` re-check, focused tests plus full typecheck.
+- Verification: `EXPLAIN (ANALYZE, BUFFERS)` on the rewritten RPC and view read, `supabase--slow_queries` re-check, focused tests plus full typecheck.  
+  
+also Add a role history log so I can see when and by whom a role is assigned, archived or unarchived.
