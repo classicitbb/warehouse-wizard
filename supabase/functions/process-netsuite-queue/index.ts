@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
             memo: p.memo ?? '',
           }) as unknown as Record<string, unknown>
 
-          const url = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/record/v1/inventoryAdjustment`
+          const url = `https://${netsuiteHost(accountId)}/services/rest/record/v1/inventoryAdjustment`
           const res = await fetch(url, {
             method: 'POST',
             headers: {
