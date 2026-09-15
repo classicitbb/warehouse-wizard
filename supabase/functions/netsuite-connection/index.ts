@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { mapNetSuiteItemToProduct, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
+import { mapNetSuiteItemToProduct, netsuiteHost, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
