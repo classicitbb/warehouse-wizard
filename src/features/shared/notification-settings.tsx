@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, BellOff, CheckCircle2, Info } from "lucide-react";
 import { toast } from "sonner";
 
@@ -7,7 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useNotificationPermission } from "@/hooks/use-notification-permission";
-import { isBuildNotificationEnabled, setBuildNotificationEnabled } from "@/lib/notification-preferences";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  DEFAULT_ACCOUNT_NOTIFICATION_PREFERENCES,
+  isBuildNotificationEnabled,
+  loadAccountNotificationPreferences,
+  saveAccountNotificationPreferences,
+  setBuildNotificationEnabled,
+  type AccountNotificationPreferences,
+} from "@/lib/notification-preferences";
+import { ensurePushSubscription } from "@/lib/push-subscription";
 
 const DENIED_STEPS = [
   "Desktop Chrome/Edge: click the padlock (or tune icon) left of the address bar, then set Notifications to Allow and reload.",
@@ -17,14 +26,55 @@ const DENIED_STEPS = [
 ];
 
 /**
- * Per-device notification controls. Permission lives with the browser, the
- * on/off switch lives with this device, so a shared floor tablet can stay quiet
- * while an office desktop gets build alerts.
+ * Notification controls, in two halves.
+ *
+ * Permission and build alerts belong to this device and browser, so a shared
+ * floor tablet can stay quiet while an office desktop gets build alerts. The
+ * pick-ticket, put-away and email switches belong to the account and follow
+ * the person everywhere - the email one has to, because the server reads it
+ * when building a recipient list.
  */
 export function NotificationSettingsPanel() {
   const { supported, permission, requestPermission } = useNotificationPermission();
   const [buildAlerts, setBuildAlerts] = useState(isBuildNotificationEnabled);
   const [requesting, setRequesting] = useState(false);
+  const { user } = useAuth();
+  // Account-level, unlike the build-alert switch above it: these follow the
+  // person across devices, and the email flag has to be readable by the
+  // server when it builds a recipient list.
+  const [prefs, setPrefs] = useState<AccountNotificationPreferences>(DEFAULT_ACCOUNT_NOTIFICATION_PREFERENCES);
+  const [savingPref, setSavingPref] = useState<keyof AccountNotificationPreferences | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void loadAccountNotificationPreferences(user.id)
+      .then((loaded) => {
+        if (!cancelled) setPrefs(loaded);
+      })
+      .catch(() => {
+        // Defaults already applied; a settings panel is not worth a toast.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const handlePrefToggle = async (key: keyof AccountNotificationPreferences, next: boolean) => {
+    if (!user?.id) return;
+    const previous = prefs;
+    setPrefs({ ...prefs, [key]: next });
+    setSavingPref(key);
+    try {
+      await saveAccountNotificationPreferences(user.id, { [key]: next });
+    } catch {
+      // Roll back rather than leave the switch lying about what was saved.
+      setPrefs(previous);
+      toast.error("Could not save that preference");
+    } finally {
+      setSavingPref(null);
+    }
+  };
 
   const granted = permission === "granted";
   const denied = permission === "denied";
@@ -40,6 +90,7 @@ export function NotificationSettingsPanel() {
     try {
       const result = await requestPermission();
       if (result === "granted") {
+        await ensurePushSubscription();
         toast.success("Notifications enabled for this browser");
       } else if (result === "denied") {
         toast.error("Notifications were blocked — follow the steps below to unblock this site");
@@ -77,7 +128,8 @@ export function NotificationSettingsPanel() {
           Notifications
         </CardTitle>
         <CardDescription>
-          Controls apply to this device and browser only. Sign in elsewhere and you can set it differently there.
+          Permission and build alerts apply to this device only. The pick ticket, put-away and email switches
+          follow your account to every device you sign in on.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -121,6 +173,60 @@ export function NotificationSettingsPanel() {
             </p>
           </div>
           <Switch id="build-alerts" checked={buildAlerts} onCheckedChange={handleToggle} disabled={!supported} />
+        </div>
+
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
+          <div className="min-w-0">
+            <Label htmlFor="pick-list-ring" className="text-sm font-medium">
+              Ring for new pick tickets
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              A released pick ticket chimes three times so it carries from another page. The chime needs the app open
+              on a tab; with the app closed your device plays its own notification sound.
+            </p>
+          </div>
+          <Switch
+            id="pick-list-ring"
+            checked={prefs.pickListRing}
+            onCheckedChange={(next) => void handlePrefToggle("pickListRing", next)}
+            disabled={savingPref !== null}
+          />
+        </div>
+
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
+          <div className="min-w-0">
+            <Label htmlFor="putaway-badge" className="text-sm font-medium">
+              New put-away work
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              One silent notification per batch received, not one per pallet, so you can see there is work waiting
+              without being interrupted mid-task.
+            </p>
+          </div>
+          <Switch
+            id="putaway-badge"
+            checked={prefs.putawayBadge}
+            onCheckedChange={(next) => void handlePrefToggle("putawayBadge", next)}
+            disabled={savingPref !== null}
+          />
+        </div>
+
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
+          <div className="min-w-0">
+            <Label htmlFor="email-pick-list" className="text-sm font-medium">
+              Email me about pick tickets
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Separate from the ring, so you can keep the alert and drop the inbox. The unsubscribe link in those
+              emails stops them everywhere, whatever this is set to.
+            </p>
+          </div>
+          <Switch
+            id="email-pick-list"
+            checked={prefs.emailPickList}
+            onCheckedChange={(next) => void handlePrefToggle("emailPickList", next)}
+            disabled={savingPref !== null}
+          />
         </div>
 
         {denied ? (

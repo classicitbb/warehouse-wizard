@@ -8,6 +8,7 @@ import { installHabitTracking, recordAction } from "@/lib/habit-tracking";
 import { isActiveWorkInProgress } from "@/lib/active-work";
 import { notifyNewBuildAvailable } from "@/lib/build-notification";
 import { installDailyRefresh } from "@/lib/daily-refresh";
+import { installFloorAudioPrimer } from "@/lib/audio-unlock";
 
 import "./index.css";
 
@@ -16,6 +17,10 @@ import "./index.css";
 installConsoleErrorTelemetry();
 installToastTelemetry();
 installHabitTracking();
+// Unblock Web Audio on the first gesture of the session. Mounted here and
+// not in AppShell because the shell is lazy and the first gesture is
+// usually the login button, which happens before the shell exists.
+installFloorAudioPrimer();
 
 // Catch unhandled promise rejections (e.g. fire-and-forget async calls that
 // throw). We log to console and show a toast, but never crash the app.

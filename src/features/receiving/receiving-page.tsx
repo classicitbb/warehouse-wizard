@@ -221,6 +221,7 @@ import {
   resolveContainerScanValue,
   normalizeScannerText,
 } from "@/features/shared/ui-shared";
+import { dispatchLatestNotification } from "@/hooks/use-web-push";
 
 function parseShipmentDate(value: string) {
   if (!value) return undefined;
@@ -942,6 +943,9 @@ export function ReceivingPage() {
       }
     },
     onSuccess: async (result, draft) => {
+      // Silent, batch-collapsed put-away notification. Fire-and-forget: the
+      // pallet is already received and must not fail on a notification.
+      void dispatchLatestNotification("putaway_task_created");
       toast.success(`Pallet ${result.palletBarcode} ready — putaway task ${result.putawayTaskNumber} queued.`);
       setLastResult({ barcode: result.palletBarcode, taskNumber: result.putawayTaskNumber, qty: Number(draft.quantity ?? 0) });
       await Promise.all([
@@ -1009,6 +1013,11 @@ export function ReceivingPage() {
     // Invalidation belongs here, not in onSuccess: a partly-completed batch has
     // written rows that every one of these caches is now stale against.
     onSettled: async () => {
+      // Same reason the invalidation lives here: a batch that failed at draft
+      // 3 of 5 has still committed drafts 1-2, and that put-away work needs
+      // announcing. One call covers the batch - the dispatcher claims the
+      // whole group_key.
+      void dispatchLatestNotification("putaway_task_created");
       setBatchReceiveProgress({ completed: 0, total: 0 });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
