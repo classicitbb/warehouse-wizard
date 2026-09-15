@@ -653,18 +653,21 @@ export type PickableStockSummary = {
 export async function getPickableStockSummary(
   warehouseId?: string,
 ): Promise<Map<string, PickableStockSummary>> {
-  let query = db("pallets")
-    .select(
-      "id, pallet_code, pallet_barcode, product_id, available_quantity, created_at, current_location_id, locations:current_location_id(code), inventory_lots:inventory_lot_id(expiry_date)",
-    )
-    .eq("status", "available")
-    .gt("available_quantity", 0)
-    .not("current_location_id", "is", null);
-  if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
-  const { data, error } = await query;
-  if (error) throw error;
+  // Page through with .range(): an unbounded select silently truncates at
+  // PostgREST's 1000-row cap, which made pallets (and therefore whole SKUs)
+  // past that cap invisible in the pick-list product picker.
+  const rows = await fetchAllRows<any>((from, to) => {
+    let query = db("pallets")
+      .select(
+        "id, pallet_code, pallet_barcode, product_id, available_quantity, created_at, current_location_id, locations:current_location_id(code), inventory_lots:inventory_lot_id(expiry_date)",
+      )
+      .eq("status", "available")
+      .gt("available_quantity", 0)
+      .not("current_location_id", "is", null);
+    if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
+    return query.order("id", { ascending: true }).range(from, to);
+  });
 
-  const rows = (data ?? []) as any[];
   rows.sort((a, b) => {
     const ax = a.inventory_lots?.expiry_date ?? null;
     const bx = b.inventory_lots?.expiry_date ?? null;
