@@ -5,6 +5,14 @@
 // Deno edge functions cannot import from `src/lib`, so we keep a duplicate here.
 // If you change one, change the other so the payload shape stays byte-for-byte identical.
 
+// NetSuite REST hostnames use the account id lowercased with underscores
+// replaced by hyphens (e.g. `9738806_SB1` -> `9738806-sb1.suitetalk...`).
+// Passing the raw account id produces a DNS lookup failure.
+export function netsuiteHost(accountId: string): string {
+  return `${accountId.trim().toLowerCase().replace(/_/g, '-')}.suitetalk.api.netsuite.com`;
+}
+
+
 export function buildNetSuiteInventoryAdjustment(input: {
   accountId: string;
   sku: string;
