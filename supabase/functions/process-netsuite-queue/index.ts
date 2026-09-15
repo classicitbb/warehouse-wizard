@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { buildNetSuiteInventoryAdjustment, timingSafeEqual } from '../_shared/netsuite.ts'
+import { buildNetSuiteInventoryAdjustment, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
