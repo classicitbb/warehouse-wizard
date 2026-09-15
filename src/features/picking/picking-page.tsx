@@ -333,11 +333,10 @@ export function PickListsPage() {
   const allActive = (pickLists as any[]).filter((pl) => !["completed", "cancelled"].includes(pl.status));
   const active = allActive.filter(matchesPickSearch);
   const done = (pickLists as any[]).filter((pl) => ["completed", "cancelled"].includes(pl.status)).filter(matchesPickSearch);
-  // Only show products that have available qty in a known location for the
-  // selected warehouse. While pickableStock is still loading (undefined) all
-  // products are shown as a fallback so the form is never blank on first paint.
+  // Every product stays searchable — nothing is filtered out. Products with
+  // pickable stock in the selected warehouse are listed first, and the rest
+  // show "No pickable pallets" so an operator can see the SKU exists.
   const productOptions = (options?.products ?? [])
-    .filter((product: any) => !pickableStock || pickableStock.has(product.id))
     .map((product: any) => {
       const summary = pickableStock?.get(product.id);
       return {
@@ -345,17 +344,19 @@ export function PickListsPage() {
         sku: product.sku,
         name: product.name,
         barcode: product.barcode,
-        meta: summary
-          ? {
-              totalQty: summary.totalAvailable,
-              palletCount: summary.palletCount,
-              palletCode: summary.topPallet?.pallet_code,
-              palletQty: summary.topPallet?.available_quantity,
-              locationCode: summary.topPallet?.location_code,
-            }
-          : undefined,
+        meta: {
+          totalQty: summary?.totalAvailable ?? 0,
+          palletCount: summary?.palletCount ?? 0,
+          palletCode: summary?.topPallet?.pallet_code,
+          palletQty: summary?.topPallet?.available_quantity,
+          locationCode: summary?.topPallet?.location_code,
+        },
+        hasPickableStock: Boolean(summary),
       };
-    });
+    })
+    .sort((a: any, b: any) =>
+      a.hasPickableStock === b.hasPickableStock ? 0 : a.hasPickableStock ? -1 : 1,
+    );
 
   function findProductForPickScan(value: string) {
     const normalized = normalizeScannerText(value);
