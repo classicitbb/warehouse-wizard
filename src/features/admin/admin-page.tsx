@@ -125,6 +125,7 @@ import {
   updateRecord,
   upsertClientVariable,
   upsertRecord,
+  assignUserRole,
   writeSystemLog,
   cancelTransfer,
   flagCountLineException,
@@ -499,7 +500,7 @@ function UsersRolesPageImpl() {
   }, [queryClient]);
 
   const assignMutation = useMutation({
-    mutationFn: async () => upsertRecord("user_roles", { user_id: selectedProfile, role_id: selectedRole }),
+    mutationFn: async () => assignUserRole(selectedProfile, selectedRole),
     onSuccess: async () => {
       toast.success("Role assigned");
       setSelectedProfile("");
