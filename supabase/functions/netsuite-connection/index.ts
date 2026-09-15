@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { mapNetSuiteItemToProduct, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
+import { mapNetSuiteItemToProduct, netsuiteHost, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
   }
 
   async function fetchAccessToken(accountId: string, clientId: string, clientSecret: string): Promise<{ ok: boolean; token?: string; error?: string }> {
-    const tokenUrl = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/auth/oauth2/v1/token`
+    const tokenUrl = `https://${netsuiteHost(accountId)}/services/rest/auth/oauth2/v1/token`
     const basic = btoa(`${clientId}:${clientSecret}`)
     try {
       const res = await fetch(tokenUrl, {
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
         : `WHERE isinactive = 'F'`
       const q = `SELECT id, itemid, displayname, upccode, isinactive FROM item ${where} ORDER BY itemid`
 
-      const suiteqlUrl = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`
+      const suiteqlUrl = `https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`
       let suiteqlRes: Response
       try {
         suiteqlRes = await fetch(suiteqlUrl, {

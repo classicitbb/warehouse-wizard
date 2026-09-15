@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { buildNetSuiteInventoryAdjustment, timingSafeEqual } from '../_shared/netsuite.ts'
+import { buildNetSuiteInventoryAdjustment, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
   }
 
   // 3. Exchange for a short-lived OAuth2 token (kept in-memory only).
-  const tokenUrl = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/auth/oauth2/v1/token`
+  const tokenUrl = `https://${netsuiteHost(accountId)}/services/rest/auth/oauth2/v1/token`
   const basic = btoa(`${clientId}:${clientSecret}`)
   let accessToken = ''
   try {
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
             memo: p.memo ?? '',
           }) as unknown as Record<string, unknown>
 
-          const url = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/record/v1/inventoryAdjustment`
+          const url = `https://${netsuiteHost(accountId)}/services/rest/record/v1/inventoryAdjustment`
           const res = await fetch(url, {
             method: 'POST',
             headers: {
