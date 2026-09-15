@@ -61,19 +61,19 @@ export const ProductSearch = forwardRef<ProductSearchHandle, Props>(function Pro
 
   const selected = options.find((o) => o.id === value);
 
+  // Only the un-searched list is trimmed (for first-paint speed). Once the
+  // operator types, every match is listed so no SKU can be hidden by a cap.
   const filtered =
     query.length === 0
       ? options.slice(0, 60)
-      : options
-          .filter((o) => {
-            const q = query.toLowerCase();
-            return (
-              o.sku.toLowerCase().includes(q) ||
-              o.name.toLowerCase().includes(q) ||
-              (o.barcode && o.barcode.toLowerCase().includes(q))
-            );
-          })
-          .slice(0, 60);
+      : options.filter((o) => {
+          const q = query.toLowerCase();
+          return (
+            o.sku.toLowerCase().includes(q) ||
+            o.name.toLowerCase().includes(q) ||
+            (o.barcode && o.barcode.toLowerCase().includes(q))
+          );
+        });
 
   // Typing never selects on its own. Short barcodes (CF8, M8, 70…) are prefixes
   // of longer SKUs, so auto-matching mid-typing made codes like CF850
