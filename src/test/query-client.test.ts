@@ -197,3 +197,17 @@ describe("habit signal", () => {
     );
   });
 });
+
+describe("statement timeout handling", () => {
+  it("recognises Postgres 57014 by code and by message", async () => {
+    const { isStatementTimeout, queryClientDefaultOptions } = await import("@/lib/query-client");
+    expect(isStatementTimeout({ code: "57014" })).toBe(true);
+    expect(isStatementTimeout(new Error("canceling statement due to statement timeout"))).toBe(true);
+    expect(isStatementTimeout(new Error("row not found"))).toBe(false);
+
+    const retry = queryClientDefaultOptions.queries.retry as (n: number, e: unknown) => boolean;
+    expect(retry(2, { code: "57014" })).toBe(true);
+    expect(retry(3, { code: "57014" })).toBe(false);
+    expect(retry(2, new Error("row not found"))).toBe(false);
+  });
+});
