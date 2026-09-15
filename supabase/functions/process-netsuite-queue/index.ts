@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
   }
 
   // 3. Exchange for a short-lived OAuth2 token (kept in-memory only).
-  const tokenUrl = `https://${accountId}.suitetalk.api.netsuite.com/services/rest/auth/oauth2/v1/token`
+  const tokenUrl = `https://${netsuiteHost(accountId)}/services/rest/auth/oauth2/v1/token`
   const basic = btoa(`${clientId}:${clientSecret}`)
   let accessToken = ''
   try {
