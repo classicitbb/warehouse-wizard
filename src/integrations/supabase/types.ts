@@ -4839,7 +4839,11 @@ export type Database = {
         Returns: undefined
       }
       claim_integration_sync_jobs: {
-        Args: { p_connection_id: string; p_limit: number }
+        Args: {
+          p_connection_id: string
+          p_job_types?: string[]
+          p_limit: number
+        }
         Returns: {
           attempts: number
           connection_id: string | null
