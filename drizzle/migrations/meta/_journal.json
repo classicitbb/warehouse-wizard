@@ -29,6 +29,13 @@
       "when": 1789418989271,
       "tag": "0003_exclude_hidden_roles_from_authorization_helpers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789485722470,
+      "tag": "0004_rls_scope_caching_dashboard_rebuild_role_history",
+      "breakpoints": true
     }
   ]
 }
