@@ -121,6 +121,25 @@ export async function upsertRecord(
   return data as any;
 }
 
+/** Assigning a role must survive a previously archived assignment: user_roles has a
+ *  UNIQUE (user_id, role_id), so a plain upsert (which targets the primary key) fails
+ *  with a duplicate-key error, and an archived row would stay hidden and grant nothing. */
+export async function assignUserRole(userId: string, roleId: string) {
+  const { data, error } = await (supabase.from as any)("user_roles")
+    .upsert({ user_id: userId, role_id: roleId, is_hidden: false } as never, {
+      onConflict: "user_id,role_id",
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  await logUserActivity("user_access_change", "user_roles", (data as any)?.id ?? null, {
+    user_id: userId,
+    role_id: roleId,
+    hidden: false,
+  });
+  return data as any;
+}
+
 export async function updateRecord(
   table: string,
   id: string,
