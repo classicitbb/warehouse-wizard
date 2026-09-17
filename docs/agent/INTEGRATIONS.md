@@ -7,7 +7,7 @@
 | Supabase | Database/auth/storage/functions as used by code | Repository configuration detected | Verify project/account before writes |
 | Lovable | Project editing/generation workflow | MCP connector reachable 2026-09-02, but exposes only design-import and new-project tools — no migration, project-message, or diff capability in this session | Review generated diffs; verify publish path |
 | Supabase CLI | Applying migrations locally | `npx supabase --version` → 2.116.0 on 2026-09-02; project not linked | Linking and `db push` against the production project remain an approval gate |
-| NetSuite | ERP master data inbound, inventory adjustments outbound | Sandbox token endpoint reachable 2026-09-16; request format verified against it with a throwaway key. A real token has not yet been issued, pending the M2M certificate upload in NetSuite | Inbound `item` upserts `products` + `external_record_links`; outbound posts `inventoryAdjustment` only |
+| NetSuite | ERP master data inbound, inventory adjustments outbound | Sandbox token endpoint reachable 2026-09-16. The deployed `netsuite-connection` signs an assertion NetSuite parses (`400 invalid_client` for an unregistered certificate). A real token has not yet been issued, pending the M2M certificate upload in NetSuite | Inbound `item` upserts `products` + `external_record_links`; outbound posts `inventoryAdjustment` only |
 | GitHub Actions | Scheduled drain of the NetSuite outbound queue | Workflow added 2026-09-15; never run, because its repository secrets do not exist yet | Calls `process-netsuite-queue` with a scoped runner secret, not the service-role key |
 
 Add every real external service when verified. Access to one service does not imply access to another.
@@ -44,8 +44,13 @@ with a key whose X.509 certificate is uploaded under Setup > Integration > Manag
 OAuth 2.0 Client Credentials (M2M) Setup. `netsuite-connection` generates an EC P-256 key and
 self-signed certificate (ES256, 729-day validity); the admin downloads the certificate, uploads
 it, and saves the Certificate ID NetSuite assigns (the JWT `kid`). The integration record needs
-the Client Credentials grant and the REST Web Services scope. An unrecognised certificate ID
-comes back as a bare `500 server_error`; NetSuite's Login Audit Trail has the real reason.
+the Client Credentials grant and the REST Web Services scope. An unregistered certificate comes
+back as a bare `400 invalid_client` (or `500 server_error` for an unknown client ID); NetSuite's
+Login Audit Trail has the real reason.
+
+Deploying: a push to `main` syncs code into Lovable but does not redeploy edge functions. Deploy
+changed functions with a deploy-only Lovable agent message (it runs
+`supabase--deploy_edge_functions`), then confirm no code edits came back with `git fetch`.
 
 Credential and configuration **names** (values live only in Supabase and GitHub secrets):
 
