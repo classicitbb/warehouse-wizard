@@ -1932,6 +1932,62 @@ export type Database = {
           },
         ]
       }
+      notification_events: {
+        Row: {
+          created_at: string
+          dispatch_error: string | null
+          email_dispatched_at: string | null
+          entity_id: string | null
+          entity_table: string | null
+          group_key: string | null
+          id: string
+          kind: string
+          payload: Json
+          push_claimed_at: string | null
+          push_claimed_by: string | null
+          push_dispatched_at: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          dispatch_error?: string | null
+          email_dispatched_at?: string | null
+          entity_id?: string | null
+          entity_table?: string | null
+          group_key?: string | null
+          id?: string
+          kind: string
+          payload?: Json
+          push_claimed_at?: string | null
+          push_claimed_by?: string | null
+          push_dispatched_at?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          dispatch_error?: string | null
+          email_dispatched_at?: string | null
+          entity_id?: string | null
+          entity_table?: string | null
+          group_key?: string | null
+          id?: string
+          kind?: string
+          payload?: Json
+          push_claimed_at?: string | null
+          push_claimed_by?: string | null
+          push_dispatched_at?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_events_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operator_ticket_events: {
         Row: {
           actor_id: string | null
@@ -3081,6 +3137,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          device_label: string | null
+          endpoint: string
+          failure_count: number
+          id: string
+          last_error: string | null
+          last_failed_at: string | null
+          last_seen_at: string
+          last_success_at: string | null
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          device_label?: string | null
+          endpoint: string
+          failure_count?: number
+          id?: string
+          last_error?: string | null
+          last_failed_at?: string | null
+          last_seen_at?: string
+          last_success_at?: string | null
+          p256dh: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          device_label?: string | null
+          endpoint?: string
+          failure_count?: number
+          id?: string
+          last_error?: string | null
+          last_failed_at?: string | null
+          last_seen_at?: string
+          last_success_at?: string | null
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       putaway_tasks: {
         Row: {
@@ -4345,6 +4449,30 @@ export type Database = {
           },
         ]
       }
+      user_notification_preferences: {
+        Row: {
+          email_pick_list: boolean
+          pick_list_ring: boolean
+          putaway_badge: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          email_pick_list?: boolean
+          pick_list_ring?: boolean
+          putaway_badge?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          email_pick_list?: boolean
+          pick_list_ring?: boolean
+          putaway_badge?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_role_events: {
         Row: {
           action: string
@@ -4864,6 +4992,21 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_notification_dispatch: {
+        Args: {
+          in_claim_ttl_seconds?: number
+          in_debounce_seconds?: number
+          in_event_id: string
+        }
+        Returns: {
+          event_count: number
+          event_ids: string[]
+          group_key: string
+          kind: string
+          payload: Json
+          warehouse_id: string
+        }[]
+      }
       complete_inventory_pallet_correction: {
         Args: {
           in_draft_id: string
@@ -4886,6 +5029,10 @@ export type Database = {
           pallet_barcode: string
           pallet_id: string
         }[]
+      }
+      complete_notification_dispatch: {
+        Args: { in_channel: string; in_error?: string; in_event_ids: string[] }
+        Returns: number
       }
       confirm_pick_task: {
         Args: {
@@ -4996,6 +5143,16 @@ export type Database = {
         Args: { in_body_html: string; in_title: string }
         Returns: string
       }
+      notification_push_recipients: {
+        Args: { in_kind: string; in_warehouse_id?: string }
+        Returns: {
+          auth: string
+          endpoint: string
+          failure_count: number
+          id: string
+          p256dh: string
+        }[]
+      }
       operator_ticket_fallback_brief: {
         Args: { t: Database["public"]["Tables"]["operator_tickets"]["Row"] }
         Returns: string
@@ -5007,6 +5164,15 @@ export type Database = {
       pallet_in_accessible_transfer: {
         Args: { target_pallet_id: string }
         Returns: boolean
+      }
+      pending_notification_dispatch: {
+        Args: { in_limit?: number; in_older_than_seconds?: number }
+        Returns: {
+          created_at: string
+          event_id: string
+          group_key: string
+          kind: string
+        }[]
       }
       preview_pick_source_override: {
         Args: {
