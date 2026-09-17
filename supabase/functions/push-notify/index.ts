@@ -116,10 +116,15 @@ async function dispatchEvent(sb: Client, eventId: string) {
 
   const rendered = await renderNotification(sb, claim)
 
-  const { data: subs, error: subError } = await sb
-    .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth, failure_count')
+  // Recipients are resolved in the database so that the person's own switches
+  // (pick ticket ring / put-away badge) and their warehouse access decide who
+  // gets buzzed - a blanket read here pushed every alert to every device.
+  const { data: subs, error: subError } = await sb.rpc('notification_push_recipients', {
+    in_kind: claim.kind,
+    in_warehouse_id: claim.warehouse_id,
+  })
   if (subError) throw new Error(subError.message)
+
 
   const subscriptions = (subs ?? []) as PushSubscriptionRow[]
 
@@ -293,7 +298,13 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'sweep') {
-      const { data, error } = await sb.rpc('pending_notification_dispatch', {})
+      // Args must be explicit: PostgREST resolves an overload by the argument
+      // names supplied, so an empty body looks for a zero-argument function
+      // that does not exist and never falls back to the SQL defaults.
+      const { data, error } = await sb.rpc('pending_notification_dispatch', {
+        in_older_than_seconds: 60,
+        in_limit: 20,
+      })
       if (error) throw new Error(error.message)
       const pending = (data ?? []) as Array<{ event_id: string }>
       let dispatched = 0
