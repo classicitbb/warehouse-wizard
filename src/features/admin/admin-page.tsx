@@ -1583,6 +1583,8 @@ function NetSuiteIntegrationCard() {
     certificateId: string | null;
     certificatePem: string | null;
     certificateExpiresAt: string | null;
+    adjustmentAccountId: string | null;
+    adjustmentSubsidiaryId: string | null;
     queueRunnerConfigured: boolean;
     lastTestedAt: string | null;
     lastTestOk: boolean | null;
@@ -1594,6 +1596,8 @@ function NetSuiteIntegrationCard() {
   const [accountId, setAccountId] = useState("");
   const [clientId, setClientId] = useState("");
   const [certificateId, setCertificateId] = useState("");
+  const [adjustmentAccountId, setAdjustmentAccountId] = useState("");
+  const [adjustmentSubsidiaryId, setAdjustmentSubsidiaryId] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<string | null>(null);
   const [revealedQueueSecret, setRevealedQueueSecret] = useState<string | null>(null);
@@ -1607,6 +1611,9 @@ function NetSuiteIntegrationCard() {
       if (error) throw error;
       setStatus(data as any);
       setEnabled(Boolean((data as any)?.enabled));
+      const posting = data as { adjustmentAccountId?: string | null; adjustmentSubsidiaryId?: string | null } | null;
+      setAdjustmentAccountId(posting?.adjustmentAccountId ?? "");
+      setAdjustmentSubsidiaryId(posting?.adjustmentSubsidiaryId ?? "");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load NetSuite status");
     } finally {
@@ -1632,6 +1639,10 @@ function NetSuiteIntegrationCard() {
           accountId: accountId.trim() || undefined,
           clientId: clientId.trim() || undefined,
           certificateId: certificateId.trim() || undefined,
+          // Shown unmasked and pre-filled, so an empty value clears the setting.
+          // Before status has loaded the fields are unknown, so keep what is stored.
+          adjustmentAccountId: status ? adjustmentAccountId.trim() : undefined,
+          adjustmentSubsidiaryId: status ? adjustmentSubsidiaryId.trim() : undefined,
           enabled,
         },
       });
@@ -1714,6 +1725,12 @@ function NetSuiteIntegrationCard() {
                 {status?.certificateExpiresAt && <> · expires {new Date(status.certificateExpiresAt).toLocaleDateString()}</>}
               </div>
               <div>Certificate ID: <span className="font-mono text-foreground">{status?.certificateId ?? "Not set"}</span></div>
+              <div>
+                Adjustment account:{" "}
+                {status?.adjustmentAccountId
+                  ? <span className="font-mono text-foreground">{status.adjustmentAccountId}</span>
+                  : <span className="font-medium text-foreground">Not set · inventory sync paused</span>}
+              </div>
               <div>Queue runner secret: <span className="font-medium text-foreground">{status?.queueRunnerConfigured ? "Configured" : "Not configured"}</span></div>
               {status?.lastTestedAt && (
                 <div>Last tested: {new Date(status.lastTestedAt).toLocaleString()}{status.lastTestOk != null && <> · {status.lastTestOk ? "passed" : "failed"}</>}</div>
@@ -1785,6 +1802,34 @@ function NetSuiteIntegrationCard() {
                 placeholder={status?.certificateId ? `${status.certificateId} (leave blank to keep)` : "Assigned by NetSuite after upload"}
                 autoComplete="off"
               />
+            </div>
+            <div className="grid gap-2 rounded-md border p-3">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium"><Boxes className="h-4 w-4" />Inventory adjustment posting</p>
+                <p className="text-xs text-muted-foreground">Putaway sync posts inventory adjustments against these NetSuite internal IDs. Sync waits in the queue until the adjustment account is set.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1">
+                  <Label htmlFor="ns-adjustment-account" className="text-xs text-muted-foreground">Adjustment Account Internal ID</Label>
+                  <Input
+                    id="ns-adjustment-account"
+                    value={adjustmentAccountId}
+                    onChange={(e) => setAdjustmentAccountId(e.target.value)}
+                    placeholder="e.g. 212"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="ns-adjustment-subsidiary" className="text-xs text-muted-foreground">Subsidiary Internal ID (optional)</Label>
+                  <Input
+                    id="ns-adjustment-subsidiary"
+                    value={adjustmentSubsidiaryId}
+                    onChange={(e) => setAdjustmentSubsidiaryId(e.target.value)}
+                    placeholder="Blank uses the NetSuite default"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>

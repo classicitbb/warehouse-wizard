@@ -35,7 +35,43 @@ Three edge functions and one trigger, sharing the `integration_*` job spine.
   item browser, item import. Requires a signed-in `admin` or `developer`.
 - `enqueue_netsuite_inventory_sync` — trigger on `inventory_balances`, fires only on the
   `receiving` → `available` transition, and no-ops unless both the product and the
-  warehouse have `external_record_links` rows.
+  warehouse have `external_record_links` rows. Since migration `20260916120000` the job
+  payload carries those NetSuite internal ids as `netsuiteItemId` and `netsuiteLocationId`.
+
+### Outbound inventory adjustment record
+
+`process-netsuite-queue` POSTs the body from `buildNetSuiteInventoryAdjustment` to
+`/services/rest/record/v1/inventoryAdjustment`. The builder lives in `_shared/netsuite.ts` and is
+mirrored in `src/lib/enterprise-wms.ts`; `src/test/enterprise-wms.test.ts` fails if the two copies
+drift. The shape was checked against Oracle's REST example for the inventory adjustment record on
+2026-09-16. No live NetSuite account has accepted it yet, because no access token has been issued.
+
+- The body is the record itself: `externalId`, `account`, optional `subsidiary`, `memo`, and
+  `inventory.items[]` with `item`, `location`, `adjustQtyBy`. There are no wrapper keys. The
+  earlier builder sent `accountId`, `recordType`, `body`, and `idempotencyKey` as record fields,
+  nested `memo`/`subsidiary` under `body`, and had no `account`.
+- Every reference is `{ "id": "<internal id>" }`. The item id is the `products`/`item` link in
+  `external_record_links` (stored by the import picker and the inbound webhook). The location id
+  is the `warehouses`/`location` link from Settings > NetSuite Location Mapping. Jobs queued
+  before `20260916120000` hold only `sku` and `locationExternalId`. For those, the worker resolves
+  the item id from the SKU and reads `locationExternalId` as the location's internal id.
+- `account` is the GL account the adjustment posts to, and the record requires it. Its internal id
+  is `integration_connections.config.adjustment_account_id`, set under Settings > Integrations >
+  Inventory adjustment posting. Until it is set, the worker returns
+  `skipped: adjustment_account_not_configured` without claiming jobs, so nothing dead-letters.
+  `adjustment_subsidiary_id` is optional. When blank, `subsidiary` is omitted and NetSuite applies
+  its default; the earlier builder hard-coded `1`. In a OneWorld account, set it if the default
+  subsidiary does not own the mapped locations.
+- Idempotency: NetSuite honours `X-NetSuite-Idempotency-Key` only on asynchronous requests
+  (`Prefer: respond-async`) and ignores it on synchronous ones, so the worker does not send it.
+  Instead the record's `externalId` is `ww-inventory-adjustment-<job idempotency_key>`. NetSuite
+  keeps external IDs unique per record type, so a retry cannot post a second adjustment. When a
+  POST fails or times out, the worker looks up `inventoryAdjustment/eid:<externalId>` and marks the
+  job succeeded if an earlier attempt already created the record. A create answers `204` with the
+  new record's URL in `Location`; the worker stores it and the record id in the job `result`.
+- Not handled yet: lot-numbered, serialized, and bin-managed items need an `inventoryDetail`
+  subrecord on the line, which is not sent. `unitCost` is not sent either, so check the cost
+  NetSuite applies to a positive adjustment during the first live post.
 
 Outbound authentication is OAuth 2.0 client credentials (M2M), in
 `supabase/functions/_shared/netsuite-auth.ts`. NetSuite rejects a client ID/secret pair for this
@@ -59,7 +95,8 @@ Credential and configuration **names** (values live only in Supabase and GitHub 
   row may exist; nothing reads it. Table is service-role only — RLS is enabled with no
   anon/authenticated policies.
 - `integration_connections.config`: `account_id`, `certificate_id`, `certificate_pem` (public),
-  `certificate_expires_at`, `last_tested_at`, `last_test_ok`.
+  `certificate_expires_at`, `adjustment_account_id`, `adjustment_subsidiary_id`, `last_tested_at`,
+  `last_test_ok`.
 - Edge function environment: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`.
 - Repository secrets for the scheduled drain: `SUPABASE_FUNCTIONS_URL`,
   `NETSUITE_QUEUE_RUNNER_SECRET`.

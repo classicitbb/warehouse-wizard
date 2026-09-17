@@ -298,30 +298,42 @@ export function mapGenericRestItemToProduct(payload: GenericRestItemPayload): Ma
   };
 }
 
+// NetSuite's X-NetSuite-Idempotency-Key header is honoured only for async
+// (`Prefer: respond-async`) requests and ignored on synchronous ones. Instead,
+// the record carries an externalId derived from the sync job's idempotency key:
+// NetSuite rejects a second record with the same externalId, and the worker can
+// look an earlier attempt up at `inventoryAdjustment/eid:<externalId>`.
+// External IDs allow only letters, digits, `_` and `-`.
+export function netsuiteAdjustmentExternalId(jobIdempotencyKey: string): string {
+  return `ww-inventory-adjustment-${jobIdempotencyKey.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+}
+
+// The request body for POST /services/rest/record/v1/inventoryAdjustment.
+// Every reference is a NetSuite internal id. Subsidiary is sent only when
+// configured; otherwise NetSuite applies its default.
 export function buildNetSuiteInventoryAdjustment(input: {
-  accountId: string;
-  sku: string;
-  locationExternalId: string;
+  externalId: string;
+  adjustmentAccountId: string;
+  subsidiaryId?: string | null;
+  itemId: string;
+  locationId: string;
   quantityDelta: number;
   memo: string;
 }) {
   return {
-    accountId: input.accountId,
-    recordType: "inventoryAdjustment",
-    body: {
-      memo: input.memo,
-      subsidiary: { id: "1" },
-    },
+    externalId: input.externalId,
+    account: { id: input.adjustmentAccountId },
+    ...(input.subsidiaryId ? { subsidiary: { id: input.subsidiaryId } } : {}),
+    memo: input.memo,
     inventory: {
       items: [
         {
-          item: { externalId: input.sku },
-          location: { externalId: input.locationExternalId },
+          item: { id: input.itemId },
+          location: { id: input.locationId },
           adjustQtyBy: input.quantityDelta,
         },
       ],
     },
-    idempotencyKey: `netsuite-adjustment-${input.sku}-${input.locationExternalId}-${input.quantityDelta}`,
   };
 }
 

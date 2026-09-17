@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +9,7 @@ import {
   buildWarehouseBrainRecommendations,
   generateZplLabel,
   mapNetSuiteItemToProduct,
+  netsuiteAdjustmentExternalId,
 } from "@/lib/enterprise-wms";
 import type { DashboardMetrics } from "@/lib/wms-core";
 
@@ -90,18 +93,66 @@ describe("NetSuite integration helpers", () => {
     });
   });
 
-  it("builds idempotent inventory adjustment payloads", () => {
+  it("builds a REST inventoryAdjustment record body referencing internal ids", () => {
     const payload = buildNetSuiteInventoryAdjustment({
-      accountId: "ACCT",
-      sku: "SKU-1",
-      locationExternalId: "MAIN",
+      externalId: "ww-inventory-adjustment-putaway-1",
+      adjustmentAccountId: "212",
+      subsidiaryId: "3",
+      itemId: "912",
+      locationId: "7",
       quantityDelta: -3,
       memo: "Cycle count variance",
     });
 
-    expect(payload.recordType).toBe("inventoryAdjustment");
-    expect(payload.inventory.items[0]).toMatchObject({ adjustQtyBy: -3 });
-    expect(payload.idempotencyKey).toContain("SKU-1-MAIN--3");
+    // Exactly the record fields NetSuite accepts: no wrapper keys such as
+    // accountId, recordType, body, or idempotencyKey.
+    expect(payload).toEqual({
+      externalId: "ww-inventory-adjustment-putaway-1",
+      account: { id: "212" },
+      subsidiary: { id: "3" },
+      memo: "Cycle count variance",
+      inventory: {
+        items: [{ item: { id: "912" }, location: { id: "7" }, adjustQtyBy: -3 }],
+      },
+    });
+  });
+
+  it("omits subsidiary when none is configured so NetSuite applies its default", () => {
+    for (const subsidiaryId of [undefined, null, ""]) {
+      const payload = buildNetSuiteInventoryAdjustment({
+        externalId: "ww-inventory-adjustment-putaway-1",
+        adjustmentAccountId: "212",
+        subsidiaryId,
+        itemId: "912",
+        locationId: "7",
+        quantityDelta: 5,
+        memo: "",
+      });
+      expect(payload).not.toHaveProperty("subsidiary");
+    }
+  });
+
+  it("derives a NetSuite-safe external id from the sync job idempotency key", () => {
+    expect(netsuiteAdjustmentExternalId("putaway-3f1c9a2e-0b7d-4c55-9e61-2a8f4d0c7b19")).toBe(
+      "ww-inventory-adjustment-putaway-3f1c9a2e-0b7d-4c55-9e61-2a8f4d0c7b19",
+    );
+    expect(netsuiteAdjustmentExternalId("count:42/line 3")).toBe("ww-inventory-adjustment-count-42-line-3");
+    expect(netsuiteAdjustmentExternalId("count:42/line 3")).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("keeps the edge-function copy of the payload builders identical to src/lib", () => {
+    const read = (file: string) =>
+      readFileSync(path.resolve(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
+    const extract = (source: string, name: string) =>
+      source.match(new RegExp(`export function ${name}\\([\\s\\S]*?\\n}\\n`))?.[0];
+
+    const app = read("src/lib/enterprise-wms.ts");
+    const edge = read("supabase/functions/_shared/netsuite.ts");
+    for (const name of ["netsuiteAdjustmentExternalId", "buildNetSuiteInventoryAdjustment"]) {
+      const appCopy = extract(app, name);
+      expect(appCopy, name).toBeTruthy();
+      expect(extract(edge, name), name).toBe(appCopy);
+    }
   });
 });
 

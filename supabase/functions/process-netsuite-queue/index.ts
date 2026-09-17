@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { buildNetSuiteInventoryAdjustment, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
+import { buildNetSuiteInventoryAdjustment, netsuiteAdjustmentExternalId, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
 import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
@@ -145,6 +145,18 @@ Deno.serve(async (req) => {
     )
   }
 
+  // The adjustment account is mandatory on the NetSuite record. Without it every
+  // job would fail and dead-letter, so leave the queue untouched until an admin
+  // sets it in Settings > Integrations.
+  const adjustmentAccountId = typeof config.adjustment_account_id === 'string' ? config.adjustment_account_id.trim() : ''
+  const adjustmentSubsidiaryId = typeof config.adjustment_subsidiary_id === 'string' ? config.adjustment_subsidiary_id.trim() : ''
+  if (!adjustmentAccountId) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'adjustment_account_not_configured' }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
   // 3. Exchange a signed client assertion for a short-lived OAuth2 token (kept in-memory only).
   const tokenResult = await fetchNetSuiteAccessToken({ accountId, clientId, certificateId, privateKeyPem })
   if (!tokenResult.ok) {
@@ -169,6 +181,38 @@ Deno.serve(async (req) => {
   }
   const jobs: SyncJob[] = (claimed as SyncJob[] | null) ?? []
 
+  const recordUrl = `https://${netsuiteHost(accountId)}/services/rest/record/v1/inventoryAdjustment`
+
+  // Jobs enqueued before migration 20260916120000 carry only the SKU, so the
+  // item's internal id is resolved from the same link the trigger checked.
+  async function resolveItemIdBySku(sku: string): Promise<string | null> {
+    const { data: product } = await supabase.from('products').select('id').eq('sku', sku).maybeSingle()
+    if (!product?.id) return null
+    const { data: link } = await supabase
+      .from('external_record_links')
+      .select('external_id')
+      .eq('system', 'netsuite')
+      .eq('local_table', 'products')
+      .eq('local_id', product.id)
+      .eq('external_record_type', 'item')
+      .maybeSingle()
+    return link?.external_id ?? null
+  }
+
+  // Internal id of an adjustment already created with this externalId, or null.
+  async function findExistingAdjustment(externalId: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${recordUrl}/eid:${externalId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (!res.ok) return null
+      const record = await res.json().catch(() => null) as { id?: string | number } | null
+      return record?.id != null ? String(record.id) : null
+    } catch {
+      return null
+    }
+  }
+
   let succeeded = 0
   let failed = 0
   let deadLettered = 0
@@ -185,37 +229,63 @@ Deno.serve(async (req) => {
       if (job.job_type === 'inventory_adjustment') {
         const p = job.payload as {
           sku?: string
-          locationExternalId?: string
+          netsuiteItemId?: string
+          netsuiteLocationId?: string
+          locationExternalId?: string // pre-20260916120000 name; it held the internal id
           quantityDelta?: number
           memo?: string
         }
-        if (!p.sku || !p.locationExternalId || typeof p.quantityDelta !== 'number') {
-          failureReason = 'Invalid inventory_adjustment payload'
+        const itemId = p.netsuiteItemId ?? (p.sku ? await resolveItemIdBySku(p.sku) : null)
+        const locationId = p.netsuiteLocationId ?? p.locationExternalId
+        if (!itemId || !locationId || typeof p.quantityDelta !== 'number') {
+          failureReason = itemId
+            ? 'Invalid inventory_adjustment payload'
+            : `No NetSuite item link for SKU ${p.sku ?? '(missing)'}`
         } else {
+          const externalId = netsuiteAdjustmentExternalId(job.idempotency_key)
           requestBody = buildNetSuiteInventoryAdjustment({
-            accountId,
-            sku: p.sku,
-            locationExternalId: p.locationExternalId,
+            externalId,
+            adjustmentAccountId,
+            subsidiaryId: adjustmentSubsidiaryId || null,
+            itemId,
+            locationId,
             quantityDelta: p.quantityDelta,
             memo: p.memo ?? '',
           }) as unknown as Record<string, unknown>
 
-          const url = `https://${netsuiteHost(accountId)}/services/rest/record/v1/inventoryAdjustment`
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-          })
-          httpStatus = res.status
-          const text = await res.text()
-          try { responsePayload = text ? JSON.parse(text) : null } catch { responsePayload = { raw: text.slice(0, 4000) } }
-          if (res.ok) {
-            ok = true
-          } else {
-            failureReason = `NetSuite responded ${res.status}: ${text.slice(0, 200)}`
+          try {
+            const res = await fetch(recordUrl, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(requestBody),
+            })
+            httpStatus = res.status
+            const text = await res.text()
+            try { responsePayload = text ? JSON.parse(text) : null } catch { responsePayload = { raw: text.slice(0, 4000) } }
+            if (res.ok) {
+              // A create answers 204 with the new record's URL in Location.
+              const location = res.headers.get('Location')
+              ok = true
+              responsePayload = { netsuiteId: location?.split('/').pop() ?? null, location }
+            } else {
+              failureReason = `NetSuite responded ${res.status}: ${text.slice(0, 200)}`
+            }
+          } catch (err) {
+            failureReason = err instanceof Error ? err.message : String(err)
+          }
+
+          // A timed-out attempt, or a run that crashed before recording its
+          // result, may already have created the record. NetSuite then refuses
+          // the duplicate externalId, so treat an existing record as success.
+          if (!ok) {
+            const existingId = await findExistingAdjustment(externalId)
+            if (existingId) {
+              ok = true
+              responsePayload = { netsuiteId: existingId, alreadyPosted: true, postError: failureReason }
+            }
           }
         }
       } else {

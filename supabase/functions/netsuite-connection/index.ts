@@ -76,6 +76,10 @@ Deno.serve(async (req) => {
     accountId?: string
     clientId?: string
     certificateId?: string
+    // Unlike the credential fields, these are not masked, so a string (even an
+    // empty one) replaces the stored value and only `undefined` keeps it.
+    adjustmentAccountId?: string
+    adjustmentSubsidiaryId?: string
     webhookSecret?: string
     queueRunnerSecret?: string
     enabled?: boolean
@@ -153,7 +157,7 @@ Deno.serve(async (req) => {
     if (action === 'status') {
       const connection = await loadConnection()
       if (!connection) {
-        return json({ configured: false, enabled: false, missing: [], accountIdMasked: null, clientIdMasked: null, certificateId: null, certificatePem: null, certificateExpiresAt: null, queueRunnerConfigured: false, lastTestedAt: null, lastTestOk: null })
+        return json({ configured: false, enabled: false, missing: [], accountIdMasked: null, clientIdMasked: null, certificateId: null, certificatePem: null, certificateExpiresAt: null, adjustmentAccountId: null, adjustmentSubsidiaryId: null, queueRunnerConfigured: false, lastTestedAt: null, lastTestOk: null })
       }
       const config = (connection.config ?? {}) as Record<string, unknown>
       const { creds, missing } = await loadCredentials(connection)
@@ -167,6 +171,8 @@ Deno.serve(async (req) => {
         certificateId: creds.certificateId || null,
         certificatePem: creds.privateKeyPem && typeof config.certificate_pem === 'string' ? config.certificate_pem : null,
         certificateExpiresAt: typeof config.certificate_expires_at === 'string' ? config.certificate_expires_at : null,
+        adjustmentAccountId: typeof config.adjustment_account_id === 'string' && config.adjustment_account_id ? config.adjustment_account_id : null,
+        adjustmentSubsidiaryId: typeof config.adjustment_subsidiary_id === 'string' && config.adjustment_subsidiary_id ? config.adjustment_subsidiary_id : null,
         queueRunnerConfigured: Boolean(queueRunnerSecret),
         lastTestedAt: typeof config.last_tested_at === 'string' ? config.last_tested_at : null,
         lastTestOk: typeof config.last_test_ok === 'boolean' ? config.last_test_ok : null,
@@ -192,6 +198,8 @@ Deno.serve(async (req) => {
         ...existingConfig,
         account_id: accountId,
         ...(certificateIdInput ? { certificate_id: certificateIdInput } : {}),
+        ...(typeof body.adjustmentAccountId === 'string' ? { adjustment_account_id: body.adjustmentAccountId.trim() } : {}),
+        ...(typeof body.adjustmentSubsidiaryId === 'string' ? { adjustment_subsidiary_id: body.adjustmentSubsidiaryId.trim() } : {}),
       }
 
       let connectionId: string
