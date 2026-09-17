@@ -35,6 +35,7 @@
     "src"
   ],
   "exclude": [
-    "src/sw.ts"
+    "src/sw.ts",
+    "src/test/netsuite-live.integration.test.ts"
   ]
 }
