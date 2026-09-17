@@ -1,8 +1,19 @@
 # Work Handoff
 
 - Repository: `classicitbb/warehouse-wizard`
-- Status: Incomplete — NetSuite receiver repair awaits migration, function deployment and repository-secret creation; Release policy / fleet freshness awaits database migration and deployment approval; Copilot composer still awaits authorized browser verification
-- Last updated: 2026-09-15
+- Status: Incomplete — NetSuite M2M authentication fix awaits deployment and the certificate upload in NetSuite; Release policy / fleet freshness awaits database migration and deployment approval; Copilot composer still awaits authorized browser verification
+- Last updated: 2026-09-16
+
+## NetSuite authentication fix — 2026-09-16
+
+- Objective: the connected NetSuite integration returned errors on Test connection and in the item picker.
+- Diagnosis: Settings > Integrations > Test connection (signed-in local dev server against the live backend) returned `NetSuite responded 400: {"error":"invalid_request"}`. `last_test_ok` was false. The earlier hostname fix (`netsuiteHost`) is live — the sandbox host resolves. The failure is the auth method: the code sent `grant_type=client_credentials` with the client ID and secret as Basic auth, which NetSuite never accepts for that grant. Probes against the sandbox token endpoint showed malformed or missing assertions return `400 invalid_request`, while well-formed ES256 and PS256 JWT assertions with an unregistered certificate ID return `500 server_error` — so a signed assertion is the accepted format.
+- Completed (local source): new `supabase/functions/_shared/netsuite-auth.ts` (WebCrypto-only EC P-256 key and self-signed X.509 certificate generation, ES256 client assertion, token exchange with setup-specific error hints); `netsuite-connection` gains `generate_certificate`, a `certificateId` on `save` (blank fields keep stored values), a status payload with `missing`/certificate fields, and a test that follows the token with a one-row SuiteQL item query; `process-netsuite-queue` uses the shared token exchange; the Settings card drops Client Secret and adds setup steps, certificate generate/download/regenerate (with confirmation), and Certificate ID.
+- Affected files: `supabase/functions/_shared/netsuite-auth.ts`, `supabase/functions/netsuite-connection/index.ts`, `supabase/functions/process-netsuite-queue/index.ts`, `src/features/admin/admin-page.tsx`, `docs/agent/INTEGRATIONS.md`.
+- Verification: the bundled auth module generated a certificate that `openssl x509` parses as v3 ecdsa-with-SHA256 with a matching public key and a valid self-signature (`openssl verify -check_ss_sig`); `jose.jwtVerify` accepted the assertion against that certificate; `fetchNetSuiteAccessToken` against the sandbox returned the expected `500 server_error` with the setup hint. All three NetSuite functions bundle with esbuild; `npm run typecheck` passes; focused ESLint 0 errors; `src/test/enterprise-wms.test.ts` and `src/test/help-content.test.ts` pass (16 tests); the new card renders on the local dev server with no console errors.
+- Deployment/environment state: local changes only until pushed to `main` for Lovable to deploy the edge functions. No database schema change — `integration_secrets.secret_type` is free text.
+- Approval required: pushing to `main` (production edge-function deployment and an auth change); uploading the certificate in NetSuite is an admin action in the NetSuite account.
+- Exact next action: after deployment, in Settings > Integrations click Generate certificate, upload the downloaded `.pem` in NetSuite under OAuth 2.0 Client Credentials (M2M) Setup for the integration record, save the assigned Certificate ID, then click Test connection and expect `NetSuite credentials verified`.
 
 ## NetSuite receiver repair — 2026-09-15
 

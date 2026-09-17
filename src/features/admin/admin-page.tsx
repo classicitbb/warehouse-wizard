@@ -1564,21 +1564,36 @@ function RevealedSecret({ label, value, hint }: { label: string; value: string; 
   );
 }
 
+function downloadNetSuiteCertificate(pem: string) {
+  const url = URL.createObjectURL(new Blob([pem], { type: "application/x-pem-file" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "warehouse-wizard-netsuite-m2m.pem";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function NetSuiteIntegrationCard() {
   const [status, setStatus] = useState<{
     configured: boolean;
     enabled: boolean;
+    missing: string[];
     accountIdMasked: string | null;
     clientIdMasked: string | null;
+    certificateId: string | null;
+    certificatePem: string | null;
+    certificateExpiresAt: string | null;
     queueRunnerConfigured: boolean;
     lastTestedAt: string | null;
+    lastTestOk: boolean | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [accountId, setAccountId] = useState("");
   const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
+  const [certificateId, setCertificateId] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<string | null>(null);
   const [revealedQueueSecret, setRevealedQueueSecret] = useState<string | null>(null);
@@ -1602,7 +1617,8 @@ function NetSuiteIntegrationCard() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const handleSave = async () => {
-    if (!accountId.trim() || !clientId.trim()) {
+    // Blank fields keep the stored value, so only a first save needs both IDs.
+    if ((!accountId.trim() && !status?.accountIdMasked) || (!clientId.trim() && !status?.clientIdMasked)) {
       toast.error("Account ID and Client ID are required");
       return;
     }
@@ -1613,9 +1629,9 @@ function NetSuiteIntegrationCard() {
       const { data, error } = await supabase.functions.invoke("netsuite-connection", {
         body: {
           action: "save",
-          accountId: accountId.trim(),
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim() || undefined,
+          accountId: accountId.trim() || undefined,
+          clientId: clientId.trim() || undefined,
+          certificateId: certificateId.trim() || undefined,
           enabled,
         },
       });
@@ -1624,12 +1640,33 @@ function NetSuiteIntegrationCard() {
       if (result?.webhookSecret) setRevealedWebhookSecret(result.webhookSecret);
       if (result?.queueRunnerSecret) setRevealedQueueSecret(result.queueRunnerSecret);
       toast.success("NetSuite connection saved");
-      setClientSecret("");
+      setAccountId("");
+      setClientId("");
+      setCertificateId("");
       await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGenerateCertificate = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
+        body: { action: "generate_certificate" },
+      });
+      if (error) throw error;
+      const result = data as { ok?: boolean; certificatePem?: string; error?: string };
+      if (!result?.certificatePem) throw new Error(result?.error ?? "Certificate generation failed");
+      downloadNetSuiteCertificate(result.certificatePem);
+      toast.success("Certificate generated. Upload it to NetSuite, then save the Certificate ID it assigns.");
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Certificate generation failed");
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -1651,14 +1688,15 @@ function NetSuiteIntegrationCard() {
     }
   };
 
-  const savedSecretPlaceholder = status?.configured ? "•••• saved (leave blank to keep)" : "";
+  const keepPlaceholder = (masked: string | null | undefined, fallback: string) =>
+    masked ? `${masked} saved (leave blank to keep)` : fallback;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Network className="h-4 w-4" />NetSuite Integration</CardTitle>
         <CardDescription>
-          OAuth2 client credentials for the NetSuite REST API. Secrets are stored server-side and never returned to the browser.
+          OAuth 2.0 client credentials (machine-to-machine) for the NetSuite REST API. The signing key is generated and kept server-side; only its public certificate is ever downloaded.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -1668,31 +1706,85 @@ function NetSuiteIntegrationCard() {
           <>
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground grid gap-1">
               <div>Status: <span className="font-medium text-foreground">{status?.configured ? "Configured" : "Not configured"}</span> · {status?.enabled ? "Enabled" : "Disabled"}</div>
+              {!status?.configured && status?.missing?.length ? <div>Missing: {status.missing.join(", ")}</div> : null}
               {status?.accountIdMasked && <div>Account: <span className="font-mono">{status.accountIdMasked}</span></div>}
               {status?.clientIdMasked && <div>Client ID: <span className="font-mono">{status.clientIdMasked}</span></div>}
+              <div>
+                Certificate: <span className="font-medium text-foreground">{status?.certificatePem ? "Generated" : "Not generated"}</span>
+                {status?.certificateExpiresAt && <> · expires {new Date(status.certificateExpiresAt).toLocaleDateString()}</>}
+              </div>
+              <div>Certificate ID: <span className="font-mono text-foreground">{status?.certificateId ?? "Not set"}</span></div>
               <div>Queue runner secret: <span className="font-medium text-foreground">{status?.queueRunnerConfigured ? "Configured" : "Not configured"}</span></div>
-              {status?.lastTestedAt && <div>Last tested: {new Date(status.lastTestedAt).toLocaleString()}</div>}
+              {status?.lastTestedAt && (
+                <div>Last tested: {new Date(status.lastTestedAt).toLocaleString()}{status.lastTestOk != null && <> · {status.lastTestOk ? "passed" : "failed"}</>}</div>
+              )}
             </div>
+
+            <ol className="list-decimal space-y-1 rounded-md border p-3 pl-7 text-xs text-muted-foreground">
+              <li>In NetSuite, open the integration record and enable <span className="text-foreground">Client Credentials (Machine to Machine) Grant</span> and the <span className="text-foreground">REST Web Services</span> scope. Save its Client ID and your Account ID here.</li>
+              <li>Generate a certificate below. The public certificate downloads as a .pem file.</li>
+              <li>In NetSuite, go to Setup &gt; Integration &gt; Manage Authentication &gt; OAuth 2.0 Client Credentials (M2M) Setup, create a mapping for the integration user, role, and this application, and upload the certificate.</li>
+              <li>Paste the Certificate ID NetSuite assigns, save, then test the connection.</li>
+            </ol>
 
             <div className="grid gap-2">
               <Label htmlFor="ns-account">Account ID</Label>
-              <Input id="ns-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder="123456_SB1" autoComplete="off" />
+              <Input id="ns-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder={keepPlaceholder(status?.accountIdMasked, "123456_SB1")} autoComplete="off" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="ns-client-id">Client ID</Label>
-              <Input id="ns-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+              <Input id="ns-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder={keepPlaceholder(status?.clientIdMasked, "")} autoComplete="off" />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="ns-client-secret">Client Secret</Label>
+
+            <div className="grid gap-2 rounded-md border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium"><KeyRound className="h-4 w-4" />Signing certificate</p>
+                  <p className="text-xs text-muted-foreground">EC P-256 (ES256), valid two years. Regenerating replaces the key, so the new certificate must be uploaded again.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {status?.certificatePem && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => downloadNetSuiteCertificate(status.certificatePem!)}>
+                      <Download className="mr-2 h-4 w-4" />Download
+                    </Button>
+                  )}
+                  {status?.certificatePem ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" disabled={generating}>
+                          {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Regenerate
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Replace the NetSuite signing certificate?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            The current key is discarded and the saved Certificate ID is cleared. NetSuite sync stops until the new certificate is uploaded in NetSuite and its Certificate ID is saved here.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleGenerateCertificate}>Regenerate</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <Button type="button" size="sm" onClick={handleGenerateCertificate} disabled={generating || !status?.accountIdMasked}>
+                      {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Generate certificate
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <Label htmlFor="ns-certificate-id" className="mt-1">Certificate ID</Label>
               <Input
-                id="ns-client-secret"
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder={savedSecretPlaceholder}
-                autoComplete="new-password"
+                id="ns-certificate-id"
+                value={certificateId}
+                onChange={(e) => setCertificateId(e.target.value)}
+                placeholder={status?.certificateId ? `${status.certificateId} (leave blank to keep)` : "Assigned by NetSuite after upload"}
+                autoComplete="off"
               />
-              <p className="text-xs text-muted-foreground">Write-only. The stored value is never sent back to the browser.</p>
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>

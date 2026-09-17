@@ -7,7 +7,7 @@
 | Supabase | Database/auth/storage/functions as used by code | Repository configuration detected | Verify project/account before writes |
 | Lovable | Project editing/generation workflow | MCP connector reachable 2026-09-02, but exposes only design-import and new-project tools — no migration, project-message, or diff capability in this session | Review generated diffs; verify publish path |
 | Supabase CLI | Applying migrations locally | `npx supabase --version` → 2.116.0 on 2026-09-02; project not linked | Linking and `db push` against the production project remain an approval gate |
-| NetSuite | ERP master data inbound, inventory adjustments outbound | Not verified — no NetSuite account was reachable in this session; the adapter is verified by code reading only | Inbound `item` upserts `products` + `external_record_links`; outbound posts `inventoryAdjustment` only |
+| NetSuite | ERP master data inbound, inventory adjustments outbound | Sandbox token endpoint reachable 2026-09-16; request format verified against it with a throwaway key. A real token has not yet been issued, pending the M2M certificate upload in NetSuite | Inbound `item` upserts `products` + `external_record_links`; outbound posts `inventoryAdjustment` only |
 | GitHub Actions | Scheduled drain of the NetSuite outbound queue | Workflow added 2026-09-15; never run, because its repository secrets do not exist yet | Calls `process-netsuite-queue` with a scoped runner secret, not the service-role key |
 
 Add every real external service when verified. Access to one service does not imply access to another.
@@ -31,18 +31,30 @@ Three edge functions and one trigger, sharing the `integration_*` job spine.
 - `process-netsuite-queue` — outbound. `verify_jwt = false`; accepts either a service-role
   JWT or the `netsuite_queue_runner_secret` in an `X-Queue-Secret` header. Claims only
   `inventory_adjustment` jobs, so the parked inbound rows above are never dead-lettered.
-- `netsuite-connection` — admin-only configuration, SuiteQL item browser, item import.
-  Requires a signed-in `admin` or `developer`.
+- `netsuite-connection` — admin-only configuration, signing-certificate generation, SuiteQL
+  item browser, item import. Requires a signed-in `admin` or `developer`.
 - `enqueue_netsuite_inventory_sync` — trigger on `inventory_balances`, fires only on the
   `receiving` → `available` transition, and no-ops unless both the product and the
   warehouse have `external_record_links` rows.
 
+Outbound authentication is OAuth 2.0 client credentials (M2M), in
+`supabase/functions/_shared/netsuite-auth.ts`. NetSuite rejects a client ID/secret pair for this
+grant with `400 invalid_request`. The token request must carry a JWT client assertion signed
+with a key whose X.509 certificate is uploaded under Setup > Integration > Manage Authentication >
+OAuth 2.0 Client Credentials (M2M) Setup. `netsuite-connection` generates an EC P-256 key and
+self-signed certificate (ES256, 729-day validity); the admin downloads the certificate, uploads
+it, and saves the Certificate ID NetSuite assigns (the JWT `kid`). The integration record needs
+the Client Credentials grant and the REST Web Services scope. An unrecognised certificate ID
+comes back as a bare `500 server_error`; NetSuite's Login Audit Trail has the real reason.
+
 Credential and configuration **names** (values live only in Supabase and GitHub secrets):
 
-- `integration_secrets.secret_type`: `netsuite_client_id`, `netsuite_client_secret`,
-  `netsuite_webhook_secret`, `netsuite_queue_runner_secret`. Table is service-role only —
-  RLS is enabled with no anon/authenticated policies.
-- `integration_connections.config`: `account_id`, `last_tested_at`, `last_test_ok`.
+- `integration_secrets.secret_type`: `netsuite_client_id`, `netsuite_private_key` (PKCS#8 PEM),
+  `netsuite_webhook_secret`, `netsuite_queue_runner_secret`. A legacy `netsuite_client_secret`
+  row may exist; nothing reads it. Table is service-role only — RLS is enabled with no
+  anon/authenticated policies.
+- `integration_connections.config`: `account_id`, `certificate_id`, `certificate_pem` (public),
+  `certificate_expires_at`, `last_tested_at`, `last_test_ok`.
 - Edge function environment: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`.
 - Repository secrets for the scheduled drain: `SUPABASE_FUNCTIONS_URL`,
   `NETSUITE_QUEUE_RUNNER_SECRET`.

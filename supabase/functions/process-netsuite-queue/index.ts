@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildNetSuiteInventoryAdjustment, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
+import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -134,50 +135,25 @@ Deno.serve(async (req) => {
   }
   const secretMap = new Map((secrets ?? []).map((s) => [s.secret_type, s.secret_value]))
   const clientId = secretMap.get('netsuite_client_id') ?? ''
-  const clientSecret = secretMap.get('netsuite_client_secret') ?? ''
+  const privateKeyPem = secretMap.get('netsuite_private_key') ?? ''
+  const certificateId = typeof config.certificate_id === 'string' ? config.certificate_id : ''
 
-  if (!accountId || !clientId || !clientSecret) {
+  if (!accountId || !clientId || !privateKeyPem || !certificateId) {
     return new Response(
       JSON.stringify({ skipped: true, reason: 'credentials_incomplete' }),
       { headers: { 'Content-Type': 'application/json' } },
     )
   }
 
-  // 3. Exchange for a short-lived OAuth2 token (kept in-memory only).
-  const tokenUrl = `https://${netsuiteHost(accountId)}/services/rest/auth/oauth2/v1/token`
-  const basic = btoa(`${clientId}:${clientSecret}`)
-  let accessToken = ''
-  try {
-    const tokenRes = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${basic}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'grant_type=client_credentials',
-    })
-    if (!tokenRes.ok) {
-      const text = await tokenRes.text()
-      console.error('NetSuite token exchange failed', tokenRes.status, text.slice(0, 200))
-      return new Response(
-        JSON.stringify({ error: `Token exchange failed (${tokenRes.status})` }),
-        { status: 502, headers: { 'Content-Type': 'application/json' } },
-      )
-    }
-    const tokenPayload = await tokenRes.json()
-    accessToken = String(tokenPayload?.access_token ?? '')
-    if (!accessToken) {
-      return new Response(JSON.stringify({ error: 'No access_token in NetSuite response' }), {
-        status: 502, headers: { 'Content-Type': 'application/json' },
-      })
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('NetSuite token exchange error', message)
-    return new Response(JSON.stringify({ error: message }), {
+  // 3. Exchange a signed client assertion for a short-lived OAuth2 token (kept in-memory only).
+  const tokenResult = await fetchNetSuiteAccessToken({ accountId, clientId, certificateId, privateKeyPem })
+  if (!tokenResult.ok) {
+    console.error('NetSuite token exchange failed', tokenResult.error)
+    return new Response(JSON.stringify({ error: tokenResult.error }), {
       status: 502, headers: { 'Content-Type': 'application/json' },
     })
   }
+  const accessToken = tokenResult.token
 
   // 4. Claim a batch atomically (flips queued -> running with FOR UPDATE SKIP LOCKED).
   const { data: claimed, error: claimErr } = await supabase.rpc('claim_integration_sync_jobs', {

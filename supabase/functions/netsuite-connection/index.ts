@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { mapNetSuiteItemToProduct, netsuiteHost, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
+import { fetchNetSuiteAccessToken, generateNetSuiteCertificate, type NetSuiteM2MCredentials } from '../_shared/netsuite-auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -71,10 +72,10 @@ Deno.serve(async (req) => {
   }
 
   let body: {
-    action?: 'save' | 'test' | 'status' | 'list_items' | 'import_items'
+    action?: 'save' | 'generate_certificate' | 'test' | 'status' | 'list_items' | 'import_items'
     accountId?: string
     clientId?: string
-    clientSecret?: string
+    certificateId?: string
     webhookSecret?: string
     queueRunnerSecret?: string
     enabled?: boolean
@@ -114,28 +115,36 @@ Deno.serve(async (req) => {
     return data?.secret_value ?? null
   }
 
-  async function fetchAccessToken(accountId: string, clientId: string, clientSecret: string): Promise<{ ok: boolean; token?: string; error?: string }> {
-    const tokenUrl = `https://${netsuiteHost(accountId)}/services/rest/auth/oauth2/v1/token`
-    const basic = btoa(`${clientId}:${clientSecret}`)
-    try {
-      const res = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${basic}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'grant_type=client_credentials',
-      })
-      if (!res.ok) {
-        const text = await res.text()
-        return { ok: false, error: `NetSuite responded ${res.status}: ${text.slice(0, 200)}` }
-      }
-      const json = await res.json().catch(() => null) as { access_token?: string } | null
-      if (!json?.access_token) return { ok: false, error: 'NetSuite token response missing access_token' }
-      return { ok: true, token: json.access_token }
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  // OAuth 2.0 client credentials (M2M): the private key is a secret, while the
+  // certificate, its NetSuite-assigned ID and expiry are public and live in
+  // config. A client secret plays no part in this grant.
+  async function loadCredentials(connection: { id: string; config: unknown }): Promise<{ creds: NetSuiteM2MCredentials; missing: string[] }> {
+    const config = (connection.config ?? {}) as Record<string, unknown>
+    const creds = {
+      accountId: typeof config.account_id === 'string' ? config.account_id : '',
+      clientId: (await loadSecret(connection.id, 'netsuite_client_id')) ?? '',
+      certificateId: typeof config.certificate_id === 'string' ? config.certificate_id : '',
+      privateKeyPem: (await loadSecret(connection.id, 'netsuite_private_key')) ?? '',
     }
+    const missing = [
+      !creds.accountId && 'Account ID',
+      !creds.clientId && 'Client ID',
+      !creds.privateKeyPem && 'certificate (generate one)',
+      !creds.certificateId && 'Certificate ID',
+    ].filter((m): m is string => Boolean(m))
+    return { creds, missing }
+  }
+
+  async function runSuiteQL(accountId: string, token: string, q: string, limit: number, offset: number): Promise<Response> {
+    return await fetch(`https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Prefer: 'transient',
+      },
+      body: JSON.stringify({ q }),
+    })
   }
 
   const action = body.action ?? 'status'
@@ -144,34 +153,46 @@ Deno.serve(async (req) => {
     if (action === 'status') {
       const connection = await loadConnection()
       if (!connection) {
-        return json({ configured: false, enabled: false, accountIdMasked: null, clientIdMasked: null, queueRunnerConfigured: false, lastTestedAt: null })
+        return json({ configured: false, enabled: false, missing: [], accountIdMasked: null, clientIdMasked: null, certificateId: null, certificatePem: null, certificateExpiresAt: null, queueRunnerConfigured: false, lastTestedAt: null, lastTestOk: null })
       }
       const config = (connection.config ?? {}) as Record<string, unknown>
-      const clientId = await loadSecret(connection.id, 'netsuite_client_id')
-      const clientSecret = await loadSecret(connection.id, 'netsuite_client_secret')
+      const { creds, missing } = await loadCredentials(connection)
       const queueRunnerSecret = await loadSecret(connection.id, 'netsuite_queue_runner_secret')
       return json({
-        configured: Boolean(clientId && clientSecret && config.account_id),
+        configured: missing.length === 0,
         enabled: Boolean(connection.enabled),
-        accountIdMasked: maskTail(typeof config.account_id === 'string' ? config.account_id : null),
-        clientIdMasked: maskTail(clientId),
+        missing,
+        accountIdMasked: maskTail(creds.accountId),
+        clientIdMasked: maskTail(creds.clientId),
+        certificateId: creds.certificateId || null,
+        certificatePem: creds.privateKeyPem && typeof config.certificate_pem === 'string' ? config.certificate_pem : null,
+        certificateExpiresAt: typeof config.certificate_expires_at === 'string' ? config.certificate_expires_at : null,
         queueRunnerConfigured: Boolean(queueRunnerSecret),
         lastTestedAt: typeof config.last_tested_at === 'string' ? config.last_tested_at : null,
+        lastTestOk: typeof config.last_test_ok === 'boolean' ? config.last_test_ok : null,
       })
     }
 
     if (action === 'save') {
-      const accountId = (body.accountId ?? '').trim()
-      const clientId = (body.clientId ?? '').trim()
-      const clientSecret = (body.clientSecret ?? '').trim()
+      // Blank fields keep what is stored, so saving a Certificate ID does not
+      // require re-typing the Account ID and Client ID.
+      const accountIdInput = (body.accountId ?? '').trim()
+      const clientIdInput = (body.clientId ?? '').trim()
+      const certificateIdInput = (body.certificateId ?? '').trim()
       const enabled = Boolean(body.enabled)
-      if (!accountId || !clientId) {
-        return json({ error: 'Account ID and Client ID are required' }, 400)
-      }
 
       const existing = await loadConnection()
       const existingConfig = (existing?.config ?? {}) as Record<string, unknown>
-      const nextConfig = { ...existingConfig, account_id: accountId }
+      const accountId = accountIdInput || (typeof existingConfig.account_id === 'string' ? existingConfig.account_id : '')
+      const clientId = clientIdInput || (existing ? (await loadSecret(existing.id, 'netsuite_client_id')) ?? '' : '')
+      if (!accountId || !clientId) {
+        return json({ error: 'Account ID and Client ID are required' }, 400)
+      }
+      const nextConfig = {
+        ...existingConfig,
+        account_id: accountId,
+        ...(certificateIdInput ? { certificate_id: certificateIdInput } : {}),
+      }
 
       let connectionId: string
       if (existing) {
@@ -191,23 +212,12 @@ Deno.serve(async (req) => {
         connectionId = data.id
       }
 
-      // Client ID (always saved when provided)
-      await admin.from('integration_secrets').upsert(
-        { connection_id: connectionId, secret_type: 'netsuite_client_id', secret_value: clientId },
-        { onConflict: 'connection_id,secret_type' },
-      )
-
-      // Client secret only overwritten when a new value is provided
-      if (clientSecret) {
-        await admin.from('integration_secrets').upsert(
-          { connection_id: connectionId, secret_type: 'netsuite_client_secret', secret_value: clientSecret },
+      if (clientIdInput) {
+        const { error } = await admin.from('integration_secrets').upsert(
+          { connection_id: connectionId, secret_type: 'netsuite_client_id', secret_value: clientIdInput },
           { onConflict: 'connection_id,secret_type' },
         )
-      } else {
-        const existingSecret = await loadSecret(connectionId, 'netsuite_client_secret')
-        if (!existingSecret) {
-          return json({ error: 'Client Secret is required on first save' }, 400)
-        }
+        if (error) throw new Error(error.message)
       }
 
       // Shared secrets for the two server-to-server callers: the NetSuite
@@ -246,21 +256,57 @@ Deno.serve(async (req) => {
       })
     }
 
+    if (action === 'generate_certificate') {
+      const connection = await loadConnection()
+      if (!connection) return json({ error: 'Save the Account ID and Client ID before generating a certificate' }, 400)
+
+      const cert = await generateNetSuiteCertificate('Warehouse Wizard NetSuite M2M')
+      const { error: keyError } = await admin.from('integration_secrets').upsert(
+        { connection_id: connection.id, secret_type: 'netsuite_private_key', secret_value: cert.privateKeyPem },
+        { onConflict: 'connection_id,secret_type' },
+      )
+      if (keyError) throw new Error(keyError.message)
+
+      // The old Certificate ID names a certificate for the key just replaced.
+      const { certificate_id: _replaced, ...config } = (connection.config ?? {}) as Record<string, unknown>
+      const { error: configError } = await admin
+        .from('integration_connections')
+        .update({ config: { ...config, certificate_pem: cert.certificatePem, certificate_expires_at: cert.expiresAt, last_test_ok: false } })
+        .eq('id', connection.id)
+      if (configError) throw new Error(configError.message)
+
+      return json({ ok: true, certificatePem: cert.certificatePem, certificateExpiresAt: cert.expiresAt })
+    }
+
     if (action === 'test') {
       const connection = await loadConnection()
       if (!connection) return json({ ok: false, error: 'No NetSuite connection configured' })
-      const config = (connection.config ?? {}) as Record<string, unknown>
-      const accountId = typeof config.account_id === 'string' ? config.account_id : ''
-      const clientId = await loadSecret(connection.id, 'netsuite_client_id')
-      const clientSecret = await loadSecret(connection.id, 'netsuite_client_secret')
-      if (!accountId || !clientId || !clientSecret) {
-        return json({ ok: false, error: 'Credentials incomplete' })
+      const { creds, missing } = await loadCredentials(connection)
+      if (missing.length > 0) {
+        return json({ ok: false, error: `Credentials incomplete - missing ${missing.join(', ')}` })
       }
 
-      const tokenResult = await fetchAccessToken(accountId, clientId, clientSecret)
-      const ok = tokenResult.ok
-      const errorMessage = tokenResult.error ?? null
+      const tokenResult = await fetchNetSuiteAccessToken(creds)
+      let ok = tokenResult.ok
+      let errorMessage = tokenResult.ok ? null : tokenResult.error
 
+      // A token only proves authentication. The item browser also needs the
+      // role to run SuiteQL against items, so check that here rather than
+      // letting it surface later as an empty picker.
+      if (tokenResult.ok) {
+        try {
+          const res = await runSuiteQL(creds.accountId, tokenResult.token, 'SELECT id FROM item', 1, 0)
+          if (!res.ok) {
+            ok = false
+            errorMessage = `Authenticated, but the SuiteQL item query failed (${res.status}): ${(await res.text()).slice(0, 300)}. Give the mapped role REST Web Services and item view permissions.`
+          }
+        } catch (err) {
+          ok = false
+          errorMessage = err instanceof Error ? err.message : String(err)
+        }
+      }
+
+      const config = (connection.config ?? {}) as Record<string, unknown>
       const nextConfig = { ...config, last_tested_at: new Date().toISOString(), last_test_ok: ok }
       await admin
         .from('integration_connections')
@@ -273,17 +319,14 @@ Deno.serve(async (req) => {
     if (action === 'list_items') {
       const connection = await loadConnection()
       if (!connection) return json({ notConfigured: true, items: [], hasMore: false })
-      const config = (connection.config ?? {}) as Record<string, unknown>
-      const accountId = typeof config.account_id === 'string' ? config.account_id : ''
-      const clientId = await loadSecret(connection.id, 'netsuite_client_id')
-      const clientSecret = await loadSecret(connection.id, 'netsuite_client_secret')
-      if (!accountId || !clientId || !clientSecret) {
+      const { creds, missing } = await loadCredentials(connection)
+      if (missing.length > 0) {
         return json({ notConfigured: true, items: [], hasMore: false })
       }
 
-      const tokenResult = await fetchAccessToken(accountId, clientId, clientSecret)
-      if (!tokenResult.ok || !tokenResult.token) {
-        return json({ error: tokenResult.error ?? 'Failed to obtain NetSuite token' }, 502)
+      const tokenResult = await fetchNetSuiteAccessToken(creds)
+      if (!tokenResult.ok) {
+        return json({ error: tokenResult.error }, 502)
       }
 
       const rawLimit = typeof body.limit === 'number' ? Math.floor(body.limit) : 50
@@ -298,18 +341,9 @@ Deno.serve(async (req) => {
         : `WHERE isinactive = 'F'`
       const q = `SELECT id, itemid, displayname, upccode, isinactive FROM item ${where} ORDER BY itemid`
 
-      const suiteqlUrl = `https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`
       let suiteqlRes: Response
       try {
-        suiteqlRes = await fetch(suiteqlUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${tokenResult.token}`,
-            'Content-Type': 'application/json',
-            Prefer: 'transient',
-          },
-          body: JSON.stringify({ q }),
-        })
+        suiteqlRes = await runSuiteQL(creds.accountId, tokenResult.token, q, limit, offset)
       } catch (err) {
         return json({ error: err instanceof Error ? err.message : String(err) }, 502)
       }
