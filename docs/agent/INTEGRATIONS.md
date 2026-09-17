@@ -86,7 +86,14 @@ Login Audit Trail has the real reason.
 
 Deploying: a push to `main` syncs code into Lovable but does not redeploy edge functions. Deploy
 changed functions with a deploy-only Lovable agent message (it runs
-`supabase--deploy_edge_functions`), then confirm no code edits came back with `git fetch`.
+`supabase--deploy_edge_functions`), then confirm no code edits came back with `git fetch`. Keep the
+message to the deploy: if the agent finds its preview build-errors log, it may keep investigating
+(2.3 credits on 2026-09-16).
+
+Migrations can be applied by running the file's SQL through the Lovable MCP `query_database`.
+`supabase_migrations.schema_migrations` is not a reliable record on this project; it stops at
+`20260910131417` although later migrations are live. Check that a migration is applied by
+inspecting the objects it changes, for example `pg_get_functiondef`.
 
 Credential and configuration **names** (values live only in Supabase and GitHub secrets):
 
