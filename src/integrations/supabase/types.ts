@@ -5238,6 +5238,10 @@ export type Database = {
         Args: { p_line_id: string }
         Returns: undefined
       }
+      release_unrecorded_pallet_location: {
+        Args: { in_pallet_id: string; in_reason?: string }
+        Returns: Json
+      }
       render_notification_email: {
         Args: { in_data: Json; in_kind: string }
         Returns: {

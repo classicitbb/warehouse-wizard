@@ -71,6 +71,13 @@
       "when": 1789748962394,
       "tag": "0009_fix_claim_notification_dispatch_ambiguous_group_key",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789751422896,
+      "tag": "0010_release_unrecorded_pallet_location",
+      "breakpoints": true
     }
   ]
 }
