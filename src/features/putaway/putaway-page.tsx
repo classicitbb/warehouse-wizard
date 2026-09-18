@@ -189,6 +189,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
+import { UnrecordedPalletsBanner } from "@/features/inventory/unrecorded-pallets-banner";
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 
 
@@ -1106,6 +1107,7 @@ export function PutawayTasksPage() {
           <p className="mt-1 text-xs sm:text-sm">Your current task position stays on this device. When the signal returns, the app will refresh live bin state before it lets you confirm.</p>
         </div>
       ) : null}
+      <UnrecordedPalletsBanner warehouseId={activeWarehouseId} />
       <OrphanPutawayBanner warehouseId={activeWarehouseId} />
       {resumeNotice ? (
 
