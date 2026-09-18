@@ -61,10 +61,10 @@ export function UnrecordedPalletsBanner({ warehouseId }: { warehouseId?: string 
         reason: "Pallet found stored with no stock record",
       });
     },
-    onSuccess: async (draftId: string) => {
-      alertToast.success("Receiving draft opened for this pallet");
+    onSuccess: async () => {
+      alertToast.success("Receiving draft created — finish it in Receiving › Saved Drafts");
       await refresh();
-      navigate(`/receiving?draft=${draftId}`);
+      navigate("/receiving");
     },
     onError: (error: unknown) => {
       alertToast.noGo(error instanceof Error ? error.message : "Could not open a receiving draft");
