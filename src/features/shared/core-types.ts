@@ -926,6 +926,7 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
     if (!palletResult.error) {
       for (const row of palletResult.data ?? []) {
         if (!occupiesSlot(row)) continue;
+        if (row.id && !recordedPalletIds.has(row.id)) continue;
         const id = row.current_location_id;
         if (id) palletCounts.set(id, (palletCounts.get(id) ?? 0) + 1);
       }
