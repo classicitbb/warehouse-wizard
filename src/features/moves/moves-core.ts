@@ -11,6 +11,7 @@ import {
 import { writeSystemLog } from "@/features/system/system-core";
 import { upsertRecord } from "@/features/admin/admin-core";
 import { normalizeRackLocationCode } from "@/features/setup/setup-core";
+import { palletHasStockRecord, UNRECORDED_PALLET_MESSAGE } from "@/features/inventory/inventory-core";
 import { assertNotFrozen, getActiveFreeze } from "@/features/cycle-counts/freeze-core";
 import {
   exceedsClearance,
@@ -292,7 +293,7 @@ export async function createMoveTask(palletBarcode: string, toLocationCode: stri
 
 export type MoveValidationResult =
   | { valid: true; warnings: string[] }
-  | { valid: false; reason: string; warnings: string[]; requiresPutaway?: boolean };
+  | { valid: false; reason: string; warnings: string[]; requiresPutaway?: boolean; canReReceive?: boolean };
 
 /**
  * Pre-flight check before moving a pallet to a location.
