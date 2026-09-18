@@ -11,6 +11,7 @@ import {
 import { writeSystemLog } from "@/features/system/system-core";
 import { upsertRecord } from "@/features/admin/admin-core";
 import { normalizeRackLocationCode } from "@/features/setup/setup-core";
+import { palletHasStockRecord, UNRECORDED_PALLET_MESSAGE } from "@/features/inventory/inventory-core";
 import { assertNotFrozen, getActiveFreeze } from "@/features/cycle-counts/freeze-core";
 import {
   exceedsClearance,
@@ -292,7 +293,7 @@ export async function createMoveTask(palletBarcode: string, toLocationCode: stri
 
 export type MoveValidationResult =
   | { valid: true; warnings: string[] }
-  | { valid: false; reason: string; warnings: string[]; requiresPutaway?: boolean };
+  | { valid: false; reason: string; warnings: string[]; requiresPutaway?: boolean; canReReceive?: boolean };
 
 /**
  * Pre-flight check before moving a pallet to a location.
@@ -340,6 +341,14 @@ export async function validateMoveDestination(
   if (openPutaway) {
     return { valid: false, reason: openPutawayMoveReason(palletKey, openPutaway), warnings, requiresPutaway: true };
   }
+
+  // A pallet with no stock record cannot be stored, so it can never be moved
+  // into a bay either — the only way forward is to re-receive it.
+  if (!(await palletHasStockRecord(pallet.id))) {
+    return { valid: false, reason: UNRECORDED_PALLET_MESSAGE, warnings, canReReceive: true };
+  }
+
+
 
 
   // ── Fetch location ────────────────────────────────────────────────────────
@@ -472,6 +481,7 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   assertPalletCanMove(pallet.status);
   assertPalletIsPutAway(pallet);
   await assertPalletNotInOpenPutaway(pallet.id, palletBarcode);
+  if (!(await palletHasStockRecord(pallet.id))) throw new Error(UNRECORDED_PALLET_MESSAGE);
 
 
   const toLocation = await resolveMoveLocation(locationCode);
@@ -558,6 +568,7 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   assertPalletCanMove(pallet.status);
   assertPalletIsPutAway(pallet);
   await assertPalletNotInOpenPutaway(pallet.id, scannedPalletBarcode);
+  if (!(await palletHasStockRecord(pallet.id))) throw new Error(UNRECORDED_PALLET_MESSAGE);
 
   if (task.pallet_id !== pallet.id) {
     throw new Error("Scanned pallet does not match this move task.");

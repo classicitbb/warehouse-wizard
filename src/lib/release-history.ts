@@ -9,6 +9,18 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.29.8",
+    date: "September 2026",
+    changes: [
+      "A pallet with no stock record can no longer be stored — Put-Away and Location Moves refuse it and offer to re-receive it instead",
+      "Bay capacity and pallets-in-location counts now ignore pallets that have no stock record, so a bay is never shown as full by a pallet that isn't really there",
+      "New supervisor alert on Inventory and Put-Away lists any pallet holding a location with no stock record, with Release location or Re-receive on each row",
+    ],
+    fixes: [
+      "A pallet that turns up with no record — or with no receiving or put-away history behind it — is flagged instead of quietly occupying a location",
+    ],
+  },
+  {
     version: "1.29.7",
     date: "September 2026",
     changes: [

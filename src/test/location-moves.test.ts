@@ -44,6 +44,13 @@ vi.mock("@/integrations/supabase/client", () => {
           limit: () => chain,
           maybeSingle: () => nextSelect(table),
           single: () => nextSelect(table),
+          // Awaiting the builder directly (list read). A pallet is assumed to
+          // have its stock record unless a test says otherwise.
+          then: (resolve: (value: unknown) => unknown) =>
+            resolve(
+              mockDb.selects[table]?.shift() ??
+                (table === "inventory_balances" ? { data: [{ id: "bal-1" }], error: null } : { data: [], error: null }),
+            ),
         };
         return chain;
       },

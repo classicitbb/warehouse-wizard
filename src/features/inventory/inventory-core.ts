@@ -516,6 +516,125 @@ export async function checkLocationOccupancy(
   };
 }
 
+// ── Pallets with no record ────────────────────────────────────────────────
+// A pallet that has lost its stock record — or that shows a location with no
+// receiving line and no completed put-away/move behind it — cannot be stored.
+// It must not hold a bay. These helpers are the single definition used by
+// Inventory, Put-Away and Location Moves.
+
+export type UnrecordedPalletReason = "no_stock_record" | "no_provenance";
+
+export type UnrecordedPallet = {
+  palletId: string;
+  palletBarcode: string;
+  sku: string | null;
+  productName: string | null;
+  quantity: number;
+  warehouseId: string | null;
+  locationCode: string | null;
+  reason: UnrecordedPalletReason;
+};
+
+/** True when the pallet has no live inventory balance row. */
+export async function palletHasStockRecord(palletId: string): Promise<boolean> {
+  const { data, error } = await db("inventory_balances")
+    .select("id")
+    .eq("pallet_id", palletId)
+    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
+    .limit(1);
+  // A read failure must not block the floor by pretending the record is gone.
+  if (error) {
+    console.warn("[palletHasStockRecord] balance lookup failed", error);
+    return true;
+  }
+  return (data ?? []).length > 0;
+}
+
+export const UNRECORDED_PALLET_MESSAGE =
+  "This pallet has no stock record, so it cannot be stored. Re-receive it to record what is physically on it.";
+
+/** Pallet ids (of those given) that carry a live inventory balance. */
+export async function palletIdsWithStockRecord(palletIds: string[]): Promise<Set<string>> {
+  const unique = [...new Set(palletIds)].filter(Boolean);
+  if (unique.length === 0) return new Set();
+  const found = new Set<string>();
+  for (let index = 0; index < unique.length; index += 200) {
+    const batch = unique.slice(index, index + 200);
+    const { data, error } = await db("inventory_balances")
+      .select("pallet_id")
+      .in("pallet_id", batch)
+      .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER);
+    if (error) {
+      console.warn("[palletIdsWithStockRecord] balance lookup failed", error);
+      // Fail open: treat the batch as recorded rather than flagging good stock.
+      for (const id of batch) found.add(id);
+      continue;
+    }
+    for (const row of data ?? []) if (row.pallet_id) found.add(row.pallet_id);
+  }
+  return found;
+}
+
+export async function listUnrecordedStoredPallets(warehouseId?: string | null): Promise<UnrecordedPallet[]> {
+  let query = db("pallets")
+    .select(
+      "id, pallet_barcode, quantity, status, receipt_line_id, current_warehouse_id, current_location_id, products(sku, name), locations:current_location_id(code)",
+    )
+    .not("current_location_id", "is", null)
+    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
+    .limit(100);
+  if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  const pallets = (data ?? []) as any[];
+  if (pallets.length === 0) return [];
+
+  const palletIds = pallets.map((pallet) => pallet.id);
+  const recorded = await palletIdsWithStockRecord(palletIds);
+
+  const withoutReceipt = pallets.filter((pallet) => recorded.has(pallet.id) && !pallet.receipt_line_id);
+  const provenanceIds = new Set<string>();
+  if (withoutReceipt.length > 0) {
+    const ids = withoutReceipt.map((pallet) => pallet.id);
+    const [putaway, moves] = await Promise.all([
+      db("putaway_tasks").select("pallet_id").in("pallet_id", ids).eq("status", "completed"),
+      db("move_tasks").select("pallet_id").in("pallet_id", ids).eq("status", "completed"),
+    ]);
+    const proven = new Set<string>();
+    for (const row of putaway.data ?? []) if (row.pallet_id) proven.add(row.pallet_id);
+    for (const row of moves.data ?? []) if (row.pallet_id) proven.add(row.pallet_id);
+    if (putaway.error || moves.error) {
+      console.warn("[listUnrecordedStoredPallets] provenance lookup failed", putaway.error ?? moves.error);
+    } else {
+      for (const pallet of withoutReceipt) if (!proven.has(pallet.id)) provenanceIds.add(pallet.id);
+    }
+  }
+
+  return pallets
+    .filter((pallet) => !recorded.has(pallet.id) || provenanceIds.has(pallet.id))
+    .map((pallet) => ({
+      palletId: pallet.id,
+      palletBarcode: pallet.pallet_barcode,
+      sku: pallet.products?.sku ?? null,
+      productName: pallet.products?.name ?? null,
+      quantity: Number(pallet.quantity ?? 0),
+      warehouseId: pallet.current_warehouse_id ?? null,
+      locationCode: pallet.locations?.code ? displayRackLocationCode(pallet.locations.code) : null,
+      reason: recorded.has(pallet.id) ? ("no_provenance" as const) : ("no_stock_record" as const),
+    }));
+}
+
+export async function releaseUnrecordedPalletLocation(palletId: string, reason?: string): Promise<void> {
+  const { error } = await (supabase.rpc as any)("release_unrecorded_pallet_location", {
+    in_pallet_id: palletId,
+    in_reason: reason ?? null,
+  });
+  if (error) throw error;
+}
+
+
+
 
 export async function getBayOccupancy(locationCode: string): Promise<{
   anchorCode: string;

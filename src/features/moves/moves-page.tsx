@@ -371,6 +371,11 @@ export function LocationMovesPage() {
                     Go to Put-Away
                   </Button>
                 )}
+                {newValidation.canReReceive && (
+                  <Button type="button" size="sm" variant="outline" className="w-fit border-destructive/40" onClick={() => navigate("/receiving")}>
+                    Re-receive this pallet
+                  </Button>
+                )}
               </div>
             </div>
           )}

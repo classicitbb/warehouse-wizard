@@ -9,6 +9,7 @@ import {
 import { resolveLocationClearanceMm, resolvePalletHeightMm } from "@/lib/measure";
 import { normalizeRackLocationCode } from "@/features/setup/setup-core";
 import { assertNotFrozen } from "@/features/cycle-counts/freeze-core";
+import { palletHasStockRecord, UNRECORDED_PALLET_MESSAGE } from "@/features/inventory/inventory-core";
 
 export async function getPutawayTasks(userId?: string, warehouseId?: string | null) {
   let query = db("putaway_tasks")
@@ -55,6 +56,10 @@ export async function confirmPutaway(
   }
   if (!["receiving", "putaway", "hold", "quarantine"].includes(pallet.status)) {
     throw new Error(`Pallet is no longer available for putaway (status: ${pallet.status}).`);
+  }
+  // Nothing without a stock record may be placed in a bay.
+  if (!(await palletHasStockRecord(pallet.id))) {
+    throw new Error(UNRECORDED_PALLET_MESSAGE);
   }
 
   const { data: location, error: locationError } = await db("locations")

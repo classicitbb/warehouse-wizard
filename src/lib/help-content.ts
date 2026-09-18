@@ -193,7 +193,7 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     title: "Put-Away",
     summary: "After labels are confirmed printed, the pallet status becomes Put-Away (shown as Awaiting Put-Away). Put-Away confirms pallet and location scans before it becomes Put Away and available, and it re-validates live state after reconnects.",
     keyActions: ["Scan pallet", "Scan a full location or shortened bay code", "Select an available bay cell when prompted", "Reconnect and review live task/location state before confirming again after signal loss", "Complete directed put-away with audit logging"],
-    commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trusting a pre-disconnect location without the reconnect recheck", "Trying to store cool stock in ambient locations"],
+    commonMistakes: ["Scanning the wrong location", "Treating a bay code as a final location", "Trusting a pre-disconnect location without the reconnect recheck", "Trying to store cool stock in ambient locations", "Trying to store a pallet that has no stock record — re-receive it instead"],
     permissions: "Used by admins, managers, clerks, and operators.",
     wikiArticleIds: ["putaway-flow", "location-generation"],
   },
@@ -465,7 +465,7 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "How It Works", content: ["Put-Away begins only after printed labels were confirmed in Receiving; that stock is shown as Awaiting Put-Away.", "A full location code fills the confirmation field directly. A shortened bay code opens the bay selector so the operator can tap the exact available slot.", "Successful confirmation moves stock into Put Away and available status."] },
       { title: "Reconnect Safety", content: ["If signal drops, the current task position stays on the device, but the confirmation itself is frozen until connectivity returns.", "When the device reconnects, the screen refreshes live task, pallet, and location state. Be ready to reselect a location or restart the task if the live warehouse record no longer matches what was on screen before the disconnect."] },
-      { title: "Common Exceptions", content: ["A location that is inactive, full, or temperature-incompatible will block the move.", "Scan mismatches should be corrected before retrying."] },
+      { title: "Common Exceptions", content: ["A location that is inactive, full, or temperature-incompatible will block the move.", "Scan mismatches should be corrected before retrying.", "A pallet with no stock record cannot be stored at all. Put-Away and Location Moves refuse it and offer to re-receive it, which opens a receiving draft so the physical contents are recorded again."] },
     ],
   },
   {

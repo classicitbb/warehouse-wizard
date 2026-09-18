@@ -875,12 +875,31 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
         .in("location_id", batch)
         .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
       db("pallets")
-        .select("current_location_id, status, quantity, correction_state")
+        .select("id, current_location_id, status, quantity, correction_state")
         .in("current_location_id", batch)
         .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER),
     ]);
     return { balanceResult, palletResult };
   }));
+
+  // A pallet with no live stock record is not really stored — it must never
+  // make a bay look full or eat into its capacity.
+  const palletIds = batchResults
+    .flatMap(({ palletResult }) => (palletResult.error ? [] : (palletResult.data ?? [])))
+    .map((row: { id?: string }) => row.id)
+    .filter((id): id is string => Boolean(id));
+  const recordedPalletIds = new Set<string>(palletIds);
+  for (let index = 0; index < palletIds.length; index += LOCATION_OCCUPANCY_BATCH_SIZE) {
+    const batch = palletIds.slice(index, index + LOCATION_OCCUPANCY_BATCH_SIZE);
+    const { data, error } = await db("inventory_balances")
+      .select("pallet_id")
+      .in("pallet_id", batch)
+      .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER);
+    // Fail open on a read error: never drop real stock out of the count.
+    if (error) continue;
+    const found = new Set((data ?? []).map((row: { pallet_id?: string }) => row.pallet_id));
+    for (const id of batch) if (!found.has(id)) recordedPalletIds.delete(id);
+  }
 
   // Superseded correction rows and zeroed-out stock keep a location_id in the
   // database but no longer represent a physical pallet in the bay — counting
@@ -907,6 +926,7 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
     if (!palletResult.error) {
       for (const row of palletResult.data ?? []) {
         if (!occupiesSlot(row)) continue;
+        if (row.id && !recordedPalletIds.has(row.id)) continue;
         const id = row.current_location_id;
         if (id) palletCounts.set(id, (palletCounts.get(id) ?? 0) + 1);
       }

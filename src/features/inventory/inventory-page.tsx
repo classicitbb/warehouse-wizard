@@ -176,6 +176,7 @@ import {
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
 import { HelpSidebar } from "@/components/help-sidebar";
+import { UnrecordedPalletsBanner } from "@/features/inventory/unrecorded-pallets-banner";
 import { ZoneLabelPage } from "@/components/zone-label-page";
 import { LocationLabelPage } from "@/components/location-label-page";
 import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
@@ -393,6 +394,7 @@ export function InventorySearchPage() {
           </HintButton>
         </div>
       </div>
+      <UnrecordedPalletsBanner warehouseId={warehouseId || null} />
       <Card>
         <CardContent className="flex flex-col gap-2 p-3">
           <div className="flex flex-wrap items-center gap-2">
