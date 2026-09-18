@@ -342,6 +342,14 @@ export async function validateMoveDestination(
     return { valid: false, reason: openPutawayMoveReason(palletKey, openPutaway), warnings, requiresPutaway: true };
   }
 
+  // A pallet with no stock record cannot be stored, so it can never be moved
+  // into a bay either — the only way forward is to re-receive it.
+  if (!(await palletHasStockRecord(pallet.id))) {
+    return { valid: false, reason: UNRECORDED_PALLET_MESSAGE, warnings, canReReceive: true };
+  }
+
+
+
 
   // ── Fetch location ────────────────────────────────────────────────────────
   const location = await resolveMoveLocation(locationKey);
