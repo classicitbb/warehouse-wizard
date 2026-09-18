@@ -481,6 +481,7 @@ export async function completeDirectMove(palletBarcode: string, locationCode: st
   assertPalletCanMove(pallet.status);
   assertPalletIsPutAway(pallet);
   await assertPalletNotInOpenPutaway(pallet.id, palletBarcode);
+  if (!(await palletHasStockRecord(pallet.id))) throw new Error(UNRECORDED_PALLET_MESSAGE);
 
 
   const toLocation = await resolveMoveLocation(locationCode);
@@ -567,6 +568,7 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
   assertPalletCanMove(pallet.status);
   assertPalletIsPutAway(pallet);
   await assertPalletNotInOpenPutaway(pallet.id, scannedPalletBarcode);
+  if (!(await palletHasStockRecord(pallet.id))) throw new Error(UNRECORDED_PALLET_MESSAGE);
 
   if (task.pallet_id !== pallet.id) {
     throw new Error("Scanned pallet does not match this move task.");
