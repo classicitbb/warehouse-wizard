@@ -78,6 +78,20 @@
       "when": 1789751422896,
       "tag": "0010_release_unrecorded_pallet_location",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789781386893,
+      "tag": "0011_harden_rbac_metadata_read_and_anon_definer_execute",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789781409818,
+      "tag": "0012_revoke_public_execute_on_definer_functions",
+      "breakpoints": true
     }
   ]
 }
