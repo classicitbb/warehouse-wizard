@@ -92,6 +92,13 @@
       "when": 1789781409818,
       "tag": "0012_revoke_public_execute_on_definer_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790012805526,
+      "tag": "0013_allow_supervisor_release_unrecorded_pallet",
+      "breakpoints": true
     }
   ]
 }
