@@ -12,7 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 function query(rows: unknown[], error: unknown = null) {
   const builder: any = {};
-  for (const method of ["select", "eq", "is", "not", "limit", "in", "order"]) {
+  for (const method of ["select", "eq", "is", "not", "limit", "in", "order", "range"]) {
     builder[method] = vi.fn(() => builder);
   }
   builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: rows, error });
