@@ -575,19 +575,31 @@ export async function palletIdsWithStockRecord(palletIds: string[]): Promise<Set
   return found;
 }
 
-export async function listUnrecordedStoredPallets(warehouseId?: string | null): Promise<UnrecordedPallet[]> {
-  let query = db("pallets")
-    .select(
-      "id, pallet_barcode, quantity, status, receipt_line_id, current_warehouse_id, current_location_id, products(sku, name), locations:current_location_id(code)",
-    )
-    .not("current_location_id", "is", null)
-    .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
-    .limit(100);
-  if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
+const UNRECORDED_SCAN_PAGE_SIZE = 500;
+const UNRECORDED_SCAN_MAX_PAGES = 40;
 
-  const { data, error } = await query;
-  if (error) throw error;
-  const pallets = (data ?? []) as any[];
+export async function listUnrecordedStoredPallets(warehouseId?: string | null): Promise<UnrecordedPallet[]> {
+  // Every stored pallet has to be checked, not an arbitrary first page: a pallet
+  // that lost its record is invisible in the banner otherwise, and the bay it
+  // blocks stays hidden. Paged so a busy warehouse never times out on one read.
+  const pallets: any[] = [];
+  for (let page = 0; page < UNRECORDED_SCAN_MAX_PAGES; page += 1) {
+    let query = db("pallets")
+      .select(
+        "id, pallet_barcode, quantity, status, receipt_line_id, current_warehouse_id, current_location_id, products(sku, name), locations:current_location_id(code)",
+      )
+      .not("current_location_id", "is", null)
+      .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
+      .order("id", { ascending: true })
+      .range(page * UNRECORDED_SCAN_PAGE_SIZE, (page + 1) * UNRECORDED_SCAN_PAGE_SIZE - 1);
+    if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = (data ?? []) as any[];
+    pallets.push(...rows);
+    if (rows.length < UNRECORDED_SCAN_PAGE_SIZE) break;
+  }
   if (pallets.length === 0) return [];
 
   const palletIds = pallets.map((pallet) => pallet.id);
