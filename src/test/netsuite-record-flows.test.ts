@@ -7,6 +7,11 @@ import {
   payloadDigest,
   timingSafeEqual,
 } from "../../supabase/functions/_shared/netsuite";
+import {
+  NETSUITE_OUTBOUND_JOB_TYPES,
+  netSuiteOutboundClaimArgs,
+  netSuiteWebhookIdempotencyKey,
+} from "../../supabase/functions/_shared/netsuite-queue";
 
 /**
  * Contract coverage for the NetSuite record flows a tester exercises by hand:
@@ -27,10 +32,10 @@ import {
  *   3. the claim filter, which is the only thing standing between a parked
  *      sales order row and a permanent dead letter.
  *
- * Handler behaviour is asserted against source text, the approach
- * migration.test.ts and web-push-notifications.test.ts already take: edge
- * functions are Deno modules with a top-level `Deno.serve`, so they cannot be
- * imported here. Pure helpers are imported and executed for real.
+ * Edge functions are Deno modules with a top-level `Deno.serve`, so handler
+ * wiring is asserted from source. Their idempotency key and claim arguments
+ * are shared pure helpers, imported and executed here (and by the no-network
+ * smoke harness).
  */
 
 const read = (file: string) =>
@@ -145,16 +150,25 @@ describe("NetSuite webhook idempotency key", () => {
   };
 
   it("is recordType:externalId:lastModified", () => {
-    expect(webhook).toContain("const idempotencyKey = `${recordType}:${externalId}:${lastModifiedKey}`");
+    expect(webhook).toContain("enqueueNetSuiteWebhookDelivery");
   });
 
-  it("prefers the body's lastModified, then the payload's, then a digest of the body", () => {
-    expect(webhook).toContain("const lastModifiedKey = body.lastModified");
-    expect(webhook).toContain("(payload as { lastModified?: string | number }).lastModified");
-    expect(webhook).toContain("`sha256-${await payloadDigest(body)}`");
+  it("prefers the body's lastModified, then the payload's, then a digest of the body", async () => {
+    const bodyKey = await netSuiteWebhookIdempotencyKey({
+      recordType: "sales_order", externalId: "SO-1", lastModified: "body", payload: { lastModified: "payload" },
+    });
+    const payloadKey = await netSuiteWebhookIdempotencyKey({
+      recordType: "sales_order", externalId: "SO-1", payload: { lastModified: "payload" },
+    });
+    const digestKey = await netSuiteWebhookIdempotencyKey({
+      recordType: "sales_order", externalId: "SO-1", payload: { tranId: "SO-1" },
+    });
+    expect(bodyKey).toBe("sales_order:SO-1:body");
+    expect(payloadKey).toBe("sales_order:SO-1:payload");
+    expect(digestKey).toMatch(/^sales_order:SO-1:sha256-[0-9a-f]{16}$/);
     // Never a timestamp: a Date.now() fallback made every redelivery unique and
     // defeated the unique constraint the whole design rests on.
-    expect(webhook).not.toMatch(/lastModifiedKey[\s\S]{0,120}Date\.now\(\)/);
+    expect(read("supabase/functions/_shared/netsuite-queue.ts")).not.toMatch(/Date\.now\(\)/);
   });
 
   it("gives a redelivered sales order the same digest, whatever order NetSuite serialises fields in", async () => {
@@ -214,8 +228,9 @@ describe("NetSuite webhook idempotency key", () => {
   it("dedupes on the unique constraint rather than a read-then-write race", () => {
     // Two SuiteScript deliveries can land concurrently. The insert is attempted
     // unconditionally and 23505 is read as "already have it".
-    expect(webhook).toContain("if ((insertErr as { code?: string }).code !== '23505')");
-    expect(webhook).toContain("conflict = true");
+    const queueHelpers = read("supabase/functions/_shared/netsuite-queue.ts");
+    expect(queueHelpers).toContain("if (error.code !== '23505')");
+    expect(queueHelpers).toContain("duplicate: true");
   });
 });
 
@@ -223,8 +238,9 @@ describe("NetSuite webhook idempotency key", () => {
 
 describe("NetSuite outbound queue and the parked order rows", () => {
   it("claims only job types that have an outbound implementation", () => {
-    expect(worker).toContain("const OUTBOUND_JOB_TYPES = ['inventory_adjustment']");
-    expect(worker).toContain("p_job_types: OUTBOUND_JOB_TYPES");
+    expect(NETSUITE_OUTBOUND_JOB_TYPES).toEqual(["inventory_adjustment"]);
+    expect(netSuiteOutboundClaimArgs("connection", 20).p_job_types).toEqual(["inventory_adjustment"]);
+    expect(worker).toContain("netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE)");
   });
 
   it("the claim function defaults to the same single type and filters on it in SQL", () => {
@@ -267,7 +283,7 @@ describe("NetSuite outbound queue and the parked order rows", () => {
 
   it("skips the whole drain, without claiming, until the adjustment account is configured", () => {
     const guard = worker.indexOf("adjustment_account_not_configured");
-    const claim = worker.indexOf("rpc('claim_integration_sync_jobs'");
+    const claim = worker.indexOf("netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE)");
     expect(guard).toBeGreaterThan(0);
     expect(claim).toBeGreaterThan(guard);
   });

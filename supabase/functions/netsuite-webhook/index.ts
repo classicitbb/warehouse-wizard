@@ -22,7 +22,8 @@
 // types are logged + queued for a future processor and return processed=false.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { mapNetSuiteItemToProduct, payloadDigest, timingSafeEqual, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
+import { mapNetSuiteItemToProduct, timingSafeEqual, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
+import { enqueueNetSuiteWebhookDelivery, type NetSuiteWebhookEnvelope } from '../_shared/netsuite-queue.ts'
 
 const SUPPORTED_RECORD_TYPES = new Set([
   'item',
@@ -110,42 +111,43 @@ Deno.serve(async (req) => {
   // failed delivery with the *same* body, so a Date.now() fallback made every
   // redelivery a fresh idempotency key and defeated the unique constraint that
   // this whole design rests on.
-  const lastModifiedKey = body.lastModified
-    ?? (payload as { lastModified?: string | number }).lastModified
-    ?? `sha256-${await payloadDigest(body)}`
-  const idempotencyKey = `${recordType}:${externalId}:${lastModifiedKey}`
-
   // ── 4. Insert sync job (idempotent on connection_id + idempotency_key) ───
-  const { data: insertedJob, error: insertErr } = await service
-    .from('integration_sync_jobs')
-    .insert({
-      connection_id: connection.id,
-      job_type: recordType,
-      status: 'queued',
-      idempotency_key: idempotencyKey,
-      payload: body as unknown as Record<string, unknown>,
+  let delivery: Awaited<ReturnType<typeof enqueueNetSuiteWebhookDelivery>>
+  try {
+    delivery = await enqueueNetSuiteWebhookDelivery({
+      async insert(input) {
+        const { data, error } = await service
+          .from('integration_sync_jobs')
+          .insert({
+            connection_id: input.connectionId,
+            job_type: input.jobType,
+            status: 'queued',
+            idempotency_key: input.idempotencyKey,
+            payload: input.payload,
+          })
+          .select('id')
+          .maybeSingle()
+        return { data, error }
+      },
+      async findByIdempotencyKey(input) {
+        const { data } = await service
+          .from('integration_sync_jobs')
+          .select('id')
+          .eq('connection_id', input.connectionId)
+          .eq('idempotency_key', input.idempotencyKey)
+          .maybeSingle()
+        return data
+      },
+    }, {
+      connectionId: connection.id,
+      body: body as NetSuiteWebhookEnvelope,
     })
-    .select('id, status')
-    .maybeSingle()
-
-  let jobId: string | null = insertedJob?.id ?? null
-  let conflict = false
-
-  if (insertErr) {
-    // 23505 = unique_violation → NetSuite redelivery of the same event.
-    // Any other error is a real failure.
-    if ((insertErr as { code?: string }).code !== '23505') {
-      return json({ error: 'Failed to record sync job', detail: insertErr.message }, 500)
-    }
-    conflict = true
-    const { data: existing } = await service
-      .from('integration_sync_jobs')
-      .select('id')
-      .eq('connection_id', connection.id)
-      .eq('idempotency_key', idempotencyKey)
-      .maybeSingle()
-    jobId = existing?.id ?? null
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    return json({ error: 'Failed to record sync job', detail }, 500)
   }
+
+  const jobId = delivery.jobId
 
   // Always log the raw inbound payload, even on redelivery — useful for
   // debugging NetSuite-side retries.
@@ -157,7 +159,7 @@ Deno.serve(async (req) => {
   })
 
   // Redelivery: return 200 without re-processing.
-  if (conflict) {
+  if (delivery.duplicate) {
     return json({ received: true, jobId, recordType, processed: false, duplicate: true })
   }
 

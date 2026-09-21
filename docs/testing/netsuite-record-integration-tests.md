@@ -9,8 +9,25 @@ Three layers, each runnable on its own:
 | Layer | Where | Needs NetSuite? | Command |
 |---|---|---|---|
 | Contract | `src/test/netsuite-record-flows.test.ts` | no | `npm test -- netsuite-record-flows` |
+| Smoke | `src/test/netsuite-smoke-harness.test.ts` | no — memory-only mock | `npm run test -- --run src/test/netsuite-smoke-harness.test.ts` |
 | Live API | `src/test/netsuite-live.integration.test.ts` | yes (skipped without credentials) | see [Running the live suite](#running-the-live-suite) |
 | Manual | this document, cases NS-01…NS-15 | yes | by hand |
+
+## No-network smoke harness
+
+Run this before a sandbox exercise when the question is only whether the
+current webhook/queue boundary remains safe:
+
+```bash
+npm run test -- --run src/test/netsuite-smoke-harness.test.ts
+```
+
+It uses the same shared enqueue and queue-claim argument helpers as the Deno
+edge functions, but replaces Supabase with an in-memory repository. It proves
+that a duplicate `item` delivery returns the original job rather than creating
+a second job, an inbound `purchase_order` remains `queued`, and the worker's
+atomic claim request names only `inventory_adjustment`. It has no environment
+variables, does not call NetSuite or Supabase, and creates no secrets or data.
 
 ## What the adapter actually does today
 

@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildNetSuiteInventoryAdjustment, netsuiteAdjustmentExternalId, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
 import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
+import { netSuiteOutboundClaimArgs } from '../_shared/netsuite-queue.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -15,8 +16,6 @@ const BATCH_SIZE = 20
 // processors that do not exist yet. Claiming them here would run them through
 // the isPermanent branch below and dead-letter them permanently, so the claim
 // is filtered to the types that actually have an outbound implementation.
-const OUTBOUND_JOB_TYPES = ['inventory_adjustment']
-
 function parseJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split('.')
   if (parts.length < 2) return null
@@ -168,11 +167,10 @@ Deno.serve(async (req) => {
   const accessToken = tokenResult.token
 
   // 4. Claim a batch atomically (flips queued -> running with FOR UPDATE SKIP LOCKED).
-  const { data: claimed, error: claimErr } = await supabase.rpc('claim_integration_sync_jobs', {
-    p_connection_id: connection.id,
-    p_limit: BATCH_SIZE,
-    p_job_types: OUTBOUND_JOB_TYPES,
-  })
+  const { data: claimed, error: claimErr } = await supabase.rpc(
+    'claim_integration_sync_jobs',
+    netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE),
+  )
   if (claimErr) {
     console.error('Failed to claim NetSuite jobs', claimErr)
     return new Response(JSON.stringify({ error: claimErr.message }), {

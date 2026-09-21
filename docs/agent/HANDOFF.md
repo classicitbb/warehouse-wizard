@@ -2,7 +2,39 @@
 
 - Repository: `classicitbb/warehouse-wizard`
 - Status: Incomplete — NetSuite inventory adjustment payload fix is merged to `main` and awaits migration and edge-function deployment approval; NetSuite M2M authentication fix is deployed and awaits the certificate upload in NetSuite; Release policy / fleet freshness awaits database migration and deployment approval; Copilot composer still awaits authorized browser verification
-- Last updated: 2026-09-16
+- Last updated: 2026-09-21
+
+## NetSuite non-production smoke harness — 2026-09-21
+
+- Objective: provide executable proof for the current webhook and queue-worker
+  safety boundaries without touching a live or sandbox endpoint.
+- Completed: extracted the webhook's insert-or-duplicate decision and the
+  worker's filtered-claim arguments into
+  `supabase/functions/_shared/netsuite-queue.ts`; both Deno entry points use
+  those helpers. Added `src/test/netsuite-smoke-harness.test.ts`, an in-memory
+  Supabase-shaped harness proving a repeated `item` delivery returns the first
+  job, an inbound `purchase_order` stays `queued`, and the worker passes only
+  `inventory_adjustment` to `claim_integration_sync_jobs`. Updated the existing
+  contract test to execute the same helpers and documented the standalone
+  no-network command in `docs/testing/netsuite-record-integration-tests.md`.
+- Affected files: `supabase/functions/_shared/netsuite-queue.ts`,
+  `supabase/functions/netsuite-webhook/index.ts`,
+  `supabase/functions/process-netsuite-queue/index.ts`,
+  `src/test/netsuite-smoke-harness.test.ts`,
+  `src/test/netsuite-record-flows.test.ts`, and
+  `docs/testing/netsuite-record-integration-tests.md`.
+- Verification: `npm run test -- --run src/test/netsuite-smoke-harness.test.ts
+  src/test/netsuite-record-flows.test.ts` passes (2 files, 36 tests),
+  `npm run typecheck` passes, both changed functions bundle with esbuild, and
+  `git diff --check` passes.
+- Environment state: local source/test/documentation only; no deployment,
+  secret, endpoint request, sandbox/production data write, or migration run.
+  This harness work is complete. The existing NetSuite certificate upload and
+  edge-function/migration approval items below remain active.
+- Exact next action: when a real sandbox round-trip is explicitly authorized,
+  use the opt-in live suite in `src/test/netsuite-live.integration.test.ts`;
+  otherwise run `npm run test -- --run src/test/netsuite-smoke-harness.test.ts`
+  after future webhook or queue changes.
 
 ## NetSuite inventory adjustment payload — 2026-09-16
 
