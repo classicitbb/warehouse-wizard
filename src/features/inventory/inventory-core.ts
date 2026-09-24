@@ -199,6 +199,34 @@ async function findOrphanPalletRows(term: string, knownPalletIds: Set<string>) {
     }));
 }
 
+/** Statuses the connected database's `inventory_status` enum turned out not to
+ *  have. The repo schema defines "picked", but deployed projects have drifted
+ *  from it, and naming a missing enum value makes Postgres reject the whole
+ *  query (22P02) — which failed every Inventory Search count there. Learned
+ *  from the error rather than hardcoded so a correctly migrated database still
+ *  filters on the full set. */
+const statusesMissingFromDbEnum = new Set<string>();
+
+function missingInventoryStatusFrom(error: unknown): string | null {
+  const value = error as { code?: string; message?: string } | null;
+  if (value?.code !== "22P02") return null;
+  const match = /invalid input value for enum inventory_status: "([^"]+)"/.exec(value.message ?? "");
+  return match && !statusesMissingFromDbEnum.has(match[1]) ? match[1] : null;
+}
+
+/** Runs an inventory query, retrying without any status the enum rejects. */
+async function withInventoryStatusFallback<T>(run: () => Promise<T>): Promise<T> {
+  for (;;) {
+    try {
+      return await run();
+    } catch (error) {
+      const missing = missingInventoryStatusFrom(error);
+      if (!missing) throw error;
+      statusesMissingFromDbEnum.add(missing);
+    }
+  }
+}
+
 /** The filters Postgres can apply. Shared so the row query and the total-row
  *  count can never drift apart and report two different tables. */
 type InventoryServerFilters = {
@@ -213,7 +241,11 @@ function applyInventoryServerFilters(query: any, filters: InventoryServerFilters
     query = query.eq("warehouse_id", filters.warehouseId);
   }
   if (filters.status && filters.status !== "all") {
-    query = query.eq("status", filters.status);
+    // A status the enum lacks can't match any balance row, and comparing
+    // against it would fail the query outright — so match nothing instead.
+    query = statusesMissingFromDbEnum.has(filters.status)
+      ? query.is("inventory_balance_id", null)
+      : query.eq("status", filters.status);
   }
   if (filters.ageBucket) {
     const minimumDays = filters.ageBucket === "12m" ? 365 : filters.ageBucket === "6m" ? 180 : 90;
@@ -230,7 +262,9 @@ function applyInventoryServerFilters(query: any, filters: InventoryServerFilters
 
 /** PostgREST `in` list matching `isRetiredInventoryStatus`, built from the same
  *  set so adding a status there also excludes it from the browse count. */
-const RETIRED_STATUS_IN_LIST = `(${Array.from(RETIRED_INVENTORY_STATUSES).join(",")})`;
+function retiredStatusInList() {
+  return `(${Array.from(RETIRED_INVENTORY_STATUSES).filter((status) => !statusesMissingFromDbEnum.has(status)).join(",")})`;
+}
 
 /** `col <> value` is NULL — and therefore false — for a NULL column, so every
  *  "is not X" filter has to spell the NULL case out. */
@@ -247,7 +281,11 @@ function isNot(column: string, value: string) {
  * matched client-side over the full result set, where the exact match count is
  * already in hand.
  */
-export async function countInventory(filters: InventoryServerFilters & { includeHistoric?: boolean }) {
+export function countInventory(filters: InventoryServerFilters & { includeHistoric?: boolean }) {
+  return withInventoryStatusFallback(() => countInventoryOnce(filters));
+}
+
+async function countInventoryOnce(filters: InventoryServerFilters & { includeHistoric?: boolean }) {
   const includeHistoric = Boolean(filters.includeHistoric);
   if (!includeHistoric && filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) {
     return 0;
@@ -263,7 +301,7 @@ export async function countInventory(filters: InventoryServerFilters & { include
     query = query
       .or(isNot("correction_state", "superseded"))
       .or(isNot("pallet_correction_state", "superseded"))
-      .or(`status.is.null,status.not.in.${RETIRED_STATUS_IN_LIST}`)
+      .or(`status.is.null,status.not.in.${retiredStatusInList()}`)
       .or("available_quantity.gt.0,quantity.gt.0");
   }
   const { count, error } = await query;
@@ -271,7 +309,7 @@ export async function countInventory(filters: InventoryServerFilters & { include
   return count ?? 0;
 }
 
-export async function searchInventory(filters: {
+type InventorySearchFilters = {
   search?: string;
   warehouseId?: string;
   status?: InventoryStatus | "all";
@@ -282,7 +320,13 @@ export async function searchInventory(filters: {
   limit?: number;
   /** Include retired/zero-quantity rows while browsing (a search term implies it). */
   includeHistoric?: boolean;
-}) {
+};
+
+export function searchInventory(filters: InventorySearchFilters) {
+  return withInventoryStatusFallback(() => searchInventoryOnce(filters));
+}
+
+async function searchInventoryOnce(filters: InventorySearchFilters) {
   const searchTokens = (filters.search ?? "")
     .trim()
     .toLowerCase()

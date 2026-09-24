@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -1111,13 +1111,15 @@ export function ResourcePage({
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
-                  {tableFields.map((field) => (
-                    <Fragment key={field.name}>
-                      {resource.table === "locations" && field.name === "max_pallets" ? (
-                        <TableHead className={cn("w-20", isLocations && "h-7 px-2 py-1 text-xs")}>Label</TableHead>
-                      ) : null}
-                      {isProducts ? (
+                  {/* Keyed arrays rather than <Fragment>: the dev-only lovable-tagger stamps
+                      data-lov-id onto every JSX element, and React rejects it on Fragment. */}
+                  {tableFields.map((field) => [
+                      resource.table === "locations" && field.name === "max_pallets" ? (
+                        <TableHead key={`${field.name}-label`} className={cn("w-20", isLocations && "h-7 px-2 py-1 text-xs")}>Label</TableHead>
+                      ) : null,
+                      isProducts ? (
                         <ProductColumnHeader
+                          key={field.name}
                           columnKey={field.name}
                           label={field.label}
                           kind={
@@ -1143,10 +1145,11 @@ export function ResourcePage({
                           }
                         />
                       ) : (
-                        <TableHead className={cn(denseCompact && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
-                      )}
-                      {isProducts && field.name === "name" ? (
+                        <TableHead key={field.name} className={cn(denseCompact && "h-7 px-2 py-1 text-xs")}>{field.label}</TableHead>
+                      ),
+                      isProducts && field.name === "name" ? (
                         <ProductColumnHeader
+                          key={`${field.name}-qty`}
                           columnKey={PRODUCT_QTY_COLUMN}
                           label="Qty"
                           kind="number"
@@ -1164,12 +1167,11 @@ export function ResourcePage({
                             })
                           }
                         />
-                      ) : null}
-                      {isProducts && field.name === "supplier_lead_time_days" ? (
-                        <TableHead className="h-8 w-40 px-2 py-1 text-xs">Pack std</TableHead>
-                      ) : null}
-                    </Fragment>
-                  ))}
+                      ) : null,
+                      isProducts && field.name === "supplier_lead_time_days" ? (
+                        <TableHead key={`${field.name}-pack`} className="h-8 w-40 px-2 py-1 text-xs">Pack std</TableHead>
+                      ) : null,
+                  ])}
                   {hasTrailingLabelColumn ? <TableHead className="w-28">Label</TableHead> : null}
                   {resource.supportsHide ? <TableHead className={cn("w-32", denseCompact && "h-7 px-2 py-1 text-xs")}>Visibility</TableHead> : null}
                   <TableHead className={cn("w-16", denseCompact && "h-7 px-2 py-1")} />
@@ -1242,9 +1244,8 @@ export function ResourcePage({
                           : undefined;
                         const cell = <TableCell key={field.name} className={denseCellClass}>{displayValue}</TableCell>;
                         if (resource.table === "locations" && field.name === "max_pallets") {
-                          return (
-                            <Fragment key={field.name}>
-                              <TableCell className="w-20 px-2 py-1">
+                          return [
+                              <TableCell key={`${field.name}-label`} className="w-20 px-2 py-1">
                                 <LocationLabelPage
                                   code={String((row as Record<string, unknown>).code ?? "")}
                                   aisle={(row as Record<string, unknown>).aisle as string | null}
@@ -1268,37 +1269,32 @@ export function ResourcePage({
                                     </Button>
                                   }
                                 />
-                              </TableCell>
-                              {cell}
-                            </Fragment>
-                          );
+                              </TableCell>,
+                              cell,
+                          ];
                         }
                         if (isProducts && field.name === "name") {
                           const qty = productQtyMap.get(String((row as Record<string, unknown>).id ?? "")) ?? 0;
-                          return (
-                            <Fragment key={field.name}>
-                              {cell}
-                              <TableCell className="w-20 whitespace-nowrap text-right font-mono text-xs font-semibold">
+                          return [
+                              cell,
+                              <TableCell key={`${field.name}-qty`} className="w-20 whitespace-nowrap text-right font-mono text-xs font-semibold">
                                 {formatNumber(qty)}
-                              </TableCell>
-                            </Fragment>
-                          );
+                              </TableCell>,
+                          ];
                         }
                         if (isProducts && field.name === "supplier_lead_time_days") {
                           const packSummary = productPackMap.get(String((row as Record<string, unknown>).id ?? ""));
                           const packLine = formatPackStandardLine(packSummary);
-                          return (
-                            <Fragment key={field.name}>
-                              {cell}
-                              <TableCell className="w-40 px-2 py-1 font-mono text-xs">
+                          return [
+                              cell,
+                              <TableCell key={`${field.name}-pack`} className="w-40 px-2 py-1 font-mono text-xs">
                                 {packLine ? (
                                   <span title={packSummary?.profileName || undefined}>{packLine}</span>
                                 ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
-                              </TableCell>
-                            </Fragment>
-                          );
+                              </TableCell>,
+                          ];
                         }
                         return cell;
                       })}

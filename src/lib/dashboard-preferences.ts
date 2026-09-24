@@ -51,14 +51,36 @@ export type DashboardTileDefinition<ModuleKey extends string = string> = Dashboa
 export type DashboardVisibilityMap = Record<string, boolean>;
 
 
+// Tables confirmed absent this session. The preference migration isn't applied
+// on every project, and each dashboard load otherwise fired 12 requests that
+// all 404 (3 modes x 2 tables, twice as feature flags settle).
+const missingDashboardPreferenceTables = new Set<string>();
+
 function isMissingDashboardPreferenceTable(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const value = error as { code?: string; message?: string };
   const message = value.message ?? "";
-  return (
-    (value.code === "PGRST205" || value.code === "42P01") &&
-    DASHBOARD_PREFERENCE_TABLES.some((table) => message.includes(table))
-  );
+  if (value.code !== "PGRST205" && value.code !== "42P01") return false;
+  const table = DASHBOARD_PREFERENCE_TABLES.find((name) => message.includes(name));
+  if (!table) return false;
+  missingDashboardPreferenceTables.add(table);
+  return true;
+}
+
+// The three modes load in parallel, so all of them would fire before the first
+// 404 lands. Later callers wait for the first request per table to settle, then
+// skip the network entirely if it proved the table missing.
+const firstDashboardPreferenceRequest = new Map<string, Promise<unknown>>();
+
+async function withDashboardPreferenceTable<T>(table: string, fallback: T, run: () => Promise<T>): Promise<T> {
+  const first = firstDashboardPreferenceRequest.get(table);
+  if (!first) {
+    const request = run();
+    firstDashboardPreferenceRequest.set(table, request.catch(() => undefined));
+    return request;
+  }
+  await first;
+  return missingDashboardPreferenceTables.has(table) ? fallback : run();
 }
 
 export function sanitizeDashboardLayout(
@@ -108,17 +130,20 @@ export function hiddenDashboardTiles(
 }
 
 export async function loadDashboardTileVisibility(userId: string, mode: DashboardModeKey): Promise<DashboardVisibilityMap> {
-  const { data, error } = await db("dashboard_tile_visibility")
-    .select("tile_id, visible")
-    .eq("user_id", userId)
-    .eq("mode", mode);
-  if (isMissingDashboardPreferenceTable(error)) return {};
-  if (error) throw error;
-  const rows = (data ?? []) as Array<{ tile_id: string; visible: boolean }>;
-  return rows.reduce<DashboardVisibilityMap>((current, row) => {
-    current[row.tile_id] = row.visible !== false;
-    return current;
-  }, {});
+  if (missingDashboardPreferenceTables.has("dashboard_tile_visibility")) return {};
+  return withDashboardPreferenceTable<DashboardVisibilityMap>("dashboard_tile_visibility", {}, async () => {
+    const { data, error } = await db("dashboard_tile_visibility")
+      .select("tile_id, visible")
+      .eq("user_id", userId)
+      .eq("mode", mode);
+    if (isMissingDashboardPreferenceTable(error)) return {};
+    if (error) throw error;
+    const rows = (data ?? []) as Array<{ tile_id: string; visible: boolean }>;
+    return rows.reduce<DashboardVisibilityMap>((current, row) => {
+      current[row.tile_id] = row.visible !== false;
+      return current;
+    }, {});
+  });
 }
 
 export async function saveDashboardTileVisibility(
@@ -127,6 +152,7 @@ export async function saveDashboardTileVisibility(
   tileId: string,
   visible: boolean,
 ) {
+  if (missingDashboardPreferenceTables.has("dashboard_tile_visibility")) return;
   const { error } = await db("dashboard_tile_visibility").upsert(
     {
       user_id: userId,
@@ -146,15 +172,18 @@ export async function loadDashboardDeviceLayout(
   deviceId: string,
   mode: DashboardModeKey,
 ): Promise<unknown> {
-  const { data, error } = await db("dashboard_device_tile_layout")
-    .select("layout")
-    .eq("user_id", userId)
-    .eq("device_id", deviceId)
-    .eq("mode", mode)
-    .maybeSingle();
-  if (isMissingDashboardPreferenceTable(error)) return undefined;
-  if (error) throw error;
-  return data?.layout;
+  if (missingDashboardPreferenceTables.has("dashboard_device_tile_layout")) return undefined;
+  return withDashboardPreferenceTable<unknown>("dashboard_device_tile_layout", undefined, async () => {
+    const { data, error } = await db("dashboard_device_tile_layout")
+      .select("layout")
+      .eq("user_id", userId)
+      .eq("device_id", deviceId)
+      .eq("mode", mode)
+      .maybeSingle();
+    if (isMissingDashboardPreferenceTable(error)) return undefined;
+    if (error) throw error;
+    return data?.layout;
+  });
 }
 
 export async function saveDashboardDeviceLayout(
@@ -163,6 +192,7 @@ export async function saveDashboardDeviceLayout(
   mode: DashboardModeKey,
   layout: DashboardTileConfig[],
 ) {
+  if (missingDashboardPreferenceTables.has("dashboard_device_tile_layout")) return;
   const { error } = await db("dashboard_device_tile_layout").upsert(
     {
       user_id: userId,

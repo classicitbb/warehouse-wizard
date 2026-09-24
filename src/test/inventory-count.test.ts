@@ -129,4 +129,38 @@ describe("countInventory", () => {
     mockSupabase();
     expect(await countInventory({ status: "shipped" })).toBe(0);
   });
+
+  // Last on purpose: the rejected status is remembered for the module's life.
+  it("retries without a status the deployed enum lacks instead of failing the count", async () => {
+    const rowsWithoutPicked = VIEW_ROWS.filter((row) => row.status !== "picked");
+    let attempts = 0;
+    from.mockImplementation(() => {
+      const orClauses: string[] = [];
+      const builder: any = {
+        select: () => builder,
+        eq: () => builder,
+        or: (clause: string) => {
+          orClauses.push(clause);
+          return builder;
+        },
+        then: (resolve: (result: unknown) => unknown) => {
+          attempts += 1;
+          if (orClauses.some((clause) => clause.includes("picked"))) {
+            return Promise.resolve(resolve({
+              count: null,
+              error: { code: "22P02", message: 'invalid input value for enum inventory_status: "picked"' },
+            }));
+          }
+          const count = rowsWithoutPicked.filter((row) =>
+            orClauses.every((clause) => splitConditions(clause).some((condition) => matchesCondition(row, condition))),
+          ).length;
+          return Promise.resolve(resolve({ count, error: null }));
+        },
+      };
+      return builder;
+    });
+
+    expect(await countInventory({ status: "all" })).toBe(2);
+    expect(attempts).toBe(2);
+  });
 });

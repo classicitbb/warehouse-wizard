@@ -363,21 +363,39 @@ export type FleetSession = {
   userLabel: string | null;
 };
 
+// Set once the database answers 42P10 (no unique constraint on the conflict
+// target). The live project's heartbeat table predates the (device_id, user_id)
+// primary key in the migration, so the upsert 400s on every beat there.
+let heartbeatUpsertUnsupported = false;
+
 export async function sendClientHeartbeat(appVersion: string, userLabel?: string | null): Promise<void> {
   if (typeof window === "undefined") return;
   const { data } = await supabase.auth.getSession();
   if (!data.session) return;
-  await (supabase as any).from("app_client_heartbeat").upsert(
-    {
-      device_id: getOrCreateDeviceId(),
-      user_id: data.session.user.id,
-      app_version: appVersion,
-      user_label: userLabel ?? null,
-    },
+  const row = {
+    device_id: getOrCreateDeviceId(),
+    user_id: data.session.user.id,
+    app_version: appVersion,
+    user_label: userLabel ?? null,
+  };
+  const table = () => (supabase as any).from("app_client_heartbeat");
+
+  if (!heartbeatUpsertUnsupported) {
     // Shared floor tablets carry one row per operator, so the conflict target
     // has to be the full key — see the migration for why.
-    { onConflict: "device_id,user_id" },
-  );
+    const { error } = await table().upsert(row, { onConflict: "device_id,user_id" });
+    if (error?.code !== "42P10") return;
+    heartbeatUpsertUnsupported = true;
+  }
+
+  // No usable constraint: update this operator's row, insert if there wasn't one.
+  const { data: updated, error: updateError } = await table()
+    .update({ app_version: row.app_version, user_label: row.user_label, last_seen_at: new Date().toISOString() })
+    .eq("device_id", row.device_id)
+    .eq("user_id", row.user_id)
+    .select("device_id");
+  if (updateError || (updated ?? []).length > 0) return;
+  await table().insert(row);
 }
 
 export async function fetchFleetSessions(): Promise<FleetSession[]> {
