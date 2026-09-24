@@ -287,7 +287,10 @@ type ToolContext = {
 }
 
 async function runTool(
-  sb: ReturnType<typeof createClient>,
+  // Untyped on purpose: the copilot reads views and tables that are not in the
+  // generated database types, so a typed client collapses every row to `never`.
+  // deno-lint-ignore no-explicit-any
+  sb: any,
   name: string,
   args: Record<string, unknown>,
   ctx: ToolContext,

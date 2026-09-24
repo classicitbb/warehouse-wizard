@@ -34,7 +34,11 @@ function json(body: unknown, status = 200) {
   })
 }
 
-type Client = ReturnType<typeof createClient>
+// Untyped on purpose: this function calls database routines and joined selects
+// that are not in the generated types, and a typed client collapses them to
+// `never`.
+// deno-lint-ignore no-explicit-any
+type Client = any
 
 async function emailsForRoles(sb: Client, codes: string[]): Promise<string[]> {
   if (codes.length === 0) return []
