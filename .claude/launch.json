@@ -8,6 +8,12 @@
       "port": 8080
     },
     {
+      "name": "dev-alt",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "8091", "--strictPort"],
+      "port": 8091
+    },
+    {
       "name": "preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview"],

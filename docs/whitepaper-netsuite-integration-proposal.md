@@ -65,12 +65,12 @@ The work divides into three phases that can be approved and funded independently
 
 | Phase | What it delivers | Estimated effort | Recommendation |
 |---|---|---|---|
-| **Phase 1 — Inbound** | One-entry receiving against purchase orders, inbound shipments and transfer orders. Pine and Lower Estate brought into Warehouse Wizard. Eliminates the double entry | **55 – 75 days** | **Approve now.** This is where the return is |
-| **Phase 2 — Outbound** | Sales order picking driven from NetSuite, units of measure, partial pallets, picking-area visibility, scan verification, transfer despatch | **60 – 85 days** | Approve in principle, schedule after Phase 1 proves out |
-| **Phase 3 — Extended** | Returns, replenishment, reconciliation reporting, the finance interim account | **35 – 50 days** | Review after Phase 2 |
-| **Total** | | **150 – 210 days** | |
+| **Phase 1 — Inbound** | One-entry receiving against purchase orders, inbound shipments and transfer orders. Pine and Lower Estate brought into Warehouse Wizard. Eliminates the double entry | **60 – 96 days** | **Approve now.** This is where the return is |
+| **Phase 2 — Outbound** | Sales order picking driven from NetSuite, units of measure, partial pallets, picking-area visibility, scan verification, transfer despatch | **58 – 92 days** | Approve in principle, schedule after Phase 1 proves out |
+| **Phase 3 — Extended** | Returns, replenishment, reconciliation reporting, the finance interim account | **33 – 49 days** | Review after Phase 2 |
+| **Total** | | **151 – 237 days** | |
 
-These are working-day estimates for development, testing and documentation. They exclude the contract rate, which finance should apply — see Section 7 for the full costing model, the assumptions behind these numbers, and what is deliberately excluded.
+These are working-day estimates for development, testing and documentation, including project management and a 15% contingency. They exclude the contract rate, which finance should apply — see Section 7 for the full costing model, the assumptions behind these numbers, and what is deliberately excluded.
 
 **Phase 1 alone delivers the stated objective.** Everything after it is improvement rather than repair.
 
@@ -114,7 +114,7 @@ Nothing large, but the project cannot be estimated precisely or started without 
 | D2 | Three inbound document types are in scope: **purchase order, inbound shipment, transfer order** | Wilson raised; Roget confirmed *"Yes, those three"* | **Agreed** |
 | D3 | Warehouse Wizard **pulls** the document on demand. The operator enters or scans the number from the printed receiving report and the lines load | Russell; Jan supported it on cost grounds | **Agreed** |
 | D4 | Jan will **add the purchase order number to the printed receiving report**, so there is something to scan | Jan volunteered | **Agreed** |
-| D5 | Pallet labels are printed **at the container, in small batches per product** — not pre-printed | Russell, from prior experience with Kaiden | **Agreed** |
+| D5 | Pallet labels are printed **at the container, in small batches per product** — not pre-printed | Russell, from prior experience with Kayden | **Agreed** |
 | D6 | **Cost and rate confirmation stays in NetSuite**, as a later task on the payables side. Warehouse Wizard does not touch pricing | Roget; Wilson confirmed rates are editable later | **Agreed** |
 | D7 | Warehouse Wizard records **what was physically received**, and NetSuite holds the expectation | Russell | **Agreed** |
 | D8 | Pine and Lower Estate must be **brought into Warehouse Wizard** with bins defined | Roget opened the meeting with this | **Agreed** |
@@ -240,7 +240,7 @@ There are three coherent policies. Simplex must pick one — the software can im
 
 | Policy | What happens | Best when |
 |---|---|---|
-| **Receive what arrived** | Warehouse Wizard records 95. NetSuite shows 95 received, 5 still outstanding on the order | Short shipments are usually genuine and the balance may still arrive |
+| **Receive what arrived** | Warehouse Wizard records 95. NetSuite shows 95 received, 5 still outstanding on the order | Short shipments are usually genuine and the balance may still arrive on a different shipment with the same PO |
 | **Receive and flag** | Warehouse Wizard records 95 and raises an exception for the buyer to close or chase | Differences need commercial follow-up with the supplier |
 | **Receive and adjust** | Warehouse Wizard records 95 and closes the line, writing off the difference | Short deliveries are final and the paperwork should not stay open |
 
@@ -266,7 +266,7 @@ Wilson confirmed the NetSuite side already has locations for Pine and Lower Esta
 
 Wilson raised something that had not been in scope: NetSuite holds products in multiple units. A bale contains six bags. An order can be placed in bales or in bags. The unit used on the order determines what comes out of stock.
 
-Russell's reaction was candid: *"I honestly hadn't foreseen that. Well, due to what Kaiden had said about not doing sales order picking inside of Wizard we had not foreseen having to be able to create a product either by eaches or by cases."*
+Russell's reaction was candid: *"I honestly hadn't foreseen that. Well, due to what Kayden had said about not doing sales order picking inside of Wizard we had not foreseen having to be able to create a product either by eaches or by cases."*
 
 Warehouse Wizard today has a packaging concept — it knows how many units are in a package and the package's dimensions — but it does not carry NetSuite's full unit hierarchy, and picking currently works in whole pallets, so the question has never arisen.
 
