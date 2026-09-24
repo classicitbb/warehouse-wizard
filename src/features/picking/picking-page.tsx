@@ -216,7 +216,8 @@ export function PickListsPage() {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
   const [pickSearch, setPickSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("lists");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const [pendingProductScan, setPendingProductScan] = useState<string | null>(null);
   const clientTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pickProductRefs = useRef<Record<number, ProductSearchHandle | null>>({});
@@ -267,10 +268,10 @@ export function PickListsPage() {
   }, [form]);
 
   useEffect(() => {
-    if (activeTab !== "create") return;
+    if (!createOpen) return;
     const timer = setTimeout(() => clientTriggerRef.current?.focus(), 80);
     return () => clearTimeout(timer);
-  }, [activeTab]);
+  }, [createOpen]);
 
   const mutation = useMutation({
     mutationFn: async (values: z.infer<typeof pickListSchema>) => createPickListFlow(values),
@@ -297,7 +298,8 @@ export function PickListsPage() {
         // create form reads from is stale the moment this succeeds.
         queryClient.invalidateQueries({ queryKey: ["pickable-stock-summary"] }),
       ]);
-      setActiveTab("lists");
+      setShowOptions(false);
+      setCreateOpen(false);
     },
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Pick list failed"),
   });
@@ -415,7 +417,7 @@ export function PickListsPage() {
         shouldValidate: true,
       });
     }
-    setActiveTab("create");
+    setCreateOpen(true);
     alertToast.success(`Added ${product.sku ?? product.name} to pick draft`);
   }
 
@@ -431,7 +433,7 @@ export function PickListsPage() {
   function handlePickHeaderScan(value: string) {
     const normalized = normalizeScannerText(value);
     const product = findProductForPickScan(normalized);
-    if (product && activeTab === "create") {
+    if (product && createOpen) {
       addProductScanToDraft(normalized);
       return;
     }
@@ -455,17 +457,27 @@ export function PickListsPage() {
 
   return (
     <div className="contents">
-    <Tabs className="flex flex-col gap-0" value={activeTab} onValueChange={setActiveTab}>
-      <div className="flex flex-col gap-3 pb-[3px] sm:flex-row sm:items-end sm:justify-between">
+    <div className="grid gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold sm:text-2xl">Pick Lists</h2>
+            <h2 className="text-2xl font-semibold">Pick Lists</h2>
             <HintButton label="Pick Lists hints">
               Release outbound work and execute scan-confirmed picks.
             </HintButton>
           </div>
         </div>
-        <div className="flex min-w-0 gap-2 sm:min-w-80">
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm" onClick={() => setCreateOpen(true)}>
+            <Plus data-icon="inline-start" />
+            <span className="truncate">New pick list</span>
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="grid gap-3 p-4">
+        <div className="flex min-w-0 gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -486,20 +498,19 @@ export function PickListsPage() {
           </div>
           <BarcodeScanButton title="Scan pick list, pallet, or product barcode" onScan={handlePickHeaderScan} />
         </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center gap-2 px-1">
+        <h3 className="text-base font-semibold">Active Lists</h3>
+        <Badge variant="secondary">{allActive.length}</Badge>
       </div>
-      <TabsList className="grid h-auto w-full grid-cols-2 sm:w-fit">
-        <TabsTrigger value="lists" className="gap-2">
-          Active Lists
-          <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{allActive.length}</Badge>
-        </TabsTrigger>
-        <TabsTrigger value="create">Create Pick List</TabsTrigger>
-      </TabsList>
-      <TabsContent value="lists" className="mt-0 grid gap-4">
+      <div className="grid gap-4">
         {active.length === 0 && (
           <div className="rounded-lg border border-dashed border-border p-8 text-center">
             <ClipboardList className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             <p className="font-medium">No active pick lists</p>
-            <p className="mt-1 text-sm text-muted-foreground">Release a pick list from the Create tab, or go to Receiving to check inbound stock.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Create a new pick list, or go to Receiving to check inbound stock.</p>
             <Button className="mt-4" variant="outline" asChild>
               <Link to={toPath("/receiving")}>Go to Receiving</Link>
             </Button>
@@ -672,212 +683,265 @@ export function PickListsPage() {
             </div>
           </details>
         )}
-      </TabsContent>
-      <TabsContent value="create" className="mt-0">
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <Form {...form}>
-              <form className="grid gap-4 lg:grid-cols-2" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-                <SelectField form={form} name="warehouse_id" label="Warehouse" options={(options?.warehouses ?? []).map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))} />
-                <FormField
-                  control={form.control}
-                  name="client_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Client</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(value === "__none__" ? undefined : value)}
-                        value={(field.value as string | undefined) ?? "__none__"}
-                      >
-                        <FormControl>
-                          <SelectTrigger ref={clientTriggerRef}>
-                            <SelectValue placeholder="Select client" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">No client</SelectItem>
-                          {(options?.clients ?? []).map((client) => (
-                            <SelectItem key={client.id} value={client.id}>
-                              {client.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="order_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Order number</FormLabel>
-                      <FormControl>
-                        <div className="flex gap-2">
-                          <Input {...field} value={field.value ?? ""} onChange={(event) => field.onChange(normalizeScannerText(event.target.value))} />
-                          <BarcodeScanButton title="Scan order number" onScan={(value) => field.onChange(normalizeScannerText(value))} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <TextField form={form} name="requested_ship_date" label="Requested ship date" type="date" />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem className="lg:col-span-2">
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value ?? ""} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="text-base">Order lines</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-3">
-                    {lines.map((_, index) => (
-                      <div key={index} className="grid gap-2">
-                        <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(8rem,1fr)_auto]">
-                        <FormField
-                          control={form.control}
-                          name={`lines.${index}.product_id`}
-                          render={({ field, fieldState }) => (
-                            <FormItem>
-                              <FormLabel>Product</FormLabel>
-                              <FormControl>
-                                <div className="flex gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <ProductSearch
-                                      ref={(node) => {
-                                        pickProductRefs.current[index] = node;
-                                      }}
-                                      value={(field.value as string) ?? ""}
-                                      onChange={field.onChange}
-                                      options={productOptions}
-                                      error={Boolean(fieldState.error)}
-                                    />
-                                  </div>
-                                  <BarcodeScanButton
-                                    title="Scan product barcode"
-                                    onScan={(value) => {
-                                      const matched = pickProductRefs.current[index]?.scanBarcode(value);
-                                      if (matched) playBarcodeBeep();
-                                    }}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`lines.${index}.quantity`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Qty</FormLabel>
-                              <FormControl>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-10 w-10 shrink-0"
-                                    onClick={() => field.onChange(Math.max(1, Number(field.value) - 1))}
-                                  >
-                                    −
-                                  </Button>
-                                  <Input
-                                    {...field}
-                                    type="number"
-                                    className="text-center text-lg font-semibold"
-                                    value={(field.value as number) ?? 1}
-                                    onChange={(event) => field.onChange(event.target.valueAsNumber)}
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-10 w-10 shrink-0"
-                                    onClick={() => field.onChange(Number(field.value) + 1)}
-                                  >
-                                    +
-                                  </Button>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          className="w-full lg:mt-auto lg:w-auto"
-                          type="button"
-                          variant="outline"
-                          onClick={() => form.setValue("lines", lines.filter((_, currentIndex) => currentIndex !== index))}
+      </div>
+    </div>
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <DialogContent
+        className="h-[calc(100dvh-0.75rem)] max-h-[calc(100dvh-0.75rem)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] overflow-hidden bg-card p-0 text-card-foreground sm:h-auto sm:max-h-[92vh] sm:max-w-3xl"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <Form {...form}>
+          <form className="flex min-h-0 flex-col" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+            <DialogHeader className="border-b border-border px-3 py-2 sm:px-4 sm:py-3">
+              <DialogTitle>New Pick List</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
+                Order details come first, then one or more SKU lines. Lots and pallets are allocated FEFO/FIFO on release.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="min-w-0 max-h-[calc(100dvh-8.75rem)] overflow-y-auto px-3 py-3 sm:max-h-[calc(92vh-150px)] sm:px-4 sm:py-4">
+              <div className="grid min-w-0 gap-3 sm:gap-4">
+                <div className="grid items-start gap-2 sm:grid-cols-2 sm:gap-3">
+                  <SelectField form={form} name="warehouse_id" label="Warehouse" options={(options?.warehouses ?? []).map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))} />
+                  <FormField
+                    control={form.control}
+                    name="client_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Client</FormLabel>
+                        <Select
+                          onValueChange={(value) => field.onChange(value === "__none__" ? undefined : value)}
+                          value={(field.value as string | undefined) ?? "__none__"}
                         >
-                          Remove
-                        </Button>
-                        </div>
-                        {(() => {
-                          const productId = lines[index]?.product_id as string | undefined;
-                          const qty = Number(lines[index]?.quantity ?? 0);
-                          const summary = productId ? pickableStock?.get(productId) : undefined;
-                          if (!summary || !summary.topPallet) return null;
-                          const over = qty > summary.totalAvailable;
-                          return (
-                            <div
-                              className={`rounded-md border px-3 py-2 text-xs ${over ? "border-destructive/60 bg-destructive/5 text-destructive" : "border-border bg-muted/40 text-muted-foreground"}`}
+                          <FormControl>
+                            <SelectTrigger ref={clientTriggerRef}>
+                              <SelectValue placeholder="Select client" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="__none__">No client</SelectItem>
+                            {(options?.clients ?? []).map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="order_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Order number</FormLabel>
+                        <FormControl>
+                          <div className="flex gap-2">
+                            <Input {...field} value={field.value ?? ""} onChange={(event) => field.onChange(normalizeScannerText(event.target.value))} />
+                            <BarcodeScanButton title="Scan order number" onScan={(value) => field.onChange(normalizeScannerText(value))} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <TextField form={form} name="requested_ship_date" label="Requested ship date" type="date" />
+                </div>
+                <button type="button" className="w-fit text-sm font-medium text-primary underline-offset-2 hover:underline" onClick={() => setShowOptions((v) => !v)}>
+                  {showOptions ? "Hide" : "Show"} options
+                </button>
+                {showOptions && (
+                  <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Notes / special handling</FormLabel>
+                          <FormControl>
+                            <Textarea rows={2} {...field} value={field.value ?? ""} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-3">
+                  {lines.map((_, index) => {
+                    const productId = lines[index]?.product_id as string | undefined;
+                    const qty = Number(lines[index]?.quantity ?? 0);
+                    const summary = productId ? pickableStock?.get(productId) : undefined;
+                    const over = Boolean(summary) && qty > (summary?.totalAvailable ?? 0);
+                    return (
+                      <div key={index} className="grid min-w-0 gap-2 rounded-lg border border-border p-2 sm:gap-3 sm:p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium">SKU line {index + 1}</p>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              title="Reset SKU line"
+                              aria-label="Reset SKU line"
+                              onClick={() => form.setValue(`lines.${index}`, { product_id: "", quantity: 1 }, { shouldDirty: true })}
                             >
-                              <span className="font-mono">
-                                Picks: {summary.topPallet.pallet_code} · Qty {summary.topPallet.available_quantity}
-                                {summary.topPallet.location_code ? ` @ ${displayRackLocationCode(summary.topPallet.location_code)}` : ""}
-                                {summary.topPallet.expiry_date ? ` · Exp ${summary.topPallet.expiry_date}` : ""}
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                            {lines.length > 1 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                title="Remove SKU line"
+                                aria-label="Remove SKU line"
+                                onClick={() => form.setValue("lines", lines.filter((_, currentIndex) => currentIndex !== index))}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(9rem,1fr)] sm:gap-3">
+                          <FormField
+                            control={form.control}
+                            name={`lines.${index}.product_id`}
+                            render={({ field, fieldState }) => (
+                              <FormItem className="min-w-0">
+                                <FormLabel>Product</FormLabel>
+                                <FormControl>
+                                  <div className="flex min-w-0 gap-2">
+                                    <BarcodeScanButton
+                                      title="Scan product barcode"
+                                      onScan={(value) => {
+                                        const matched = pickProductRefs.current[index]?.scanBarcode(value);
+                                        if (matched) playBarcodeBeep();
+                                      }}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <ProductSearch
+                                        ref={(node) => {
+                                          pickProductRefs.current[index] = node;
+                                        }}
+                                        value={(field.value as string) ?? ""}
+                                        onChange={field.onChange}
+                                        options={productOptions}
+                                        placeholder="Select SKU"
+                                        error={Boolean(fieldState.error)}
+                                      />
+                                    </div>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`lines.${index}.quantity`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Qty</FormLabel>
+                                <FormControl>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-10 w-10 shrink-0"
+                                      aria-label="Decrease quantity"
+                                      onClick={() => field.onChange(Math.max(1, Number(field.value) - 1))}
+                                    >
+                                      −
+                                    </Button>
+                                    <Input
+                                      {...field}
+                                      type="number"
+                                      className="min-w-0 text-center text-lg font-semibold"
+                                      value={(field.value as number) ?? 1}
+                                      onChange={(event) => field.onChange(event.target.valueAsNumber)}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-10 w-10 shrink-0"
+                                      aria-label="Increase quantity"
+                                      onClick={() => field.onChange(Number(field.value) + 1)}
+                                    >
+                                      +
+                                    </Button>
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        {productId && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <Badge variant={!summary || over ? "destructive" : "secondary"}>
+                              {summary ? `${formatNumber(summary.totalAvailable)} available to pick` : "No pickable stock"}
+                            </Badge>
+                            {summary && (
+                              <span className="text-muted-foreground">
+                                across {summary.palletCount} pallet{summary.palletCount === 1 ? "" : "s"}
                               </span>
-                              <span className="ml-2">
-                                · {summary.palletCount} pallet{summary.palletCount === 1 ? "" : "s"} in stock (total {summary.totalAvailable})
-                              </span>
-                              {over && (
-                                <p className="mt-1 font-medium">
-                                  Only {summary.totalAvailable} in pickable locations — reduce qty or split the line.
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })()}
+                            )}
+                            {over && (
+                              <span className="font-medium text-destructive">Reduce qty to {formatNumber(summary?.totalAvailable ?? 0)} or less.</span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    <Button type="button" variant="outline" onClick={() => form.setValue("lines", [...lines, { product_id: "", quantity: 1 }])}>
-                      Add line
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Button
-                  className="w-full lg:col-span-2"
-                  type="submit"
-                  disabled={
-                    mutation.isPending ||
-                    lines.some((line) => {
-                      const summary = line.product_id ? pickableStock?.get(line.product_id) : undefined;
-                      if (!summary) return false;
-                      return Number(line.quantity ?? 0) > summary.totalAvailable;
-                    })
-                  }
-                >
-                  {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Release pick list
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+                    );
+                  })}
+                  <Button
+                    className="h-9 sm:h-10"
+                    type="button"
+                    variant="outline"
+                    onClick={() => form.setValue("lines", [...lines, { product_id: "", quantity: 1 }])}
+                  >
+                    <Plus data-icon="inline-start" />
+                    Add SKU line
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="flex-row flex-wrap justify-end gap-2 border-t border-border px-3 py-2 sm:px-4 sm:py-3">
+              <Button type="button" variant="outline" onClick={() => {
+                  form.reset({
+                    warehouse_id: profile?.default_warehouse_id || undefined,
+                    client_id: undefined,
+                    order_number: "",
+                    requested_ship_date: new Date().toISOString().slice(0, 10),
+                    notes: "",
+                    lines: [{ product_id: "", quantity: 1 }],
+                  });
+                  setShowOptions(false);
+                  setCreateOpen(false);
+                }}>Cancel</Button>
+              <Button
+                type="submit"
+                disabled={
+                  mutation.isPending ||
+                  lines.some((line) => {
+                    const summary = line.product_id ? pickableStock?.get(line.product_id) : undefined;
+                    if (!summary) return false;
+                    return Number(line.quantity ?? 0) > summary.totalAvailable;
+                  })
+                }
+              >
+                {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Release pick list
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
     <AlertDialog open={Boolean(pendingProductScan)} onOpenChange={(open) => { if (!open) setPendingProductScan(null); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
