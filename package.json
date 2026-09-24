@@ -79,6 +79,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@lovable.dev/email-js": "0.1.0",
     "@lovable.dev/mcp-js": "^0.22.0",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/typography": "^0.5.16",
@@ -106,6 +107,7 @@
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.8",
+    "web-push": "3.6.7",
     "workbox-core": "^7.4.1",
     "workbox-precaching": "^7.4.1",
     "workbox-routing": "^7.4.1"
