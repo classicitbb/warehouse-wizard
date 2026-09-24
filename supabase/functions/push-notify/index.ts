@@ -33,7 +33,10 @@ function json(body: unknown, status = 200) {
   })
 }
 
-type Client = ReturnType<typeof createClient>
+// Untyped on purpose: this function calls database routines and tables that are
+// not in the generated types, and a typed client collapses them to `never`.
+// deno-lint-ignore no-explicit-any
+type Client = any
 
 type ClaimRow = {
   event_ids: string[]
