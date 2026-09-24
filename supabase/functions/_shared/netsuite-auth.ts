@@ -34,6 +34,12 @@ export function netsuiteTokenUrl(accountId: string): string {
 
 // ── encoding helpers ────────────────────────────────────────────────────────
 
+// WebCrypto's BufferSource type wants a plain ArrayBuffer; a Uint8Array's
+// backing buffer is ArrayBufferLike, so copy the exact bytes out of it.
+function asBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.slice().buffer as ArrayBuffer
+}
+
 function concat(...parts: Uint8Array[]): Uint8Array {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
   let offset = 0
@@ -163,7 +169,7 @@ export async function generateNetSuiteCertificate(commonName: string): Promise<{
     extensions,
   )
   const signature = new Uint8Array(
-    await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keyPair.privateKey, tbs),
+    await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, keyPair.privateKey, asBuffer(tbs)),
   )
   const certificate = derSequence(
     tbs,
@@ -184,7 +190,7 @@ export async function buildClientAssertion(
 ): Promise<string> {
   const key = await crypto.subtle.importKey(
     'pkcs8',
-    fromPem(creds.privateKeyPem),
+    asBuffer(fromPem(creds.privateKeyPem)),
     { name: 'ECDSA', namedCurve: 'P-256' },
     false,
     ['sign'],
@@ -201,7 +207,7 @@ export async function buildClientAssertion(
   const signature = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     key,
-    new TextEncoder().encode(signingInput),
+    asBuffer(new TextEncoder().encode(signingInput)),
   )
   return `${signingInput}.${base64Url(new Uint8Array(signature))}`
 }
