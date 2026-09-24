@@ -12,7 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 function query(rows: unknown[], error: unknown = null) {
   const builder: any = {};
-  for (const method of ["select", "eq", "is", "not", "limit", "in", "order", "range"]) {
+  for (const method of ["select", "eq", "is", "not", "limit", "in", "order", "range", "gt"]) {
     builder[method] = vi.fn(() => builder);
   }
   builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: rows, error });
@@ -56,7 +56,14 @@ describe("pallets with no stock record", () => {
       // completed putaway tasks for p2 (the only pallet with no receipt line)
       .mockImplementationOnce(() => query([]))
       // completed move tasks
-      .mockImplementationOnce(() => query([]));
+      .mockImplementationOnce(() => query([]))
+      // details for flagged pallets
+      .mockImplementationOnce(() =>
+        query([
+          { id: "p1", pallet_barcode: "PLT-1", quantity: 10, current_warehouse_id: "wh1", products: { sku: "S1", name: "Cups" }, locations: { code: "A-01-A" } },
+          { id: "p2", pallet_barcode: "PLT-2", quantity: 4, current_warehouse_id: "wh1", products: null, locations: { code: "A-01-B" } },
+        ]),
+      );
 
     const rows = await listUnrecordedStoredPallets("wh1");
     expect(rows.map((row) => [row.palletBarcode, row.reason])).toEqual([

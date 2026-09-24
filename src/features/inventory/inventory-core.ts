@@ -575,66 +575,89 @@ export async function palletIdsWithStockRecord(palletIds: string[]): Promise<Set
   return found;
 }
 
-const UNRECORDED_SCAN_PAGE_SIZE = 500;
-const UNRECORDED_SCAN_MAX_PAGES = 40;
+const UNRECORDED_SCAN_PAGE_SIZE = 1000;
+const UNRECORDED_SCAN_MAX_PAGES = 50;
+const UNRECORDED_IN_BATCH = 200;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let index = 0; index < items.length; index += size) out.push(items.slice(index, index + size));
+  return out;
+}
 
 export async function listUnrecordedStoredPallets(warehouseId?: string | null): Promise<UnrecordedPallet[]> {
-  // Every stored pallet has to be checked, not an arbitrary first page: a pallet
-  // that lost its record is invisible in the banner otherwise, and the bay it
-  // blocks stays hidden. Paged so a busy warehouse never times out on one read.
-  const pallets: any[] = [];
+  // Every stored pallet has to be checked, not an arbitrary first page. The scan
+  // reads only ids (keyset paged, no joins) so large warehouses stay fast; full
+  // details are fetched only for the few pallets that are actually flagged.
+  const pallets: { id: string; receipt_line_id: string | null }[] = [];
+  let lastId: string | null = null;
   for (let page = 0; page < UNRECORDED_SCAN_MAX_PAGES; page += 1) {
     let query = db("pallets")
-      .select(
-        "id, pallet_barcode, quantity, status, receipt_line_id, current_warehouse_id, current_location_id, products(sku, name), locations:current_location_id(code)",
-      )
+      .select("id, receipt_line_id")
       .not("current_location_id", "is", null)
       .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER)
       .order("id", { ascending: true })
-      .range(page * UNRECORDED_SCAN_PAGE_SIZE, (page + 1) * UNRECORDED_SCAN_PAGE_SIZE - 1);
+      .limit(UNRECORDED_SCAN_PAGE_SIZE);
     if (warehouseId) query = query.eq("current_warehouse_id", warehouseId);
+    if (lastId) query = query.gt("id", lastId);
 
     const { data, error } = await query;
     if (error) throw error;
     const rows = (data ?? []) as any[];
     pallets.push(...rows);
     if (rows.length < UNRECORDED_SCAN_PAGE_SIZE) break;
+    lastId = rows[rows.length - 1].id;
   }
   if (pallets.length === 0) return [];
 
-  const palletIds = pallets.map((pallet) => pallet.id);
-  const recorded = await palletIdsWithStockRecord(palletIds);
+  const recorded = await palletIdsWithStockRecord(pallets.map((pallet) => pallet.id));
 
   const withoutReceipt = pallets.filter((pallet) => recorded.has(pallet.id) && !pallet.receipt_line_id);
   const provenanceIds = new Set<string>();
-  if (withoutReceipt.length > 0) {
-    const ids = withoutReceipt.map((pallet) => pallet.id);
+  for (const batch of chunk(withoutReceipt.map((pallet) => pallet.id), UNRECORDED_IN_BATCH)) {
     const [putaway, moves] = await Promise.all([
-      db("putaway_tasks").select("pallet_id").in("pallet_id", ids).eq("status", "completed"),
-      db("move_tasks").select("pallet_id").in("pallet_id", ids).eq("status", "completed"),
+      db("putaway_tasks").select("pallet_id").in("pallet_id", batch).eq("status", "completed"),
+      db("move_tasks").select("pallet_id").in("pallet_id", batch).eq("status", "completed"),
     ]);
+    if (putaway.error || moves.error) {
+      // Only this batch fails open; the rest of the warehouse is still checked.
+      console.warn("[listUnrecordedStoredPallets] provenance lookup failed", putaway.error ?? moves.error);
+      continue;
+    }
     const proven = new Set<string>();
     for (const row of putaway.data ?? []) if (row.pallet_id) proven.add(row.pallet_id);
     for (const row of moves.data ?? []) if (row.pallet_id) proven.add(row.pallet_id);
-    if (putaway.error || moves.error) {
-      console.warn("[listUnrecordedStoredPallets] provenance lookup failed", putaway.error ?? moves.error);
-    } else {
-      for (const pallet of withoutReceipt) if (!proven.has(pallet.id)) provenanceIds.add(pallet.id);
-    }
+    for (const id of batch) if (!proven.has(id)) provenanceIds.add(id);
   }
 
-  return pallets
+  const flaggedIds = pallets
     .filter((pallet) => !recorded.has(pallet.id) || provenanceIds.has(pallet.id))
-    .map((pallet) => ({
-      palletId: pallet.id,
-      palletBarcode: pallet.pallet_barcode,
-      sku: pallet.products?.sku ?? null,
-      productName: pallet.products?.name ?? null,
-      quantity: Number(pallet.quantity ?? 0),
-      warehouseId: pallet.current_warehouse_id ?? null,
-      locationCode: pallet.locations?.code ? displayRackLocationCode(pallet.locations.code) : null,
-      reason: recorded.has(pallet.id) ? ("no_provenance" as const) : ("no_stock_record" as const),
-    }));
+    .map((pallet) => pallet.id);
+  if (flaggedIds.length === 0) return [];
+
+  const details: any[] = [];
+  for (const batch of chunk(flaggedIds, UNRECORDED_IN_BATCH)) {
+    const { data, error } = await db("pallets")
+      .select(
+        "id, pallet_barcode, quantity, current_warehouse_id, products(sku, name), locations:current_location_id(code)",
+      )
+      .in("id", batch);
+    if (error) throw error;
+    details.push(...((data ?? []) as any[]));
+  }
+  const order = new Map(flaggedIds.map((id, index) => [id, index]));
+  details.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+  return details.map((pallet) => ({
+    palletId: pallet.id,
+    palletBarcode: pallet.pallet_barcode,
+    sku: pallet.products?.sku ?? null,
+    productName: pallet.products?.name ?? null,
+    quantity: Number(pallet.quantity ?? 0),
+    warehouseId: pallet.current_warehouse_id ?? null,
+    locationCode: pallet.locations?.code ? displayRackLocationCode(pallet.locations.code) : null,
+    reason: recorded.has(pallet.id) ? ("no_provenance" as const) : ("no_stock_record" as const),
+  }));
 }
 
 export async function releaseUnrecordedPalletLocation(palletId: string, reason?: string): Promise<void> {
