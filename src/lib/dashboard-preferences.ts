@@ -190,7 +190,8 @@ export async function saveDashboardDeviceLayout(
   userId: string,
   deviceId: string,
   mode: DashboardModeKey,
-  layout: DashboardTileConfig[],
+  // Command Center grid items ({ i, x, y, w, h }); the column is plain jsonb.
+  layout: unknown[],
 ) {
   if (missingDashboardPreferenceTables.has("dashboard_device_tile_layout")) return;
   const { error } = await db("dashboard_device_tile_layout").upsert(

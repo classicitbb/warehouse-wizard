@@ -1,0 +1,28 @@
+/* Command Center grid: theme the react-grid-layout drop preview and resize
+   handles with the app's tokens instead of the library's red/grey defaults. */
+
+.command-center-board .react-grid-item.react-grid-placeholder {
+  background: hsl(var(--primary) / 0.18);
+  border: 1px dashed hsl(var(--primary));
+  border-radius: 0.5rem;
+  opacity: 1;
+}
+
+.command-center-board .react-grid-item > .react-resizable-handle {
+  z-index: 20;
+}
+
+.command-center-board .react-grid-item > .react-resizable-handle::after {
+  border-color: hsl(var(--primary));
+}
+
+.command-center-board .react-grid-item > .react-resizable-handle-e,
+.command-center-board .react-grid-item > .react-resizable-handle-s {
+  background: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .command-center-board .react-grid-item {
+    transition: none;
+  }
+}

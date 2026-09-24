@@ -27,11 +27,8 @@ import {
   ClipboardList,
   CloudOff,
   Download,
-  Eye,
-  EyeOff,
   FileDown,
   Forklift,
-  GripVertical,
   HelpCircle,
   Home,
   Info,
@@ -40,15 +37,12 @@ import {
   Loader2,
   LogOut,
   Mail,
-  Maximize2,
   MapPinned,
-  Minimize2,
   Package,
   Pencil,
   Plus,
   Printer,
   QrCode,
-  RadioTower,
   RefreshCw,
   Search,
   Settings,
@@ -59,15 +53,11 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { DndContext, closestCenter, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
-import { type ModuleKey } from "@/hooks/use-feature-flags";
 import { flushOfflineQueue, useOfflineQueue, useDeadLetterQueue, type FailedWorkItem } from "@/lib/offline-queue";
 import { useNotificationPermission } from "@/hooks/use-notification-permission";
 import {
@@ -81,8 +71,6 @@ import {
   downloadCsvTemplate,
   fetchOptions,
   fetchLocationCreationOptions,
-  formatNumber,
-  getDashboardMetrics,
   getBinOccupancy,
   getBayOccupancy,
   getWarehouseBayOccupancy,
@@ -121,18 +109,6 @@ import { ProductSearch, type ProductSearchHandle } from "@/components/product-se
 import { cn } from "@/lib/utils";
 import { extractIso6346ContainerNumber, normalizeContainerNumber } from "@/lib/container-number";
 import {
-  sanitizeDashboardLayout,
-  dashboardTileSpanClass,
-  normalizeDashboardCardSize,
-  type DashboardTileConfig,
-  type DashboardTileDefinition,
-  type DashboardVisibilityMap,
-} from "@/lib/dashboard-preferences";
-
-import {
-  type DashboardMode,
-  type DockHandoffLoad,
-  type EnterpriseDashboardSnapshot,
   type WarehouseBrainRecommendation,
 } from "@/lib/enterprise-wms";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -194,125 +170,8 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { getFloorAudioContext } from "@/lib/audio-unlock";
 
-let dashboardLayoutLockedToastAt = 0;
-
 const baseFormSchema = z.record(z.any());
 export const appTitle = "WW";
-
-type DashboardMetricKey =
-  | "totalPallets"
-  | "warehousePallets"
-  | "availablePallets"
-  | "coolZoneOccupancy"
-  | "openReceipts"
-  | "openPutawayTasks"
-  | "openPickLists"
-  | "openMoveTasks"
-  | "openTransfers"
-  | "openCycleCounts"
-  | "openDockLoads"
-  | "openReplenishmentTasks"
-  | "recentAuditEvents"
-  | "holdStock"
-  | "quarantineStock"
-  | "expiryWarning60"
-  | "expiryWarning30"
-  | "stockAge3Months"
-  | "stockAge6Months"
-  | "stockAge12Months";
-
-export type DashboardCardConfig = DashboardTileDefinition<ModuleKey> & {
-  metricKey: DashboardMetricKey;
-};
-
-export const DEFAULT_DASHBOARD_CARDS: DashboardCardConfig[] = [
-  { id: "totalPallets", label: "Total Pallets", metricKey: "totalPallets", size: "2x1", moduleKey: "inventory" },
-  { id: "warehousePallets", label: "This Warehouse", metricKey: "warehousePallets", size: "2x1", moduleKey: "inventory" },
-  { id: "openReceipts", label: "Open Receipts", metricKey: "openReceipts", size: "1x1", moduleKey: "receiving" },
-  { id: "openPutawayTasks", label: "Open Put-Away", metricKey: "openPutawayTasks", size: "1x1", moduleKey: "putaway" },
-  { id: "openPickLists", label: "Open Pick Lists", metricKey: "openPickLists", size: "1x1", moduleKey: "pick-lists" },
-  { id: "openMoveTasks", label: "Open Moves", metricKey: "openMoveTasks", size: "1x1", moduleKey: "location-moves" },
-  { id: "openCycleCounts", label: "Open Counts", metricKey: "openCycleCounts", size: "1x1", moduleKey: "cycle-counts" },
-  { id: "availablePallets", label: "Available Pallets", metricKey: "availablePallets", size: "1x1", moduleKey: "inventory" },
-  { id: "holdStock", label: "On Hold", metricKey: "holdStock", size: "1x1", moduleKey: "status" },
-  { id: "quarantineStock", label: "Quarantine", metricKey: "quarantineStock", size: "1x1", moduleKey: "status" },
-
-  { id: "expiryWarning30", label: "Expiry 30 Days", metricKey: "expiryWarning30", size: "1x1", moduleKey: "inventory" },
-  { id: "expiryWarning60", label: "Expiry 60 Days", metricKey: "expiryWarning60", size: "1x1", moduleKey: "inventory" },
-  { id: "stockAge3Months", label: "Aging 3+ Mo", metricKey: "stockAge3Months", size: "1x1", moduleKey: "inventory" },
-  { id: "stockAge6Months", label: "Aging 6+ Mo", metricKey: "stockAge6Months", size: "1x1", moduleKey: "inventory" },
-  { id: "stockAge12Months", label: "Aging 12+ Mo", metricKey: "stockAge12Months", size: "1x1", moduleKey: "inventory" },
-];
-
-export const DASHBOARD_FLOOR_LAYOUT_KEY = "wms.dashboard.floor.surface.layout.v1";
-export const DASHBOARD_DOCK_LAYOUT_KEY = "wms.dashboard.dock.surface.layout.v1";
-export const DASHBOARD_OFFICE_LAYOUT_KEY = "wms.dashboard.office.surface.layout.v1";
-const DASHBOARD_DIAL_METRICS = new Set<DashboardMetricKey>(["totalPallets", "warehousePallets"]);
-const DASHBOARD_METRIC_ROUTES: Record<DashboardMetricKey, AppRoute> = {
-  totalPallets: "/inventory-search",
-  warehousePallets: "/inventory-search",
-  availablePallets: "/inventory-search",
-  coolZoneOccupancy: "/locations",
-  openReceipts: "/receiving",
-  openPutawayTasks: "/putaway-tasks",
-  openPickLists: "/pick-lists",
-  openMoveTasks: "/location-moves",
-  openTransfers: "/transfers",
-  openCycleCounts: "/cycle-counts",
-  openDockLoads: "/pick-lists",
-  openReplenishmentTasks: "/inventory-search",
-  recentAuditEvents: "/system-log",
-  holdStock: "/status",
-  quarantineStock: "/status",
-  expiryWarning60: "/inventory-search",
-  expiryWarning30: "/inventory-search",
-  stockAge3Months: "/inventory-search",
-  stockAge6Months: "/inventory-search",
-  stockAge12Months: "/inventory-search",
-};
-
-function dashboardMetricLink(metricKey: DashboardMetricKey) {
-  if (metricKey === "stockAge3Months") return "/inventory-search?age=3m";
-  if (metricKey === "stockAge6Months") return "/inventory-search?age=6m";
-  if (metricKey === "stockAge12Months") return "/inventory-search?age=12m";
-  if (metricKey === "expiryWarning30") return "/inventory-search?expiry=30d";
-  if (metricKey === "expiryWarning60") return "/inventory-search?expiry=60d";
-  return DASHBOARD_METRIC_ROUTES[metricKey];
-}
-const DEFAULT_FLOOR_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "Inbound", label: "Inbound", size: "2x2", moduleKey: "receiving" },
-  { id: "Putaway", label: "Put-Away", size: "2x2", moduleKey: "putaway" },
-  { id: "Warehouse Intelligence", label: "Warehouse Intelligence", size: "2x2" },
-  { id: "Outbound", label: "Outbound", size: "2x2", moduleKey: "pick-lists" },
-  { id: "Moves & Counts", label: "Moves & Counts", size: "2x2", moduleKey: "location-moves" },
-  { id: "Blocked Exceptions", label: "Blocked Exceptions", size: "2x2", moduleKey: "status" },
-];
-
-const DEFAULT_DOCK_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "ready", label: "Ready", size: "1x1", moduleKey: "pick-lists" },
-  { id: "called", label: "Called", size: "1x1", moduleKey: "pick-lists" },
-  { id: "loading", label: "Loading", size: "1x1", moduleKey: "pick-lists" },
-  { id: "blocked", label: "Blocked", size: "1x1", moduleKey: "pick-lists" },
-  { id: "loaded", label: "Loaded", size: "1x1", moduleKey: "pick-lists" },
-  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x2", moduleKey: "copilot" },
-];
-
-const DEFAULT_OFFICE_TILES: DashboardTileDefinition<ModuleKey>[] = [
-  { id: "Fill level", label: "Fill level", size: "2x2", moduleKey: "locations" },
-  { id: "Inventory turn watch", label: "Inventory turn watch", size: "2x2", moduleKey: "inventory" },
-  { id: "Expiration risk", label: "Expiration risk", size: "2x2", moduleKey: "inventory" },
-  { id: "DPMO", label: "DPMO", size: "2x2", moduleKey: "cycle-counts" },
-  { id: "setup-checklist", label: "Setup Checklist", size: "2x2", moduleKey: "settings" },
-  { id: "warehouse-brain", label: "Warehouse Brain", size: "2x2", moduleKey: "copilot" },
-];
-
-export const DEFAULT_FLOOR_LAYOUT: DashboardTileDefinition<ModuleKey>[] = [...DEFAULT_DASHBOARD_CARDS, ...DEFAULT_FLOOR_TILES];
-export const DEFAULT_DOCK_LAYOUT: DashboardTileDefinition<ModuleKey>[] = [...DEFAULT_DASHBOARD_CARDS, ...DEFAULT_DOCK_TILES];
-export const DEFAULT_OFFICE_LAYOUT: DashboardTileDefinition<ModuleKey>[] = [...DEFAULT_DASHBOARD_CARDS, ...DEFAULT_OFFICE_TILES];
-
-export function tileConfigsFromDefinitions(definitions: DashboardTileDefinition<ModuleKey>[]): DashboardTileConfig[] {
-  return definitions.map((tile) => ({ id: tile.id, size: tile.size }));
-}
 
 // ---------------------------------------------------------------------------
 // Barcode scanner helpers
@@ -514,237 +373,6 @@ export const alertToast = {
     return toast.error(message, opts);
   },
 };
-
-export function loadFallbackTileLayout(key: string, defaults: DashboardTileConfig[]) {
-  if (typeof window === "undefined") return defaults;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return defaults;
-    return sanitizeDashboardLayout(JSON.parse(raw), defaults);
-  } catch {
-    return defaults;
-  }
-}
-
-export function fallbackLayoutKey(key: string, profileId?: string | null, deviceId?: string | null) {
-  return [key, profileId ?? "anonymous", deviceId ?? "device"].join(".");
-}
-
-export function loadFallbackVisibility(key: string): DashboardVisibilityMap {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) as DashboardVisibilityMap : {};
-  } catch {
-    return {};
-  }
-}
-
-export function fallbackVisibilityKey(profileId: string | null | undefined, mode: DashboardMode) {
-  return `wms.dashboard.visibility.v1.${profileId ?? "anonymous"}.${mode}`;
-}
-
-export function saveFallbackJson(key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
-  }
-}
-
-function SortableDashboardTile({
-  tile,
-  editMode,
-  onResize,
-  onHide,
-  children,
-  className,
-}: {
-  tile: DashboardTileConfig;
-  editMode: boolean;
-  onResize: (id: string) => void;
-  onHide: (id: string) => void;
-  children: ReactNode;
-  className?: string;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tile.id, disabled: !editMode });
-  const handleLockedPointerDownCapture = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (editMode) return;
-    const target = event.target as HTMLElement | null;
-    if (target?.closest("a,button,input,textarea,select,[role='button']")) return;
-    const now = Date.now();
-    if (now - dashboardLayoutLockedToastAt < 1200) return;
-    dashboardLayoutLockedToastAt = now;
-    toast.info("Unlock dashboard layout to reorder, resize, or hide tiles.");
-  }, [editMode]);
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : 1,
-    touchAction: editMode ? "none" : undefined,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className={cn(dashboardTileSpanClass(tile.size), "min-h-0", className)} onPointerDownCapture={handleLockedPointerDownCapture}>
-      <div
-        className={cn("group relative h-full min-h-0 overflow-auto", editMode && "cursor-grab active:cursor-grabbing")}
-        {...(editMode ? { ...attributes, ...listeners } : {})}
-      >
-        {children}
-        {editMode ? (
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md bg-background/80 p-0.5 shadow-sm backdrop-blur">
-            <button
-              type="button"
-              onClick={() => onHide(tile.id)}
-              className="grid h-6 w-6 place-items-center rounded-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-              aria-label="Hide tile"
-            >
-              <EyeOff className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onResize(tile.id)}
-              className="grid h-6 w-6 place-items-center rounded-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-              aria-label={`Resize tile (currently ${normalizeDashboardCardSize(tile.size)})`}
-            >
-              {normalizeDashboardCardSize(tile.size) === "2x2" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-
-            </button>
-            <button
-              type="button"
-              className="grid h-6 w-6 cursor-grab place-items-center rounded-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground active:cursor-grabbing"
-              aria-label="Drag tile"
-              {...attributes}
-              {...listeners}
-            >
-              <GripVertical className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function SortableMetricCard({
-  card,
-  value,
-  isLoading,
-  editMode,
-  onResize,
-  onHide,
-}: {
-  card: DashboardCardConfig;
-  value: number;
-  isLoading: boolean;
-  editMode: boolean;
-  onResize: (id: string) => void;
-  onHide: (id: string) => void;
-}) {
-  return (
-    <SortableDashboardTile tile={card} editMode={editMode} onResize={onResize} onHide={onHide}>
-      <Card className="relative h-full">
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 pr-20">
-          <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Link to={dashboardMetricLink(card.metricKey)} className="block rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-            <div className="text-3xl font-bold">
-              {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : formatNumber(value)}
-            </div>
-          </Link>
-        </CardContent>
-      </Card>
-    </SortableDashboardTile>
-  );
-}
-
-export function SortableSummaryCard({
-  card,
-  metrics,
-  isLoading,
-  warehouseCaption,
-  editMode,
-  onResize,
-  onHide,
-}: {
-  card: DashboardCardConfig;
-  metrics: Awaited<ReturnType<typeof getDashboardMetrics>> | undefined;
-  isLoading: boolean;
-  warehouseCaption: string;
-  editMode: boolean;
-  onResize: (id: string) => void;
-  onHide: (id: string) => void;
-}) {
-  if (DASHBOARD_DIAL_METRICS.has(card.metricKey)) {
-    const capacity = card.metricKey === "totalPallets" ? metrics?.totalPalletCapacity ?? 0 : metrics?.warehousePalletCapacity ?? 0;
-    const caption = card.metricKey === "totalPallets" ? `${formatNumber(metrics?.totalPalletCapacity ?? 0)} location capacity` : warehouseCaption;
-    return (
-      <SortableDashboardTile tile={card} editMode={editMode} onResize={onResize} onHide={onHide}>
-        <PalletDialCard
-          label={card.label}
-          value={metrics?.[card.metricKey] ?? 0}
-          capacity={capacity}
-          caption={caption}
-          isLoading={isLoading}
-          route={dashboardMetricLink(card.metricKey)}
-        />
-      </SortableDashboardTile>
-    );
-  }
-
-  return <SortableMetricCard card={card} value={metrics?.[card.metricKey] ?? 0} isLoading={isLoading} editMode={editMode} onResize={onResize} onHide={onHide} />;
-}
-
-function PalletDialCard({
-  label,
-  value,
-  capacity,
-  caption,
-  isLoading,
-  route,
-}: {
-  label: string;
-  value: number;
-  capacity: number;
-  caption: string;
-  isLoading: boolean;
-  route: string;
-}) {
-  const percentage = capacity > 0 ? Math.min(100, Math.round((value / capacity) * 100)) : 0;
-
-  return (
-    <Card className="h-full min-h-0">
-      <CardContent className="flex h-full items-center gap-4 p-4 pr-20">
-        <Link
-          to={route}
-          className="grid h-24 w-24 shrink-0 place-items-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          aria-label={`${label} ${percentage}%`}
-          title={`Open source: ${label}`}
-        >
-        <div
-          className="grid h-24 w-24 shrink-0 place-items-center rounded-full"
-          style={{
-            background: `conic-gradient(hsl(var(--primary)) ${percentage}%, hsl(var(--accent) / 0.35) ${percentage}% 100%)`,
-          }}
-        >
-          <div className="grid h-16 w-16 place-items-center rounded-full bg-card text-sm font-semibold">
-            {isLoading ? <Loader2 className="h-5 w-5 animate-themed-loader" /> : `${percentage}%`}
-          </div>
-        </div>
-        </Link>
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-          <Link to={route} className="block rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-            <p className="text-3xl font-bold tracking-tight">{isLoading ? "..." : formatNumber(value)}</p>
-          </Link>
-          <p className="truncate text-xs text-muted-foreground">{caption}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export type ProfileRow = {
   id: string;
@@ -2756,97 +2384,6 @@ export function shouldRestrictToDefaultWarehouse(roles: string[]) {
     !roles.some((role) => ["admin", "warehouse_manager"].includes(role));
 }
 
-export function WarehouseFloorMode({
-  snapshot,
-  sensors,
-  tiles,
-  hiddenTiles,
-  definitionsById,
-  editMode,
-  renderSummaryTile,
-  onDragEnd,
-  onResize,
-  onHide,
-  onRestore,
-}: {
-  snapshot: EnterpriseDashboardSnapshot;
-  sensors: ReturnType<typeof useSensors>;
-  tiles: DashboardTileConfig[];
-  hiddenTiles: DashboardTileConfig[];
-  definitionsById: Map<string, DashboardTileDefinition<ModuleKey>>;
-  editMode: boolean;
-  renderSummaryTile: (tile: DashboardTileConfig, onResize: (id: string) => void, onHide: (id: string) => void) => ReactNode;
-  onDragEnd: (event: DragEndEvent) => void;
-  onResize: (id: string) => void;
-  onHide: (id: string) => void;
-  onRestore: (id: string) => void;
-}) {
-  const queuesByLabel = new Map(snapshot.floorQueues.map((queue) => [queue.label, queue]));
-
-  return (
-    <div className="grid gap-3">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-h-0 auto-rows-[10rem] gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
-            {tiles.map((tile) => {
-              const summaryTile = renderSummaryTile(tile, onResize, onHide);
-              if (summaryTile) return summaryTile;
-
-              if (tile.id === "Warehouse Intelligence") {
-                return (
-                  <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                    <WarehouseIntelligenceCard snapshot={snapshot} />
-                  </SortableDashboardTile>
-                );
-              }
-
-              const queue = queuesByLabel.get(tile.id);
-              if (!queue) return null;
-
-              return (
-                <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                  <Card className={cn("flex h-full min-w-0 flex-col border-l-4", toneBorder(queue.tone))}>
-                    <CardHeader className="p-4 pb-2 pr-20">
-                      <CardTitle className="flex items-center justify-between gap-4">
-                        <span>{queue.label}</span>
-                        <Link to={queue.route} className="shrink-0 rounded-sm text-3xl transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                          {formatNumber(queue.count)}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription>{queue.action}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-1 flex-col gap-2 p-4 pt-0">
-                      {queue.tasks.length > 0 ? (
-                        <ul className="mb-2 grid gap-1">
-                          {queue.tasks.map((task) => (
-                            <li key={task.id}>
-                              <Link
-                                to={task.route}
-                                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md border border-border bg-secondary/30 px-3 py-1.5 text-sm transition-colors hover:bg-secondary/60"
-                              >
-                                <span className="min-w-0 break-all font-medium leading-tight">{task.label}</span>
-                                <Badge variant="outline" className="shrink-0 self-start whitespace-nowrap capitalize text-xs">{task.sublabel}</Badge>
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      <Button className="mt-auto h-10 w-full" asChild>
-                        <Link to={queue.route}>Open workflow</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </SortableDashboardTile>
-              );
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
-      <HiddenDashboardTilesPanel editMode={editMode} tiles={hiddenTiles} definitionsById={definitionsById} onRestore={onRestore} />
-    </div>
-  );
-}
-
 export function normalizeScannerText(value: unknown) {
   return String(value ?? "").trim().toUpperCase();
 }
@@ -2881,242 +2418,6 @@ function shouldUppercaseField(name: string) {
     lower.includes("order_number") ||
     lower.includes("reference_number") ||
     lower.includes("location")
-  );
-}
-
-function WarehouseIntelligenceCard({ snapshot }: { snapshot: EnterpriseDashboardSnapshot }) {
-  return (
-    <Card className="h-full min-w-0">
-      <CardHeader className="pb-2 pr-20">
-        <CardTitle className="flex items-center gap-2 text-base"><RadioTower className="h-4 w-4" /> Warehouse Intelligence</CardTitle>
-        <CardDescription className="text-xs">Live shift signals — DPMO, 5S, Kanban, exceptions.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-2">
-        {snapshot.leanMetrics.map((metric) => (
-          <Link key={metric.label} to={metric.route} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md border border-border px-3 py-2 transition hover:bg-secondary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-            <div className="min-w-0">
-              <p className="break-words text-xs font-medium leading-4">{metric.label}</p>
-              <p className="mt-0.5 break-words text-xs leading-4 text-muted-foreground">Target: {metric.target}</p>
-            </div>
-            <div className="flex min-w-0 max-w-[8.5rem] flex-col items-end gap-1 text-right">
-              <span className="break-words text-lg font-semibold leading-none tabular-nums">{metric.value}</span>
-              <Badge className="max-w-full whitespace-normal break-words px-1.5 py-0 text-[10px] leading-4" variant={metric.status === "off_target" ? "destructive" : metric.status === "watch" ? "secondary" : "default"}>
-                {metric.status.replace("_", " ")}
-              </Badge>
-            </div>
-          </Link>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-export function DockHandoffBoard({
-  loads,
-  recommendations,
-  sensors,
-  tiles,
-  hiddenTiles,
-  definitionsById,
-  editMode,
-  renderSummaryTile,
-  onDragEnd,
-  onResize,
-  onHide,
-  onRestore,
-}: {
-  loads: DockHandoffLoad[];
-  recommendations: WarehouseBrainRecommendation[];
-  sensors: ReturnType<typeof useSensors>;
-  tiles: DashboardTileConfig[];
-  hiddenTiles: DashboardTileConfig[];
-  definitionsById: Map<string, DashboardTileDefinition<ModuleKey>>;
-  editMode: boolean;
-  renderSummaryTile: (tile: DashboardTileConfig, onResize: (id: string) => void, onHide: (id: string) => void) => ReactNode;
-  onDragEnd: (event: DragEndEvent) => void;
-  onResize: (id: string) => void;
-  onHide: (id: string) => void;
-  onRestore: (id: string) => void;
-}) {
-  const { toPath } = useTenantPath();
-  return (
-    <div className="grid gap-3">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-w-0 auto-rows-[10rem] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
-            {tiles.map((tile) => {
-              const summaryTile = renderSummaryTile(tile, onResize, onHide);
-              if (summaryTile) return summaryTile;
-
-              if (tile.id === "warehouse-brain") {
-                return (
-                  <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                    <WarehouseBrainPanel recommendations={recommendations} />
-                  </SortableDashboardTile>
-                );
-              }
-
-              const status = tile.id as DockHandoffLoad["status"];
-              const laneLoads = loads.filter((load) => load.status === status);
-
-              return (
-                <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                  <Card className={cn("h-full min-h-72 min-w-0", status === "blocked" ? "border-destructive/50" : "")}>
-                    <CardHeader className="pr-20">
-                      <CardTitle className="flex items-center justify-between gap-2 capitalize">
-                        <span>{status}</span>
-                        <Link to={toPath("/pick-lists")} className="rounded-sm text-2xl transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                          {formatNumber(laneLoads.length)}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription>Dock handoff lane</CardDescription>
-                    </CardHeader>
-                    <CardContent className="grid gap-3">
-                      {laneLoads.map((load) => (
-                        <div key={load.id} className="rounded-lg border border-border bg-secondary/30 p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold">{load.route}</span>
-                            <Badge>{load.door}</Badge>
-                          </div>
-                          <p className="mt-1 truncate text-sm">{load.customer}</p>
-                          <p className="text-xs text-muted-foreground">{load.driver} · {load.pallets} pallet{load.pallets === 1 ? "" : "s"} · {load.temperatureClass}</p>
-                          {load.blocker ? <p className="mt-2 text-xs text-destructive">{load.blocker}</p> : null}
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </SortableDashboardTile>
-              );
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
-      <HiddenDashboardTilesPanel editMode={editMode} tiles={hiddenTiles} definitionsById={definitionsById} onRestore={onRestore} />
-    </div>
-  );
-}
-
-export function OfficeMonitoringMode({
-  snapshot,
-  sensors,
-  tiles,
-  hiddenTiles,
-  definitionsById,
-  editMode,
-  renderSummaryTile,
-  onDragEnd,
-  onResize,
-  onHide,
-  onRestore,
-}: {
-  snapshot: EnterpriseDashboardSnapshot;
-  sensors: ReturnType<typeof useSensors>;
-  tiles: DashboardTileConfig[];
-  hiddenTiles: DashboardTileConfig[];
-  definitionsById: Map<string, DashboardTileDefinition<ModuleKey>>;
-  editMode: boolean;
-  renderSummaryTile: (tile: DashboardTileConfig, onResize: (id: string) => void, onHide: (id: string) => void) => ReactNode;
-  onDragEnd: (event: DragEndEvent) => void;
-  onResize: (id: string) => void;
-  onHide: (id: string) => void;
-  onRestore: (id: string) => void;
-}) {
-  const widgetsByLabel = new Map(snapshot.officeWidgets.map((widget) => [widget.label, widget]));
-
-  return (
-    <div className="grid gap-3">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={tiles.map((tile) => tile.id)} strategy={rectSortingStrategy}>
-          <div className="grid min-w-0 auto-rows-[10rem] gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,12rem),1fr))]">
-            {tiles.map((tile) => {
-              const summaryTile = renderSummaryTile(tile, onResize, onHide);
-              if (summaryTile) return summaryTile;
-
-              if (tile.id === "setup-checklist") {
-                return (
-                  <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                    <Card className="h-full">
-                      <CardHeader className="pr-20">
-                        <CardTitle className="flex items-center gap-2"><ClipboardCheck /> Setup Checklist</CardTitle>
-                        <CardDescription>Go-live prompts for admin and management setup activities.</CardDescription>
-                      </CardHeader>
-                      <CardContent className="grid gap-3">
-                        {snapshot.setupChecklist.map((item) => (
-                          <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-                            <div>
-                              <p className="text-sm font-medium">{item.label}</p>
-                              <p className="text-xs text-muted-foreground">{item.owner}</p>
-                            </div>
-                            <Badge variant={item.complete ? "default" : "secondary"}>{item.complete ? "Ready" : "Open"}</Badge>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  </SortableDashboardTile>
-                );
-              }
-
-              if (tile.id === "warehouse-brain") {
-                return (
-                  <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                    <WarehouseBrainPanel recommendations={snapshot.recommendations} />
-                  </SortableDashboardTile>
-                );
-              }
-
-              const widget = widgetsByLabel.get(tile.id);
-              if (!widget) return null;
-
-              return (
-                <SortableDashboardTile key={tile.id} tile={tile} editMode={editMode} onResize={onResize} onHide={onHide}>
-                  <Card className={cn("h-full min-w-0 border-l-4", toneBorder(widget.tone))}>
-                    <CardHeader className="pr-20">
-                      <CardDescription>{widget.label}</CardDescription>
-                      <CardTitle className="text-4xl">
-                        <Link to={widget.route} className="rounded-sm transition hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                          {widget.value}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription>{widget.detail}</CardDescription>
-                    </CardHeader>
-                  </Card>
-                </SortableDashboardTile>
-              );
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
-      <HiddenDashboardTilesPanel editMode={editMode} tiles={hiddenTiles} definitionsById={definitionsById} onRestore={onRestore} />
-    </div>
-  );
-}
-
-export function HiddenDashboardTilesPanel({
-  editMode,
-  tiles,
-  definitionsById,
-  onRestore,
-}: {
-  editMode: boolean;
-  tiles: DashboardTileConfig[];
-  definitionsById: Map<string, DashboardTileDefinition<ModuleKey>>;
-  onRestore: (id: string) => void;
-}) {
-  if (!editMode || tiles.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border bg-secondary/25 px-3 py-2">
-      <span className="text-xs font-medium text-muted-foreground">Hidden tiles</span>
-      {tiles.map((tile) => {
-        const label = definitionsById.get(tile.id)?.label ?? tile.id;
-        return (
-          <Button key={tile.id} type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => onRestore(tile.id)}>
-            <Eye className="h-3.5 w-3.5" />
-            {label}
-          </Button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -3922,7 +3223,6 @@ export function statusBadgeVariant(status: string): "default" | "secondary" | "d
 }
 
 // Alias kept for compatibility — Dock mode currently reuses the handoff board.
-export { DockHandoffBoard as WarehouseDockMode };
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c] as string));
