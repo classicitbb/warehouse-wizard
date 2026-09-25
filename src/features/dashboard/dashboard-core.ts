@@ -17,11 +17,22 @@ function rows(payload: SummaryPayload, key: string): DashboardTaskRow[] {
   return Array.isArray(value) ? (value as DashboardTaskRow[]) : [];
 }
 
+const PERMISSION_DENIED = "42501";
+
+function callSummary(warehouseId?: string | null) {
+  return (supabase.rpc as any)("dashboard_metrics_summary", { p_warehouse_id: warehouseId ?? null });
+}
+
 /**
  * One database call returns every Command Center count plus the clickable task
  * rows behind each tile. Counting used to happen in the browser after
  * downloading raw inventory rows, which both cost ~10 round trips per refresh
  * and silently truncated at the 1,000-row API cap, under-reporting totals.
+ *
+ * The summary is only granted to signed-in users. When the token has expired
+ * and its refresh failed, supabase-js sends the request as `anon` and Postgres
+ * answers "permission denied", so: no session means no call, and a denial
+ * gets one token refresh and retry before it is reported.
  */
 export async function getDashboardMetrics(
   warehouseId?: string | null,
@@ -29,9 +40,15 @@ export async function getDashboardMetrics(
 ) {
   const dashboardMetricKeys = getDashboardMetricKeysForModules(enabledModules);
 
-  const { data, error } = await (supabase.rpc as any)("dashboard_metrics_summary", {
-    p_warehouse_id: warehouseId ?? null,
-  });
+  const { data: auth } = await supabase.auth.getSession();
+  if (!auth.session) throw new Error("Sign in again to load warehouse metrics.");
+
+  let { data, error } = await callSummary(warehouseId);
+  if (error?.code === PERMISSION_DENIED) {
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    if (!refreshed.session) throw new Error("Your session has expired. Sign in again to load warehouse metrics.");
+    ({ data, error } = await callSummary(warehouseId));
+  }
   if (error) throw error;
   const payload = (data ?? {}) as SummaryPayload;
 

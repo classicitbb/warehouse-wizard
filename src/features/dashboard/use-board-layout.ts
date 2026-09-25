@@ -76,6 +76,19 @@ export function useBoardLayout(mode: BoardMode, specs: BoardTileSpec[], profileI
   const visibleIds = useMemo(() => new Set(specs.filter(isVisible).map((spec) => spec.id)), [isVisible, specs]);
   const hiddenSpecs = useMemo(() => specs.filter((spec) => !isVisible(spec)), [isVisible, specs]);
 
+  // Visibility follows the user across devices but positions do not, so a tile
+  // added on another device (or before local storage was cleared) can be
+  // visible with no spot in this device's layout. Give it one at the bottom
+  // rather than leaving it neither on the board nor in "Add a tile".
+  const boardLayout = useMemo(() => {
+    const placed = new Set(layout.map((item) => item.i));
+    const missing = specs.filter((spec) => visibleIds.has(spec.id) && !placed.has(spec.id));
+    if (!missing.length) return layout;
+    const completed = layout.filter((item) => visibleIds.has(item.i));
+    for (const spec of missing) completed.push(placeAtBottom(completed, spec));
+    return [...completed, ...layout.filter((item) => !visibleIds.has(item.i))];
+  }, [layout, specs, visibleIds]);
+
   const saveLayout = useCallback(
     (next: BoardItem[]) => {
       setLayout((current) => {
@@ -118,12 +131,12 @@ export function useBoardLayout(mode: BoardMode, specs: BoardTileSpec[], profileI
     (id: string) => {
       const spec = specs.find((item) => item.id === id);
       if (!spec) return;
-      const visibleLayout = layout.filter((item) => visibleIds.has(item.i));
+      const visibleLayout = boardLayout.filter((item) => visibleIds.has(item.i));
       // Always re-enter at the bottom: its old spot may be taken by now.
       saveLayout([...visibleLayout, placeAtBottom(visibleLayout, spec)]);
       setTileVisible(id, true);
     },
-    [layout, saveLayout, setTileVisible, specs, visibleIds],
+    [boardLayout, saveLayout, setTileVisible, specs, visibleIds],
   );
 
   const reset = useCallback(() => {
@@ -136,5 +149,5 @@ export function useBoardLayout(mode: BoardMode, specs: BoardTileSpec[], profileI
     }
   }, [deviceId, layoutKey, mode, profileId, setTileVisible, specs, visibility]);
 
-  return { layout, visibleIds, hiddenSpecs, saveLayout, hide, restore, reset };
+  return { layout: boardLayout, visibleIds, hiddenSpecs, saveLayout, hide, restore, reset };
 }
