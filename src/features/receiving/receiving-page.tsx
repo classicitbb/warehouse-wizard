@@ -63,7 +63,8 @@ import {
   removeUserRoleAssignment,
   downloadCsv,
   downloadCsvTemplate,
-  fetchOptions,
+  floorOptionsQuery,
+  RECEIVING_OPTION_KEYS,
   formatDate,
   formatNumber,
   getDashboardMetrics,
@@ -217,10 +218,8 @@ import {
   printDraftLabels,
   productRequiresExpiry,
   remainderForLine,
-  shouldRestrictToDefaultWarehouse,
-  resolveContainerScanValue,
-  normalizeScannerText,
-} from "@/features/shared/ui-shared";
+} from "@/features/receiving/receiving-form-state";
+import { shouldRestrictToDefaultWarehouse, resolveContainerScanValue, normalizeScannerText } from "@/lib/scan-input";
 import { dispatchLatestNotification } from "@/hooks/use-web-push";
 
 function parseShipmentDate(value: string) {
@@ -379,10 +378,12 @@ export function ReceivingPage() {
   const { online } = useNetworkStatus();
   const { roles, profile } = useAuth();
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
-  const { data: options } = useQuery({
-    queryKey: ["options", "receiving", restrictedToDefaultWarehouse, profile?.default_warehouse_id],
-    queryFn: () => fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
-  });
+  const { data: options } = useQuery(
+    floorOptionsQuery(RECEIVING_OPTION_KEYS, {
+      restrictToWarehouse: restrictedToDefaultWarehouse,
+      warehouseId: profile?.default_warehouse_id,
+    }),
+  );
 
   const defaultWarehouseId = profile?.default_warehouse_id ?? "";
   const warehouses = options?.warehouses ?? [];

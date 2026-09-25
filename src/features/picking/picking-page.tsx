@@ -72,7 +72,7 @@ import {
   removeUserRoleAssignment,
   downloadCsv,
   downloadCsvTemplate,
-  fetchOptions,
+  floorOptionsQuery,
   formatDate,
   formatNumber,
   getDashboardMetrics,
@@ -200,14 +200,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
-import {
-  SelectField,
-  TextField,
-  normalizeScannerText,
-  playBarcodeBeep,
-  statusBadgeVariant,
-  alertToast,
-} from "@/features/shared/ui-shared";
+import { SelectField, TextField, statusBadgeVariant } from "@/features/shared/ui-shared";
+import { normalizeScannerText } from "@/lib/scan-input";
+import { playBarcodeBeep, alertToast } from "@/lib/floor-feedback";
 import { dispatchNotificationForEntity } from "@/hooks/use-web-push";
 
 export function PickListsPage() {
@@ -221,7 +216,7 @@ export function PickListsPage() {
   const [pendingProductScan, setPendingProductScan] = useState<string | null>(null);
   const clientTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pickProductRefs = useRef<Record<number, ProductSearchHandle | null>>({});
-  const { data: options } = useQuery({ queryKey: ["options"], queryFn: () => fetchOptions() });
+  const { data: options } = useQuery(floorOptionsQuery(["warehouses", "clients", "products"]));
   const activeWarehouseId = profile?.default_warehouse_id ?? null;
   const { data: pickLists = [] } = useQuery({
     queryKey: ["pick-lists", activeWarehouseId],

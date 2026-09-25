@@ -9,7 +9,7 @@ import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
-import { alertToast } from "@/features/shared/ui-shared";
+import { alertToast } from "@/lib/floor-feedback";
 import {
   acceptCycleCountExceptionLine,
   archiveCancelledCycleCount,
@@ -21,7 +21,7 @@ import {
   createCycleCountFlow,
   cycleCountSchema,
   discardDraftCycleCount,
-  fetchOptions,
+  floorOptionsQuery,
   flagCycleCountLineException,
   formatDate,
   formatNumber,
@@ -109,7 +109,7 @@ export function CycleCountsPage() {
   const wasOfflineRef = useRef(!online);
   const resumeUserId = auth.profile?.id ?? null;
 
-  const { data: options } = useQuery({ queryKey: ["options", "cycle-counts"], queryFn: () => fetchOptions() });
+  const { data: options } = useQuery(floorOptionsQuery(["warehouses", "zones", "locations", "products"]));
   const { data: counts = [] } = useQuery({
     queryKey: ["cycle-counts"],
     queryFn: listCycleCounts,
@@ -229,7 +229,7 @@ export function CycleCountsPage() {
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: ["cycle-counts"] }),
       queryClient.invalidateQueries({ queryKey: ["cycle-count-lines", "assigned"] }),
-      queryClient.invalidateQueries({ queryKey: ["options", "cycle-counts"] }),
+      queryClient.invalidateQueries({ queryKey: ["options", "floor"] }),
     ]);
     toast.message("Connection restored. Refreshing live cycle-count state before the next post.");
   }, [online, queryClient]);

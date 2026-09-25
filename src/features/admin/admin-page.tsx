@@ -215,16 +215,14 @@ const inviteUserSchema = z.object({
   warehouse_id: z.string().optional().default(""),
 });
 
+import { TableFrame } from "@/features/shared/resource-forms";
+import { WarehouseOption, ProfileRow, UserActivityRow } from "@/features/shared/ui-shared";
 import {
-  TableFrame,
-  WarehouseOption,
-  ProfileRow,
-  UserActivityRow,
   playBarcodeBeep,
   playConfirmTone,
   playAttentionTone,
   playNoGoTone,
-} from "@/features/shared/ui-shared";
+} from "@/lib/floor-feedback";
 
 function AddUserDialog({
   roles,

@@ -193,17 +193,10 @@ import { UnrecordedPalletsBanner } from "@/features/inventory/unrecorded-pallets
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 
 
-import {
-  isBaySelectorCode,
-  normalizeScannerText,
-  playBarcodeBeep,
-  flashInput,
-  alertToast,
-  statusBadgeVariant,
-  BinCapacityBar,
-  BayOccupancyGrid,
-  WarehouseBayBrowserDialog,
-} from "@/features/shared/ui-shared";
+import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
+import { playBarcodeBeep, flashInput, alertToast } from "@/lib/floor-feedback";
+import { statusBadgeVariant } from "@/features/shared/ui-shared";
+import { BinCapacityBar, BayOccupancyGrid, WarehouseBayBrowserDialog } from "@/features/shared/bay-occupancy";
 
 function incrementOccupancy(occupiedPallets: number, maxPallets: number) {
   return maxPallets > 0 ? Math.min(maxPallets, occupiedPallets + 1) : occupiedPallets + 1;

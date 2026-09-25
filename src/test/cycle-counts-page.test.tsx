@@ -82,6 +82,10 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
   return {
     ...actual,
     fetchOptions: cycleCountMocks.fetchOptions,
+    floorOptionsQuery: (...args: Parameters<typeof actual.floorOptionsQuery>) => ({
+      ...actual.floorOptionsQuery(...args),
+      queryFn: () => cycleCountMocks.fetchOptions(),
+    }),
     listCycleCounts: cycleCountMocks.listCycleCounts,
     listMyCycleCountLines: cycleCountMocks.listMyCycleCountLines,
     createCycleCountFlow: cycleCountMocks.createCycleCountFlow,

@@ -23,16 +23,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import {
-  BayOccupancyGrid,
-  isBaySelectorCode,
-  normalizeScannerText,
-  playBarcodeBeep,
-
-  flashInput,
-  WarehouseBayBrowserDialog,
-  alertToast,
-} from "@/features/shared/ui-shared";
+import { BayOccupancyGrid, WarehouseBayBrowserDialog } from "@/features/shared/bay-occupancy";
+import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
+import { playBarcodeBeep, flashInput, alertToast } from "@/lib/floor-feedback";
 
 export function LocationMovesPage() {
   const navigate = useNavigate();

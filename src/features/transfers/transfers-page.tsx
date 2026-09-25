@@ -24,12 +24,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  SelectField,
-  TextField,
-  statusBadgeVariant,
-  alertToast,
-} from "@/features/shared/ui-shared";
+import { SelectField, TextField, statusBadgeVariant } from "@/features/shared/ui-shared";
+import { alertToast } from "@/lib/floor-feedback";
 
 type TransferProduct = { name?: string | null; sku?: string | null };
 type TransferPallet = {

@@ -50,7 +50,7 @@ import { LocationLabelPage } from "@/components/location-label-page";
 import { ZoneLabelPage } from "@/components/zone-label-page";
 import { BayLocationCodesPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
 import { Textarea } from "@/components/ui/textarea";
-import { LocationWizardDialog } from "@/features/shared/ui-shared";
+import { LocationWizardDialog } from "@/features/shared/location-wizard";
 import { ReorderForecastSettingsPanel } from "@/features/shared/reorder-forecast-settings";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1154,7 +1154,7 @@ function AddEditWarehouseDialog({ warehouse, onClose }: { warehouse?: WarehouseR
       toast.success(warehouse ? "Warehouse updated" : "Warehouse created");
       void queryClient.invalidateQueries({ queryKey: ["tree", "warehouses"] });
       void queryClient.invalidateQueries({ queryKey: ["warehouses"] });
-      void queryClient.invalidateQueries({ queryKey: ["header-warehouse-options"] });
+      void queryClient.invalidateQueries({ queryKey: ["options", "floor"] });
       onClose();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),

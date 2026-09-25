@@ -2,7 +2,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { LifeBuoy, X } from "lucide-react";
 
-import { requestCopilotReport } from "@/features/copilot/copilot-core";
+import { requestCopilotReport } from "@/features/copilot/report-request";
 import { activeReportContext } from "@/features/copilot/report-context";
 import { cn } from "@/lib/utils";
 

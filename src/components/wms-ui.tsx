@@ -15,5 +15,5 @@ export { LocationMovesPage } from "@/features/moves/moves-page";
 export { StatusPage, ReportsPage } from "@/features/status/status-page";
 export { UsersRolesPage, SettingsPage, MobileActionBar } from "@/features/admin/admin-page";
 export { SystemLogPage, EmailLogPage } from "@/features/system/system-page";
-export { distributeShipmentLine } from "@/features/shared/ui-shared";
-export type { LocationWizardValues } from "@/features/shared/ui-shared";
+export { distributeShipmentLine } from "@/features/receiving/receiving-form-state";
+export type { LocationWizardValues } from "@/features/shared/location-wizard";
