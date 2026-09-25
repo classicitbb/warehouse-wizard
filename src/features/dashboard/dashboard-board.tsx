@@ -1,7 +1,9 @@
-// The Command Center grid: tiles placed freely on 12 columns, gaps allowed.
-// In edit mode tiles can be dragged anywhere and resized within their limits;
-// a tile dropped on another pushes it down rather than overlapping it.
-// Every tile is measured and grown to fit its content, so nothing is cropped.
+// The Command Center grid: tiles on 12 columns with gravity, so every tile
+// sits as high as it can and moving one never strands the rest. In edit mode
+// tiles can be dragged and resized within their limits; a tile dropped on
+// another is inserted there, and one dropped into a narrow gap shrinks to fit
+// if its limits allow. Every tile is measured and grown to fit its content,
+// so nothing is cropped.
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import GridLayout, { type Layout } from "react-grid-layout";
@@ -17,6 +19,7 @@ import {
   BOARD_GAP,
   BOARD_ROW_HEIGHT,
   effectiveLimits,
+  fitIntoGap,
   fitToContent,
   layoutToSave,
   rowsForHeight,
@@ -26,6 +29,77 @@ import type { BoardData, BoardTileEntry, Tone } from "./board-tiles";
 
 /** Below this width tiles stack in one column at their natural height. */
 const STACK_BELOW_PX = 768;
+
+// The grid's own layout helpers (typed here; @types/react-grid-layout omits them).
+const gridUtils = (GridLayout as unknown as {
+  utils: {
+    compact: (layout: Layout[], compactType: "vertical", cols: number) => Layout[];
+    moveElement: (
+      layout: Layout[], item: Layout, x: number, y: number, isUserAction: boolean,
+      preventCollision: boolean, compactType: "vertical", cols: number, allowOverlap: boolean,
+    ) => Layout[];
+  };
+}).utils;
+
+/**
+ * Drag handling that adds the gap rule to the grid's own. On every step the
+ * grid moves the tile at full width and pushes aside whatever it hits; this
+ * undoes that push, applies `fitIntoGap`, and redoes the move at the fitted
+ * size. The layout on screen is kept so the drop lands exactly where the
+ * preview showed, rather than where the grid would recompute it.
+ */
+function useGapFitDrag(onDrop: (layout: Layout[]) => void) {
+  const drag = useRef<{ shown: Layout[]; width: number } | null>(null);
+
+  const onDragStart = useCallback((layout: Layout[], item: Layout) => {
+    drag.current = { shown: layout.map((entry) => ({ ...entry })), width: item.w };
+  }, []);
+
+  const onDrag = useCallback((layout: Layout[], _old: Layout, item: Layout) => {
+    const current = drag.current;
+    if (!current) return;
+    const before = new Map(current.shown.map((entry) => [entry.i, entry]));
+    for (const entry of layout) {
+      const shown = before.get(entry.i);
+      if (!shown || entry === item) continue;
+      entry.x = shown.x;
+      entry.y = shown.y;
+      entry.moved = false;
+    }
+    const from = before.get(item.i)!;
+    const others = current.shown.filter((entry) => entry.i !== item.i);
+    const target = { x: item.x, y: item.y, h: item.h };
+    const fit = fitIntoGap(others, target, current.width, item.minW ?? 1) ?? {
+      x: Math.min(target.x, BOARD_COLUMNS - current.width),
+      w: current.width,
+    };
+    item.w = fit.w;
+    item.y = from.y;
+    // The grid skips a move to the cell a tile is already in; start it off-grid
+    // so the fitted width still pushes whatever it now overlaps.
+    item.x = from.x === fit.x && from.y === target.y ? -1 : from.x;
+    item.moved = false;
+    gridUtils.moveElement(layout, item, fit.x, target.y, true, false, "vertical", BOARD_COLUMNS, false);
+    current.shown = gridUtils.compact(layout, "vertical", BOARD_COLUMNS);
+  }, []);
+
+  const onDragStop = useCallback(
+    (layout: Layout[]) => {
+      const shown = drag.current ? new Map(drag.current.shown.map((entry) => [entry.i, entry])) : null;
+      drag.current = null;
+      if (shown) {
+        for (const entry of layout) {
+          const final = shown.get(entry.i);
+          if (final) Object.assign(entry, { x: final.x, y: final.y, w: final.w, h: final.h });
+        }
+      }
+      onDrop(layout);
+    },
+    [onDrop],
+  );
+
+  return { onDragStart, onDrag, onDragStop };
+}
 
 const TONE_STRIPE: Record<Tone, string> = {
   critical: "border-l-destructive",
@@ -83,35 +157,36 @@ const TileFrame = memo(function TileFrame({
   return (
     <div
       className={cn(
-        "h-full overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm",
+        "relative h-full overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm",
         tone && cn("border-l-4", TONE_STRIPE[tone]),
         editMode && "cursor-grab border-dashed ring-1 ring-primary/30 active:cursor-grabbing",
       )}
     >
-      <div ref={contentRef}>
-        {editMode ? (
-          // A strip of its own, measured with the content, so the controls
-          // never sit on top of a tile's numbers.
-          <div className="flex items-center justify-between gap-2 border-b border-dashed border-border bg-secondary/40 px-3 py-1">
-            <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <GripVertical className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{label}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => onHide(id)}
-              // Keep the grid from starting a drag from the button.
-              onMouseDown={(event) => event.stopPropagation()}
-              onTouchStart={(event) => event.stopPropagation()}
-              className="board-no-drag grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-              aria-label={`Hide ${label}`}
-              title={`Hide ${label}`}
-            >
-              <EyeOff className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : null}
-        <div className={cn("p-4", editMode && "pointer-events-none select-none")}>{children}</div>
+      {editMode ? (
+        // Drops down over the top of the tile instead of adding a row above
+        // it, so unlocking never changes a tile's height and locking again
+        // never leaves a gap where the strip was.
+        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 border-b border-dashed border-border bg-secondary px-3 py-1 shadow-sm">
+          <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-foreground">
+            <GripVertical className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{label}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => onHide(id)}
+            // Keep the grid from starting a drag from the button.
+            onMouseDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+            className="board-no-drag grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            aria-label={`Hide ${label}`}
+            title={`Hide ${label}`}
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
+      <div ref={contentRef} className={cn("p-4", editMode && "pointer-events-none select-none opacity-40")}>
+        {children}
       </div>
     </div>
   );
@@ -164,6 +239,10 @@ export function DashboardBoard({
 
   const stacked = width > 0 && width < STACK_BELOW_PX;
 
+  const gapFitDrag = useGapFitDrag(
+    useCallback((next: Layout[]) => onLayoutChange(layoutToSave(next, savedVisible)), [onLayoutChange, savedVisible]),
+  );
+
   const renderTile = (item: BoardItem, measure: boolean) => {
     const tile = tileById.get(item.i)!;
     return (
@@ -202,13 +281,15 @@ export function DashboardBoard({
           margin={[BOARD_GAP, BOARD_GAP]}
           containerPadding={[0, 0]}
           layout={gridLayout}
-          compactType={null}
+          compactType="vertical"
           preventCollision={false}
           isDraggable={editMode}
           isResizable={editMode}
           resizeHandles={["se", "e", "s"]}
           draggableCancel=".board-no-drag"
-          onDragStop={(next) => onLayoutChange(layoutToSave(next, savedVisible))}
+          onDragStart={gapFitDrag.onDragStart}
+          onDrag={gapFitDrag.onDrag}
+          onDragStop={gapFitDrag.onDragStop}
           onResizeStop={(next, _old, resized) => onLayoutChange(layoutToSave(next, savedVisible, resized.i))}
         >
           {savedVisible.map((item) => (

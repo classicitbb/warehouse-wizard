@@ -1,10 +1,12 @@
 // Command Center grid layout: where each tile sits and how big it may get.
 //
-// Tiles are placed freely on a 12-column grid. Gaps are allowed and nothing
-// is compacted; when a tile grows or is dropped onto another, the grid pushes
-// the neighbour down out of its way. Each tile carries hard size limits, and
-// the board additionally grows any tile whose content needs more rows than it
-// has (see `fitToContent`), so a tile never crops what it shows.
+// Tiles sit on a 12-column grid with gravity: every tile floats up until it
+// meets the tile above it, so moving, hiding or shrinking one never leaves a
+// hole. A tile dropped onto another is inserted there and pushes it down; a
+// tile dropped into a gap narrower than itself shrinks to fit when its limits
+// allow (see `fitIntoGap`). Each tile carries hard size limits, and the board
+// additionally grows any tile whose content needs more rows than it has (see
+// `fitToContent`), so a tile never crops what it shows.
 
 export const BOARD_COLUMNS = 12;
 export const BOARD_ROW_HEIGHT = 40;
@@ -111,6 +113,39 @@ export function effectiveLimits(spec: BoardTileSpec, neededRows: number | undefi
     minH: Math.max(spec.limits.minH, needed),
     maxH: Math.max(spec.limits.maxH, needed),
   };
+}
+
+/**
+ * Where a dragged tile goes when it overlaps other tiles. If the column under
+ * its centre is free, the tile is being put into the gap beside them: it slides
+ * sideways to fit, or narrows to the gap's width if the gap is too tight and
+ * `minW` allows. Otherwise (it is on top of a tile, or the gap is narrower
+ * than `minW`) it returns null and the tile is inserted, pushing others down.
+ */
+export function fitIntoGap(
+  others: BoardItem[],
+  target: { x: number; y: number; h: number },
+  width: number,
+  minW: number,
+  cols = BOARD_COLUMNS,
+): { x: number; w: number } | null {
+  const x = clamp(target.x, 0, cols - width);
+  const occupied = new Array<boolean>(cols).fill(false);
+  for (const other of others) {
+    if (other.y >= target.y + target.h || other.y + other.h <= target.y) continue;
+    for (let col = other.x; col < Math.min(cols, other.x + other.w); col++) occupied[col] = true;
+  }
+  if (!occupied.slice(x, x + width).includes(true)) return { x, w: width };
+
+  const centre = x + Math.floor(width / 2);
+  if (occupied[centre]) return null;
+  let start = centre;
+  let end = centre + 1;
+  while (start > 0 && !occupied[start - 1]) start--;
+  while (end < cols && !occupied[end]) end++;
+  const gap = end - start;
+  if (gap >= width) return { x: clamp(x, start, end - width), w: width };
+  return gap >= minW ? { x: start, w: gap } : null;
 }
 
 /**
