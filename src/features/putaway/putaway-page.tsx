@@ -141,7 +141,7 @@ import { type ProductSearchHandle } from "@/components/product-search";
 import { cn } from "@/lib/utils";
 import { extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
 import { getOrCreateDeviceId } from "@/lib/device-identity";
-import { invalidateWarehouseData } from "@/lib/query-invalidation";
+import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import {
   filterDashboardTileDefinitions,
   hiddenDashboardTiles,
@@ -546,14 +546,7 @@ export function PutawayTasksPage() {
       markPutawayOccupancyCached(queryClient, vars.location);
       setCompletedIds((prev) => new Set([...prev, vars.taskId]));
       resetPutawaySelection(vars.taskId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["putaway-task-history"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-        queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
-        queryClient.invalidateQueries({ queryKey: ["bay-occupancy"] }),
-      ]);
+      await invalidateAfterPalletMove(queryClient, [["putaway-tasks"], ["putaway-task-history"]]);
     },
     onError: (error, vars) => {
       const msg = error instanceof Error ? error.message : String(error);

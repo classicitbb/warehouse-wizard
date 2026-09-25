@@ -109,7 +109,7 @@ const StatusPage = lazy(() => import("@/features/status/status-page").then((mod)
 const SystemLogPage = lazy(() => import("@/features/system/system-page").then((mod) => ({ default: mod.SystemLogPage })));
 const EmailLogPage = lazy(() => import("@/features/system/system-page").then((mod) => ({ default: mod.EmailLogPage })));
 const TransfersPage = lazy(() => import("@/features/transfers/transfers-page").then((mod) => ({ default: mod.TransfersPage })));
-const UsersRolesPage = lazy(() => import("@/features/admin/admin-page").then((mod) => ({ default: mod.UsersRolesPage })));
+const UsersRolesPage = lazy(() => import("@/features/admin/users-roles-page").then((mod) => ({ default: mod.UsersRolesPage })));
 const CycleCountsPage = lazy(() => import("@/features/cycle-counts/cycle-counts-page").then((mod) => ({ default: mod.CycleCountsPage })));
 const LocationMovesPage = lazy(() => import("@/features/moves/moves-page").then((mod) => ({ default: mod.LocationMovesPage })));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
@@ -132,8 +132,7 @@ function HelpSidebar({ pathname }: { pathname: string }) {
     </Suspense>
   );
 }
-// The shell alone: it used to also await the 165 kB admin chunk for a no-op
-// MobileActionBar, which delayed every protected page on a cold load.
+// The shell alone: awaiting any page chunk here delays every protected page on a cold load.
 const ProtectedShell = AppShell;
 
 
@@ -1206,17 +1205,16 @@ function FeatureFlagProvider({ children }: { children: ReactNode }) {
   return <FeatureFlagContext.Provider value={value}>{children}</FeatureFlagContext.Provider>;
 }
 
+// Rendered inside ProtectedLayout, which already supplies the AppShell frame.
 function TransfersDisabledPage() {
   return (
-    <AppShell>
-      <div className="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center gap-3 text-center">
-        <h1 className="text-2xl font-semibold">Transfers are temporarily disabled</h1>
-        <p className="text-sm text-muted-foreground">
-          Inter-warehouse transfers are paused for all users while the workflow and reconnect behavior are being
-          redesigned.
-        </p>
-      </div>
-    </AppShell>
+    <div className="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center gap-3 text-center">
+      <h1 className="text-2xl font-semibold">Transfers are temporarily disabled</h1>
+      <p className="text-sm text-muted-foreground">
+        Inter-warehouse transfers are paused for all users while the workflow and reconnect behavior are being
+        redesigned.
+      </p>
+    </div>
   );
 }
 

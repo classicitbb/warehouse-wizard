@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeftRight, CheckCircle2, Loader2, PackageX } from "lucide-react";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
+import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { formatSupabaseError } from "@/features/shared/core-types";
 import {
@@ -80,20 +81,10 @@ export function LocationMovesPage() {
     setBayBrowserOpen(true);
   }
 
-  const invalidateMoveData = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["move-tasks"] }),
-      queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-      // Occupancy is recalculated after every move so bays never keep a stale
-      // pallet count from the location the pallet just left.
-      queryClient.invalidateQueries({ queryKey: ["bay-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["pick-bay-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["warehouse-bay-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["status-pallets"] }),
-    ]);
-  }, [queryClient]);
+  const invalidateMoveData = useCallback(
+    () => invalidateAfterPalletMove(queryClient, [["move-tasks"]]),
+    [queryClient],
+  );
 
 
   // `announce` gates the audible no-go alarm: scans, bay picks and blur announce,

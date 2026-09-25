@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 const warehouseDataQueryKeys = [
   ["dashboard-metrics"],
@@ -18,6 +18,29 @@ const warehouseDataQueryKeys = [
   ["product_packaging_profiles"],
   ["options"],
 ] as const;
+
+// Every cache a pallet changing place or quantity makes stale: stock search,
+// status lists, dashboard counts and each occupancy grid (so a bay never keeps
+// the count from the location a pallet just left).
+const palletMoveQueryKeys = [
+  ["inventory-search"],
+  ["dashboard-metrics"],
+  ["status-pallets"],
+  ["product-qty-totals"],
+  ["bay-occupancy"],
+  ["bin-occupancy"],
+  ["pick-bay-occupancy"],
+  ["warehouse-bay-occupancy"],
+] as const;
+
+/** Refresh after receiving, put-away, a move or a pick. `extraKeys` are the page's own lists. */
+export async function invalidateAfterPalletMove(queryClient: QueryClient, extraKeys: readonly QueryKey[] = []) {
+  await Promise.all(
+    [...palletMoveQueryKeys, ...extraKeys].map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey: [...queryKey] }),
+    ),
+  );
+}
 
 export async function invalidateWarehouseData(queryClient: QueryClient) {
   await Promise.all(

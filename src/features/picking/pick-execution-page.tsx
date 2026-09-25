@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { AppShell } from "@/features/shared/app-shell";
 import { alertToast, flashInput, playBarcodeBeep } from "@/lib/floor-feedback";
+import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,16 +180,7 @@ export function PickExecutionPage() {
           className: "task-success-toast-rim",
         },
       );
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
-        queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["product-qty-totals"] }),
-        queryClient.invalidateQueries({ queryKey: ["pick-bay-occupancy"] }),
-        queryClient.invalidateQueries({ queryKey: ["bay-occupancy"] }),
-        queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-      ]);
+      await invalidateAfterPalletMove(queryClient, [["pick-execution", pickListId], ["pick-lists"]]);
       const shortfall = Number(result?.shortfall ?? 0);
       if (shortfall > 0) {
         setShortfallPrompt({ taskId: variables.taskId, quantity: shortfall });
@@ -237,12 +229,7 @@ export function PickExecutionPage() {
     },
     onSuccess: async () => {
       alertToast.success("Pick list complete — handed to dispatch");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["pick-execution", pickListId] }),
-        queryClient.invalidateQueries({ queryKey: ["pick-lists"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-      ]);
+      await invalidateAfterPalletMove(queryClient, [["pick-execution", pickListId], ["pick-lists"]]);
       navigate(toPath("/pick-lists"));
     },
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Could not mark complete"),
