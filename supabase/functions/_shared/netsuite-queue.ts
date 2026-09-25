@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- @ts-expect-error would be flagged as unused under Deno, which allows .ts imports.
 // @ts-ignore Deno requires the source extension; Vitest resolves it during transform.
 import { payloadDigest } from './netsuite.ts'
 
