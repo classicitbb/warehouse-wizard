@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeftRight, CheckCircle2, Loader2, PackageX } from "lucide-react";
 import { useKnownLocationCodes } from "@/hooks/use-known-location-codes";
+import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 import { formatSupabaseError } from "@/features/shared/core-types";
 import {
@@ -23,16 +24,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import {
-  BayOccupancyGrid,
-  isBaySelectorCode,
-  normalizeScannerText,
-  playBarcodeBeep,
-
-  flashInput,
-  WarehouseBayBrowserDialog,
-  alertToast,
-} from "@/features/shared/ui-shared";
+import { BayOccupancyGrid, WarehouseBayBrowserDialog } from "@/features/shared/bay-occupancy";
+import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
+import { playBarcodeBeep, flashInput, alertToast } from "@/lib/floor-feedback";
 
 export function LocationMovesPage() {
   const navigate = useNavigate();
@@ -87,20 +81,10 @@ export function LocationMovesPage() {
     setBayBrowserOpen(true);
   }
 
-  const invalidateMoveData = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["move-tasks"] }),
-      queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-      // Occupancy is recalculated after every move so bays never keep a stale
-      // pallet count from the location the pallet just left.
-      queryClient.invalidateQueries({ queryKey: ["bay-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["pick-bay-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["warehouse-bay-occupancy"] }),
-      queryClient.invalidateQueries({ queryKey: ["status-pallets"] }),
-    ]);
-  }, [queryClient]);
+  const invalidateMoveData = useCallback(
+    () => invalidateAfterPalletMove(queryClient, [["move-tasks"]]),
+    [queryClient],
+  );
 
 
   // `announce` gates the audible no-go alarm: scans, bay picks and blur announce,

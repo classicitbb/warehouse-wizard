@@ -123,14 +123,19 @@ vi.mock("@/lib/ai-assist", async (importOriginal) => {
 
 vi.mock("@/lib/wms-core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/wms-core")>();
+  const fetchOptions = vi.fn(async () => ({
+    warehouses: [{ id: "wh-1", name: "NEW - New Warehouse" }],
+    clients: [{ id: "client-1", code: "RH", name: "Russell Hunte" }],
+    products: [{ id: "prod-1", sku: "FLOUR", name: "Flour", barcode: "FLOUR" }],
+    packagingProfiles: [],
+  }));
   return {
     ...actual,
-    fetchOptions: vi.fn(async () => ({
-      warehouses: [{ id: "wh-1", name: "NEW - New Warehouse" }],
-      clients: [{ id: "client-1", code: "RH", name: "Russell Hunte" }],
-      products: [{ id: "prod-1", sku: "FLOUR", name: "Flour", barcode: "FLOUR" }],
-      packagingProfiles: [],
-    })),
+    fetchOptions,
+    floorOptionsQuery: (...args: Parameters<typeof actual.floorOptionsQuery>) => ({
+      ...actual.floorOptionsQuery(...args),
+      queryFn: fetchOptions,
+    }),
     listDraftReceipts: wmsMocks.listDraftReceipts,
     saveShipmentDrafts: wmsMocks.saveShipmentDrafts,
     updateDraftReceipt: wmsMocks.updateDraftReceipt,

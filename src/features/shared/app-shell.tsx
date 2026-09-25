@@ -73,7 +73,8 @@ import {
   removeUserRoleAssignment,
   downloadCsv,
   downloadCsvTemplate,
-  fetchOptions,
+  floorOptionsQuery,
+  RECEIVING_OPTION_KEYS,
   formatDate,
   formatNumber,
   getDashboardMetrics,
@@ -199,11 +200,10 @@ import {
   FailedTasksReminder,
   AccessRequestsBanner,
   ReorderAlertNotificationPrompt,
-  navIcons,
-  appTitle,
   ChangeOwnPasswordDialog,
-  shouldRestrictToDefaultWarehouse,
-} from "@/features/shared/ui-shared";
+} from "@/features/shared/shell-prompts";
+import { navIcons, appTitle } from "@/features/shared/ui-shared";
+import { shouldRestrictToDefaultWarehouse } from "@/lib/scan-input";
 
 const OFFLINE_SYSTEM_LOG_SOURCE = "rf.offline_disconnect";
 const OFFLINE_ALERT_CHALLENGE = "ACK";
@@ -688,8 +688,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (result === "granted") await ensurePushSubscription();
   }, [requestNotificationPermission, user?.id]);
   const { data: headerOptions } = useQuery({
-    queryKey: ["header-warehouse-options", canSwitchWarehouses],
-    queryFn: () => fetchOptions(false),
+    ...floorOptionsQuery(["warehouses", "userRoles"]),
     enabled: canSwitchWarehouses,
   });
   const { data: offlineSupervisorAlerts = [] } = useQuery<OfflineSupervisorAlert[]>({
@@ -870,10 +869,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
     if (route === "/receiving") {
-      void queryClient.prefetchQuery({
-        queryKey: ["options", "receiving", shouldRestrictToDefaultWarehouse(roles), warehouseId],
-        queryFn: () => fetchOptions(false, { restrictToWarehouse: shouldRestrictToDefaultWarehouse(roles), warehouseId }),
-      });
+      void queryClient.prefetchQuery(
+        floorOptionsQuery(RECEIVING_OPTION_KEYS, { restrictToWarehouse: shouldRestrictToDefaultWarehouse(roles), warehouseId }),
+      );
       return;
     }
     if (route === "/putaway-tasks") {

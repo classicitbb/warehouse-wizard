@@ -10,7 +10,7 @@ const copilotMocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/system-telemetry", () => ({ logErrorTelemetry: telemetryMocks.logErrorTelemetry }));
 vi.mock("@/lib/habit-tracking", () => ({ recordAction: habitMocks.recordAction }));
-vi.mock("@/features/copilot/copilot-core", () => copilotMocks);
+vi.mock("@/features/copilot/report-request", () => copilotMocks);
 
 import { ErrorBoundary } from "@/components/error-boundary";
 

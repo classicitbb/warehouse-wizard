@@ -29,7 +29,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isFloorAudioPrimed } from "@/lib/audio-unlock";
 import { ensurePushSubscription } from "@/lib/push-subscription";
-import { playPickTicketRing } from "@/features/shared/ui-shared";
+import { playPickTicketRing } from "@/lib/floor-feedback";
 
 const SEEN_EVENTS_STORAGE_KEY = "warehouseWizard.notifications.seenEventIds";
 const MAX_SEEN_EVENTS = 200;

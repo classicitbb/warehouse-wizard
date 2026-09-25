@@ -222,16 +222,15 @@ import {
   renderField,
   ResourceFormDialog,
   ResourceEditDialog,
-  ImportButton,
-  BarcodePrintDialog,
-  LocationWizardDialog,
   defaultFieldValue,
   composeLocationCode,
   normalizeResourceValues,
   getResourceFieldOptions,
-  shouldRestrictToDefaultWarehouse,
-  normalizeScannerText,
-} from "@/features/shared/ui-shared";
+} from "@/features/shared/resource-forms";
+import { ImportButton } from "@/features/shared/resource-import";
+import { BarcodePrintDialog } from "@/features/shared/ui-shared";
+import { LocationWizardDialog } from "@/features/shared/location-wizard";
+import { shouldRestrictToDefaultWarehouse, normalizeScannerText } from "@/lib/scan-input";
 
 /** Products table header cell: click to sort, funnel icon to filter. */
 function ProductColumnHeader({

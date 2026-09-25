@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@hookform/resolvers/zod": path.resolve(__dirname, "./node_modules/@hookform/resolvers/zod/dist/zod.js"),
+      "@hookform/resolvers/zod": path.resolve(__dirname, "./node_modules/@hookform/resolvers/zod/dist/zod.mjs"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
@@ -88,12 +88,15 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Match whole package directories. A bare "node_modules/react" prefix
+          // also caught react-day-picker, react-grid-layout, react-markdown's
+          // stack and react-dom/server, forcing ~400 kB of page-only code into
+          // the chunk every scanner downloads before the first screen.
+          if (id.includes("node_modules/react-dom/server")) return undefined;
           if (
-            id.includes("node_modules/@supabase/supabase-js") ||
-            id.includes("node_modules/@tanstack/react-query") ||
-            id.includes("node_modules/react") ||
-            id.includes("node_modules/react-dom") ||
-            id.includes("node_modules/react-router-dom")
+            /node_modules\/(@supabase\/[^/]+|@tanstack\/(react-query|query-core)|react|react-dom|scheduler|react-router|react-router-dom)\//.test(
+              id,
+            )
           ) {
             return "vendor";
           }

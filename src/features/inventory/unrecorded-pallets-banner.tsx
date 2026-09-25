@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { alertToast } from "@/features/shared/ui-shared";
+import { alertToast } from "@/lib/floor-feedback";
 import { listUnrecordedStoredPallets, releaseUnrecordedPalletLocation } from "@/features/inventory/inventory-core";
 import { createReturnedPalletDraft } from "@/features/receiving/receiving-core";
 
