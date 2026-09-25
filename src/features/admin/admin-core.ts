@@ -574,6 +574,26 @@ export async function fetchOptions(
   return result;
 }
 
+/**
+ * Query options for a floor page's pickers. Each page names only the tables it
+ * renders, so the pick-list screen no longer downloads every location, pallet
+ * and permission row just to fill a warehouse dropdown. Pages asking for the
+ * same set share one cache entry across tab switches. Lives under the
+ * ["options"] prefix, so its 5-minute staleTime and existing invalidations apply.
+ */
+/** Receiving's pickers; shared with the app shell's hover prefetch so both hit one cache entry. */
+export const RECEIVING_OPTION_KEYS: AdminOptionKey[] = ["warehouses", "clients", "products", "packagingProfiles"];
+
+export function floorOptionsQuery(keys: AdminOptionKey[], scope?: WarehouseVisibilityScope) {
+  const sorted = [...keys].sort();
+  const restrict = Boolean(scope?.restrictToWarehouse);
+  const warehouseId = restrict ? scope?.warehouseId ?? null : null;
+  return {
+    queryKey: ["options", "floor", sorted.join(","), restrict, warehouseId] as const,
+    queryFn: () => fetchOptions(false, restrict ? { restrictToWarehouse: true, warehouseId } : undefined, sorted),
+  };
+}
+
 
 /**
  * The location creation forms only need their warehouse and zone selectors.

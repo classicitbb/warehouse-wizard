@@ -141,7 +141,7 @@ import { type ProductSearchHandle } from "@/components/product-search";
 import { cn } from "@/lib/utils";
 import { extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
 import { getOrCreateDeviceId } from "@/lib/device-identity";
-import { invalidateWarehouseData } from "@/lib/query-invalidation";
+import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import {
   filterDashboardTileDefinitions,
   hiddenDashboardTiles,
@@ -193,17 +193,10 @@ import { UnrecordedPalletsBanner } from "@/features/inventory/unrecorded-pallets
 import { applyCodeAutocorrect, knownCodeError, normalizePalletBarcode, palletBarcodeError } from "@/lib/code-input";
 
 
-import {
-  isBaySelectorCode,
-  normalizeScannerText,
-  playBarcodeBeep,
-  flashInput,
-  alertToast,
-  statusBadgeVariant,
-  BinCapacityBar,
-  BayOccupancyGrid,
-  WarehouseBayBrowserDialog,
-} from "@/features/shared/ui-shared";
+import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
+import { playBarcodeBeep, flashInput, alertToast } from "@/lib/floor-feedback";
+import { statusBadgeVariant } from "@/features/shared/ui-shared";
+import { BinCapacityBar, BayOccupancyGrid, WarehouseBayBrowserDialog } from "@/features/shared/bay-occupancy";
 
 function incrementOccupancy(occupiedPallets: number, maxPallets: number) {
   return maxPallets > 0 ? Math.min(maxPallets, occupiedPallets + 1) : occupiedPallets + 1;
@@ -553,14 +546,7 @@ export function PutawayTasksPage() {
       markPutawayOccupancyCached(queryClient, vars.location);
       setCompletedIds((prev) => new Set([...prev, vars.taskId]));
       resetPutawaySelection(vars.taskId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["putaway-task-history"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-        queryClient.invalidateQueries({ queryKey: ["bin-occupancy"] }),
-        queryClient.invalidateQueries({ queryKey: ["bay-occupancy"] }),
-      ]);
+      await invalidateAfterPalletMove(queryClient, [["putaway-tasks"], ["putaway-task-history"]]);
     },
     onError: (error, vars) => {
       const msg = error instanceof Error ? error.message : String(error);

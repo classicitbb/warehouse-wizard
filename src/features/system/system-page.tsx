@@ -196,9 +196,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
-import {
-  TableFrame,
-} from "@/features/shared/ui-shared";
+import { TableFrame } from "@/features/shared/resource-forms";
 
 export function SystemLogPage() {
   const queryClient = useQueryClient();

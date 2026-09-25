@@ -1,282 +1,49 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type KeyboardEventHandler, type SetStateAction } from "react";
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormReturn } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, ArrowRight, BarChart3, Bot, Boxes, Building2, CalendarDays, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, Home, Info, KeyRound, LayoutDashboard, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { ArrowRight, ChevronDown, Pencil, Plus, Printer, RotateCcw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { z } from "zod";
-
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
-import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { completedFromBatchError, runBatch } from "@/lib/batch-mutation";
-import { useBackgroundSync } from "@/hooks/use-background-sync";
-import {
-  NAVIGATION,
-  ROLE_LABELS,
-  ROLE_DESCRIPTIONS,
-  type AdminInviteUserInput,
-  type AppRoute,
-  type FieldDefinition,
-  type ResourceDefinition,
-  type DraftReceipt,
-  type BayOccupancyCell,
-  adminInviteUser,
-  adminDeleteUser,
-  adminUpdateUserPin,
-  adminUpdateUserPassword,
-  buildBayOccupancyGrid,
-  updateOwnPassword,
-  changePalletStatus,
-  confirmPutaway,
-  createCycleCountFlow,
-  createPickListFlow,
-  getPickableStockSummary,
-  createTransferFlow,
-  cancelPickList,
-  deleteClientVariable,
-  deleteResourceCascade,
-  dispatchTransfer,
-  cycleCountSchema,
-  resetWmsData,
-  removeUserRoleAssignment,
-  downloadCsv,
-  downloadCsvTemplate,
-  fetchOptions,
-  formatDate,
-  formatNumber,
-  getDashboardMetrics,
-  getInventoryDetail,
-  getPickExecution,
-  getBinOccupancy,
-  getBayOccupancy,
-  getWarehouseBayOccupancy,
-  type WarehouseBayGroup,
-  logPutawayBaySelection,
-  getPutawayTasks,
-  getPutawayTaskHistory,
-  getReportData,
-  parseCsvForResource,
-  commitImportRows,
-  type ImportPreview,
-  listClientVariables,
-  listDraftReceipts,
-  saveShipmentDrafts,
-  updateDraftReceipt,
-  completeReceiptFromDraft,
-  deleteDraftReceipt,
-  listSystemLogs,
-  listUserActivities,
-  listCycleCounts,
-  listPickLists,
-  listRecords,
-  listStatusPallets,
-  listTransfers,
-  pickListSchema,
-  receivingSchema,
-  receiveTransfer,
-  resolveSystemLog,
-  searchInventory,
-  setProfileActive,
-  snapshotRecordCounts,
-  updateProfileDetails,
-  updateProfileDefaultWarehouse,
-  statusChangeSchema,
-  setResourceVisibility,
-  setUserRoleVisibility,
-  submitCycleCountLine,
-  transferSchema,
-  updateRecord,
-  upsertClientVariable,
-  upsertRecord,
-  writeSystemLog,
-  cancelTransfer,
-  flagCountLineException,
-  revertPutawayToDraft,
-  listMoveTasks,
-  completeDirectMove,
-  completeMoveTask,
-  cancelMoveTask,
-  expandLocationRange,
-  buildRackLocationCode,
-  suggestNextRackPosition,
-  validateMoveDestination,
-  type MoveValidationResult,
-} from "@/lib/wms-core";
+import { type DraftReceipt, floorOptionsQuery, RECEIVING_OPTION_KEYS, formatDate, listDraftReceipts, saveShipmentDrafts, updateDraftReceipt, completeReceiptFromDraft, deleteDraftReceipt, writeSystemLog } from "@/lib/wms-core";
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton, type ScanTelemetryEvent } from "@/components/barcode-scan-button";
 import { HintButton } from "@/components/hint-button";
 import { RecordCount } from "@/components/record-count";
 import { type ProductSearchHandle } from "@/components/product-search";
-
 import { cn } from "@/lib/utils";
-import { collectIso6346ContainerCandidates, extractIso6346ContainerNumber, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
+import { collectIso6346ContainerCandidates, normalizeContainerNumber, validateIso6346ContainerNumber } from "@/lib/container-number";
 import { formatPackCode, parsePackCode, resolveUnitsPerPallet } from "@/lib/measure";
 import { resolveDefaultProfileForProduct } from "@/lib/pack-standard-payload";
 import { getProductPalletQtyHint, type PalletQtyHint } from "@/lib/ai-assist";
-import {
-  reconcilePackToQuantity,
-  shouldRedistributeOnTotal,
-  validateShipmentQuantities,
-  type PerPalletSource,
-  type ShipmentQuantityIssues,
-} from "@/features/receiving/receiving-quantity-rules";
+import { reconcilePackToQuantity, shouldRedistributeOnTotal, validateShipmentQuantities, type PerPalletSource, type ShipmentQuantityIssues } from "@/features/receiving/receiving-quantity-rules";
 import { buildReceivingReportContext, type ReceivingReportLine } from "@/features/receiving/receiving-report-context";
 import { PackStandardCaptureDialog } from "@/features/receiving/pack-standard-capture";
 import { useFeaturePermission } from "@/hooks/use-feature-permission";
 import { useReportContext } from "@/features/copilot/report-context";
 import { getOrCreateDeviceId } from "@/lib/device-identity";
-import { invalidateWarehouseData } from "@/lib/query-invalidation";
-import {
-  filterDashboardTileDefinitions,
-  hiddenDashboardTiles,
-  loadDashboardDeviceLayout,
-  loadDashboardTileVisibility,
-  sanitizeDashboardLayout,
-  saveDashboardDeviceLayout,
-  saveDashboardTileVisibility,
-  visibleDashboardTiles,
-  type DashboardCardSize,
-  type DashboardTileConfig,
-  type DashboardTileDefinition,
-  type DashboardVisibilityMap,
-} from "@/lib/dashboard-preferences";
-import {
-  buildCsvReportRows,
-  buildEnterpriseDashboard,
-  type DashboardMode,
-  type DockHandoffLoad,
-  type EnterpriseDashboardSnapshot,
-  type WarehouseBrainRecommendation,
-} from "@/lib/enterprise-wms";
-import { HelpSidebar } from "@/components/help-sidebar";
-import { ZoneLabelPage } from "@/components/zone-label-page";
-import { LocationLabelPage } from "@/components/location-label-page";
-import { BayLocationCodesPrintDialog, LabelSheetPrintDialog, type LabelSheetItem } from "@/components/label-sheet-print";
-import { WarehouseStructureTab } from "@/components/warehouse-tree-view";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-// removed unused dropdown-menu and drawer imports
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
-import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  clearReceivingResumeSnapshot,
-  loadReceivingResumeSnapshot,
-  saveReceivingResumeSnapshot,
-} from "@/lib/floor-task-resume";
-
-
-import {
-  ReceivingShipmentLineState,
-  ReceivingShipmentFormState,
-  ShipmentFieldLabel,
-  defaultExpiryDate,
-  distributeShipmentLine,
-  draftToReceivingValues,
-  newShipmentLine,
-  parseDraftMeta,
-  printDraftLabels,
-  productRequiresExpiry,
-  remainderForLine,
-  shouldRestrictToDefaultWarehouse,
-  resolveContainerScanValue,
-  normalizeScannerText,
-} from "@/features/shared/ui-shared";
+import { clearReceivingResumeSnapshot, loadReceivingResumeSnapshot, saveReceivingResumeSnapshot } from "@/lib/floor-task-resume";
+import { ReceivingShipmentLineState, ReceivingShipmentFormState, ShipmentFieldLabel, defaultExpiryDate, distributeShipmentLine, draftToReceivingValues, newShipmentLine, parseDraftMeta, printDraftLabels, productRequiresExpiry, remainderForLine } from "@/features/receiving/receiving-form-state";
+import { shouldRestrictToDefaultWarehouse, resolveContainerScanValue, normalizeScannerText } from "@/lib/scan-input";
 import { dispatchLatestNotification } from "@/hooks/use-web-push";
-
-function parseShipmentDate(value: string) {
-  if (!value) return undefined;
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return undefined;
-  return new Date(year, month - 1, day);
-}
-
-function formatShipmentDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function useTimedButtonProgress(active: boolean) {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    if (!active) {
-      setProgress(0);
-      return;
-    }
-
-    setProgress((current) => current || 8);
-    const timer = window.setInterval(() => {
-      setProgress((current) => {
-        if (current < 60) return current + 8;
-        if (current < 86) return current + 4;
-        if (current < 94) return current + 1;
-        return current;
-      });
-    }, 450);
-
-    return () => window.clearInterval(timer);
-  }, [active]);
-
-  return active ? progress : 0;
-}
-
-function ButtonProgress({ value, label }: { value: number; label: string }) {
-  const boundedValue = Math.min(100, Math.max(3, Math.round(value)));
-
-  return (
-    <div className="relative z-10 inline-flex min-w-0 items-center gap-2" aria-live="polite">
-      <Progress
-        value={boundedValue}
-        className="h-1.5 w-14 shrink-0 bg-current/20 [&>div]:bg-current"
-        aria-label={`${label} progress`}
-      />
-      <span className="truncate">{label}</span>
-      <span className="font-mono text-[0.72rem] tabular-nums">{boundedValue}%</span>
-    </div>
-  );
-}
+import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
+import { ButtonProgress, useTimedButtonProgress } from "@/features/receiving/button-progress";
+import { ShipmentLineCard, type ShipmentLineRefs } from "@/features/receiving/shipment-line-card";
+import { DraftPalletList } from "@/features/receiving/draft-pallet-list";
+import { PrintDraftsDialog } from "@/features/receiving/print-drafts-dialog";
 
 type ShipmentEntryMode = "shipment" | "pallet";
 
@@ -289,70 +56,6 @@ function inferDraftEntryMode(draft: DraftReceipt): ShipmentEntryMode {
   if (meta.entry_mode === "shipment") return "shipment";
   if (receiptType === "other" && !containerNumber) return "pallet";
   return "shipment";
-}
-
-function ShipmentExpiryPicker({
-  value,
-  required,
-  invalid,
-  open,
-  triggerRef,
-  onKeyDown,
-  onOpenChange,
-  onChange,
-}: {
-  value: string;
-  required: boolean;
-  invalid: boolean;
-  open: boolean;
-  triggerRef: (node: HTMLButtonElement | null) => void;
-  onKeyDown?: KeyboardEventHandler<HTMLButtonElement>;
-  onOpenChange: (open: boolean) => void;
-  onChange: (value: string) => void;
-}) {
-  const selected = parseShipmentDate(value);
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          ref={triggerRef}
-          type="button"
-          variant="outline"
-          onKeyDown={onKeyDown}
-          className={cn(
-            "h-9 w-full justify-start px-3 text-left font-normal focus-visible:border-ring focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_1px_hsl(var(--ring)),inset_0_0_0_9999px_hsl(var(--ring)/0.04)] sm:h-10",
-            !value && "text-muted-foreground",
-            required && invalid && "border-amber-500 focus-visible:border-amber-500 focus-visible:shadow-[inset_0_0_0_1px_rgb(245_158_11),inset_0_0_0_9999px_rgb(245_158_11/0.08)]",
-          )}
-          aria-label="Expiry"
-          aria-invalid={invalid}
-        >
-          <CalendarDays className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-          {value || "dd/mm/yyyy"}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(28rem,calc(100vw-2rem))] p-2 sm:w-auto sm:p-3">
-        <Calendar
-          mode="single"
-          selected={selected}
-          onSelect={(date) => {
-            if (!date) return;
-            onChange(formatShipmentDate(date));
-            onOpenChange(false);
-          }}
-          initialFocus
-          classNames={{
-            caption_label: "text-base font-semibold sm:text-sm",
-            head_cell: "w-11 rounded-md text-sm font-medium text-muted-foreground sm:w-9 sm:text-[0.8rem]",
-            cell: "h-11 w-11 p-0 text-center text-base sm:h-9 sm:w-9 sm:text-sm",
-            day: "inline-flex h-11 w-11 items-center justify-center rounded-md p-0 text-base font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-selected:opacity-100 sm:h-9 sm:w-9 sm:text-sm",
-            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-            day_today: "bg-accent text-accent-foreground ring-1 ring-primary/50",
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 /** A pack standard this receipt is evidence for, awaiting the operator's yes. */
@@ -379,10 +82,12 @@ export function ReceivingPage() {
   const { online } = useNetworkStatus();
   const { roles, profile } = useAuth();
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
-  const { data: options } = useQuery({
-    queryKey: ["options", "receiving", restrictedToDefaultWarehouse, profile?.default_warehouse_id],
-    queryFn: () => fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
-  });
+  const { data: options } = useQuery(
+    floorOptionsQuery(RECEIVING_OPTION_KEYS, {
+      restrictToWarehouse: restrictedToDefaultWarehouse,
+      warehouseId: profile?.default_warehouse_id,
+    }),
+  );
 
   const defaultWarehouseId = profile?.default_warehouse_id ?? "";
   const warehouses = options?.warehouses ?? [];
@@ -419,6 +124,7 @@ export function ReceivingPage() {
   const [perPalletEntered, setPerPalletEntered] = useState<Record<string, string>>({});
   const totalTypedRefs = useRef<Record<string, boolean>>({});
   const containerAutoAdvanceRef = useRef("");
+  const shipmentLineRefBag: ShipmentLineRefs = { productRefs, productCommitRefs, totalRefs, perPalletRefs, palletCountRefs, expiryRefs, shipmentLineRefs, totalTypedRefs };
   const [palletQtyHints, setPalletQtyHints] = useState<Record<string, PalletQtyHint | null>>({});
   const [pendingProductCommit, setPendingProductCommit] = useState<Record<string, boolean>>({});
   const [openExpiryLineId, setOpenExpiryLineId] = useState<string | null>(null);
@@ -430,7 +136,6 @@ export function ReceivingPage() {
   const [draftSearch, setDraftSearch] = useState("");
   const [printOpen, setPrintOpen] = useState(false);
   const [printContainer, setPrintContainer] = useState("");
-  const [printContainerWarning, setPrintContainerWarning] = useState<string | null>(null);
   const [shipmentContainerTouched, setShipmentContainerTouched] = useState(false);
   const [shipmentContainerScanWarning, setShipmentContainerScanWarning] = useState<string | null>(null);
   const shipmentContainerInputRef = useRef<HTMLInputElement>(null);
@@ -573,7 +278,6 @@ export function ReceivingPage() {
     return term ? drafts.filter((draft) => String(draft.container_number ?? "").toLowerCase().includes(term)) : drafts;
   }, [drafts, printContainer]);
 
-  const selectedPrintDrafts = printDrafts.filter((draft) => selectedDraftIds.has(draft.id));
   const correctionDraftId = searchParams.get("correction");
   const shipmentContainerValidation = useMemo(
     () => validateIso6346ContainerNumber(shipmentForm.container_number),
@@ -948,12 +652,7 @@ export function ReceivingPage() {
       void dispatchLatestNotification("putaway_task_created");
       toast.success(`Pallet ${result.palletBarcode} ready — putaway task ${result.putawayTaskNumber} queued.`);
       setLastResult({ barcode: result.palletBarcode, taskNumber: result.putawayTaskNumber, qty: Number(draft.quantity ?? 0) });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
-      ]);
+      await invalidateAfterPalletMove(queryClient, [["putaway-tasks"], ["draft-receipts"]]);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Receiving failed"),
   });
@@ -1019,20 +718,12 @@ export function ReceivingPage() {
       // whole group_key.
       void dispatchLatestNotification("putaway_task_created");
       setBatchReceiveProgress({ completed: 0, total: 0 });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
-        queryClient.invalidateQueries({ queryKey: ["putaway-tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory-search"] }),
-        queryClient.invalidateQueries({ queryKey: ["draft-receipts"] }),
-      ]);
+      await invalidateAfterPalletMove(queryClient, [["putaway-tasks"], ["draft-receipts"]]);
     },
   });
 
   const saveNewProgress = useTimedButtonProgress(saveShipmentMutation.isPending && savingShipmentMode === "new");
   const saveReceiveProgress = useTimedButtonProgress(saveShipmentMutation.isPending && savingShipmentMode === "receive");
-  const printReceiveProgress = batchReceiveMutation.isPending
-    ? (batchReceiveProgress.completed / Math.max(batchReceiveProgress.total, 1)) * 100
-    : 0;
 
   function printDraftLabelsOnly(draftsToPrint: DraftReceipt[]) {
     try {
@@ -1341,13 +1032,6 @@ export function ReceivingPage() {
     setDraftSearch(normalizeScannerText(value));
   }
 
-  function applyPrintContainerScan(value: unknown) {
-    const result = resolveContainerScanValue(value);
-    setPrintContainer(result.value);
-    setPrintContainerWarning(result.valid ? null : result.message);
-    if (!result.valid) toast.warning(result.message);
-  }
-
   function logContainerScannerTelemetry(event: ScanTelemetryEvent) {
     void writeSystemLog({
       log_type: "info",
@@ -1445,79 +1129,21 @@ export function ReceivingPage() {
         </CardContent>
       </Card>
 
-      <Card className="min-h-0">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span>Draft Pallets</span>
-            {drafts.length > 0 && <Badge variant="secondary">{drafts.length}</Badge>}
-            <HintButton label="Draft Pallets hints">
-              Print labels first, then confirm they printed to send stock to Put-Away.
-            </HintButton>
-          </CardTitle>
-          <CardDescription className="hidden sm:block">Printing alone keeps stock out of inventory. Confirm printed labels to create its Awaiting Put-Away work.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-0 px-0 pb-0 sm:gap-3 sm:px-6 sm:pb-6">
-          {visibleDrafts.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              {drafts.length === 0 ? "No draft pallets yet." : `No drafts matched "${draftSearch}".`}
-            </p>
-          ) : visibleDrafts.map((draft) => {
-            const meta = parseDraftMeta(draft.notes);
-            const product = productOptions.find((p) => p.id === (draft.product_id ?? meta.product_id));
-            const client = clients.find((item) => item.id === draft.client_id);
-            const warehouse = warehouses.find((item) => item.id === draft.warehouse_id);
-            const packaging = packagingProfiles.find((item: any) => item.id === meta.packaging_profile_id);
-            const barcode = draft.draft_pallet_barcode ?? meta.draft_pallet_barcode ?? draft.receipt_number;
-            const containerNumber = draft.container_number ?? meta.container_number;
-            const poNumber = draft.po_number ?? draft.reference_number ?? meta.po_number ?? meta.reference_number;
-            return (
-              <div key={draft.id} className="grid gap-3 border-y border-border px-6 py-3 sm:rounded-lg sm:border sm:px-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-0 text-sm font-medium leading-5 sm:truncate">{product ? `${product.sku} · ${product.name}` : "Unknown product"}</p>
-                    <Badge variant="outline" className="font-mono">{barcode}</Badge>
-                    {draft.draft_sequence && draft.draft_count ? <Badge variant="secondary">{draft.draft_sequence}/{draft.draft_count}</Badge> : null}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Container {containerNumber ?? "—"} · PO {poNumber ?? "—"} · Qty {draft.quantity ?? "?"} · Exp {draft.expiry_date ? formatDate(draft.expiry_date) : "—"}
-                  </p>
-                  {draft.source_label && <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Returned from {draft.source_label}</p>}
-                </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <PalletLabelPage
-                    barcode={barcode}
-                    quantity={Number(draft.quantity ?? meta.quantity ?? 1)}
-                    productSku={product?.sku}
-                    productName={product?.name}
-                    lotNumber={draft.lot_number ?? meta.lot_number}
-                    batchNumber={draft.batch_number ?? meta.batch_number}
-                    expiryDate={draft.expiry_date ?? meta.expiry_date}
-                    containerNumber={draft.container_number ?? meta.container_number}
-                    poNumber={draft.po_number ?? meta.po_number}
-                    clientName={client?.name}
-                    warehouseName={warehouse ? `${warehouse.code ? `${warehouse.code} - ` : ""}${warehouse.name}` : undefined}
-                    receiptReference={draft.reference_number ?? draft.receipt_number}
-                    packaging={packaging?.name ?? packaging?.unit_name ?? packaging?.unit_of_measure}
-                    draftSequence={draft.draft_sequence}
-                    draftCount={draft.draft_count}
-                    temperatureClass={product?.temperature_requirement}
-                    trigger={<Button size="sm" variant="outline" disabled={!online || receiveMutation.isPending}><Printer data-icon="inline-start" />Print label</Button>}
-                  />
-                  <Button size="sm" disabled={!online || receiveMutation.isPending} onClick={() => receiveMutation.mutate(draft)}>
-                    Labels printed
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => openEditDraft(draft)}><Pencil data-icon="inline-start" />Edit</Button>
-                  {draft.status === "draft" && (
-                    <Button size="sm" variant="ghost" onClick={() => deleteDraftMutation.mutate(draft.id)} disabled={deleteDraftMutation.isPending}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+      <DraftPalletList
+        drafts={drafts}
+        visibleDrafts={visibleDrafts}
+        draftSearch={draftSearch}
+        productOptions={productOptions}
+        clients={clients}
+        warehouses={warehouses}
+        packagingProfiles={packagingProfiles}
+        online={online}
+        receivePending={receiveMutation.isPending}
+        deletePending={deleteDraftMutation.isPending}
+        onReceive={(draft) => receiveMutation.mutate(draft)}
+        onEdit={openEditDraft}
+        onDelete={(draftId) => deleteDraftMutation.mutate(draftId)}
+      />
 
       <Dialog open={shipmentOpen} onOpenChange={(open) => {
         setShipmentOpen(open);
@@ -1667,413 +1293,41 @@ export function ReceivingPage() {
               )}
 
               <div className="grid gap-3">
-                {shipmentForm.lines.map((line, index) => {
-                  const quantities = lineQuantityIssues.get(line.id);
-                  const remainder = quantities?.facts.remainder ?? remainderForLine(line);
-                  const selectedProduct = productOptions.find((product) => product.id === line.product_id);
-                  const expiryRequired = productRequiresExpiry(selectedProduct);
-                  const allocatedQuantity = Math.max(0, Number(line.quantity_per_pallet || 0) * Number(line.pallet_count || 0));
-                  const productCommitPending = Boolean(pendingProductCommit[line.id] && line.product_id);
-                  const palletQtyHint = palletQtyHints[line.id];
-                  const perPalletSource = perPalletSourceFor(line);
-                  // Only this SKU's profiles. The field used to list every
-                  // profile in the database whatever the line held.
-                  const lineProfiles = (packagingProfiles as any[]).filter(
-                    (profile) => Boolean(profile?.id) && profile.product_id === line.product_id,
-                  );
-                  const packStandard = packStandardFor(line);
-                  const standardUnitsPerPallet = packStandard ? resolveUnitsPerPallet(packStandard) : null;
-                  const packCodeText = packStandard ? formatPackCode(packStandard) : "";
-                  const declaredPack = parsePackCode(packCodeInputs[line.id] ?? "");
-                  const packReconciliation = reconcilePackToQuantity({
-                    parsed: declaredPack,
-                    unitsPerPackage: packStandard?.units_per_package ?? null,
-                    quantityPerPallet: line.quantity_per_pallet,
-                  });
-                  const palletQtyHintApplied = Boolean(
-                    palletQtyHint
-                    && Number(line.total_quantity) > 0
-                    && Number(line.quantity_per_pallet) === palletQtyHint.suggestedQty,
-                  );
-                  const isCollapsed = shipmentForm.lines.length > 1 && Boolean(line.product_id) && activeShipmentLineId !== line.id;
-                  return (
-                    <div ref={(node) => { shipmentLineRefs.current[line.id] = node; }} key={line.id} className="grid min-w-0 scroll-mt-3 gap-2 rounded-lg border border-border p-2 sm:gap-3 sm:p-3">
-                      {isCollapsed ? (
-                        <div className="grid min-w-0 gap-2 text-sm">
-                          <div className="flex min-w-0 items-start justify-between gap-3">
-                            <p className="flex min-w-0 items-center gap-2 font-medium text-foreground">
-                              <span className="shrink-0">SKU line {index + 1}</span>
-                              <span className="truncate">{selectedProduct?.name ?? selectedProduct?.sku ?? "Unknown product"}</span>
-                            </p>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 shrink-0"
-                              title={`Edit SKU line ${index + 1}`}
-                              aria-label={`Edit SKU line ${index + 1}`}
-                              onClick={() => setActiveShipmentLineId(line.id)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-foreground/75 sm:grid-cols-5 sm:gap-3">
-                              <span>SKU {selectedProduct?.sku ?? "—"}</span>
-                              <span>Total {line.total_quantity}</span>
-                              <span>Per pallet {line.quantity_per_pallet}</span>
-                              <span>Pallets {line.pallet_count}</span>
-                              <span>Exp. {line.expiry_date || "—"}</span>
-                            </div>
-                            {/* A collapsed line must not hide a split that does not add up. */}
-                            {quantities?.blocking ? (
-                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                                {quantities.blocking}
-                              </p>
-                            ) : null}
-                        </div>
-                      ) : (
-                        <>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-medium">SKU line {index + 1}</p>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            title="Reset SKU line"
-                            aria-label="Reset SKU line"
-                            onClick={() => resetShipmentLine(line.id)}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                          {!editingDraft && shipmentForm.lines.length > 1 && (
-                            <Button size="sm" variant="ghost" onClick={() => setShipmentForm((cur) => ({ ...cur, lines: cur.lines.filter((item) => item.id !== line.id) }))}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid min-w-0 gap-2 lg:gap-3">
-                        <div className="grid min-w-0 gap-1.5">
-                          <ShipmentFieldLabel>Product</ShipmentFieldLabel>
-                          <div className="flex min-w-0 max-w-full flex-wrap gap-2 sm:flex-nowrap">
-                            <BarcodeScanButton
-                              className="h-9 shrink-0 self-start sm:h-10"
-                              title="Scan product"
-                              onScan={(value) => {
-                                const matched = productRefs.current[line.id]?.scanBarcode(value);
-                                if (!matched) toast.warning("No product matched that scan. Search results are open.");
-                              }}
-                            />
-                            <div className="order-3 min-w-0 max-w-full flex-1 basis-full sm:order-none sm:basis-0">
-                              <ProductSearch
-                                ref={(node) => { productRefs.current[line.id] = node; }}
-                                value={line.product_id}
-                                options={productOptions}
-                                placeholder="Select SKU"
-                                onSelectComplete={() => productCommitRefs.current[line.id]?.focus()}
-                                onChange={(value) => { void selectShipmentProduct(line, value); }}
-                              />
-                            </div>
-                            <Button
-                              ref={(node) => { productCommitRefs.current[line.id] = node; }}
-                              type="button"
-                              variant={productCommitPending ? "default" : "outline"}
-                              size="icon"
-                              className={cn(
-                                "h-9 w-9 shrink-0 sm:h-10 sm:w-10",
-                                productCommitPending && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-                              )}
-                              title="Commit product and move to Total received"
-                              aria-label="Commit product and move to Total received"
-                              data-pending-commit={productCommitPending ? "true" : "false"}
-                              disabled={!line.product_id}
-                              onClick={() => moveToNextShipmentField(line.id, "product")}
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="grid min-w-0 gap-2 md:gap-3 sm:grid-cols-3">
-                          <div className="grid min-w-0 gap-1.5">
-                            <ShipmentFieldLabel>Total received</ShipmentFieldLabel>
-                            <Input
-                              ref={(node) => { totalRefs.current[line.id] = node; }}
-                              type="number"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              min={0}
-                              value={line.total_quantity}
-                              aria-label="Total received"
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "total", e)}
-                              aria-invalid={Boolean(quantities?.total)}
-                              className={cn(
-                                "h-9 sm:h-10",
-                                quantities?.total && "border-amber-500 focus-visible:border-amber-500",
-                              )}
-                              onChange={(e) => {
-                                const nextValue = e.currentTarget.value;
-                                totalTypedRefs.current[line.id] = nextValue.trim() !== "";
-                                // Every edit to the total redistributes the line, so the pallet
-                                // count follows the total as it is typed. It is held back only
-                                // while the qty per pallet is still an unconfirmed default —
-                                // there is nothing meaningful to divide by yet.
-                                updateLine(
-                                  line.id,
-                                  { total_quantity: nextValue },
-                                  shouldRedistributeOnTotal({ nextTotal: nextValue, perPalletSource }),
-                                );
-                              }}
-
-                            />
-                            {quantities?.total ? (
-                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                                {quantities.total}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="grid min-w-0 gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <ShipmentFieldLabel>Qty per pallet</ShipmentFieldLabel>
-                              {packCodeText && standardUnitsPerPallet ? (
-                                <span className="flex items-center gap-1.5">
-                                  <span className="rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary">
-                                    {packCodeText} · {standardUnitsPerPallet}
-                                  </span>
-                                  {Number(line.quantity_per_pallet) !== standardUnitsPerPallet ? (
-                                    <button
-                                      type="button"
-                                      tabIndex={-1}
-                                      className="text-[10px] font-medium text-primary underline-offset-2 hover:underline"
-                                      onClick={() => {
-                                        setPerPalletEntered((current) => ({ ...current, [line.id]: line.product_id }));
-                                        updateLine(line.id, { quantity_per_pallet: String(standardUnitsPerPallet) }, "perPallet");
-                                      }}
-                                    >
-                                      Use standard
-                                    </button>
-                                  ) : null}
-                                </span>
-                              ) : null}
-                            </div>
-                            <Input
-                              ref={(node) => { perPalletRefs.current[line.id] = node; }}
-                              type="number"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              min={1}
-                              value={line.quantity_per_pallet}
-                              aria-label="Qty per pallet"
-                              aria-invalid={Boolean(quantities?.perPallet)}
-                              className={cn(
-                                "h-9 sm:h-10",
-                                quantities?.perPallet && "border-amber-500 focus-visible:border-amber-500",
-                              )}
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "perPallet", e)}
-                              onChange={(e) => {
-                                // Typing here settles the qty per pallet for this SKU, so the
-                                // line stops asking for one and the total redistributes against it.
-                                if (line.product_id) {
-                                  setPerPalletEntered((current) => ({ ...current, [line.id]: line.product_id }));
-                                }
-                                const nextValue = e.currentTarget.value;
-                                updateLine(
-                                  line.id,
-                                  { quantity_per_pallet: nextValue },
-                                  nextValue === "" ? undefined : "perPallet",
-                                );
-                              }}
-                            />
-                            {quantities?.perPallet ? (
-                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                                {quantities.perPallet}
-                              </p>
-                            ) : palletQtyHintApplied ? (
-                              <p className="text-xs text-muted-foreground">
-                                Suggested from {palletQtyHint?.sampleCount} prior pallet{palletQtyHint?.sampleCount === 1 ? "" : "s"}.
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="grid min-w-0 gap-1.5">
-                            <ShipmentFieldLabel>Pallets</ShipmentFieldLabel>
-                            <Input
-                              ref={(node) => { palletCountRefs.current[line.id] = node; }}
-                              type="number"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              min={1}
-                              value={line.pallet_count}
-                              aria-label="Pallets"
-                              aria-invalid={Boolean(quantities?.palletCount)}
-                              className={cn(
-                                "h-9 sm:h-10",
-                                quantities?.palletCount && "border-amber-500 focus-visible:border-amber-500",
-                              )}
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "count", e)}
-                              onChange={(e) => updateLine(line.id, { pallet_count: e.currentTarget.value })}
-                            />
-                            {quantities?.palletCount ? (
-                              <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                                {quantities.palletCount}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid gap-2">
-                        <div className="grid gap-1.5">
-                          <ShipmentFieldLabel>Expiry{expiryRequired ? " *" : ""}</ShipmentFieldLabel>
-                          <ShipmentExpiryPicker
-                            triggerRef={(node) => { expiryRefs.current[line.id] = node; }}
-                            required={expiryRequired}
-                            invalid={expiryRequired && !line.expiry_date}
-                            value={line.expiry_date}
-                            open={openExpiryLineId === line.id}
-                            onOpenChange={(open) => setOpenExpiryLineId(open ? line.id : null)}
-                            onKeyDown={(e) => handleShipmentFieldKeyDown(line.id, "expiry", e)}
-                            onChange={(value) => {
-                              updateLine(line.id, { expiry_date: value });
-                              setOpenExpiryLineId(null);
-                            }}
-                          />
-                        </div>
-                        <Collapsible open={Boolean(openShipmentDetails[line.id])} onOpenChange={(open) => setOpenShipmentDetails((current) => ({ ...current, [line.id]: open }))}>
-                          <CollapsibleTrigger asChild>
-                            <Button type="button" variant="ghost" tabIndex={-1} className="h-8 w-fit px-0 text-xs font-medium text-muted-foreground hover:bg-transparent hover:text-foreground">
-                              <ChevronDown className="mr-1 h-3.5 w-3.5" />
-                              Lot, batch, and packaging
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="grid gap-2 pt-1 md:grid-cols-3 md:gap-3">
-                            <div className="grid gap-1.5">
-                              <ShipmentFieldLabel>Lot</ShipmentFieldLabel>
-                              <Input
-                                tabIndex={-1}
-                                aria-label="Lot"
-                                className="h-9 sm:h-10"
-                                value={line.lot_number}
-                                onChange={(e) => updateLine(line.id, { lot_number: normalizeScannerText(e.target.value) })}
-                              />
-                            </div>
-                            <div className="grid gap-1.5">
-                              <ShipmentFieldLabel>Batch</ShipmentFieldLabel>
-                              <Input
-                                tabIndex={-1}
-                                aria-label="Batch"
-                                className="h-9 sm:h-10"
-                                value={line.batch_number}
-                                onChange={(e) => updateLine(line.id, { batch_number: normalizeScannerText(e.target.value) })}
-                              />
-                            </div>
-                            <div className="grid gap-1.5">
-                              <ShipmentFieldLabel>Packaging</ShipmentFieldLabel>
-                              <Select value={line.packaging_profile_id || undefined} onValueChange={(value) => updateLine(line.id, { packaging_profile_id: value })}>
-                                <SelectTrigger
-                                  tabIndex={-1}
-                                  aria-label="Packaging"
-                                  className="h-9 sm:h-10"
-                                >
-                                  <SelectValue placeholder="Optional" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {/* Filtered to the line's SKU. Listing every profile in the
-                                      database for every SKU is what made this field noise. */}
-                                  {lineProfiles.length === 0 ? (
-                                    <SelectItem value="__no_packaging" disabled>
-                                      {line.product_id ? "No packaging profiles for this SKU" : "Select a SKU first"}
-                                    </SelectItem>
-                                  ) : null}
-                                  {lineProfiles.map((profile: any) => {
-                                    const code = formatPackCode(profile);
-                                    return (
-                                      <SelectItem key={profile.id} value={profile.id}>
-                                        {code ? `${profile.profile_name} · ${code}` : profile.profile_name}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="grid gap-1.5">
-                              <ShipmentFieldLabel>Pack code</ShipmentFieldLabel>
-                              <Input
-                                tabIndex={-1}
-                                aria-label="Pack code"
-                                inputMode="text"
-                                placeholder="12 x 7"
-                                className="h-9 sm:h-10"
-                                value={packCodeInputs[line.id] ?? ""}
-                                onChange={(e) => setPackCodeInputs((current) => ({ ...current, [line.id]: e.target.value }))}
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                tabIndex={-1}
-                                className="h-8 w-fit text-xs"
-                                // Master data created offline races duplicate
-                                // names in from several devices; the receipt
-                                // itself still queues safely.
-                                disabled={!line.product_id || !online || !packagingPermission.canEdit}
-                                title={
-                                  !line.product_id ? "Select a SKU first"
-                                    : !online ? "Pack standards are created online only"
-                                      : !packagingPermission.canEdit ? "Needs the packaging permission"
-                                        : undefined
-                                }
-                                onClick={() => setCaptureLineId(line.id)}
-                              >
-                                <Plus className="mr-1 h-3.5 w-3.5" />
-                                Create Package Standard
-                              </Button>
-                            </div>
-                          </CollapsibleContent>
-                          {/* Conformance is recorded, never blocking: a short last
-                              pallet is normal, and a blocked receipt gets worked
-                              around invisibly where a variance is data. */}
-                          {packReconciliation ? (
-                            <p className={cn(
-                              "mt-2 text-xs font-medium",
-                              packReconciliation.conformance === "standard"
-                                ? "text-muted-foreground"
-                                : "text-amber-600 dark:text-amber-400",
-                            )}>
-                              {packReconciliation.message}
-                            </p>
-                          ) : (packCodeInputs[line.id] ?? "").trim() !== "" ? (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              Enter a pack code as cases per layer × layers, e.g. 12 x 7.
-                            </p>
-                          ) : null}
-                        </Collapsible>
-                      </div>
-                      {quantities?.showRemainder && (
-                        <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                          <p className="font-medium">{remainder} unit{remainder === 1 ? "" : "s"} will be left after creating {line.pallet_count} pallet{Number(line.pallet_count) === 1 ? "" : "s"} of {line.quantity_per_pallet}.</p>
-                          <p className="text-xs">Allocated in WMS: {allocatedQuantity}. Total received: {line.total_quantity}.</p>
-                          <div className="grid gap-2 sm:grid-cols-3">
-                            {[
-                              ["waive", "Waive remainder"],
-                              ["manual", "Manage outside WMS"],
-                              ["special", "Create special pallet"],
-                            ].map(([value, label]) => (
-                              <label key={value} className="flex items-center gap-2 rounded-md border border-red-600 bg-red-500 px-3 py-2 text-black shadow-sm">
-                                <input type="radio" name={`remainder-${line.id}`} checked={line.remainder_action === value} onChange={() => updateLine(line.id, { remainder_action: value as ReceivingShipmentLineState["remainder_action"] })} />
-                                {label}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
+                {shipmentForm.lines.map((line, index) => (
+                  <ShipmentLineCard
+                    key={line.id}
+                    line={line}
+                    index={index}
+                    quantities={lineQuantityIssues.get(line.id)}
+                    perPalletSource={perPalletSourceFor(line)}
+                    packStandard={packStandardFor(line)}
+                    palletQtyHint={palletQtyHints[line.id]}
+                    pendingCommit={Boolean(pendingProductCommit[line.id])}
+                    collapsed={shipmentForm.lines.length > 1 && Boolean(line.product_id) && activeShipmentLineId !== line.id}
+                    online={online}
+                    canEditPackaging={packagingPermission.canEdit}
+                    productOptions={productOptions}
+                    packagingProfiles={packagingProfiles as any[]}
+                    packCodeInputs={packCodeInputs}
+                    openExpiryLineId={openExpiryLineId}
+                    openShipmentDetails={openShipmentDetails}
+                    refs={shipmentLineRefBag}
+                    onRemove={!editingDraft && shipmentForm.lines.length > 1
+                      ? () => setShipmentForm((cur) => ({ ...cur, lines: cur.lines.filter((item) => item.id !== line.id) }))
+                      : undefined}
+                    updateLine={updateLine}
+                    resetShipmentLine={resetShipmentLine}
+                    selectShipmentProduct={selectShipmentProduct}
+                    moveToNextShipmentField={moveToNextShipmentField}
+                    handleShipmentFieldKeyDown={handleShipmentFieldKeyDown}
+                    setActiveShipmentLineId={setActiveShipmentLineId}
+                    setPerPalletEntered={setPerPalletEntered}
+                    setPackCodeInputs={setPackCodeInputs}
+                    setOpenExpiryLineId={setOpenExpiryLineId}
+                    setOpenShipmentDetails={setOpenShipmentDetails}
+                    setCaptureLineId={setCaptureLineId}
+                  />
+                ))}
                 {!editingDraft && (
                   <Button
                     className="h-9 sm:h-10"
@@ -2158,85 +1412,21 @@ export function ReceivingPage() {
         />
       ) : null}
 
-      <Dialog open={printOpen} onOpenChange={setPrintOpen}>
-        <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Print Draft Labels</DialogTitle>
-            <DialogDescription>Print the selected labels, then confirm the physical output before creating Awaiting Put-Away stock.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <div className="flex gap-2">
-                <Input
-                  value={printContainer}
-                  onChange={(e) => {
-                    const next = normalizeContainerNumber(e.target.value);
-                    setPrintContainer(next);
-                    if (next.length >= 11) {
-                      const validation = validateIso6346ContainerNumber(next);
-                      setPrintContainerWarning(validation.valid ? null : validation.message);
-                    } else {
-                      setPrintContainerWarning(null);
-                    }
-                  }}
-                  className={cn(printContainerWarning && "border-destructive focus-visible:border-destructive focus-visible:shadow-[inset_0_0_0_1px_hsl(var(--destructive)),inset_0_0_0_9999px_hsl(var(--destructive)/0.08)]")}
-                  placeholder="Filter by container number"
-                  aria-invalid={Boolean(printContainerWarning)}
-                />
-                <BarcodeScanButton title="Scan container number" enableTextRecognition onScan={applyPrintContainerScan} />
-              </div>
-              <p className={cn("text-xs", printContainerWarning ? "text-destructive" : "text-muted-foreground")}>
-                {printContainerWarning ?? "Enter or scan an ISO 6346 container number to narrow this label batch."}
-              </p>
-            </div>
-            <div className="max-h-[50vh] overflow-y-auto pr-3">
-              <div className="grid gap-2">
-                {printDrafts.map((draft) => {
-                  const meta = parseDraftMeta(draft.notes);
-                  const product = productOptions.find((p) => p.id === (draft.product_id ?? meta.product_id));
-                  const checked = selectedDraftIds.has(draft.id);
-                  return (
-                    <label key={draft.id} className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2">
-                      <Checkbox checked={checked} onCheckedChange={(value) => {
-                        setSelectedDraftIds((current) => {
-                          const next = new Set(current);
-                          if (value) next.add(draft.id); else next.delete(draft.id);
-                          return next;
-                        });
-                      }} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{draft.draft_pallet_barcode ?? draft.receipt_number} · {product?.sku ?? "Unknown SKU"}</span>
-                        <span className="block text-xs text-muted-foreground">Container {draft.container_number ?? "—"} · Qty {draft.quantity ?? "?"}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedDraftIds(new Set(printDrafts.map((draft) => draft.id)))}>Select all shown</Button>
-            <Button variant="outline" disabled={selectedDraftIds.size === 0} onClick={() => setSelectedDraftIds(new Set())}>Deselect all</Button>
-            <Button variant="outline" disabled={!online || batchReceiveMutation.isPending || selectedPrintDrafts.length === 0} onClick={() => printDraftLabelsOnly(selectedPrintDrafts)}>
-              <Printer data-icon="inline-start" />
-              Print selected labels
-            </Button>
-            <Button className="relative overflow-hidden" disabled={!online || batchReceiveMutation.isPending || selectedPrintDrafts.length === 0} onClick={() => batchReceiveMutation.mutate(selectedPrintDrafts)}>
-              {batchReceiveMutation.isPending ? (
-                <ButtonProgress
-                  value={printReceiveProgress}
-                  label={`Sending ${batchReceiveProgress.completed}/${Math.max(batchReceiveProgress.total, selectedPrintDrafts.length)}`}
-                />
-              ) : (
-                <>
-                  <Printer data-icon="inline-start" />
-                  Labels printed — send to Put-Away
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PrintDraftsDialog
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        printContainer={printContainer}
+        setPrintContainer={setPrintContainer}
+        printDrafts={printDrafts}
+        selectedDraftIds={selectedDraftIds}
+        setSelectedDraftIds={setSelectedDraftIds}
+        productOptions={productOptions}
+        online={online}
+        sending={batchReceiveMutation.isPending}
+        sendProgress={batchReceiveProgress}
+        onPrintLabels={printDraftLabelsOnly}
+        onConfirmPrinted={(selected) => batchReceiveMutation.mutate(selected)}
+      />
     </div>
   );
 }

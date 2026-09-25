@@ -74,7 +74,7 @@ import {
   removeUserRoleAssignment,
   downloadCsv,
   downloadCsvTemplate,
-  fetchOptions,
+  floorOptionsQuery,
   formatDate,
   inventoryLifecycleLabel,
   formatNumber,
@@ -201,11 +201,8 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 
 
-import {
-  TableFrame,
-  normalizeScannerText,
-  shouldRestrictToDefaultWarehouse,
-} from "@/features/shared/ui-shared";
+import { TableFrame } from "@/features/shared/resource-forms";
+import { normalizeScannerText, shouldRestrictToDefaultWarehouse } from "@/lib/scan-input";
 
 export function InventorySearchPage() {
   const navigate = useNavigate();
@@ -244,10 +241,12 @@ export function InventorySearchPage() {
   });
   const lastDetailTapRef = useRef<{ id: string; time: number } | null>(null);
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
-  const { data: options } = useQuery({
-    queryKey: ["options", "inventory", restrictedToDefaultWarehouse, profile?.default_warehouse_id],
-    queryFn: () => fetchOptions(false, { restrictToWarehouse: restrictedToDefaultWarehouse, warehouseId: profile?.default_warehouse_id }),
-  });
+  const { data: options } = useQuery(
+    floorOptionsQuery(["warehouses"], {
+      restrictToWarehouse: restrictedToDefaultWarehouse,
+      warehouseId: profile?.default_warehouse_id,
+    }),
+  );
   const [warehouseId, setWarehouseId] = useState(
     searchParams.get("warehouse") ?? (restrictedToDefaultWarehouse ? profile?.default_warehouse_id ?? "" : persistedInventorySearch.warehouseId),
   );

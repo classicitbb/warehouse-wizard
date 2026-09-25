@@ -35,11 +35,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-import {
-  SelectField,
-  WarehouseBrainPanel,
-  toneBorder,
-} from "@/features/shared/ui-shared";
+import { SelectField, WarehouseBrainPanel, toneBorder } from "@/features/shared/ui-shared";
 
 type StatusStockRow = {
   inventory_balance_id: string;
