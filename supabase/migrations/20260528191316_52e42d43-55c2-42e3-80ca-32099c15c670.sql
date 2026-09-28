@@ -1,1 +1,0 @@
-ALTER TYPE public.app_role_code ADD VALUE IF NOT EXISTS 'dev';
