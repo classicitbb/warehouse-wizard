@@ -53,7 +53,7 @@ Last updated: 2026-09-29, after the NetSuite dev's J2 update.
 | **Us-3** | Add RESTlet URL, script id and deploy id to the connection config | [ ] | Nothing. |
 | **W1** | Bring Pine and Lower Estate in and audit single-warehouse assumptions (5-8 d) | [ ] | Nothing. |
 | **W4** | Record the NetSuite source line number on each Warehouse Wizard line (2-4 d) | [ ] | Nothing. |
-| **W2** | On-demand lookup by document number for PO, inbound shipment and transfer order (10-15 d) | [ ] | Sandbox certificate (J5) for live testing. |
+| **W2** | On-demand lookup by document number for PO, inbound shipment and transfer order (10-15 d) | [~] | PO and transfer order backend done (`netsuite-lookup` function, unit-tested, not yet run against the sandbox). Remaining: inbound shipment lookup, the receiving-screen UI, live check (J5, S1). |
 | **W3a** | Post receipts: purchase order, via `purchaseOrder/{id}/!transform/itemReceipt` (part of 12-18 d) | [ ] | J5, S1. |
 | **W3b** | Post receipts: transfer order, via `transferOrder/{id}/!transform/itemReceipt` | [ ] | J5, S1. Verify how the transform names the fulfilment. |
 | **W3c** | Post receipts: inbound shipment, via the RESTlet. Send `externalRef`, treat `alreadyProcessed` as success, store all receipt ids. | [!] | J2 tested, J10. |
@@ -88,3 +88,15 @@ Last updated: 2026-09-29, after the NetSuite dev's J2 update.
 - Status letter codes for PurchOrd, TrnfrOrd, RtnAuth, SalesOrd and ItemShip.
 - Restock field id on RMA item receipt lines.
 - Coexistence with NetSuite's warehouse module at shared locations.
+
+## W2 lookup: implementation notes
+
+- Function `netsuite-lookup` takes `{ documentType: 'purchase_order' | 'transfer_order', documentNumber }`. It finds the record by exact `tranid` with SuiteQL, then GETs it with `expandSubResources=true`. It is user-initiated only, so it adds no polling load.
+- It is gated by the Role Matrix `receiving` feature (edit), via `has_feature_permission`.
+- Lines come back with the source line number and `lineuniquekey` as NetSuite sent them, plus `quantityRemaining` (a transfer order line is capped at what has shipped). Lines whose item is not yet imported have `localProductId: null`.
+- If two records share a number the function returns `ambiguous` with candidates instead of guessing.
+- Pure logic is in `supabase/functions/_shared/netsuite-lookup.ts`, the shared client in `_shared/netsuite-client.ts`, the browser client in `src/features/receiving/netsuite-lookup.ts`.
+- **Unverified against the account (J10):** the REST field names on the PO and transfer order line sublists (`line`, `lineUniqueKey`, `quantityReceived`, `quantityFulfilled`, `isClosed`, `units`). The normaliser accepts several spellings. Tighten it after the first sandbox run.
+- **Open:** does a PO that sits on an inbound shipment show up here as receivable? Per J6 it can only be received through the shipment, so the lookup should flag it once J6 is answered.
+- `netsuite-connection` still has its own credential and SuiteQL helpers. Move it onto `_shared/netsuite-client.ts` once W2 is accepted.
+
