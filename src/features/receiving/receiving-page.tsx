@@ -42,6 +42,9 @@ import { dispatchLatestNotification } from "@/hooks/use-web-push";
 import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { ButtonProgress, useTimedButtonProgress } from "@/features/receiving/button-progress";
 import { ShipmentLineCard, type ShipmentLineRefs } from "@/features/receiving/shipment-line-card";
+import { NetSuiteLookupPanel } from "@/features/receiving/netsuite-lookup-panel";
+import { buildShipmentLinesFromLookup, mergeLoadedLines } from "@/features/receiving/netsuite-lookup-lines";
+import type { NetSuiteLookupDocument } from "@/features/receiving/netsuite-lookup";
 import { DraftPalletList } from "@/features/receiving/draft-pallet-list";
 import { PrintDraftsDialog } from "@/features/receiving/print-drafts-dialog";
 
@@ -893,6 +896,31 @@ export function ReceivingPage() {
     setTimeout(() => productRefs.current[nextLine.id]?.open(), 40);
   }
 
+  // Loads the lines NetSuite still expects into the shipment. Returns the ones
+  // it could not load so the lookup panel can say why.
+  function loadNetSuiteDocument(document: NetSuiteLookupDocument) {
+    const { lines, skipped } = buildShipmentLinesFromLookup(document, {
+      productExpiryTracked: (productId) => productRequiresExpiry(productOptions.find((item) => item.id === productId)),
+      defaultExpiryDate,
+      defaultPackagingProfileId: (productId) => {
+        const standard = resolveDefaultProfileForProduct(packagingProfiles as any[], productId);
+        return standard ? String(standard.id) : "";
+      },
+    });
+    if (lines.length > 0) {
+      const number = document.number.toUpperCase();
+      setShipmentForm((current) => ({
+        ...current,
+        receipt_type: document.type === "transfer_order" ? "transfer" : "po",
+        po_number: number,
+        reference_number: number,
+        lines: mergeLoadedLines(current.lines, lines),
+      }));
+      setActiveShipmentLineId(lines[0].id);
+    }
+    return skipped;
+  }
+
   function focusFirstProductSearch() {
     const firstLine = shipmentForm.lines[0];
     if (!firstLine) return;
@@ -1255,6 +1283,14 @@ export function ReceivingPage() {
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusFirstProductSearch(); } }}
                         onChange={(e) => setShipmentForm((cur) => ({ ...cur, po_number: e.target.value.toUpperCase(), reference_number: e.target.value.toUpperCase() }))}
                       />
+                      {!editingDraft && (
+                        <NetSuiteLookupPanel
+                          receiptType={shipmentForm.receipt_type}
+                          documentNumber={shipmentForm.po_number}
+                          online={online}
+                          onLoadDocument={loadNetSuiteDocument}
+                        />
+                      )}
                     </div>
                   </div>
                   <button type="button" className="w-fit text-sm font-medium text-primary underline-offset-2 hover:underline" onClick={() => setShowShipmentMore((v) => !v)}>

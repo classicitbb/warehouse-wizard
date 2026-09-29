@@ -53,7 +53,7 @@ Last updated: 2026-09-29, after the NetSuite dev's J2 update.
 | **Us-3** | Add RESTlet URL, script id and deploy id to the connection config | [ ] | Nothing. |
 | **W1** | Bring Pine and Lower Estate in and audit single-warehouse assumptions (5-8 d) | [ ] | Nothing. |
 | **W4** | Record the NetSuite source line number on each Warehouse Wizard line (2-4 d) | [ ] | Nothing. |
-| **W2** | On-demand lookup by document number for PO, inbound shipment and transfer order (10-15 d) | [~] | PO and transfer order backend done (`netsuite-lookup` function, unit-tested, not yet run against the sandbox). Remaining: inbound shipment lookup, the receiving-screen UI, live check (J5, S1). |
+| **W2** | On-demand lookup by document number for PO, inbound shipment and transfer order (10-15 d) | [~] | PO and transfer order lookup done end to end: `netsuite-lookup` function plus the Receiving screen (unit-tested, not yet run against NetSuite). Remaining: inbound shipment lookup, deploy the function to the beta, live check (J5, S1). |
 | **W3a** | Post receipts: purchase order, via `purchaseOrder/{id}/!transform/itemReceipt` (part of 12-18 d) | [ ] | J5, S1. |
 | **W3b** | Post receipts: transfer order, via `transferOrder/{id}/!transform/itemReceipt` | [ ] | J5, S1. Verify how the transform names the fulfilment. |
 | **W3c** | Post receipts: inbound shipment, via the RESTlet. Send `externalRef`, treat `alreadyProcessed` as success, store all receipt ids. | [!] | J2 tested, J10. |
@@ -100,3 +100,11 @@ Last updated: 2026-09-29, after the NetSuite dev's J2 update.
 - **Open:** does a PO that sits on an inbound shipment show up here as receivable? Per J6 it can only be received through the shipment, so the lookup should flag it once J6 is answered.
 - `netsuite-connection` still has its own credential and SuiteQL helpers. Move it onto `_shared/netsuite-client.ts` once W2 is accepted.
 
+## W2 lookup: Receiving screen
+
+- New Shipment dialog: under **PO number**, a "Look up purchase order/transfer order in NetSuite" button (shown for receipt type PO or Transfer, hidden when editing a draft, disabled offline or with no number).
+- A found document shows status, vendor and each line as ordered, received and remaining. **Load lines into shipment** creates one shipment line per line that can still be received, with total set to what NetSuite expects and left as a single pallet for the operator to split.
+- Lines are skipped, with the reason shown, when nothing is left to receive or the item has not been imported. Looking a document up twice replaces its lines rather than duplicating them.
+- Each loaded line shows its NetSuite line, ordered, already received and expecting, and flags "short by n" or "over by n" as the operator edits the total. This is display only until the short-delivery policy (P7) is decided.
+- **Not persisted yet:** the NetSuite line reference lives in the form only, so it is lost when a draft is saved. Storing it with the draft is W4, and the receipt posting (W3) needs it.
+- Files: `netsuite-lookup-panel.tsx`, `netsuite-lookup-lines.ts`, `netsuite-lookup.ts` in `src/features/receiving/`; wiring in `receiving-page.tsx` and `shipment-line-card.tsx`.

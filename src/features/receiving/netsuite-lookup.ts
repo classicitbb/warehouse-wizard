@@ -49,6 +49,19 @@ export type NetSuiteLookupResult =
   | { kind: "ambiguous"; candidates: NetSuiteLookupCandidate[] }
   | { kind: "unavailable"; message: string };
 
+// supabase-js reports any non-2xx as "Edge Function returned a non-2xx status
+// code" and keeps the function's own message on error.context. Surface that
+// message (permission denied, NetSuite busy, ...) rather than the generic one.
+async function describeInvokeError(error: { message: string; context?: unknown }): Promise<string> {
+  const context = error.context;
+  if (context instanceof Response) {
+    const body = await context.clone().json().catch(() => null);
+    if (body && typeof body.error === "string") return body.error;
+    return `NetSuite lookup failed (${context.status}).`;
+  }
+  return "Could not reach the NetSuite lookup. Check the connection and try again.";
+}
+
 export async function lookupNetSuiteDocument(
   documentType: NetSuiteDocumentType,
   documentNumber: string,
@@ -56,7 +69,7 @@ export async function lookupNetSuiteDocument(
   const { data, error } = await supabase.functions.invoke("netsuite-lookup", {
     body: { documentType, documentNumber },
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(await describeInvokeError(error));
 
   if (data?.unavailable) return { kind: "unavailable", message: String(data.message ?? "NetSuite is unavailable") };
   if (data?.ambiguous) return { kind: "ambiguous", candidates: data.candidates as NetSuiteLookupCandidate[] };
