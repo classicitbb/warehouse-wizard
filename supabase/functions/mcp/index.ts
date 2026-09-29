@@ -157,7 +157,7 @@ var inventory_summary_default = defineTool3({
 });
 
 // src/lib/mcp/index.ts
-var projectRef = "gxfvxmxplngvxdkpmxgw";
+var projectRef = "emuyzymoadmzhnzjprjz";
 var mcp_default = defineMcp({
   name: "warehouse-wizard-mcp",
   title: "Warehouse Wizard MCP",
