@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { useAuth } from "@/hooks/use-auth";
+import { useAuthOptional } from "@/hooks/use-auth";
 import { loadWorkspacePreferences, saveWorkspacePreferences } from "@/lib/mobile-toolbar-preferences";
 
 
@@ -180,7 +180,10 @@ type FeatureFlagContextValue = {
 export const FeatureFlagContext = createContext<FeatureFlagContextValue | null>(null);
 
 export function useFeatureFlagState(): FeatureFlagContextValue {
-  const { user } = useAuth();
+  // Optional read: the flag provider only tunes defaults from the signed-in
+  // user, so a momentarily missing auth provider must not crash the app.
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
   const [flags, setFlags] = useState<Record<ModuleKey, boolean>>(loadFlags);
   const [toolbarModules, setToolbarModules] = useState<ModuleKey[]>(loadToolbarModules);
 
