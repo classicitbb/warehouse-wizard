@@ -232,6 +232,9 @@ export type DashboardMetrics = {
   warehouseTotalLocations: number;
   warehouseAvailableLocations: number;
   warehouseFilledLocations: number;
+  warehouseFullLocations: number;
+  warehouseName: string | null;
+  warehouseCount: number;
   availablePallets: number;
   coolZoneOccupancy: number;
   openReceipts: number;

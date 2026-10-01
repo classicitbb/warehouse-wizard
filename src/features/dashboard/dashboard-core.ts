@@ -64,6 +64,9 @@ export async function getDashboardMetrics(
     warehouseTotalLocations: num(payload, "warehouseTotalLocations"),
     warehouseAvailableLocations: num(payload, "warehouseAvailableLocations"),
     warehouseFilledLocations: num(payload, "warehouseFilledLocations"),
+    warehouseFullLocations: num(payload, "warehouseFullLocations"),
+    warehouseName: typeof payload?.warehouseName === "string" ? payload.warehouseName : null,
+    warehouseCount: num(payload, "warehouseCount"),
     availablePallets: num(payload, "availablePallets"),
     coolZoneOccupancy: num(payload, "coolZoneOccupancy"),
     // Counts come from full database counts, not the capped detail-row arrays.
