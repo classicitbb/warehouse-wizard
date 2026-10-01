@@ -103,15 +103,15 @@ export function CapacityTile({ data }: { data: BoardData }) {
   const m = data.metrics;
   const where = m?.warehouseName ?? "this warehouse";
   const pallets = m?.warehousePallets ?? 0;
-  // Fill % is governed by usable (enabled) bins only; disabled bins are excluded.
+  // Pallet space is what operators plan with; fill % counts usable (enabled) bins only.
   const usablePallets = m?.warehouseUsablePallets ?? 0;
   const capacity = m?.warehousePalletCapacity ?? 0;
-  const totalBins = m?.warehouseTotalLocations ?? 0;
-  const usableBins = m?.warehouseAvailableLocations ?? 0;
-  const disabledBins = Math.max(0, totalBins - usableBins);
-  const binsWithStock = m?.warehouseFilledLocations ?? 0;
-  const emptyBins = Math.max(0, usableBins - binsWithStock);
+  const freeSpaces = Math.max(0, capacity - usablePallets);
+  const disabledSpaces = Math.max(0, (m?.warehouseTotalPalletCapacity ?? 0) - capacity);
   const palletsInDisabled = Math.max(0, pallets - usablePallets);
+  const usableBins = m?.warehouseAvailableLocations ?? 0;
+  const disabledBins = Math.max(0, (m?.warehouseTotalLocations ?? 0) - usableBins);
+  const emptyBins = Math.max(0, usableBins - (m?.warehouseFilledLocations ?? 0));
   const multiWarehouse = (m?.warehouseCount ?? 0) > 1;
   const percent = capacity > 0 ? Math.min(100, Math.round((usablePallets / capacity) * 100)) : 0;
   const to = useTo();
@@ -130,23 +130,22 @@ export function CapacityTile({ data }: { data: BoardData }) {
             <span className="grid h-14 w-14 place-items-center rounded-full bg-card text-sm font-semibold tabular-nums">{percent}%</span>
           </Link>
           <div className="min-w-0">
-            <p className="text-3xl font-bold leading-none tabular-nums">{formatNumber(usablePallets)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">of {formatNumber(capacity)} usable pallet spaces filled</p>
+            <p className="text-3xl font-bold leading-none tabular-nums">{formatNumber(freeSpaces)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">free pallet spaces · {formatNumber(usablePallets)} of {formatNumber(capacity)} used</p>
           </div>
         </div>
-        <TileSection title={`Bin locations in ${where}`}>
-          <MetricRow label="All bins" value={totalBins} href="/settings" hint={`Every bin location set up in ${where}, enabled or not.`} />
-          <MetricRow label="Usable bins" value={usableBins} href="/settings" hint="Enabled bins that can take stock. The fill % is based on these." />
-          {disabledBins > 0 && <MetricRow label="Disabled bins" value={disabledBins} href="/settings" hint="Blocked, in maintenance or disabled. Excluded from capacity and fill %." />}
-          <MetricRow label="Usable bins holding stock" value={binsWithStock} href="/inventory-search" hint="Usable bins with at least one pallet in them (not necessarily full)." />
-          <MetricRow label="Full bins" value={m?.warehouseFullLocations ?? 0} href="/inventory-search" hint="Usable bins holding as many pallets as they are set up for." />
-          <MetricRow label="Empty usable bins" value={emptyBins} href="/putaway-tasks" hint="Usable bins with no pallets — free for put-away." />
-        </TileSection>
-        <TileSection title={`Pallets in ${where}`}>
-          <MetricRow label="Total pallets" value={pallets} href="/inventory-search" hint={`All pallets stored in ${where}, including any in disabled bins.`} />
-          {palletsInDisabled > 0 && <MetricRow label="In disabled bins" value={palletsInDisabled} href="/inventory-search" emphasis="warning" hint="Pallets sitting in bins that are disabled. Move them to free the bin or re-enable it." />}
+        <TileSection title={`Pallet space in ${where}`}>
+          <MetricRow label="Free pallet spaces" value={freeSpaces} href="/putaway-tasks" hint="How many more pallets can be put away in usable (enabled) bins." />
+          <MetricRow label="Usable pallet spaces" value={capacity} href="/settings" hint="Total pallets that usable (enabled) bins can hold. The fill % is based on this." />
+          <MetricRow label="Pallets stored" value={pallets} href="/inventory-search" hint={`All pallets stored in ${where}, including any in disabled bins.`} />
+          {palletsInDisabled > 0 && <MetricRow label="Pallets in disabled bins" value={palletsInDisabled} href="/inventory-search" emphasis="warning" hint="Pallets sitting in disabled bins. Move them or re-enable the bin." />}
+          {disabledSpaces > 0 && <MetricRow label="Pallet spaces out of use" value={disabledSpaces} href="/settings" hint="Capacity lost to disabled, blocked or maintenance bins." />}
           <MetricRow label="Available to pick" value={m?.availablePallets ?? 0} href="/inventory-search" hint="Pallets in available status (not on hold, quarantined or reserved)." />
-          {multiWarehouse && <MetricRow label={`All ${m?.warehouseCount} warehouses`} value={m?.totalPallets ?? 0} href="/inventory-search" hint="Total pallets across every warehouse in your account." />}
+          {multiWarehouse && <MetricRow label={`Pallets in all ${m?.warehouseCount} warehouses`} value={m?.totalPallets ?? 0} href="/inventory-search" hint="Total pallets across every warehouse in your account." />}
+        </TileSection>
+        <TileSection title="Bins">
+          <MetricRow label="Empty usable bins" value={emptyBins} href="/putaway-tasks" hint="Usable bins with no pallets in them." />
+          {disabledBins > 0 && <MetricRow label="Disabled bins" value={disabledBins} href="/settings" hint="Blocked, in maintenance or disabled. Excluded from capacity and fill %." />}
         </TileSection>
       </Loading>
     </div>
