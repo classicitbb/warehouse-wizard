@@ -92,8 +92,13 @@ function Loading({ data, children }: { data: BoardData; children: ReactNode }) {
 export function CapacityTile({ data }: { data: BoardData }) {
   const m = data.metrics;
   const used = m?.warehousePallets ?? 0;
+  // Fill % is governed by usable (enabled) bins only; disabled bins are excluded.
+  const usableUsed = m?.warehouseUsablePallets ?? 0;
   const capacity = m?.warehousePalletCapacity ?? 0;
-  const percent = capacity > 0 ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+  const totalLocations = m?.warehouseTotalLocations ?? 0;
+  const availableLocations = m?.warehouseAvailableLocations ?? 0;
+  const disabledLocations = Math.max(0, totalLocations - availableLocations);
+  const percent = capacity > 0 ? Math.min(100, Math.round((usableUsed / capacity) * 100)) : 0;
   const to = useTo();
   return (
     <div className="grid gap-3">
@@ -110,10 +115,14 @@ export function CapacityTile({ data }: { data: BoardData }) {
           </Link>
           <div className="min-w-0">
             <p className="text-3xl font-bold leading-none tabular-nums">{formatNumber(used)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">pallets here · {formatNumber(capacity)} locations</p>
+            <p className="mt-1 text-xs text-muted-foreground">pallets here · {formatNumber(capacity)} usable pallet spaces</p>
           </div>
         </div>
         <div className="grid">
+          <MetricRow label="Total locations" value={totalLocations} href="/settings" />
+          <MetricRow label="Available locations" value={availableLocations} href="/settings" />
+          {disabledLocations > 0 && <MetricRow label="Disabled locations" value={disabledLocations} href="/settings" />}
+          <MetricRow label="Filled locations" value={m?.warehouseFilledLocations ?? 0} href="/inventory-search" />
           <MetricRow label="All warehouses" value={m?.totalPallets ?? 0} href="/inventory-search" />
           <MetricRow label="Available to pick" value={m?.availablePallets ?? 0} href="/inventory-search" />
         </div>

@@ -224,7 +224,14 @@ export type DashboardMetrics = {
   totalPallets: number;
   totalPalletCapacity: number;
   warehousePallets: number;
+  /** Pallet capacity of usable (active) bins in the warehouse. */
   warehousePalletCapacity: number;
+  /** Pallets stored in usable bins; drives the fill percentage. */
+  warehouseUsablePallets: number;
+  warehouseTotalPalletCapacity: number;
+  warehouseTotalLocations: number;
+  warehouseAvailableLocations: number;
+  warehouseFilledLocations: number;
   availablePallets: number;
   coolZoneOccupancy: number;
   openReceipts: number;
