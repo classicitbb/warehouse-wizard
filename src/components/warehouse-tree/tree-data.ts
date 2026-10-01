@@ -34,7 +34,25 @@ export interface BayGroup { bay: string; levels: LevelGroup[] }
 
 interface AisleGroup { aisle: string; bays: BayGroup[] }
 
-export interface FillStats { occupied: number; capacity: number; disabled: number; total: number }
+// occupied/capacity/filled cover usable (active) bins only, so fill % is
+// governed by bins that can take stock. total*/disabled* describe every bin.
+export interface FillStats {
+  occupied: number;
+  capacity: number;
+  filled: number;
+  disabled: number;
+  total: number;
+  totalCapacity: number;
+  disabledOccupied: number;
+}
+
+const FILL_KEYS = ["occupied", "capacity", "filled", "disabled", "total", "totalCapacity", "disabledOccupied"] as const;
+
+function sumFillStats(a: FillStats, b: FillStats): FillStats {
+  const out = { ...a };
+  for (const key of FILL_KEYS) out[key] = a[key] + b[key];
+  return out;
+}
 
 export type TreeSearchLocation = Pick<LocationRow, "id" | "code" | "aisle" | "bay" | "level" | "position" | "zone_id" | "warehouse_id">;
 
@@ -72,13 +90,7 @@ export async function fetchLocationFillStats() {
 
   function add(target: Map<string, FillStats>, key: string | null | undefined, stats: FillStats) {
     if (!key) return;
-    const current = target.get(key) ?? { occupied: 0, capacity: 0, disabled: 0, total: 0 };
-    target.set(key, {
-      occupied: current.occupied + stats.occupied,
-      capacity: current.capacity + stats.capacity,
-      disabled: current.disabled + stats.disabled,
-      total: current.total + stats.total,
-    });
+    target.set(key, sumFillStats(target.get(key) ?? emptyFillStats(), stats));
   }
 
   for (const row of rows) {
@@ -188,27 +200,27 @@ export function scrollToTreeNodeWhenReady(nodeKey: string) {
 }
 
 export function emptyFillStats(): FillStats {
-  return { occupied: 0, capacity: 0, disabled: 0, total: 0 };
+  return { occupied: 0, capacity: 0, filled: 0, disabled: 0, total: 0, totalCapacity: 0, disabledOccupied: 0 };
 }
 
 export function locationFillStats(location: LocationRow, occupied = 0): FillStats {
-  const capacity = resolveLocationCapacity(location.max_pallets, location.depth);
+  const rawCapacity = resolveLocationCapacity(location.max_pallets, location.depth);
+  const capacity = Number.isFinite(rawCapacity) ? Math.max(0, rawCapacity) : 0;
+  const pallets = Number.isFinite(occupied) ? Math.max(0, occupied) : 0;
+  const disabled = Boolean(location.status && location.status !== "active");
   return {
-    occupied: Number.isFinite(occupied) ? Math.max(0, occupied) : 0,
-    capacity: Number.isFinite(capacity) ? Math.max(0, capacity) : 0,
-    disabled: location.status && location.status !== "active" ? 1 : 0,
+    occupied: disabled ? 0 : pallets,
+    capacity: disabled ? 0 : capacity,
+    filled: !disabled && pallets > 0 ? 1 : 0,
+    disabled: disabled ? 1 : 0,
     total: 1,
+    totalCapacity: capacity,
+    disabledOccupied: disabled ? pallets : 0,
   };
 }
 
 export function combineFillStats(locations: LocationRow[], byLocation: Map<string, FillStats>) {
   return locations.reduce((total, location) => {
-    const stats = byLocation.get(location.id) ?? locationFillStats(location);
-    return {
-      occupied: total.occupied + stats.occupied,
-      capacity: total.capacity + stats.capacity,
-      disabled: total.disabled + stats.disabled,
-      total: total.total + stats.total,
-    };
+    return sumFillStats(total, byLocation.get(location.id) ?? locationFillStats(location));
   }, emptyFillStats());
 }

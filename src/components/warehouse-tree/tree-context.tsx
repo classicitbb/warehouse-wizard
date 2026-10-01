@@ -175,8 +175,15 @@ export function FillBar({ stats, disabled = false }: { stats?: FillStats; disabl
     ? Math.min(100, Math.round((safeStats.occupied / safeStats.capacity) * 100))
     : 0;
   const hasDisabled = disabled || safeStats.disabled > 0;
+  const available = safeStats.total - safeStats.disabled;
+  const title = [
+    `${safeStats.occupied}/${safeStats.capacity} pallets in usable bins (${percent}% full)`,
+    `Locations: ${safeStats.total} total · ${available} available · ${safeStats.filled} filled`,
+    safeStats.disabled > 0 && `${safeStats.disabled} disabled (${safeStats.totalCapacity - safeStats.capacity} pallet spaces excluded)`,
+    safeStats.disabledOccupied > 0 && `${safeStats.disabledOccupied} pallets sitting in disabled bins`,
+  ].filter(Boolean).join("\n");
   return (
-    <div className="flex w-28 shrink-0 items-center gap-1.5 sm:w-36" title={`${safeStats.occupied}/${safeStats.capacity} pallets`}>
+    <div className="flex w-28 shrink-0 items-center gap-1.5 sm:w-36" title={title}>
       {hasDisabled && <Ban className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Disabled" />}
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
         <div
