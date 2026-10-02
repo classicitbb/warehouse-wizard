@@ -10,12 +10,6 @@ import {
 } from "@/features/shared/core-types";
 import { upsertRecord } from "@/features/admin/admin-core";
 
-const TRANSFERS_DISABLED_MESSAGE = "Transfers are temporarily disabled for all users while the workflow is being redesigned.";
-
-function assertTransfersEnabled(): void {
-  throw new Error(TRANSFERS_DISABLED_MESSAGE);
-}
-
 async function resolvePalletId(palletInput: string) {
   const normalized = palletInput.trim();
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) {
@@ -32,7 +26,6 @@ async function resolvePalletId(palletInput: string) {
 }
 
 export async function createTransferFlow(input: z.infer<typeof transferSchema>) {
-  assertTransfersEnabled();
   const payload = transferSchema.parse(input);
 
   const { data: pallet, error: palletError } = await db("pallets").select("*").eq("id", payload.pallet_id).single();
@@ -109,7 +102,6 @@ export async function createTransferFlow(input: z.infer<typeof transferSchema>) 
 }
 
 export async function dispatchTransfer(transferId: string, driverSignoffCode: string) {
-  assertTransfersEnabled();
   const { data: userData } = await supabase.auth.getUser();
   const actorId = userData.user?.id;
   if (!actorId) throw new Error("Sign in is required before dispatch.");
@@ -178,7 +170,6 @@ export async function dispatchTransfer(transferId: string, driverSignoffCode: st
 }
 
 export async function receiveTransfer(transferId: string) {
-  assertTransfersEnabled();
   const { data: transfer, error: transferError } = await db("transfers").select("*").eq("id", transferId).single();
   if (transferError) throw transferError;
   const { data: lines, error: linesError } = await db("transfer_lines").select("*").eq("transfer_id", transferId);
@@ -206,7 +197,6 @@ export async function receiveTransfer(transferId: string) {
 }
 
 export async function cancelTransfer(transferId: string, reason: string) {
-  assertTransfersEnabled();
   const { data: transfer, error: transferError } = await db("transfers").select("*").eq("id", transferId).single();
   if (transferError) throw transferError;
   if (transfer.status === "completed") throw new Error("Cannot cancel a completed transfer.");
@@ -263,7 +253,6 @@ export async function flagCountLineException(lineId: string, reason: string) {
 }
 
 export async function listTransfers() {
-  assertTransfersEnabled();
   const { data, error } = await db("transfers")
     .select("*, transfer_lines(*, pallets(pallet_barcode, products(*)))")
     .order("created_at", { ascending: false });
