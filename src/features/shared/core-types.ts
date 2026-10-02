@@ -228,6 +228,8 @@ export type DashboardMetrics = {
   warehousePalletCapacity: number;
   /** Pallets stored in usable bins; drives the fill percentage. */
   warehouseUsablePallets: number;
+  /** Pallets in visible disabled/blocked/maintenance bins (excludes unlocated or hidden-location stock). */
+  warehouseDisabledBinPallets: number;
   warehouseTotalPalletCapacity: number;
   warehouseTotalLocations: number;
   warehouseAvailableLocations: number;
