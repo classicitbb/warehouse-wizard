@@ -21,6 +21,7 @@ function dashboardMetrics(overrides: Partial<DashboardMetrics> = {}): DashboardM
     warehousePallets: 0,
     warehousePalletCapacity: 0,
     warehouseUsablePallets: 0,
+    warehouseDisabledBinPallets: 0,
     warehouseTotalPalletCapacity: 0,
     warehouseTotalLocations: 0,
     warehouseAvailableLocations: 0,

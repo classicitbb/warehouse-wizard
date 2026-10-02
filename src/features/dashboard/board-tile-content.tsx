@@ -108,7 +108,7 @@ export function CapacityTile({ data }: { data: BoardData }) {
   const capacity = m?.warehousePalletCapacity ?? 0;
   const freeSpaces = Math.max(0, capacity - usablePallets);
   const disabledSpaces = Math.max(0, (m?.warehouseTotalPalletCapacity ?? 0) - capacity);
-  const palletsInDisabled = Math.max(0, pallets - usablePallets);
+  const palletsInDisabled = m?.warehouseDisabledBinPallets ?? 0;
   const usableBins = m?.warehouseAvailableLocations ?? 0;
   const disabledBins = Math.max(0, (m?.warehouseTotalLocations ?? 0) - usableBins);
   const emptyBins = Math.max(0, usableBins - (m?.warehouseFilledLocations ?? 0));

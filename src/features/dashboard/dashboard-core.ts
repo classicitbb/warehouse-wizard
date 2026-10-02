@@ -60,6 +60,7 @@ export async function getDashboardMetrics(
     warehousePallets: num(payload, "warehousePallets"),
     warehousePalletCapacity: num(payload, "warehousePalletCapacity"),
     warehouseUsablePallets: num(payload, "warehouseUsablePallets"),
+    warehouseDisabledBinPallets: num(payload, "warehouseDisabledBinPallets"),
     warehouseTotalPalletCapacity: num(payload, "warehouseTotalPalletCapacity"),
     warehouseTotalLocations: num(payload, "warehouseTotalLocations"),
     warehouseAvailableLocations: num(payload, "warehouseAvailableLocations"),
