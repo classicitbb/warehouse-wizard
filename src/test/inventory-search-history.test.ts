@@ -186,3 +186,25 @@ describe("searchInventory history", () => {
     expect(rows[0].inventory_balance_id).toBe("bal-shipped");
   });
 });
+
+import { locationCodeMatchesSearch, parseLocationSearchToken } from "@/features/inventory/inventory-core";
+
+describe("bay code search", () => {
+  const matches = (term: string, code: string) => {
+    const segments = parseLocationSearchToken(term);
+    return segments ? locationCodeMatchesSearch(code, segments) : null;
+  };
+  it("matches whole bay segments only", () => {
+    expect(matches("E-18", "E-18-C")).toBe(true);
+    expect(matches("E18", "E-18-C")).toBe(true);
+    expect(matches("E01", "E-01-A-P1")).toBe(true);
+    expect(matches("E-18-C", "E-18-C")).toBe(true);
+    expect(matches("E-18", "B-14-E")).toBe(false);
+    expect(matches("E-18", "E-181-A")).toBe(false);
+    expect(matches("E-18-C", "E-18-D")).toBe(false);
+  });
+  it("leaves pallet numbers and text to the normal search", () => {
+    expect(parseLocationSearchToken("T-89788148W8V3")).toBeNull();
+    expect(parseLocationSearchToken("lens")).toBeNull();
+  });
+});
