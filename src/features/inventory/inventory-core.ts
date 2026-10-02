@@ -120,6 +120,41 @@ export function describeInventoryStructureScope(scope: InventoryStructureScope):
   return zoneCode ? `${node ?? "Rack"} ${zoneCode}` : "";
 }
 
+/**
+ * Splits a typed term that looks like a rack location / bay code (`E-18`, `E01`,
+ * `E-18-C`, `E18C`) into its segments, or returns null for anything else
+ * (SKUs, pallet numbers, free text). Letters and digits run together by
+ * scanners and typists (`E01`) are separated; pallet-length digit runs are not
+ * treated as a bay number.
+ */
+export function parseLocationSearchToken(token: string): string[] | null {
+  const cleaned = String(token ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{1,3}-?\d{1,3}(?:-?(?:[A-Z]|L?\d{1,2}))?(?:-?P?\d{1,2})?$/.test(cleaned)) return null;
+  return cleaned.match(/[A-Z]+|\d+/g);
+}
+
+/** Compares one location segment to one search segment (`01` == `1`, `L02` == `2`). */
+function locationSegmentMatches(codeSegment: string, tokenSegment: string): boolean {
+  const asNumber = (value: string) => (/^[LP]?\d+$/.test(value) ? Number.parseInt(value.replace(/^[LP]/, ""), 10) : null);
+  const codeNumber = asNumber(codeSegment);
+  const tokenNumber = asNumber(tokenSegment);
+  if (codeNumber !== null && tokenNumber !== null) return codeNumber === tokenNumber;
+  return codeSegment === tokenSegment;
+}
+
+/**
+ * Whole-segment match of a location search term against a location code:
+ * `E-18` matches `E-18-C` and `E-18-C-P1` (and `E18`/`E-018`), but never
+ * `B-14-E`, `E-181-A` or a pallet number that merely contains "E-18".
+ */
+export function locationCodeMatchesSearch(locationCode: string | null | undefined, tokenSegments: string[]): boolean {
+  const code = String(locationCode ?? "").trim().toUpperCase().replace(/^WH\d+-/, "");
+  if (!code) return false;
+  const codeSegments = code.split("-").filter(Boolean).flatMap((part) => (/^[A-Z]\d+$/.test(part) ? part.match(/[A-Z]+|\d+/g) ?? [part] : [part]));
+  if (codeSegments.length < tokenSegments.length) return false;
+  return tokenSegments.every((segment, index) => locationSegmentMatches(codeSegments[index], segment));
+}
+
 /** True when a display location code sits at or beneath the scope prefix. */
 export function locationCodeInScope(locationCode: string | null | undefined, prefix: string): boolean {
   const scope = String(prefix ?? "").trim().toUpperCase();
@@ -419,7 +454,13 @@ async function searchInventoryOnce(filters: InventorySearchFilters) {
         .map((value) => String(value ?? "").toLowerCase())
         .join(" ");
 
-      return searchTokens.every((token) => haystack.includes(token));
+      return searchTokens.every((token) => {
+        // A bay/location-style term only ever matches the location code, on
+        // whole segments — substring matching let `E-18` hit unrelated rows.
+        const locationSegments = parseLocationSearchToken(token);
+        if (locationSegments) return locationCodeMatchesSearch(row.location_code, locationSegments);
+        return haystack.includes(token);
+      });
     });
 
     // Last resort: a pallet number that matches nothing above may still exist as
