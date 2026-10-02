@@ -51,7 +51,7 @@ export const STARTER_MODULES: Record<ModuleKey, boolean> = {
   "email-log": false,
 };
 
-export const DISABLED_MODULES = new Set<ModuleKey>(["transfers"]);
+export const DISABLED_MODULES = new Set<ModuleKey>();
 
 const MODULE_LABELS: Record<ModuleKey, { label: string; description: string }> = {
   dashboard: { label: "Dashboard", description: "Command Center for live warehouse operations" },
