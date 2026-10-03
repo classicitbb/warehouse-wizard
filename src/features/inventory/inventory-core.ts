@@ -133,6 +133,23 @@ export function parseLocationSearchToken(token: string): string[] | null {
   return cleaned.match(/[A-Z]+|\d+/g);
 }
 
+/** Lowercase text with separators removed, so `PAL-001` / `PAL 001` / `PAL001` compare equal. */
+function compactSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** An expiry date in every spelling an operator might type: ISO, US, and month-year. */
+function expiryTextVariants(expiry: unknown): string[] {
+  const iso = String(expiry ?? "").trim().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso ? [iso] : [];
+  const [, year, month, day] = match;
+  const monthName = new Date(Date.UTC(Number(year), Number(month) - 1, 1))
+    .toLocaleString("en-US", { month: "short", timeZone: "UTC" })
+    .toLowerCase();
+  return [iso, `${month}/${day}/${year}`, `${Number(month)}/${Number(day)}/${year}`, `${month}/${year}`, `${monthName} ${year}`];
+}
+
 /** Compares one location segment to one search segment (`01` == `1`, `L02` == `2`). */
 function locationSegmentMatches(codeSegment: string, tokenSegment: string): boolean {
   const asNumber = (value: string) => (/^[LP]?\d+$/.test(value) ? Number.parseInt(value.replace(/^[LP]/, ""), 10) : null);
@@ -432,7 +449,19 @@ async function searchInventoryOnce(filters: InventorySearchFilters) {
   }
   if (searchTokens.length > 0) {
     rows = rows.filter((row) => {
-      const haystack = [
+      const toText = (values: unknown[]) => values.map((value) => String(value ?? "").toLowerCase()).join(" ");
+      // Identifier fields: what a SKU / pallet / container / product / expiry term hits.
+      const identityFields = [
+        row.sku,
+        row.product_barcode,
+        row.pallet_code,
+        row.pallet_barcode,
+        row.container_number,
+        row.po_number,
+        row.lot_number,
+        row.batch_number,
+      ].map((value) => compactSearchText(String(value ?? "")));
+      const identityText = toText([
         row.sku,
         row.product_name,
         row.product_barcode,
@@ -442,24 +471,29 @@ async function searchInventoryOnce(filters: InventorySearchFilters) {
         row.po_number,
         row.lot_number,
         row.batch_number,
-        row.expiry_date,
+        ...expiryTextVariants(row.expiry_date),
         row.client_name,
         row.owner_name,
-        row.warehouse_code,
-        row.warehouse_name,
-        row.zone_code,
-        row.location_code,
-        row.status,
-      ]
-        .map((value) => String(value ?? "").toLowerCase())
-        .join(" ");
+      ]);
+      const placeText = toText([row.warehouse_code, row.warehouse_name, row.zone_code, row.location_code, row.status]);
+      const haystack = `${identityText} ${placeText}`;
+      const compactHaystack = compactSearchText(haystack);
 
       return searchTokens.every((token) => {
-        // A bay/location-style term only ever matches the location code, on
-        // whole segments — substring matching let `E-18` hit unrelated rows.
+        const compactToken = compactSearchText(token);
+        const hasSeparator = /[^a-z0-9]/.test(token);
+        // A bay/location-style term (`E-18`) matches the location code on whole
+        // segments — substring matching let it hit unrelated rows. But SKUs and
+        // pallet numbers can look like bay codes too (`PAL-001`, `AB12`), so it
+        // may also match the identifier fields, though never the location text.
         const locationSegments = parseLocationSearchToken(token);
-        if (locationSegments) return locationCodeMatchesSearch(row.location_code, locationSegments);
-        return haystack.includes(token);
+        if (locationSegments) {
+          return (
+            locationCodeMatchesSearch(row.location_code, locationSegments) ||
+            identityFields.some((field) => field.startsWith(compactToken))
+          );
+        }
+        return haystack.includes(token) || (hasSeparator && compactToken.length >= 3 && compactHaystack.includes(compactToken));
       });
     });
 
