@@ -84,6 +84,11 @@ describe("searchInventory terms", () => {
     expect(await codes("pal001")).toEqual(["PAL-001"]);
   });
 
+  it("finds a dashed SKU or pallet typed without its dashes", async () => {
+    expect(await codes("zz99")).toEqual(["PAL-002"]);
+    expect(await codes("pal002")).toEqual(["PAL-002"]);
+  });
+
   it("finds containers and product names", async () => {
     expect(await codes("MSKU1234567")).toEqual(["PAL-001"]);
     expect(await codes("coating")).toEqual(["PAL-002"]);
@@ -95,6 +100,12 @@ describe("searchInventory terms", () => {
     expect(await codes("10/03/2026")).toEqual(["PAL-001"]);
     expect(await codes("10/2026")).toEqual(["PAL-001"]);
     expect(await codes("oct 2026")).toEqual(["PAL-001"]);
+    expect(await codes("03 Oct 2026")).toEqual(["PAL-001"]);
+    expect(await codes("october 2026")).toEqual(["PAL-001"]);
+  });
+
+  it("treats a spaced location as one location", async () => {
+    expect(await codes("E 18 C")).toEqual(["PAL-001"]);
   });
 
   it("still matches bay codes on whole location segments only", async () => {
