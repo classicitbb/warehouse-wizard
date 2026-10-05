@@ -553,6 +553,94 @@ async function runTool(
       return { rows: { blocked_stock: blockedStock ?? [], stale_putaway_tasks: stalePutaway ?? [] } }
     }
 
+    case 'list_location_moves': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let palletId: string | null = null
+      const palletBarcode = nullableText(args.pallet_barcode)
+      if (palletBarcode) {
+        const { data, error } = await sb.from('pallets').select('id').eq('pallet_code', palletBarcode).maybeSingle()
+        if (error) throw error
+        palletId = data?.id ?? null
+        if (!palletId) return { rows: [], count: 0, note: `No accessible pallet matches ${palletBarcode}.` }
+      }
+      let query = sb
+        .from('move_tasks')
+        .select('id, task_number, status, reason, pallet_id, from_location_id, to_location_id, completed_at, created_at, pallets(pallet_code), from_location:locations!move_tasks_from_location_id_fkey(code), to_location:locations!move_tasks_to_location_id_fkey(code)')
+        .eq('warehouse_id', targetWarehouse)
+        .order('created_at', { ascending: false })
+        .limit(cappedLimit(args.limit))
+      const status = nullableText(args.status)
+      if (status) query = query.eq('status', status)
+      if (palletId) query = query.eq('pallet_id', palletId)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Location-move tasks from the accessible warehouse.' }
+    }
+    case 'list_transfers': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let query = sb
+        .from('transfers')
+        .select('id, transfer_number, transfer_type, source_warehouse_id, destination_warehouse_id, status, dispatched_at, received_at, notes, created_at, transfer_lines(id, pallet_id, product_id, quantity)')
+        .or(`source_warehouse_id.eq.${targetWarehouse},destination_warehouse_id.eq.${targetWarehouse}`)
+        .order('created_at', { ascending: false })
+        .limit(cappedLimit(args.limit))
+      const status = nullableText(args.status)
+      if (status) query = query.eq('status', status)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Transfers touching the accessible warehouse.' }
+    }
+    case 'list_cycle_counts': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      const fields = args.include_lines === true
+        ? 'id, count_number, warehouse_id, zone_id, location_id, scope, status, variance_threshold_percent, notes, created_at, cycle_count_lines(id, location_id, product_id, pallet_id, expected_quantity, counted_quantity, variance_quantity, variance_percent, line_status, exception_reason)'
+        : 'id, count_number, warehouse_id, zone_id, location_id, scope, status, variance_threshold_percent, notes, created_at'
+      let query = sb.from('cycle_counts').select(fields).eq('warehouse_id', targetWarehouse).order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const status = nullableText(args.status)
+      if (status) query = query.eq('status', status)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Cycle-count evidence from the accessible warehouse.' }
+    }
+    case 'list_audit_events': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let query = sb.from('audit_events').select('id, event_type, entity_table, entity_id, warehouse_id, pallet_id, from_location_id, to_location_id, actor_user_id, metadata, created_at').eq('warehouse_id', targetWarehouse).order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const entityTable = nullableText(args.entity_table)
+      const entityId = nullableText(args.entity_id)
+      const eventType = nullableText(args.event_type)
+      if (entityTable) query = query.eq('entity_table', entityTable)
+      if (entityId) query = query.eq('entity_id', requiredUuid(entityId, 'entity_id'))
+      if (eventType) query = query.eq('event_type', eventType)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Append-only WMS audit evidence.' }
+    }
+    case 'list_system_logs': {
+      let query = sb.from('system_logs').select('id, log_type, severity, title, message, details, source, table_name, resolved, resolved_at, created_at').order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const severity = nullableText(args.severity)
+      const source = nullableText(args.source)
+      if (severity) query = query.eq('severity', severity)
+      if (source) query = query.ilike('source', `%${source}%`)
+      if (typeof args.resolved === 'boolean') query = query.eq('resolved', args.resolved)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'System records allowed by the caller’s existing role policy.' }
+    }
+    case 'list_notification_failures': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let query = sb.from('notification_events').select('id, kind, group_key, entity_table, entity_id, warehouse_id, push_dispatched_at, email_dispatched_at, dispatch_error, created_at').eq('warehouse_id', targetWarehouse).not('dispatch_error', 'is', null).order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const kind = nullableText(args.kind)
+      if (kind) query = query.eq('kind', kind)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Failed notification dispatch records from the accessible warehouse.' }
+    }
+
     // ── Support tools ────────────────────────────────────────────────────────
     case 'start_problem_report': {
       const kind = String(args.kind ?? 'bug')
