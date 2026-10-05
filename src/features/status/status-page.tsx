@@ -228,8 +228,7 @@ export function StatusPage() {
             <div key={row.inventory_balance_id} className={cn("grid gap-3 rounded-r-md border border-l-4 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center", row.status === "missing" || row.status === "damaged" ? "border-l-destructive" : row.status === "quarantine" ? "border-l-warning" : "border-l-info")}>
               <div className="min-w-0">
                 <p className="font-semibold">{row.sku}</p>
-                <p className="mt-1 font-mono text-xs text-foreground">{row.pallet_code}</p>
-                <p className="text-xs text-muted-foreground">{row.location_code ?? "No recorded location"}</p>
+                <p className="mt-1 font-mono text-xs text-foreground">{row.pallet_code} · <span className="font-sans text-muted-foreground">{row.location_code ?? "No location"}</span></p>
               </div>
               <div className="flex items-center gap-2">
                 {row.status === "missing" && !row.location_code && (
