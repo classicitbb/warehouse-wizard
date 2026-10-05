@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getRouteHelp, getArticleById, searchHelpArticles, helpArticles } from "@/lib/help-content";
 import { localHabitSummary, recentActions } from "@/lib/habit-tracking";
+import { DefaultChatTransport, type UIMessage } from "ai";
 
 export type CopilotTraceEntry = {
   tool: string;
@@ -19,13 +20,7 @@ export type CopilotTraceEntry = {
   rows?: number;
 };
 
-export type CopilotMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  trace?: CopilotTraceEntry[];
-  error?: boolean;
-};
+export type CopilotMessage = UIMessage & { error?: boolean };
 
 export type CopilotFeedbackVote = "helpful" | "not_helpful";
 
@@ -33,12 +28,6 @@ export type CopilotConversation = {
   id: string;
   title: string | null;
   updatedAt: string;
-};
-
-export type CopilotAnswer = {
-  answer: string;
-  trace: CopilotTraceEntry[];
-  context?: { warehouse?: string; roles?: string[]; screen?: string };
 };
 
 /**
@@ -124,54 +113,62 @@ function appVersion() {
   }
 }
 
-export async function askCopilot(params: {
-  question: string;
+export function copilotMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part): part is Extract<UIMessage["parts"][number], { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+}
+
+export function copilotMessageTrace(message: UIMessage): CopilotTraceEntry[] {
+  return message.parts.flatMap((part) => {
+    const value = part as unknown as Record<string, unknown>;
+    const type = String(value.type ?? "");
+    if (type !== "dynamic-tool" && !type.startsWith("tool-")) return [];
+    const output = value.output as { count?: number; note?: string } | undefined;
+    return [{
+      tool: type === "dynamic-tool" ? String(value.toolName ?? "tool") : type.slice(5),
+      input: value.input,
+      outcome: value.state === "output-error" ? "error" : "ok",
+      rows: typeof output?.count === "number" ? output.count : undefined,
+    }];
+  });
+}
+
+export function createCopilotTransport() {
+  return new DefaultChatTransport<CopilotMessage>({
+    api: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/copilot`,
+    prepareSendMessagesRequest: async ({ messages, body, headers }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Please sign in again to use Copilot.");
+      return {
+        headers: {
+          ...Object.fromEntries(new Headers(headers).entries()),
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: { ...body, messages },
+      };
+    },
+  });
+}
+
+export function copilotRequestBody(params: {
   pathname: string;
-  history: Array<{ role: "user" | "assistant"; content: string }>;
+  question: string;
   selection?: Record<string, unknown>;
   conversationId?: string | null;
-  signal?: AbortSignal;
-}): Promise<CopilotAnswer> {
-  const { data, error } = await supabase.functions.invoke("copilot", {
-    body: {
-      message: params.question,
-      history: params.history,
-      context: {
-        screen: params.pathname,
-        selection: params.selection ?? {},
-        appVersion: appVersion(),
-        // Evidence about this caller's own session. Attached to any report they
-        // file so the copilot does not have to ask what they were just doing.
-        habits: localHabitSummary(),
-        breadcrumbs: recentActions(20),
-      },
-      procedures: buildProcedureContext(params.pathname, params.question),
-      conversationId: params.conversationId ?? null,
-    },
-    signal: params.signal,
-  });
-
-  if (error) {
-    let detail = error.message;
-    const context = (error as { context?: { text?: () => Promise<string> } }).context;
-    if (context?.text) {
-      try {
-        const body = await context.text();
-        const parsed = JSON.parse(body) as { error?: string };
-        if (parsed?.error) detail = parsed.error;
-      } catch {
-        // keep the original message
-      }
-    }
-    throw new Error(detail || "The copilot is unavailable right now.");
-  }
-
-  const payload = (data ?? {}) as Partial<CopilotAnswer> & { error?: string };
-  if (payload.error) throw new Error(payload.error);
+}) {
   return {
-    answer: payload.answer ?? "",
-    trace: payload.trace ?? [],
-    context: payload.context,
+    context: {
+      screen: params.pathname,
+      selection: params.selection ?? {},
+      appVersion: appVersion(),
+      habits: localHabitSummary(),
+      breadcrumbs: recentActions(20),
+    },
+    procedures: buildProcedureContext(params.pathname, params.question),
+    conversationId: params.conversationId ?? null,
   };
 }
 
@@ -202,8 +199,12 @@ export async function loadCopilotMessages(conversationId: string): Promise<Copil
     .map((message) => ({
       id: message.id,
       role: message.role as CopilotMessage["role"],
-      content: message.content,
-      trace: Array.isArray(message.citations) ? message.citations as CopilotTraceEntry[] : undefined,
+      parts: [
+        { type: "text" as const, text: message.content },
+        ...(Array.isArray(message.citations) && message.citations.length
+          ? [{ type: "data-saved-trace" as const, data: message.citations }]
+          : []),
+      ],
     }));
 }
 
@@ -231,8 +232,8 @@ export async function saveCopilotMessage(params: {
     conversation_id: params.conversationId,
     user_id: params.userId,
     role: params.message.role,
-    content: params.message.content,
-    citations: JSON.parse(JSON.stringify(params.message.trace ?? [])),
+    content: copilotMessageText(params.message),
+    citations: JSON.parse(JSON.stringify(copilotMessageTrace(params.message))),
   });
   if (error) throw error;
 
