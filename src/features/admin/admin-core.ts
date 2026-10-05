@@ -305,7 +305,17 @@ export async function adminInviteUser(input: AdminInviteUserInput): Promise<stri
 
   if (error) {
     if (!isEdgeFunctionRequestFailure(error)) {
-      throw new Error(formatSupabaseError(error, "User creation failed"));
+      let serverMessage = "";
+      const context = (error as { context?: Response }).context;
+      if (context && typeof context.json === "function") {
+        try {
+          const payload = await context.clone().json();
+          if (payload && typeof payload.error === "string") serverMessage = payload.error;
+        } catch {
+          // ignore unreadable body
+        }
+      }
+      throw new Error(serverMessage || formatSupabaseError(error, "User creation failed"));
     }
 
     const fallbackId = await adminInviteUserViaRpc(input);
