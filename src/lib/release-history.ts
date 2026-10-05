@@ -9,6 +9,18 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.3",
+    date: "October 2026",
+    changes: [
+      "Pick Execution: scanning a different pallet of the same SKU now opens the alternate-pallet check automatically, with a message guiding the operator through it",
+      "Alternate pallet panel has a Verify button, so the check works even when the scanner doesn't send Enter",
+      "New Help topic: Picking an Alternate Matching Pallet",
+    ],
+    fixes: [
+      "The main Confirm pick button now completes an alternate-pallet pick instead of staying greyed out",
+    ],
+  },
+  {
     version: "1.30.2",
     date: "October 2026",
     changes: [
