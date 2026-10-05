@@ -1,53 +1,38 @@
-# Improve color-scheme clarity
+# Alternate pallet pick: readability pass and end-to-end test
 
-## Goal
-Make the current Warehouse Wizard UI easier to read while preserving the established dark "Command Center" theme. The work focuses on the shared design tokens that drive every page, with a before/after check on `/receiving` (the page the user is on).
+## Problems in the current panel (from the screenshot)
+- The "Override source" button shows dark text on a dark button, so you can barely read it.
+- The panel background is a muddy grey in dark mode, so the orange heading and helper text are hard to read.
+- "Cancel alternate pallet" is pale text on a pale grey background.
+- After you tap "Override source", there are two "Confirm pick" buttons (one in the panel, one at the bottom), which is confusing.
+- The "Verify" button and the camera button sit next to each other with nothing to tell them apart.
 
-## Current issue
-The dark palette uses very low-contrast secondary colors:
-- `muted-foreground` is `215 12% 50%` — many labels and helper text sit below WCAG contrast on dark surfaces.
-- `border` is `215 18% 32%` — table/divider edges are barely visible.
-- `card`/`background` are extremely close (`12%` vs `19%` lightness) — cards do not lift off the page.
-- Primary cyan and accent amber can appear dim against dark backgrounds.
+## Changes (Pick Execution card only)
+1. **Panel colours:** use the app's existing warning colours, so the panel reads clearly in both dark and light mode. No new colours.
+2. **"Override source" button:** a solid amber button with dark text, so it's clearly the next step. When the quantity is different, the label becomes "Override & pick 40 (requested 50)".
+3. **One confirm button:** remove the second "Confirm pick" inside the panel. Once the override is on, the panel shows "Override on — the directed pallet goes back into stock", and the bottom button turns amber and reads "Confirm alternate pick".
+4. **Clearer labels:**
+   - "Verify" becomes "Verify pallet".
+   - "Cancel alternate pallet" becomes a readable outline button called "Use directed pallet instead".
+   - The helper text gets shorter: "Scan or type the pallet. We check SKU, quantity, location and holds."
+5. **Error message:** if the pallet can't be used, the reason shows inside the panel in red as well as in the pop-up message.
 
-These combine to make tables, form boundaries, and scan prompts harder to read than they should be.
+## End-to-end test
+I'll drive the screen in a test browser and take screenshots of each step:
+- scanning the directed pallet works the normal way
+- scanning an alternate pallet opens the panel and shows the "detected" message
+- the green "verified" message appears and the override can be armed
+- the Verify button works without pressing Enter
+- a pallet with the wrong SKU or a bad barcode shows a clear error
+- the bottom button switches to "Confirm alternate pick"
+- cancelling resets the panel
 
-## Proposed changes
+Confirming the pick would move real stock. So the test stops just before that final tap unless you say yes. If you say yes, it confirms the pick on task PKT-289652991GV3 using pallet PLT-82510732HMMF from J-02-B. I'll then check the audit trail, that the directed pallet is still in stock, and that the pick list closes.
 
-### 1. Contrast-first token update in `src/index.css`
-Adjust only the HSL values of the existing semantic tokens (no new tokens, no hardcoded colors):
-- Increase `foreground` lightness from `90%` to `96%`.
-- Increase `muted-foreground` lightness from `50%` to `70%`.
-- Lighten `card` surface from `12%` to `16%` and keep `background` at `19%` so cards separate from the page.
-- Increase `border` lightness from `32%` to `45%` so dividers and input borders are visible.
-- Lighten `input` surface from `26%` to `30%` to make text fields easier to locate.
-- Brighten `primary` slightly (from `47%` to `52%` lightness) and `accent` similarly so CTAs and scan halos stand out.
-- Desaturate/lighten `sidebar-background` slightly so the bright blue does not compete with page content.
+## Release
+Version 1.30.4, with release notes and the Help topic wording updated to match the new button names.
 
-### 2. Component-level spot checks
-After the token change, verify the following are still rendering through the tokens and not with hardcoded overrides. Fix any hardcoded low-contrast classes found in these areas:
-- Receiving table rows and zebra striping.
-- Scan prompt halo and input focus rings.
-- Form labels / helper text using `muted-foreground`.
-- Sidebar text and active item state.
-- Buttons / badges using `primary`, `accent`, `secondary`.
-
-No broad component rewrites — only contrast/class corrections.
-
-### 3. Validation
-- Run `npm run typecheck` to ensure no TypeScript regressions.
-- Capture a Playwright screenshot of `/receiving` to confirm the new contrast is visibly clearer.
-
-### 4. Versioning on publish
-If the change is published, bump `package.json` and `RELEASE_HISTORY` in `src/App.tsx` with a short release note.
-
-## Out of scope
-- Switching to a full light theme.
-- Adding a theme toggle.
-- Changing fonts, layout, spacing, or branding colors beyond contrast/brightness tuning.
-- Redesigning any page or workflow.
-
-## Acceptance criteria
-- The Receiving page, sidebar, and tables are visibly clearer without changing the overall dark theme.
-- All changes are made through existing semantic tokens in `src/index.css` and `tailwind.config.ts`.
-- No build/type errors are introduced.
+## Technical details
+- File: `src/features/picking/pick-execution-page.tsx`. Replace the hardcoded `amber-*` classes on the alternate panel with the warning token from `index.css` and the existing Button variants, and remove the inner confirm button. The submit button's label and variant come from `alternateReady`, and `handleSubmit` already sends the override.
+- Add `alternateError` state that `previewAlternate` sets when it fails.
+- Update `src/lib/help-content.ts` (topic `pick-alternate-pallet`) and `src/lib/release-history.ts`, and bump the version in `package.json`.
