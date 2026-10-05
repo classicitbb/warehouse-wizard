@@ -4,4 +4,4 @@
 - [x] Prevent hidden role assignments from granting elevated access.
 - [x] Simplify alternate-pallet confirmation and improve active pick-row readability.
 - [x] Refresh Transfers, Status, and Reports for queue-first operations and future NetSuite visibility.
-- [ ] Remove Dashboard fit-to-screen and publish the verified release.
+- [x] Remove Dashboard fit-to-screen and publish the verified release.
