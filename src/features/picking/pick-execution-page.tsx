@@ -536,6 +536,7 @@ function PickTaskCard({
     (normalizeRackLocationCode(scannedLocation) !== locationCode ||
       scannedPallet.toUpperCase() !== String(palletBarcode).toUpperCase());
   const lockForConfirm = confirmPrompt && readyToConfirm;
+  const alternateReady = alternateMode && alternateArmed && Boolean(alternatePreview);
   const pickListId = String(task.pick_list_id ?? "");
 
   useEffect(() => {
@@ -634,6 +635,18 @@ function PickTaskCard({
   ];
 
   const handleSubmit = form.handleSubmit((values) => {
+    if (alternateReady && alternatePreview) {
+      onConfirm({
+        taskId: task.id,
+        locationCode: alternatePreview.scanned_location_code,
+        palletBarcode: alternatePreview.scanned_pallet_barcode,
+        quantity: Number(alternatePreview.scanned_available_quantity ?? alternatePreview.requested_quantity),
+        pickListCode,
+        confirmSourceOverride: true,
+        allowSourceQuantityVariance: Boolean(alternatePreview.quantity_variance),
+      });
+      return;
+    }
     if (!readyToConfirm) {
       alertToast.noGo(
         requireLocationScan
@@ -643,8 +656,9 @@ function PickTaskCard({
       return;
     }
     if (sourceOverrideScanned) {
+      if (detectAlternate(scannedPallet)) return;
       alertToast.attention(
-        "This pallet or location differs from the task. Use Pick a different pallet to verify and override it.",
+        "This location differs from the task. Use Pick a different matching pallet to verify and override it.",
       );
       return;
     }
@@ -704,10 +718,36 @@ function PickTaskCard({
           return;
         }
         setAlternatePreview(preview);
+        toast.success(
+          preview.quantity_variance
+            ? `Alternate pallet ${preview.scanned_pallet_barcode} verified — quantity differs. Review, then tap Override & pick.`
+            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Tap Override source, then Confirm pick.`,
+          { duration: 6000 },
+        );
       })
       .catch((error) =>
-        alertToast.noGo(error instanceof Error ? error.message : "Could not verify the alternate pallet."),
+        alertToast.noGo(
+          `Alternate pallet can't be used: ${error instanceof Error ? error.message : "could not verify it."}`,
+        ),
       );
+  }
+
+  /**
+   * When the operator scans a pallet other than the directed one into the main
+   * pallet field, route it straight into the alternate-pallet check instead of
+   * dead-ending. Returns true when the scan was handed to the alternate flow.
+   */
+  function detectAlternate(value: string) {
+    const scanned = normalizePalletBarcode(value);
+    if (!scanned || palletBarcodeError(scanned)) return false;
+    if (scanned.toUpperCase() === String(palletBarcode).toUpperCase()) return false;
+    setConfirmPrompt(false);
+    setAlternateMode(true);
+    toast.info(`Alternate pallet detected (${scanned}). Checking SKU, quantity and availability…`, {
+      duration: 5000,
+    });
+    previewAlternate(scanned);
+    return true;
   }
 
   return (
@@ -824,6 +864,7 @@ function PickTaskCard({
                               event.preventDefault();
                               playBarcodeBeep();
                               flashInput(palletRef.current, "blue");
+                              if (detectAlternate(normalizePalletBarcode(event.currentTarget.value))) return;
                               setConfirmPrompt(true);
                               setTimeout(() => {
                                 flashInput(confirmRef.current, "yellow");
@@ -835,9 +876,11 @@ function PickTaskCard({
                         <BarcodeScanButton
                           title="Scan pallet barcode"
                           onScan={(value) => {
-                            form.setValue("palletBarcode", normalizePalletBarcode(value));
+                            const scanned = normalizePalletBarcode(value);
+                            form.setValue("palletBarcode", scanned);
                             playBarcodeBeep();
                             flashInput(palletRef.current, "blue");
+                            if (detectAlternate(scanned)) return;
                             setConfirmPrompt(true);
                             setTimeout(() => {
                               flashInput(confirmRef.current, "yellow");
@@ -885,6 +928,14 @@ function PickTaskCard({
                           }
                         }}
                       />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isPending || !alternatePalletBarcode}
+                        onClick={() => previewAlternate(alternatePalletBarcode)}
+                      >
+                        Verify
+                      </Button>
                       <BarcodeScanButton
                         title="Scan alternate pallet barcode"
                         disabled={isPending}
@@ -1028,7 +1079,7 @@ function PickTaskCard({
                     "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
                 )}
                 type="submit"
-                disabled={isPending || !readyToConfirm}
+                disabled={isPending || !(readyToConfirm || alternateReady)}
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Confirm pick
