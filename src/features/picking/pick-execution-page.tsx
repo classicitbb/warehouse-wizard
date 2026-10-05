@@ -513,6 +513,7 @@ function PickTaskCard({
     ReturnType<typeof previewPickSourceOverride>
   > | null>(null);
   const [alternateArmed, setAlternateArmed] = useState(false);
+  const [alternateError, setAlternateError] = useState("");
   const pallet = task.pallets as any;
   const product = pallet?.products as any;
   const location = task.locations ?? task.pick_balance?.locations ?? null;
@@ -704,8 +705,10 @@ function PickTaskCard({
     setAlternatePalletBarcode(scanned);
     setAlternatePreview(null);
     setAlternateArmed(false);
+    setAlternateError("");
     const prefixError = palletBarcodeError(scanned);
     if (prefixError) {
+      setAlternateError(prefixError);
       alertToast.noGo(prefixError);
       return;
     }
@@ -721,15 +724,15 @@ function PickTaskCard({
         toast.success(
           preview.quantity_variance
             ? `Alternate pallet ${preview.scanned_pallet_barcode} verified — quantity differs. Review, then tap Override & pick.`
-            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Tap Override source, then Confirm pick.`,
+            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Tap Override source, then Confirm alternate pick.`,
           { duration: 6000 },
         );
       })
-      .catch((error) =>
-        alertToast.noGo(
-          `Alternate pallet can't be used: ${error instanceof Error ? error.message : "could not verify it."}`,
-        ),
-      );
+      .catch((error) => {
+        const reason = `Alternate pallet can't be used: ${error instanceof Error ? error.message : "could not verify it."}`;
+        setAlternateError(reason);
+        alertToast.noGo(reason);
+      });
   }
 
   /**
