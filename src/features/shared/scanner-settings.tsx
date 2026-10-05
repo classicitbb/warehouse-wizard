@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_SCAN_COOLDOWN_MS,
   DEFAULT_SCAN_DWELL_MS,
@@ -13,7 +14,9 @@ import {
   SCAN_COOLDOWN_MIN_MS,
   SCAN_DWELL_MAX_MS,
   SCAN_DWELL_MIN_MS,
+  getPickRequireLocationScan,
   getScanCooldownMs,
+  setPickRequireLocationScan,
   getScanDwellMs,
   setScanCooldownMs,
   setScanDwellMs,
@@ -26,6 +29,8 @@ import {
 export function ScannerSettingsPanel() {
   const [dwell, setDwell] = useState(() => String(getScanDwellMs()));
   const [cooldown, setCooldown] = useState(() => String(getScanCooldownMs()));
+
+  const [requireLocation, setRequireLocation] = useState(() => getPickRequireLocationScan());
 
   const save = () => {
     const nextDwell = setScanDwellMs(Number(dwell));
@@ -85,6 +90,22 @@ export function ScannerSettingsPanel() {
           <p className="text-xs text-muted-foreground">
             The same code is ignored for this long after it is accepted. {SCAN_COOLDOWN_MIN_MS}–{SCAN_COOLDOWN_MAX_MS} ms.
           </p>
+        </div>
+        <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+          <div className="grid gap-1">
+            <Label htmlFor="pick-require-location">Require location scan when picking</Label>
+            <p className="text-xs text-muted-foreground">
+              When off, operators go to the location and only scan the pallet to confirm the pick.
+            </p>
+          </div>
+          <Switch
+            id="pick-require-location"
+            checked={requireLocation}
+            onCheckedChange={(checked) => {
+              setRequireLocation(setPickRequireLocationScan(checked));
+              toast.success(checked ? "Location scan required when picking" : "Pick with pallet scan only on this device");
+            }}
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={save}>Save scanner timing</Button>

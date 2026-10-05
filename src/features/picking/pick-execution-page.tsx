@@ -739,7 +739,7 @@ function PickTaskCard({
                 name="locationCode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bay/Location Code</FormLabel>
+                    <FormLabel>Bay/Location Code{requireLocationScan ? "" : " (optional)"}</FormLabel>
                     <FormControl>
                       <div className="flex gap-2">
                         <Input
