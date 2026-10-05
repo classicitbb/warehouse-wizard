@@ -10,8 +10,10 @@
  * errors.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { useChat } from "@ai-sdk/react";
+import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import {
   Bot,
   Camera,
@@ -24,9 +26,7 @@ import {
   Mic,
   MicOff,
   Plus,
-  Send,
   Sparkle,
-  Square,
   Ticket,
   ThumbsDown,
   ThumbsUp,
@@ -37,10 +37,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea, PromptInputTools } from "@/components/ai-elements/prompt-input";
+import { Shimmer } from "@/components/ai-elements/shimmer";
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  askCopilot,
+  copilotMessageText,
+  copilotMessageTrace,
+  copilotRequestBody,
+  createCopilotTransport,
   createCopilotConversation,
   loadCopilotConversations,
   loadCopilotMessages,
@@ -73,8 +81,6 @@ import {
 } from "@/features/copilot/report-context";
 import { recordAction } from "@/lib/habit-tracking";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
-
-const CopilotMarkdown = lazy(() => import("@/features/copilot/copilot-markdown"));
 
 const SUGGESTIONS = [
   "What is open for me right now?",
@@ -167,19 +173,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const { user, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, CopilotFeedbackVote>>({});
   const [votingMessageId, setVotingMessageId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [conversations, setConversations] = useState<CopilotConversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  /** React state updates are asynchronous, so this prevents two Enter presses racing. */
-  const sendingRef = useRef(false);
-  const stoppedRef = useRef(false);
+  const activeConversationRef = useRef<string | null>(null);
   /** Screen capture in flight for the report the operator is about to file. */
   const pendingShotRef = useRef<Promise<string | null> | null>(null);
   /** True while a report is open in this thread — the attach controls belong to it. */
@@ -198,22 +198,36 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     inputRef.current?.focus();
   });
 
+  const transport = useMemo(() => createCopilotTransport(), []);
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    stop,
+    status,
+    error: chatError,
+    clearError,
+  } = useChat<CopilotMessage>({
+    transport,
+    onFinish: ({ message, isAbort, isError }) => {
+      if (!isAbort && !isError && activeConversationRef.current && user?.id) {
+        void saveCopilotMessage({ conversationId: activeConversationRef.current, userId: user.id, message })
+          .then(() => loadCopilotConversations(user.id).then(setConversations))
+          .catch((error: unknown) => reportSaveFailure(error, "assistant"));
+      }
+      const usedTools = new Set(copilotMessageTrace(message).map((entry) => entry.tool));
+      if (usedTools.has("start_problem_report")) setReportFlow(true);
+      void flushEvidence().then(() => {
+        if (usedTools.has("submit_problem_report")) setReportFlow(false);
+      });
+      inputRef.current?.focus();
+    },
+  });
+  const busy = status === "submitted" || status === "streaming";
+
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
-
-  useLayoutEffect(() => {
-    const textarea = inputRef.current;
-    if (!textarea) return;
-    textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
-  }, [input]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy]);
 
   useEffect(() => {
     if (!open || !user?.id) return;
@@ -235,6 +249,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const startNewChat = useCallback(() => {
     if (busy) return;
     setConversationId(null);
+    activeConversationRef.current = null;
     setMessages([]);
     setFeedback({});
     setHistoryOpen(false);
@@ -318,6 +333,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
     try {
       setMessages(await loadCopilotMessages(id));
       setConversationId(id);
+      activeConversationRef.current = id;
       setHistoryOpen(false);
     } catch (error) {
       // Keep the current thread intact, but say so — silently doing nothing
@@ -335,17 +351,12 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
         {
           id: messageId(),
           role: "assistant",
-          content: "That saved chat could not be opened. Your current thread is unchanged.",
+          parts: [{ type: "text", text: "That saved chat could not be opened. Your current thread is unchanged." }],
           error: true,
         },
       ]);
     }
   }, [busy, conversationId]);
-
-  const stop = useCallback(() => {
-    stoppedRef.current = true;
-    abortRef.current?.abort();
-  }, []);
 
   // The report-request listener must always reach the current `send`, but it is
   // subscribed once — a ref keeps the two apart without re-subscribing on every
@@ -355,18 +366,10 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const send = useCallback(
     async (question: string) => {
       const trimmed = question.trim();
-      if (!trimmed || busy || sendingRef.current) return;
-      sendingRef.current = true;
-      const chatHistory = messages
-        .filter((message) => !message.error)
-        .slice(-5)
-        .map((message) => ({ role: message.role, content: message.content }));
-
-      const userMessage = { id: messageId(), role: "user" as const, content: trimmed };
-      setMessages((prev) => [...prev, userMessage]);
+      if (!trimmed || busy) return;
+      clearError();
+      const userMessage: CopilotMessage = { id: messageId(), role: "user", parts: [{ type: "text", text: trimmed }] };
       setInput("");
-      setBusy(true);
-      stoppedRef.current = false;
       let activeConversationId = conversationId;
       if (!activeConversationId && user?.id) {
         try {
@@ -377,6 +380,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           });
           activeConversationId = conversation.id;
           setConversationId(conversation.id);
+          activeConversationRef.current = conversation.id;
           setConversations((prev) => [conversation, ...prev]);
         } catch (error) {
           // The chat still works in preview/demo environments without a
@@ -391,81 +395,36 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
         }
       }
 
-      const controller = new AbortController();
-      abortRef.current = controller;
       if (activeConversationId && user?.id) {
         void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: userMessage }).catch(
           (error: unknown) => reportSaveFailure(error, "user"),
         );
       }
       try {
-        const result = await askCopilot({
-          question: trimmed,
-          pathname,
-          history: chatHistory,
-          // What the operator had on screen when they reached for the life buoy:
-          // the selected product, the quantities they typed, the session behind
-          // them. Evidence about their own screen, never an instruction.
-          selection: reportContextForCopilot(reportContextRef.current),
-          conversationId: activeConversationId,
-          signal: controller.signal,
+        activeConversationRef.current = activeConversationId;
+        await sendMessage(userMessage, {
+          body: copilotRequestBody({
+            pathname,
+            question: trimmed,
+            selection: reportContextForCopilot(reportContextRef.current),
+            conversationId: activeConversationId,
+          }),
         });
-        const assistantMessage = {
-          id: messageId(),
-          role: "assistant" as const,
-          content: result.answer || "No answer was returned.",
-          trace: result.trace,
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-        // The screen capture taken when the report was started belongs to the
-        // draft the copilot has just opened.
-        const usedTools = new Set((result.trace ?? []).map((entry) => entry.tool));
-        if (usedTools.has("start_problem_report")) {
-          setReportFlow(true);
-          // A report the operator opened by typing rather than by pressing the
-          // life buoy still deserves the screen it was opened from.
-          if (!reportContextRef.current) {
-            const context = activeReportContext();
-            if (context) {
-              reportContextRef.current = context;
-              pendingEvidenceRef.current.push({ id: messageId(), screenContext: context });
-            }
-          }
-          if (pendingShotRef.current) {
-            const shot = pendingShotRef.current;
-            pendingShotRef.current = null;
-            void shot.then((path) => (path ? attachScreenshotToLatestDraft(path) : false));
-          }
-        }
-        // Screen context and anything the operator attached go on the same draft.
-        // Once the report is filed there is nothing left to attach to.
-        void flushEvidence().then(() => {
-          if (usedTools.has("submit_problem_report")) setReportFlow(false);
-        });
-        if (activeConversationId && user?.id) {
-          void saveCopilotMessage({ conversationId: activeConversationId, userId: user.id, message: assistantMessage })
-            .then(() => loadCopilotConversations(user.id).then(setConversations))
-            .catch((error: unknown) => reportSaveFailure(error, "assistant"));
-        }
       } catch (error) {
-        if (stoppedRef.current || controller.signal.aborted) return;
         setMessages((prev) => [
           ...prev,
           {
             id: messageId(),
             role: "assistant",
-            content: error instanceof Error ? error.message : "The copilot is unavailable right now.",
+            parts: [{ type: "text", text: error instanceof Error ? error.message : "The copilot is unavailable right now." }],
             error: true,
           },
         ]);
       } finally {
-        abortRef.current = null;
-        setBusy(false);
-        sendingRef.current = false;
         inputRef.current?.focus();
       }
     },
-    [busy, conversationId, flushEvidence, messages, pathname, profile?.default_warehouse_id, user?.id],
+    [busy, clearError, conversationId, pathname, profile?.default_warehouse_id, sendMessage, setMessages, user?.id],
   );
 
   // Copilot is generally available on every build and for every signed-in user.
