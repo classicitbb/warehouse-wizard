@@ -513,6 +513,7 @@ function PickTaskCard({
     ReturnType<typeof previewPickSourceOverride>
   > | null>(null);
   const [alternateArmed, setAlternateArmed] = useState(false);
+  const [alternateError, setAlternateError] = useState("");
   const pallet = task.pallets as any;
   const product = pallet?.products as any;
   const location = task.locations ?? task.pick_balance?.locations ?? null;
@@ -704,8 +705,10 @@ function PickTaskCard({
     setAlternatePalletBarcode(scanned);
     setAlternatePreview(null);
     setAlternateArmed(false);
+    setAlternateError("");
     const prefixError = palletBarcodeError(scanned);
     if (prefixError) {
+      setAlternateError(prefixError);
       alertToast.noGo(prefixError);
       return;
     }
@@ -721,15 +724,15 @@ function PickTaskCard({
         toast.success(
           preview.quantity_variance
             ? `Alternate pallet ${preview.scanned_pallet_barcode} verified — quantity differs. Review, then tap Override & pick.`
-            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Tap Override source, then Confirm pick.`,
+            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Tap Override source, then Confirm alternate pick.`,
           { duration: 6000 },
         );
       })
-      .catch((error) =>
-        alertToast.noGo(
-          `Alternate pallet can't be used: ${error instanceof Error ? error.message : "could not verify it."}`,
-        ),
-      );
+      .catch((error) => {
+        const reason = `Alternate pallet can't be used: ${error instanceof Error ? error.message : "could not verify it."}`;
+        setAlternateError(reason);
+        alertToast.noGo(reason);
+      });
   }
 
   /**
@@ -901,7 +904,7 @@ function PickTaskCard({
                 <span className="text-xs font-medium text-muted-foreground">Full pallet qty</span>
                 <span className="font-mono text-base font-semibold">{formatNumber(wholePalletQuantity)}</span>
               </div>
-              <div className="lg:col-span-4 rounded-md border border-dashed border-amber-400 bg-amber-50/60 p-3 dark:border-amber-600 dark:bg-amber-950/20">
+              <div className="lg:col-span-4 rounded-md border border-dashed border-warning bg-warning/10 p-3">
                 {!alternateMode ? (
                   <Button type="button" variant="outline" disabled={isPending} onClick={() => setAlternateMode(true)}>
                     Pick a different matching pallet
@@ -909,10 +912,9 @@ function PickTaskCard({
                 ) : (
                   <div className="grid gap-3">
                     <div>
-                      <p className="font-medium text-amber-900 dark:text-amber-200">Verify an alternate pallet</p>
-                      <p className="text-xs text-amber-800 dark:text-amber-300">
-                        Scan the pallet. Its live location, SKU, quantity, assignment, and freeze status are checked
-                        before an override can be armed.
+                      <p className="font-semibold text-warning">Verify an alternate pallet</p>
+                      <p className="text-xs text-muted-foreground">
+                        Scan or type the pallet. We check SKU, quantity, location and holds.
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -920,7 +922,10 @@ function PickTaskCard({
                         value={alternatePalletBarcode}
                         disabled={isPending}
                         placeholder="Scan alternate pallet barcode (PLT-…)"
-                        onChange={(event) => setAlternatePalletBarcode(normalizePalletBarcode(event.target.value))}
+                        onChange={(event) => {
+                          setAlternateError("");
+                          setAlternatePalletBarcode(normalizePalletBarcode(event.target.value));
+                        }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -930,11 +935,11 @@ function PickTaskCard({
                       />
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         disabled={isPending || !alternatePalletBarcode}
                         onClick={() => previewAlternate(alternatePalletBarcode)}
                       >
-                        Verify
+                        Verify pallet
                       </Button>
                       <BarcodeScanButton
                         title="Scan alternate pallet barcode"
@@ -943,6 +948,12 @@ function PickTaskCard({
                       />
                     </div>
                     {alternatePalletError ? <p className="text-xs text-destructive">{alternatePalletError}</p> : null}
+                    {alternateError ? (
+                      <p className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                        <AlertTriangle className="mr-1 inline h-4 w-4" />
+                        {alternateError}
+                      </p>
+                    ) : null}
                     {alternatePreview
                       ? (() => {
                           const scannedQty = Number(
@@ -951,7 +962,7 @@ function PickTaskCard({
                           const variance = Boolean(alternatePreview.quantity_variance);
                           const delta = scannedQty - Number(alternatePreview.requested_quantity ?? 0);
                           return (
-                            <div className="grid gap-2 rounded-md border border-amber-400 bg-amber-100/70 p-3 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100">
+                            <div className="grid gap-2 rounded-md border border-warning bg-card p-3 text-sm text-foreground">
                               {variance ? (
                                 <p>
                                   <AlertTriangle className="mr-1 inline h-4 w-4" />
@@ -986,8 +997,7 @@ function PickTaskCard({
                               {!alternateArmed ? (
                                 <Button
                                   type="button"
-                                  variant="outline"
-                                  className="w-fit border-amber-500"
+                                  className="w-fit bg-warning text-warning-foreground hover:bg-warning/90"
                                   onClick={() => setAlternateArmed(true)}
                                 >
                                   {variance
@@ -995,29 +1005,10 @@ function PickTaskCard({
                                     : "Override source"}
                                 </Button>
                               ) : (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium">
-                                    The directed pallet will be released from this task. Its inventory stays available.
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() =>
-                                      onConfirm({
-                                        taskId: task.id,
-                                        locationCode: alternatePreview.scanned_location_code,
-                                        palletBarcode: alternatePreview.scanned_pallet_barcode,
-                                        quantity: scannedQty,
-                                        pickListCode,
-                                        confirmSourceOverride: true,
-                                        allowSourceQuantityVariance: variance,
-                                      })
-                                    }
-                                  >
-                                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                    Confirm pick
-                                  </Button>
-                                </div>
+                                <p className="font-semibold">
+                                  Override on — the directed pallet goes back into stock. Tap Confirm alternate pick
+                                  below.
+                                </p>
                               )}
                             </div>
                           );
@@ -1025,15 +1016,18 @@ function PickTaskCard({
                       : null}
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       className="w-fit"
                       onClick={() => {
                         setAlternateMode(false);
                         setAlternatePreview(null);
                         setAlternateArmed(false);
+                        setAlternateError("");
+                        setAlternatePalletBarcode("");
+                        form.setValue("palletBarcode", "");
                       }}
                     >
-                      Cancel alternate pallet
+                      Use directed pallet instead
                     </Button>
                   </div>
                 )}
@@ -1074,15 +1068,17 @@ function PickTaskCard({
                 ref={confirmRef}
                 className={cn(
                   "w-full lg:col-span-4",
-                  confirmPrompt &&
-                    readyToConfirm &&
-                    "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
+                  alternateReady
+                    ? "bg-warning text-warning-foreground hover:bg-warning/90"
+                    : confirmPrompt &&
+                        readyToConfirm &&
+                        "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
                 )}
                 type="submit"
                 disabled={isPending || !(readyToConfirm || alternateReady)}
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Confirm pick
+                {alternateReady ? "Confirm alternate pick" : "Confirm pick"}
               </Button>
             </form>
           </Form>

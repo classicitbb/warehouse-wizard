@@ -9,6 +9,14 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.4",
+    date: "October 2026",
+    changes: [
+      "Pick Execution: the alternate pallet panel is easier to read, with a clear amber Override source button and one Confirm alternate pick button",
+      "Reasons an alternate pallet can't be used now show inside the panel, and Use directed pallet instead resets it",
+    ],
+  },
+  {
     version: "1.30.3",
     date: "October 2026",
     changes: [
