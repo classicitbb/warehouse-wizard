@@ -250,8 +250,8 @@ const toolDefs = [
       'File the report so an engineer or agent can pick it up and repair it. Only call this after the report is complete AND the operator has confirmed. Returns the ticket number to read back to them.',
     parameters: {
       type: 'object',
-      properties: { report_id: { type: 'string' } },
-      required: ['report_id'],
+      properties: { report_id: { type: 'string' }, confirmed: { type: 'boolean' } },
+      required: ['report_id', 'confirmed'],
     },
   },
   {
@@ -722,6 +722,7 @@ async function runTool(
     case 'submit_problem_report': {
       const reportId = String(args.report_id ?? '').trim()
       if (!reportId) throw new Error('report_id is required')
+      if (args.confirmed !== true) throw new Error('Ask the operator to confirm filing this developer handoff before submitting it.')
       const { data: current, error: readError } = await sb
         .from('operator_tickets')
         .select(REPORT_COLUMNS)
