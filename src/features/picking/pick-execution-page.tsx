@@ -1024,6 +1024,7 @@ function PickTaskCard({
                         setAlternateArmed(false);
                         setAlternateError("");
                         setAlternatePalletBarcode("");
+                        form.setValue("palletBarcode", "");
                       }}
                     >
                       Use directed pallet instead
