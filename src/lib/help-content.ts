@@ -806,6 +806,17 @@ export const helpArticles: HelpArticle[] = [
     ],
   },
   {
+    id: "operational-status-and-transfers",
+    title: "Transfers and Controlled Stock",
+    module: "transfers",
+    audience: "Operators, supervisors, and managers",
+    keywords: ["transfer", "dispatch", "receive", "status", "missing", "quarantine", "netsuite"],
+    sections: [
+      { title: "Transfer Queue", content: ["Use the transfer queue to see what is awaiting dispatch, in transit, completed, or cancelled. Create a transfer from New transfer; departure still requires an authorised driver, manager, or admin sign-off.", "NetSuite references and synchronization states appear only when a real transfer order is linked. A Local workflow badge means Warehouse Wizard is currently the only recorded source for that transfer."] },
+      { title: "Controlled Stock", content: ["Inventory Status keeps missing, quarantine, hold, damaged, reserved, and in-transit pallets together in a searchable queue.", "Every change requires a reason and writes an audit event. A found missing pallet can keep its label and return through Put-Away, or return to Receiving as a new draft when it needs re-labelling."] },
+    ],
+  },
+  {
     id: "lean-standard-work",
     title: "Lean Warehouse Standard Work",
     module: "dashboard",

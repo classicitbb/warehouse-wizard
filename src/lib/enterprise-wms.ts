@@ -101,7 +101,7 @@ export type EnterpriseReportData = {
     job_type?: string | null;
     status?: string | null;
     attempts?: number | null;
-    last_error?: string | null;
+    error_message?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
   }>;

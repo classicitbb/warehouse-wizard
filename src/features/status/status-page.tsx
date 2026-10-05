@@ -34,6 +34,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { SelectField, WarehouseBrainPanel, toneBorder } from "@/features/shared/ui-shared";
 
@@ -60,6 +61,16 @@ type ReportAuditRow = {
   created_at?: string | null;
   entity_table?: string | null;
   entity_id?: string | null;
+};
+
+type IntegrationJobRow = {
+  id: string;
+  job_type?: string | null;
+  status?: string | null;
+  attempts?: number | null;
+  error_message?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export function StatusPage() {
@@ -202,9 +213,12 @@ export function StatusPage() {
             <div><CardTitle>Controlled stock</CardTitle><CardDescription>{visibleRows.length} of {statusRows.length} pallets shown</CardDescription></div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative min-w-0 sm:w-72"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search pallet, SKU, or location" /></div>
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-                <option value="all">All controlled statuses</option><option value="missing">Missing</option><option value="quarantine">Quarantine</option><option value="hold">Hold</option><option value="damaged">Damaged</option><option value="reserved">Reserved</option><option value="in_transit">In transit</option>
-              </select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="sm:w-52"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All controlled statuses</SelectItem><SelectItem value="missing">Missing</SelectItem><SelectItem value="quarantine">Quarantine</SelectItem><SelectItem value="hold">Hold</SelectItem><SelectItem value="damaged">Damaged</SelectItem><SelectItem value="reserved">Reserved</SelectItem><SelectItem value="in_transit">In transit</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -284,6 +298,28 @@ export function ReportsPage() {
     return Array.from(map.entries());
   }, [data]);
 
+  const operationalStats = useMemo(() => {
+    const inventory = data?.inventory ?? [];
+    const occupancy = data?.occupancy ?? [];
+    const cycleCounts = data?.cycleCounts ?? [];
+    const printJobs = data?.printJobs ?? [];
+    const availableQuantity = inventory.reduce((sum: number, row: any) => sum + Number(row.available_quantity ?? 0), 0);
+    const fullLocations = occupancy.filter((row: any) => row.is_full).length;
+    const freeLocations = occupancy.filter((row: any) => Number(row.occupied_pallets ?? 0) === 0).length;
+    const countExceptions = cycleCounts.filter((row: any) => Number(row.variance_quantity ?? 0) !== 0 || row.status === "exception").length;
+    const failedPrintJobs = printJobs.filter((row: any) => ["failed", "error"].includes(String(row.status))).length;
+    return { availableQuantity, fullLocations, freeLocations, countExceptions, failedPrintJobs };
+  }, [data]);
+
+  const integrationJobs = (data?.integrationJobs ?? []) as IntegrationJobRow[];
+  const integrationStats = useMemo(() => {
+    const queued = integrationJobs.filter((job) => job.status === "queued").length;
+    const failed = integrationJobs.filter((job) => job.status === "failed" || job.status === "dead_letter").length;
+    const succeeded = integrationJobs.filter((job) => job.status === "succeeded").length;
+    const finished = succeeded + failed;
+    return { queued, failed, succeeded, successRate: finished > 0 ? Math.round((succeeded / finished) * 100) : null };
+  }, [integrationJobs]);
+
   return (
     <div className="grid gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -305,6 +341,17 @@ export function ReportsPage() {
               <CardDescription>{widget.detail}</CardDescription>
             </CardHeader>
           </Card>
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          ["Available units", formatNumber(operationalStats.availableQuantity), "Live pickable stock"],
+          ["Full locations", formatNumber(operationalStats.fullLocations), `${formatNumber(operationalStats.freeLocations)} empty locations`],
+          ["Count exceptions", formatNumber(operationalStats.countExceptions), "Recent variance lines"],
+          ["Print failures", formatNumber(operationalStats.failedPrintJobs), "Recent label jobs"],
+          ["NetSuite queue", formatNumber(integrationStats.queued), integrationStats.successRate === null ? "No completed jobs" : `${integrationStats.successRate}% recent success`],
+        ].map(([label, value, detail]) => (
+          <Card key={label} className="border-l-4 border-l-primary"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-bold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></CardContent></Card>
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -370,6 +417,21 @@ export function ReportsPage() {
         </Card>
         <WarehouseBrainPanel recommendations={snapshot.recommendations} />
       </div>
+      <Card className={integrationStats.failed > 0 ? "border-l-4 border-l-destructive" : "border-l-4 border-l-success"}>
+        <CardHeader>
+          <CardTitle>NetSuite integration health</CardTitle>
+          <CardDescription>Latest {integrationJobs.length} real synchronization jobs · {integrationStats.succeeded} succeeded · {integrationStats.failed} failed or dead-lettered · {integrationStats.queued} queued</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          {integrationJobs.length === 0 ? <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No synchronization jobs recorded.</p> : null}
+          {integrationJobs.slice(0, 8).map((job) => (
+            <div key={job.id} className="grid gap-2 rounded-md border border-border px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="min-w-0"><p className="font-mono font-semibold">{job.job_type ?? "Sync job"}</p><p className="truncate text-xs text-muted-foreground">{job.error_message || `${job.attempts ?? 0} attempt${job.attempts === 1 ? "" : "s"}`}</p></div>
+              <div className="flex items-center gap-2 sm:justify-end"><span className="text-xs text-muted-foreground">{formatDate(job.updated_at ?? job.created_at)}</span><Badge variant={job.status === "failed" || job.status === "dead_letter" ? "destructive" : job.status === "succeeded" ? "default" : "secondary"}>{job.status ?? "unknown"}</Badge></div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Recent movements</CardTitle>

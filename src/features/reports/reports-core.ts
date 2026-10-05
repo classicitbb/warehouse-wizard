@@ -33,7 +33,7 @@ export async function getReportData({ warehouseId }: { warehouseId?: string | nu
     warehouseId
       ? Promise.resolve({ data: [], error: null })
       : db("ai_recommendations").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(10),
-    db("integration_sync_jobs").select("id, job_type, status, attempts, last_error, created_at, updated_at").order("created_at", { ascending: false }).limit(100),
+    db("integration_sync_jobs").select("id, job_type, status, attempts, error_message, created_at, updated_at").order("created_at", { ascending: false }).limit(100),
   ]);
 
   if (balances.error) throw balances.error;

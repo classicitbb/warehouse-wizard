@@ -9,6 +9,17 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.5",
+    date: "October 2026",
+    changes: [
+      "Pick Execution: a verified alternate pallet now goes straight to one flashing Confirm alternate pick button, removing the extra Override source step",
+      "Pick Lists: active task rows now separate product, SKU, source pallet, target quantity, and status for faster floor reading",
+      "Transfers and Inventory Status now use queue-first workspaces with stronger state visibility and honest future NetSuite reference areas",
+      "Reports now show live available stock, capacity, count exceptions, print failures, and NetSuite queue health from recorded sync jobs",
+      "Command Center: removed Fit to screen while keeping fullscreen and layout controls",
+    ],
+  },
+  {
     version: "1.30.4",
     date: "October 2026",
     changes: [
