@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Package, PackageX, Truck } from "lucide-react";
+import { ArrowRight, Loader2, Package, PackageX, Plus, Search, Truck } from "lucide-react";
 import { z } from "zod";
 
 import { useTenantPath } from "@/hooks/use-tenant-path";
@@ -24,6 +24,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SelectField, TextField, statusBadgeVariant } from "@/features/shared/ui-shared";
 import { alertToast } from "@/lib/floor-feedback";
 
@@ -47,6 +49,11 @@ type TransferRow = {
   id: string;
   status: string;
   transfer_number?: string | null;
+  transfer_type?: string | null;
+  source_warehouse_id?: string | null;
+  destination_warehouse_id?: string | null;
+  created_at?: string | null;
+  received_at?: string | null;
   notes?: string | null;
   dispatch_signed_off_at?: string | null;
   transfer_lines?: TransferLine[] | null;
@@ -59,6 +66,9 @@ export function TransfersPage() {
   const { data: options } = useQuery({ queryKey: ["options"], queryFn: () => fetchOptions() });
   const { data: transfers = [] } = useQuery({ queryKey: ["transfers"], queryFn: listTransfers });
   const [signoffCodes, setSignoffCodes] = useState<Record<string, string>>({});
+  const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   // Per-transfer cancel panel state
   const [cancelState, setCancelState] = useState<Record<string, { open: boolean; reason: string }>>({});
   const form = useForm<z.infer<typeof transferSchema>>({
@@ -97,6 +107,7 @@ export function TransfersPage() {
     onSuccess: async () => {
       alertToast.success("Transfer request created");
       form.reset();
+      setCreateOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["transfers"] });
     },
     onError: (error) => alertToast.noGo(error instanceof Error ? error.message : "Create transfer failed"),
@@ -147,85 +158,98 @@ export function TransfersPage() {
   const transferRows = (transfers ?? []) as TransferRow[];
   const active = transferRows.filter((t) => !["completed", "cancelled"].includes(t.status));
   const done = transferRows.filter((t) => ["completed", "cancelled"].includes(t.status));
+  const warehouseNames = useMemo(
+    () => new Map((options?.warehouses ?? []).map((warehouse) => [warehouse.id, warehouse.name])),
+    [options?.warehouses],
+  );
+  const query = search.trim().toLowerCase();
+  const visibleTransfers = transferRows.filter((transfer) => {
+    if (statusFilter === "active" && ["completed", "cancelled"].includes(transfer.status)) return false;
+    if (statusFilter === "completed" && transfer.status !== "completed") return false;
+    if (statusFilter === "cancelled" && transfer.status !== "cancelled") return false;
+    if (!query) return true;
+    const lineValues = (transfer.transfer_lines ?? []).flatMap((line) => [
+      line.pallets?.pallet_barcode,
+      line.pallets?.products?.sku,
+      line.pallets?.products?.name,
+    ]);
+    return [
+      transfer.transfer_number,
+      transfer.status,
+      transfer.notes,
+      warehouseNames.get(transfer.source_warehouse_id ?? ""),
+      warehouseNames.get(transfer.destination_warehouse_id ?? ""),
+      ...lineValues,
+    ].some((value) => String(value ?? "").toLowerCase().includes(query));
+  });
 
   return (
-    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>Create Transfer</CardTitle>
-          <CardDescription>Preserve pallet identity, lot data, ownership, and audit history.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form className="grid gap-4" onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}>
-              <SelectField form={form} name="transfer_type" label="Transfer type" options={[
-                { label: "Inter-warehouse", value: "inter_warehouse" },
-                { label: "Intra-warehouse", value: "intra_warehouse" },
-              ]} />
-              <SelectField form={form} name="source_warehouse_id" label="Source warehouse" options={(options?.warehouses ?? []).map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))} />
-              <SelectField form={form} name="destination_warehouse_id" label="Destination warehouse" options={(options?.warehouses ?? []).map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))} />
-              <SelectField
-                form={form}
-                name="pallet_id"
-                label="Pallet"
-                options={transferablePallets.map((pallet) => ({
-                  label: `${pallet.pallet_barcode || pallet.pallet_code} · ${pallet.status}`,
-                  value: pallet.id,
-                }))}
-              />
-              {sourceWarehouseId && transferablePallets.length === 0 && (
-                <p className="text-xs text-muted-foreground">No transferable pallets in this warehouse.</p>
-              )}
-              {!sourceWarehouseId && (
-                <p className="text-xs text-muted-foreground">Select a source warehouse to list available pallets.</p>
-              )}
-              <TextField form={form} name="quantity" label="Quantity" type="number" />
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} value={field.value ?? ""} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <Button className="w-full sm:w-auto" type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Create transfer
-              </Button>
-            </form>
-          </Form>
+    <div className="grid min-w-0 gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold">Transfers</h2>
+          <p className="text-sm text-muted-foreground">Dispatch and receive pallets with identity, sign-off, and audit history intact.</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}><Plus data-icon="inline-start" />New transfer</Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="border-l-4 border-l-warning"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Awaiting dispatch</p><p className="mt-1 font-mono text-2xl font-bold">{active.filter((row) => row.status === "queued").length}</p></CardContent></Card>
+        <Card className="border-l-4 border-l-primary"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">In transit</p><p className="mt-1 font-mono text-2xl font-bold">{active.filter((row) => row.status === "in_progress").length}</p></CardContent></Card>
+        <Card className="border-l-4 border-l-success"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Completed</p><p className="mt-1 font-mono text-2xl font-bold">{done.filter((row) => row.status === "completed").length}</p></CardContent></Card>
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search transfer, pallet, SKU, or warehouse" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active transfers</SelectItem>
+              <SelectItem value="all">All transfers</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
-      <div className="grid min-w-0 content-start gap-4">
-        {active.length === 0 && done.length === 0 && (
+      <div className="grid min-w-0 content-start gap-3">
+        {visibleTransfers.length === 0 && (
           <div className="rounded-lg border border-dashed border-border p-8 text-center">
             <Truck className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <p className="font-medium">No transfers yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">Create a transfer to move pallets between warehouses or zones.</p>
+            <p className="font-medium">No matching transfers</p>
+            <p className="mt-1 text-sm text-muted-foreground">Change the filter or create a new transfer.</p>
           </div>
         )}
-        {active.map((transfer) => {
+        {visibleTransfers.map((transfer) => {
           const lines = transfer.transfer_lines ?? [];
           const cs = cancelState[transfer.id] ?? { open: false, reason: "" };
           const codeEntered = !!(signoffCodes[transfer.id] ?? "").trim();
+          const sourceName = warehouseNames.get(transfer.source_warehouse_id ?? "") ?? "Source warehouse";
+          const destinationName = warehouseNames.get(transfer.destination_warehouse_id ?? "") ?? "Destination warehouse";
+          const isClosed = ["completed", "cancelled"].includes(transfer.status);
           return (
-            <Card key={transfer.id} className={transfer.status === "exception" ? "border-destructive/60" : ""}>
-              <CardHeader>
+            <Card key={transfer.id} className={transfer.status === "exception" ? "border-l-4 border-l-destructive" : "border-l-4 border-l-primary"}>
+              <CardHeader className="pb-3">
                 <CardTitle className="flex flex-wrap items-center justify-between gap-3">
                   <span className="min-w-0 font-mono text-base break-all">{transfer.transfer_number}</span>
                   <Badge variant={statusBadgeVariant(transfer.status)}>{transfer.status}</Badge>
                 </CardTitle>
-                <CardDescription>
-                  {transfer.notes || "Pallet transfer"}
-                  {transfer.dispatch_signed_off_at ? ` · departed ${formatDate(transfer.dispatch_signed_off_at)}` : ""}
-                </CardDescription>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+                  <span>{sourceName}</span><ArrowRight className="h-4 w-4 text-muted-foreground" /><span>{destinationName}</span>
+                </div>
+                <CardDescription>{transfer.notes || (transfer.transfer_type === "inter_warehouse" ? "Inter-warehouse transfer" : "Warehouse transfer")}{transfer.dispatch_signed_off_at ? ` · departed ${formatDate(transfer.dispatch_signed_off_at)}` : transfer.created_at ? ` · created ${formatDate(transfer.created_at)}` : ""}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs">
+                  <span className="font-semibold uppercase text-muted-foreground">NetSuite</span>
+                  <span className="text-muted-foreground">No transfer-order reference linked</span>
+                  <Badge variant="outline">Local workflow</Badge>
+                </div>
                 {/* Pallet / product summary */}
                 {lines.map((line) => {
                   const product = line.pallets?.products;
@@ -245,7 +269,7 @@ export function TransfersPage() {
                 })}
 
                 {/* Dispatch sign-off */}
-                {transfer.status !== "completed" && transfer.status !== "cancelled" && (
+                {!isClosed && (
                   <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
                     <div>
                       <label className="text-sm font-medium" htmlFor={`signoff-${transfer.id}`}>Driver departure code</label>
@@ -276,7 +300,7 @@ export function TransfersPage() {
                     </Button>
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">Departure requires the signed-in driver/admin/manager to scan their badge or enter their user code.</p>
+                {!isClosed ? <p className="text-xs text-muted-foreground">Departure requires the signed-in driver, admin, or manager to scan their badge or enter their user code.</p> : null}
 
                 {/* Cancel / reroute panel */}
                 {!["completed", "cancelled"].includes(transfer.status) && !cs.open && (
@@ -322,23 +346,33 @@ export function TransfersPage() {
             </Card>
           );
         })}
-        {done.length > 0 && (
-          <details className="group">
-            <summary className="cursor-pointer list-none rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
-              <span className="group-open:hidden">▶ Show {done.length} completed / cancelled</span>
-              <span className="hidden group-open:inline">▼ Hide completed / cancelled</span>
-            </summary>
-            <div className="mt-2 grid gap-2">
-              {done.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm opacity-60">
-                  <span className="font-mono text-xs">{t.transfer_number}</span>
-                  <Badge variant={statusBadgeVariant(t.status)} className="text-xs">{t.status}</Badge>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>New transfer</DialogTitle>
+            <DialogDescription>Create the local pallet movement. A NetSuite transfer-order reference can be linked when synchronization is released.</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form className="grid gap-4" onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField form={form} name="transfer_type" label="Transfer type" options={[{ label: "Inter-warehouse", value: "inter_warehouse" }, { label: "Intra-warehouse", value: "intra_warehouse" }]} />
+                <TextField form={form} name="quantity" label="Quantity" type="number" />
+                <SelectField form={form} name="source_warehouse_id" label="Source warehouse" options={(options?.warehouses ?? []).map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))} />
+                <SelectField form={form} name="destination_warehouse_id" label="Destination warehouse" options={(options?.warehouses ?? []).map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))} />
+              </div>
+              <SelectField form={form} name="pallet_id" label="Pallet" options={transferablePallets.map((pallet) => ({ label: `${pallet.pallet_barcode || pallet.pallet_code} · ${pallet.status}`, value: pallet.id }))} />
+              <p className="text-xs text-muted-foreground">{sourceWarehouseId ? (transferablePallets.length === 0 ? "No transferable pallets in this warehouse." : `${transferablePallets.length} stored pallet${transferablePallets.length === 1 ? "" : "s"} available.`) : "Select a source warehouse to list available pallets."}</p>
+              <FormField control={form.control} name="notes" render={({ field }) => <FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea {...field} value={field.value ?? ""} /></FormControl></FormItem>} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Create transfer</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

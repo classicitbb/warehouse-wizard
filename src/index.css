@@ -160,6 +160,21 @@
     animation: task-success-toast-rim 0.85s ease-in-out 4;
   }
 
+  @keyframes alternate-confirm-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1px hsl(var(--warning) / 0.65), 0 0 12px hsl(var(--warning) / 0.25);
+    }
+
+    50% {
+      box-shadow: 0 0 0 4px hsl(var(--warning) / 0.9), 0 0 28px hsl(var(--warning) / 0.55);
+    }
+  }
+
+  .alternate-confirm-pulse {
+    animation: alternate-confirm-pulse 0.8s ease-in-out 4;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .scan-prompt-halo::before,
     .scan-prompt-input,
@@ -184,6 +199,11 @@
 
     .task-success-toast-rim {
       box-shadow: 0 0 0 2px hsl(var(--accent) / 0.55), 0 0 16px hsl(var(--accent) / 0.35);
+    }
+
+    .alternate-confirm-pulse {
+      animation: none;
+      box-shadow: 0 0 0 3px hsl(var(--warning) / 0.8), 0 0 18px hsl(var(--warning) / 0.35);
     }
   }
 }

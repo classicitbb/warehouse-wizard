@@ -11,7 +11,7 @@ import { displayRackLocationCode } from "@/features/setup/setup-core";
 export async function getReportData({ warehouseId }: { warehouseId?: string | null } = {}) {
   const withinWarehouse = <T extends { eq: (column: string, value: string) => T }>(query: T, column = "warehouse_id") =>
     warehouseId ? query.eq(column, warehouseId) : query;
-  const [balances, occupancy, audits, clients, warehouses, cycleCounts, stagingLoads, dockAppointments, printerStations, labelTemplates, printJobs, replenishments, aiRecommendations] = await Promise.all([
+  const [balances, occupancy, audits, clients, warehouses, cycleCounts, stagingLoads, dockAppointments, printerStations, labelTemplates, printJobs, replenishments, aiRecommendations, integrationJobs] = await Promise.all([
     withinWarehouse(db("inventory_search_view").select("*")),
     withinWarehouse(db("location_occupancy_view").select("*")),
     withinWarehouse(db("audit_events").select("*").order("created_at", { ascending: false }).limit(12)),
@@ -33,6 +33,7 @@ export async function getReportData({ warehouseId }: { warehouseId?: string | nu
     warehouseId
       ? Promise.resolve({ data: [], error: null })
       : db("ai_recommendations").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(10),
+    db("integration_sync_jobs").select("id, job_type, status, attempts, error_message, created_at, updated_at").order("created_at", { ascending: false }).limit(100),
   ]);
 
   if (balances.error) throw balances.error;
@@ -48,6 +49,7 @@ export async function getReportData({ warehouseId }: { warehouseId?: string | nu
   if (printJobs.error) throw printJobs.error;
   if (replenishments.error) throw replenishments.error;
   if (aiRecommendations.error) throw aiRecommendations.error;
+  if (integrationJobs.error) throw integrationJobs.error;
 
   return {
     inventory: (balances.data ?? []).map((row: any) => ({
@@ -70,6 +72,7 @@ export async function getReportData({ warehouseId }: { warehouseId?: string | nu
     replenishments: replenishments.data ?? [],
     reorderAlerts: await getActiveReorderAlerts(warehouseId),
     aiRecommendations: aiRecommendations.data ?? [],
+    integrationJobs: integrationJobs.data ?? [],
   };
 }
 

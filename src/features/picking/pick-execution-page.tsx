@@ -721,10 +721,14 @@ function PickTaskCard({
           return;
         }
         setAlternatePreview(preview);
+        setAlternateArmed(true);
+        setTimeout(() => {
+          confirmRef.current?.focus();
+        }, 50);
         toast.success(
           preview.quantity_variance
-            ? `Alternate pallet ${preview.scanned_pallet_barcode} verified — quantity differs. Review, then tap Override & pick.`
-            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Tap Override source, then Confirm alternate pick.`,
+            ? `Alternate pallet ${preview.scanned_pallet_barcode} verified — quantity differs. Review it, then confirm the alternate pick.`
+            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Confirm the alternate pick.`,
           { duration: 6000 },
         );
       })
@@ -994,22 +998,9 @@ function PickTaskCard({
                                 Found: <span className="font-mono">{alternatePreview.scanned_pallet_barcode}</span> at{" "}
                                 <span className="font-mono">{alternatePreview.scanned_location_code}</span>
                               </p>
-                              {!alternateArmed ? (
-                                <Button
-                                  type="button"
-                                  className="w-fit bg-warning text-warning-foreground hover:bg-warning/90"
-                                  onClick={() => setAlternateArmed(true)}
-                                >
-                                  {variance
-                                    ? `Override & pick ${formatNumber(scannedQty)} (requested ${formatNumber(alternatePreview.requested_quantity)})`
-                                    : "Override source"}
-                                </Button>
-                              ) : (
-                                <p className="font-semibold">
-                                  Override on — the directed pallet goes back into stock. Tap Confirm alternate pick
-                                  below.
-                                </p>
-                              )}
+                              <p className="font-semibold">
+                                Verified — the directed pallet stays in stock. Confirm this alternate pick below.
+                              </p>
                             </div>
                           );
                         })()
@@ -1069,7 +1060,7 @@ function PickTaskCard({
                 className={cn(
                   "w-full lg:col-span-4",
                   alternateReady
-                    ? "bg-warning text-warning-foreground hover:bg-warning/90"
+                    ? "alternate-confirm-pulse bg-warning py-6 text-base font-bold text-warning-foreground hover:bg-warning/90"
                     : confirmPrompt &&
                         readyToConfirm &&
                         "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",

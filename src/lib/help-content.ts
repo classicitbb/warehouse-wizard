@@ -500,7 +500,7 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "When to Use It", content: ["Use an alternate pallet when the directed pallet is blocked, buried, or unreachable and another pallet of the same SKU is close by.", "The alternate must be the same SKU, in the same warehouse, available, not frozen, and not already directed to another open pick task."] },
       { title: "Scan It Directly", content: ["Just scan the alternate pallet into the Pallet barcode field. The app detects that it is not the directed pallet, shows an \"Alternate pallet detected\" message, and checks it automatically.", "You can also tap Pick a different matching pallet, scan or type the barcode, and tap Verify pallet."] },
-      { title: "Confirm the Substitution", content: ["When the pallet checks out, a green message confirms it. Tap Override source (or Override & pick when the quantity differs), then tap the amber Confirm alternate pick button at the bottom.", "If the alternate holds less than requested, the app offers to create a follow-up task for the shortfall.", "If the pallet can't be used, a red message explains why — shows inside the panel — tap Use directed pallet instead, or try another pallet."] },
+      { title: "Confirm the Substitution", content: ["When the pallet checks out, it is ready immediately. Review any quantity difference, then tap the flashing amber Confirm alternate pick button at the bottom.", "If the alternate holds less than requested, the app offers to create a follow-up task for the shortfall.", "If the pallet can't be used, a red message explains why inside the panel — tap Use directed pallet instead, or try another pallet."] },
       { title: "What Gets Recorded", content: ["The directed pallet is released from the task and stays available in stock.", "The substitution, both pallets, both locations, and the operator are written to the audit trail."] },
     ],
   },
@@ -803,6 +803,17 @@ export const helpArticles: HelpArticle[] = [
     sections: [
       { title: "What It Watches", content: ["The Warehouse Brain reviews live inventory, open work, holds, quarantine, expiration dates, cycle-count variance, dock status, and role context.", "Recommendations must explain the reason and next action so humans stay in control."] },
       { title: "Daily Review", content: ["Review recommendations at shift start, before wave release, and during end-of-day management checks.", "Accept, dismiss, or resolve recommendations with reason codes once the backing database workflow is enabled."] },
+    ],
+  },
+  {
+    id: "operational-status-and-transfers",
+    title: "Transfers and Controlled Stock",
+    module: "transfers",
+    audience: "Operators, supervisors, and managers",
+    keywords: ["transfer", "dispatch", "receive", "status", "missing", "quarantine", "netsuite"],
+    sections: [
+      { title: "Transfer Queue", content: ["Use the transfer queue to see what is awaiting dispatch, in transit, completed, or cancelled. Create a transfer from New transfer; departure still requires an authorised driver, manager, or admin sign-off.", "NetSuite references and synchronization states appear only when a real transfer order is linked. A Local workflow badge means Warehouse Wizard is currently the only recorded source for that transfer."] },
+      { title: "Controlled Stock", content: ["Inventory Status keeps missing, quarantine, hold, damaged, reserved, and in-transit pallets together in a searchable queue.", "Every change requires a reason and writes an audit event. A found missing pallet can keep its label and return through Put-Away, or return to Receiving as a new draft when it needs re-labelling."] },
     ],
   },
   {
