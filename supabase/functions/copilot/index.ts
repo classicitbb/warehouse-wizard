@@ -118,6 +118,95 @@ const toolDefs = [
     description: 'Find work that is stuck: stock on hold, quarantine or damaged, and pallets awaiting put-away for a long time.',
     parameters: { type: 'object', properties: {}, required: [] },
   },
+  {
+    name: 'list_location_moves',
+    description: 'List recent location-move tasks in a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        status: { type: ['string', 'null'] },
+        pallet_barcode: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'status', 'pallet_barcode', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_transfers',
+    description: 'List transfers touching a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        status: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'status', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_cycle_counts',
+    description: 'List cycle counts and optionally their lines in a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        status: { type: ['string', 'null'] },
+        include_lines: { type: ['boolean', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'status', 'include_lines', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_audit_events',
+    description: 'Read recent audit evidence for an accessible warehouse or named record.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        entity_table: { type: ['string', 'null'] },
+        entity_id: { type: ['string', 'null'] },
+        event_type: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'entity_table', 'entity_id', 'event_type', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_system_logs',
+    description: 'Read recent system failures. Existing role policies restrict this to approved support staff.',
+    parameters: {
+      type: 'object',
+      properties: {
+        severity: { type: ['string', 'null'] },
+        source: { type: ['string', 'null'] },
+        resolved: { type: ['boolean', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['severity', 'source', 'resolved', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_notification_failures',
+    description: 'Read failed push/email notification dispatch records in a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        kind: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'kind', 'limit'],
+      additionalProperties: false,
+    },
+  },
   // ── Support tools ──────────────────────────────────────────────────────────
   // The only tools that write, and they only ever write the caller's own report.
   {
@@ -175,6 +264,28 @@ const toolDefs = [
     },
   },
 ]
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function cappedLimit(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? Math.min(200, Math.max(1, Math.trunc(parsed))) : 50
+}
+
+function nullableText(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function requiredUuid(value: unknown, field: string) {
+  const candidate = nullableText(value)
+  if (!candidate || !uuidPattern.test(candidate)) throw new Error(`${field} must be a valid ID.`)
+  return candidate
+}
+
+async function assertWarehouseAccess(sb: ReturnType<typeof createClient>, warehouseId: string) {
+  const { data, error } = await sb.from('warehouses').select('id').eq('id', warehouseId).maybeSingle()
+  if (error || !data) throw new Error('That warehouse is unavailable or outside your access.')
+}
 
 // ── Operator report interview ────────────────────────────────────────────────
 // Mirrors src/features/copilot/feedback-core.ts so the chat panel and the model
