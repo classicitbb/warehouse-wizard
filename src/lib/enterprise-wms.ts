@@ -96,6 +96,15 @@ export type EnterpriseReportData = {
   replenishments?: Array<Record<string, unknown>>;
   reorderAlerts?: ReorderAlertRow[];
   aiRecommendations?: AiRecommendationRow[];
+  integrationJobs?: Array<{
+    id?: string | null;
+    job_type?: string | null;
+    status?: string | null;
+    attempts?: number | null;
+    last_error?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }>;
 };
 
 // "packing" is a full-bleed workspace, not a tile grid: dashboard_tile_visibility

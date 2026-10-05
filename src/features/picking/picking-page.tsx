@@ -548,27 +548,36 @@ export function PickListsPage() {
                   return (
                     <div
                       key={task.id}
-                      className={`grid gap-2 border-y px-6 py-3 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:rounded-md sm:border sm:px-3 sm:py-2 ${task.status === "exception" ? "border-destructive/50 bg-destructive/5" : "border-border"}`}
+                      className={cn(
+                        "grid gap-3 border-y border-l-4 px-6 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:rounded-r-md sm:border sm:border-l-4 sm:px-4",
+                        task.status === "exception"
+                          ? "border-destructive bg-destructive/5"
+                          : "border-border border-l-warning bg-muted/20",
+                      )}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium leading-5 sm:truncate">{product?.name ?? "—"}</p>
-                        {product?.sku && <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>}
+                        <p className="text-base font-semibold leading-5 text-foreground">{product?.name ?? "—"}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          {product?.sku && <span className="font-mono font-semibold text-primary">{product.sku}</span>}
+                          {packLine && <span>{packLine}</span>}
+                        </div>
                         {task.pallets?.pallet_barcode && (
-                          <p className="font-mono text-xs text-muted-foreground">Pallet: {task.pallets.pallet_barcode}</p>
+                          <p className="mt-2 font-mono text-xs text-foreground">
+                            <span className="font-sans font-medium uppercase text-muted-foreground">Source pallet </span>
+                            {task.pallets.pallet_barcode}
+                          </p>
                         )}
-                        {packLine && (
-                          <p className="font-mono text-xs text-muted-foreground">
-                            Pack: {packLine}
-                            {packCases !== null
-                              ? ` · pick ${Number.isInteger(packCases) ? packCases : `≈${Math.round(packCases)}`} ${packCases === 1 ? "case" : "cases"}`
-                              : ""}
+                        {packCases !== null && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Pick {Number.isInteger(packCases) ? packCases : `≈${Math.round(packCases)}`} {packCases === 1 ? "case" : "cases"}
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center justify-between gap-2 sm:shrink-0 sm:justify-start">
-                        <span className="text-sm font-semibold">Qty {formatNumber(task.requested_quantity ?? task.quantity ?? 0)}</span>
-                        <Badge variant={statusBadgeVariant(task.status)} className="text-xs">{task.status}</Badge>
+                      <div className="flex items-end justify-between gap-4 sm:block sm:min-w-20 sm:text-right">
+                        <span className="text-[10px] font-semibold uppercase text-muted-foreground">Target qty</span>
+                        <p className="font-mono text-2xl font-bold text-warning">{formatNumber(task.requested_quantity ?? task.quantity ?? 0)}</p>
                       </div>
+                      <Badge variant={statusBadgeVariant(task.status)} className="w-fit text-xs sm:justify-self-end">{task.status}</Badge>
                       {task.short_reason && (
                         <p className="w-full text-xs text-destructive">Short: {task.short_reason}</p>
                       )}
