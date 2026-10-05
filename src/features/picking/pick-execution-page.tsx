@@ -39,6 +39,7 @@ import { AppShell } from "@/features/shared/app-shell";
 import { alertToast, flashInput, playBarcodeBeep } from "@/lib/floor-feedback";
 import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
+import { getPickRequireLocationScan } from "@/lib/scan-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -522,7 +523,10 @@ function PickTaskCard({
     task.pick_balance?.available_quantity ?? pallet?.available_quantity ?? pallet?.quantity ?? task.requested_quantity;
   const wholePalletQuantity = Number(palletQuantity ?? task.requested_quantity ?? 0);
   const isOpen = PICK_OPEN_STATUSES.has(task.status);
-  const scannedLocation = String(form.watch("locationCode") ?? "").trim();
+  const requireLocationScan = getPickRequireLocationScan();
+  const typedLocation = String(form.watch("locationCode") ?? "").trim();
+  // When the location scan is switched off, the assigned location stands in for it.
+  const scannedLocation = typedLocation || (requireLocationScan ? "" : locationCode);
   const scannedPallet = String(form.watch("palletBarcode") ?? "").trim();
   const scannedPalletError = palletBarcodeError(scannedPallet);
   const alternatePalletError = palletBarcodeError(alternatePalletBarcode);
@@ -631,7 +635,11 @@ function PickTaskCard({
 
   const handleSubmit = form.handleSubmit((values) => {
     if (!readyToConfirm) {
-      alertToast.noGo("Scan the bay/location and pallet before confirming.");
+      alertToast.noGo(
+        requireLocationScan
+          ? "Scan the bay/location and pallet before confirming."
+          : "Scan the pallet before confirming.",
+      );
       return;
     }
     if (sourceOverrideScanned) {
@@ -642,7 +650,7 @@ function PickTaskCard({
     }
     onConfirm({
       taskId: task.id,
-      locationCode: values.locationCode,
+      locationCode: values.locationCode || scannedLocation,
       palletBarcode: values.palletBarcode,
       quantity: wholePalletQuantity,
       pickListCode,
@@ -731,7 +739,7 @@ function PickTaskCard({
                 name="locationCode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bay/Location Code</FormLabel>
+                    <FormLabel>Bay/Location Code{requireLocationScan ? "" : " (optional)"}</FormLabel>
                     <FormControl>
                       <div className="flex gap-2">
                         <Input

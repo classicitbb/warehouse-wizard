@@ -9,6 +9,13 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.2",
+    date: "October 2026",
+    changes: [
+      "Settings > Environment > Scanner timing: new switch to turn off the location scan when picking. When off, operators go to the location, scan the pallet only, and confirm the pick.",
+    ],
+  },
+  {
     version: "1.29.8",
     date: "September 2026",
     changes: [
