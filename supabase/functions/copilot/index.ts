@@ -807,7 +807,7 @@ function moduleForRoute(route: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
+  if (req.method === 'OPTIONS') return new Response(null, { headers: responseCorsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
@@ -836,8 +836,7 @@ Deno.serve(async (req) => {
   const user = { id: userId, email: typeof claims?.email === 'string' ? claims.email : null }
 
   let body: {
-    message?: string
-    history?: Array<{ role: string; content: string }>
+    messages?: UIMessage[]
     context?: Record<string, unknown>
     procedures?: Array<{ id: string; title: string; module?: string; text: string }>
     conversationId?: string | null
@@ -848,8 +847,8 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid request body' }, 400)
   }
 
-  const question = (body.message ?? '').trim()
-  if (!question) return json({ error: 'Ask a question first' }, 400)
+  const incomingMessages = Array.isArray(body.messages) ? body.messages : []
+  if (!incomingMessages.length) return json({ error: 'Ask a question first' }, 400)
 
   // Server-resolved context. Client-supplied screen/selection is a hint only;
   // warehouse and role scope come from the profile, never from the prompt.
@@ -910,8 +909,15 @@ Deno.serve(async (req) => {
     'You cannot change warehouse data — no stock, tasks, users or settings. If the user asks you to change something, explain the exact steps they should take in the app instead.',
     'The one thing you can create is the user\'s own problem report or feedback, using the support tools.',
     '',
+    'CONVERSATION STYLE:',
+    '- Talk like an able coworker: direct, natural, brisk, and specific. Usually answer in two to six short sentences.',
+    '- Investigate broadly with the read tools before guessing. For a complex problem, report the strongest evidence and ask one sharp follow-up question at a time.',
+    '- Run independent lookups together when possible. Do not repeat a lookup already answered in this conversation.',
+    '',
     'REPORTING A PROBLEM OR TAKING FEEDBACK:',
-    '- The moment the user says something is broken, wrong, stuck, confusing, missing, or that they want to suggest or complain about something, call start_problem_report. Do not talk them out of it and do not ask a question first.',
+    '- Investigate advanced operational or technical issues first. When the evidence points to an app defect, prepare a concise developer repair brief: observed problem, affected records, evidence, likely cause, expected behavior, and acceptance checks.',
+    '- Show that brief to the operator and ask whether to file it. Do not call start_problem_report or submit_problem_report until the operator explicitly agrees to the handoff.',
+    '- For a simple report the operator directly asks to file, call start_problem_report and collect only the missing facts.',
     '- Pick the kind: bug = something is broken; request = they want something added or changed; feedback = an opinion about how it works; question = they just need to know something.',
     '- The tool tells you the exact next question. Ask THAT question, one at a time, in plain language. Rephrase it for the operator if it helps, but do not skip a field or bundle two together.',
     '- Feed each answer straight back with record_report_answer. Their words, not your summary of their words.',
@@ -940,97 +946,78 @@ Deno.serve(async (req) => {
     ...procedures.map((p) => `### ${p.title}${p.module ? ` (${p.module})` : ''}\n${p.text}`),
   ].join('\n')
 
-  const messages: Array<Record<string, unknown>> = [
-    { role: 'system', content: systemPrompt },
-    ...(body.history ?? [])
-      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-6)
-      .map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: question },
-  ]
-
-  const tools = toolDefs.map((t) => ({ type: 'function', function: t }))
-  const trace: Array<{ tool: string; input: unknown; outcome: string; rows?: number }> = []
-
   try {
-    for (let step = 0; step < MAX_STEPS; step++) {
-      const res = await fetch(GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: MODEL, messages, tools, tool_choice: 'auto' }),
-      })
-
-      if (res.status === 429) return json({ error: 'The copilot is rate limited right now. Try again in a moment.' }, 429)
-      if (res.status === 402) return json({ error: 'AI credits are exhausted for this workspace.' }, 402)
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '')
-        console.error('[copilot] gateway error', res.status, detail)
-        return json({ error: 'The copilot service is unavailable. The rest of the app is unaffected.' }, 502)
-      }
-
-      const payload = await res.json()
-      const choice = payload?.choices?.[0]?.message
-      const toolCalls = choice?.tool_calls ?? []
-
-      if (!toolCalls.length) {
-        return json({
-          answer: choice?.content ?? 'I could not produce an answer for that.',
-          trace,
-          context: { warehouse: warehouseLabel, roles, screen },
-        })
-      }
-
-      messages.push(choice)
-
-      for (const call of toolCalls) {
-        const toolName = call?.function?.name ?? 'unknown'
-        let args: Record<string, unknown> = {}
-        try {
-          args = JSON.parse(call?.function?.arguments ?? '{}')
-        } catch {
-          args = {}
-        }
+    const gateway = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(req))
+    const provider = createOpenAI({
+      apiKey,
+      baseURL: GATEWAY,
+      headers: { 'Lovable-API-Key': apiKey, 'X-Lovable-AIG-SDK': 'vercel-ai-sdk' },
+      fetch: gateway.fetch,
+    })
+    const tools = Object.fromEntries(toolDefs.map((definition) => [definition.name, tool({
+      description: definition.description,
+      inputSchema: jsonSchema(definition.parameters as never),
+      execute: async (input) => {
+        const args = input as Record<string, unknown>
         const started = Date.now()
         let outcome = 'ok'
         let errorMessage: string | null = null
         let result: ToolResult
         try {
-          result = await runTool(sb, toolName, args, toolContext)
+          result = await runTool(sb, definition.name, args, toolContext)
         } catch (error) {
           outcome = 'error'
           errorMessage = error instanceof Error ? error.message : String(error)
           result = { note: `Tool failed: ${errorMessage}` }
         }
-        const latency = Date.now() - started
-        trace.push({ tool: toolName, input: args, outcome, rows: result.count })
-
         if (audit) {
           await audit.from('copilot_tool_calls').insert({
             conversation_id: body.conversationId ?? null,
             user_id: user.id,
             warehouse_id: warehouseId,
-            tool_name: toolName,
+            tool_name: definition.name,
             tool_input: args,
             outcome,
             row_count: result.count ?? null,
             error_message: errorMessage,
-            latency_ms: latency,
+            latency_ms: Date.now() - started,
           }).then(({ error }) => {
             if (error) console.error('[copilot] audit write failed:', error.message)
           })
         }
-
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify(result).slice(0, 24000),
-        })
-      }
-    }
-
-    return json({ answer: 'That question needed more lookups than I am allowed to run in one go. Try narrowing it down.', trace })
+        return result
+      },
+    })]))
+    const result = streamText({
+      model: provider.responses(MODEL),
+      instructions: systemPrompt,
+      messages: await convertToModelMessages(incomingMessages),
+      tools,
+      stopWhen: stepCountIs(8),
+      abortSignal: req.signal,
+      providerOptions: {
+        openai: {
+          forceReasoning: true,
+          reasoningEffort: 'low',
+          reasoningSummary: 'auto',
+          store: false,
+          include: ['reasoning.encrypted_content'],
+        },
+      },
+    })
+    const response = result.toUIMessageStreamResponse({
+      originalMessages: incomingMessages,
+      sendReasoning: true,
+      headers: responseCorsHeaders,
+      onError: (error) => error instanceof Error ? error.message : 'The Copilot service could not answer this request.',
+    })
+    return await withLovableAiGatewayRunIdHeader(response, gateway)
   } catch (error) {
     console.error('[copilot] unexpected failure:', error)
-    return json({ error: 'The copilot could not complete that request.' }, 500)
+    if (req.signal.aborted) return json({ error: 'Copilot request stopped.' }, 499)
+    const status = typeof error === 'object' && error && 'statusCode' in error && typeof error.statusCode === 'number'
+      ? error.statusCode
+      : 500
+    return json({ error: error instanceof Error ? error.message : 'The copilot could not complete that request.' }, status)
   }
 })
