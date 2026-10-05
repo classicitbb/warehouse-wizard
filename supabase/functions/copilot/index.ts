@@ -13,22 +13,28 @@
 //    particular, text a tool returns can never cause a report to be filed.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { convertToModelMessages, jsonSchema, stepCountIs, streamText, tool, type UIMessage } from 'npm:ai@7'
+import { createOpenAI } from 'npm:@ai-sdk/openai@4'
+import {
+  createLovableAiGatewayRunIdFetch,
+  getLovableAiGatewayRunId,
+  withLovableAiGatewayRunIdHeader,
+} from '../_shared/lovable-ai-run-id.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
+const responseCorsHeaders = {
+  ...corsHeaders,
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-lovable-aig-run-id',
+  'Access-Control-Expose-Headers': 'X-Lovable-AIG-Run-ID',
 }
 
-const MODEL = 'google/gemini-3.6-flash'
-const GATEWAY = 'https://ai.gateway.lovable.dev/v1/chat/completions'
-const MAX_STEPS = 5
+const MODEL = 'openai/gpt-6-astra'
+const GATEWAY = 'https://ai.gateway.lovable.dev/v1'
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
