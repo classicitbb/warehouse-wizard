@@ -9,6 +9,18 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.6",
+    date: "2026-10-06",
+    changes: [
+      "Copilot now streams shorter, more natural replies and asks focused follow-up questions for complex problems",
+      "Investigations can read location moves, transfers, cycle counts, audit history, system failures and notification failures within existing access rules",
+      "Advanced investigations prepare a developer repair brief and ask before filing the handoff",
+    ],
+    fixes: [
+      "Full conversation history now carries across follow-up questions, with stoppable responses and visible tool progress",
+    ],
+  },
+  {
     version: "1.30.5",
     date: "October 2026",
     changes: [
