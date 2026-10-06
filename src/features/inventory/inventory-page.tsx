@@ -114,7 +114,8 @@ import {
   receivingSchema,
   receiveTransfer,
   resolveSystemLog,
-  searchInventory,
+  applyInventorySearchTerm,
+  loadInventoryRows,
   countInventory,
   setProfileActive,
   snapshotRecordCounts,
@@ -270,17 +271,32 @@ export function InventorySearchPage() {
       structureZoneCode, structureLocation,
       searchTerm.trim() || structureScopeLabel ? "all" : visibleRecordLimit,
     ],
-    queryFn: () => searchInventory({
-      search: searchTerm,
-      status,
-      warehouseId: warehouseId || undefined,
-      ageBucket: ageBucket as any,
-      expiryWindow: expiryWindow as any,
-      zoneCode: structureZoneCode || undefined,
-      locationPrefix: structureLocation || undefined,
-      includeHistoric,
-      limit: searchTerm.trim() ? undefined : visibleRecordLimit + 1,
-    }),
+    // The inventory is downloaded once and cached; the typed term is then
+    // matched against it locally, so each keystroke filters instantly instead
+    // of re-downloading every row.
+    queryFn: async () => {
+      const searching = Boolean(searchTerm.trim());
+      const scope = {
+        status,
+        warehouseId: warehouseId || undefined,
+        ageBucket: ageBucket as any,
+        expiryWindow: expiryWindow as any,
+        zoneCode: structureZoneCode || undefined,
+        locationPrefix: structureLocation || undefined,
+      };
+      const loaded = await queryClient.fetchQuery({
+        queryKey: [
+          "inventory-search", "__rows", status, warehouseId, ageBucket, expiryWindow, includeHistoric,
+          structureZoneCode, structureLocation, searching ? "all" : visibleRecordLimit,
+        ],
+        queryFn: () => loadInventoryRows(
+          { ...scope, includeHistoric, limit: searching ? undefined : visibleRecordLimit + 1 },
+          searching,
+        ),
+        staleTime: 60_000,
+      });
+      return searching ? applyInventorySearchTerm(loaded, { ...scope, search: searchTerm }) : loaded;
+    },
     // Keep the rows already on screen visible while the next page loads so
     // scrolling never jumps back to an empty table.
     placeholderData: (previous) => previous,

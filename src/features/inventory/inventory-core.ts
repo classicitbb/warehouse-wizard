@@ -133,6 +133,34 @@ export function parseLocationSearchToken(token: string): string[] | null {
   return cleaned.match(/[A-Z]+|\d+/g);
 }
 
+/** Lowercase text with separators removed, so `PAL-001` / `PAL 001` / `PAL001` compare equal. */
+function compactSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** An expiry date in every spelling an operator might type: ISO, US, and month-year. */
+function expiryTextVariants(expiry: unknown): string[] {
+  const iso = String(expiry ?? "").trim().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso ? [iso] : [];
+  const [, year, month, day] = match;
+  const monthStart = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
+  const monthName = monthStart.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toLowerCase();
+  const longMonthName = monthStart.toLocaleString("en-US", { month: "long", timeZone: "UTC" }).toLowerCase();
+  return [
+    iso,
+    `${month}/${day}/${year}`,
+    `${Number(month)}/${Number(day)}/${year}`,
+    `${month}/${year}`,
+    `${monthName} ${year}`,
+    `${longMonthName} ${year}`,
+    `${day} ${monthName} ${year}`,
+    `${Number(day)} ${monthName} ${year}`,
+    `${monthName} ${day} ${year}`,
+    `${monthName} ${Number(day)} ${year}`,
+  ];
+}
+
 /** Compares one location segment to one search segment (`01` == `1`, `L02` == `2`). */
 function locationSegmentMatches(codeSegment: string, tokenSegment: string): boolean {
   const asNumber = (value: string) => (/^[LP]?\d+$/.test(value) ? Number.parseInt(value.replace(/^[LP]/, ""), 10) : null);
@@ -361,16 +389,30 @@ export function searchInventory(filters: InventorySearchFilters) {
   return withInventoryStatusFallback(() => searchInventoryOnce(filters));
 }
 
+function tokenizeInventorySearch(search: string | undefined) {
+  return (search ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
 async function searchInventoryOnce(filters: InventorySearchFilters) {
-  const searchTokens = (filters.search ?? "")
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+  const searching = tokenizeInventorySearch(filters.search).length > 0;
+  const rows = await loadInventoryRowsOnce(filters, searching);
+  return searching ? applyInventorySearchTerm(rows, filters) : rows;
+}
+
+/**
+ * Loads the rows a search term is matched against: everything in scope, with
+ * history included. Independent of the term itself, so a screen can load once
+ * and re-filter on every keystroke with `applyInventorySearchTerm`.
+ */
+export function loadInventoryRows(filters: Omit<InventorySearchFilters, "search">, searching: boolean) {
+  return withInventoryStatusFallback(() => loadInventoryRowsOnce(filters, searching));
+}
+
+async function loadInventoryRowsOnce(filters: Omit<InventorySearchFilters, "search">, searching: boolean) {
   // A typed or scanned term is a hunt for one specific pallet, so history is
   // always in scope there. Browsing with no term stays live-stock-only unless
   // the operator explicitly asks for history.
-  const includeHistoric = Boolean(filters.includeHistoric) || searchTokens.length > 0;
+  const includeHistoric = Boolean(filters.includeHistoric) || searching;
 
   if (!includeHistoric && filters.status && filters.status !== "all" && isRetiredInventoryStatus(filters.status)) {
     return [];
@@ -392,7 +434,7 @@ async function searchInventoryOnce(filters: InventorySearchFilters) {
   const scopeLocationPrefix = String(filters.locationPrefix ?? "").trim().toUpperCase();
   // Structure scopes are matched client-side (the view exposes prefixed codes),
   // so every matching row has to be in hand before filtering — same as search.
-  const loadAll = searchTokens.length > 0 || Boolean(scopeZoneCode) || Boolean(scopeLocationPrefix);
+  const loadAll = searching || Boolean(scopeZoneCode) || Boolean(scopeLocationPrefix);
   let rawRows: any[];
   if (loadAll) {
     rawRows = await fetchAllRows<any>((from, to) => query.order("received_at", { ascending: false }).range(from, to));
@@ -430,9 +472,39 @@ async function searchInventoryOnce(filters: InventorySearchFilters) {
   if (scopeLocationPrefix) {
     rows = rows.filter((row) => locationCodeInScope(row.location_code, scopeLocationPrefix));
   }
+  return rows;
+}
+
+/** Filters rows from `loadInventoryRows` by the typed term, plus the orphan-pallet lookup. */
+export async function applyInventorySearchTerm(
+  loadedRows: any[],
+  filters: Pick<InventorySearchFilters, "search" | "warehouseId" | "status" | "ageBucket" | "expiryWindow" | "zoneCode" | "locationPrefix">,
+) {
+  let rows = loadedRows;
+  const searchTokens = tokenizeInventorySearch(filters.search);
+  const scopeZoneCode = String(filters.zoneCode ?? "").trim().toUpperCase();
+  const scopeLocationPrefix = String(filters.locationPrefix ?? "").trim().toUpperCase();
   if (searchTokens.length > 0) {
+    const phrase = searchTokens.join(" ");
+    const phraseLocation =
+      searchTokens.length > 1 && searchTokens.every((token) => token.length <= 3)
+        ? parseLocationSearchToken(searchTokens.join("-"))
+        : null;
+    const phraseIsDate = /^(\d{1,2} )?[a-z]{3,9} (\d{1,2} )?\d{4}$/.test(phrase);
     rows = rows.filter((row) => {
-      const haystack = [
+      const toText = (values: unknown[]) => values.map((value) => String(value ?? "").toLowerCase()).join(" ");
+      // Identifier fields: what a SKU / pallet / container / product / expiry term hits.
+      const identityFields = [
+        row.sku,
+        row.product_barcode,
+        row.pallet_code,
+        row.pallet_barcode,
+        row.container_number,
+        row.po_number,
+        row.lot_number,
+        row.batch_number,
+      ].map((value) => compactSearchText(String(value ?? "")));
+      const identityText = toText([
         row.sku,
         row.product_name,
         row.product_barcode,
@@ -442,24 +514,43 @@ async function searchInventoryOnce(filters: InventorySearchFilters) {
         row.po_number,
         row.lot_number,
         row.batch_number,
-        row.expiry_date,
+        ...expiryTextVariants(row.expiry_date),
         row.client_name,
         row.owner_name,
-        row.warehouse_code,
-        row.warehouse_name,
-        row.zone_code,
-        row.location_code,
-        row.status,
-      ]
-        .map((value) => String(value ?? "").toLowerCase())
-        .join(" ");
+      ]);
+      const placeText = toText([row.warehouse_code, row.warehouse_name, row.zone_code, row.location_code, row.status]);
+      const haystack = `${identityText} ${placeText}`;
+
+      // A multi-word phrase can be one thing: a spaced location (`E 19 B`) or a
+      // written-out date (`01 Oct 2026`). Matching it word by word would let `e`,
+      // `19` and `b` each hit unrelated rows, so such a phrase is matched as a unit.
+      if (phraseLocation) {
+        const compactPhrase = compactSearchText(phrase);
+        return (
+          locationCodeMatchesSearch(row.location_code, phraseLocation) ||
+          identityText.includes(phrase) ||
+          identityFields.some((field) => field.startsWith(compactPhrase))
+        );
+      }
+      if (phraseIsDate) return identityText.includes(phrase);
 
       return searchTokens.every((token) => {
-        // A bay/location-style term only ever matches the location code, on
-        // whole segments — substring matching let `E-18` hit unrelated rows.
+        const compactToken = compactSearchText(token);
+        // A bay/location-style term (`E-18`) matches the location code on whole
+        // segments — substring matching let it hit unrelated rows. But SKUs and
+        // pallet numbers can look like bay codes too (`PAL-001`, `AB12`), so it
+        // may also match the identifier fields, though never the location text.
         const locationSegments = parseLocationSearchToken(token);
-        if (locationSegments) return locationCodeMatchesSearch(row.location_code, locationSegments);
-        return haystack.includes(token);
+        if (locationSegments) {
+          return (
+            locationCodeMatchesSearch(row.location_code, locationSegments) ||
+            identityFields.some((field) => field.startsWith(compactToken))
+          );
+        }
+        return (
+          haystack.includes(token) ||
+          (compactToken.length >= 3 && identityFields.some((field) => field.includes(compactToken)))
+        );
       });
     });
 

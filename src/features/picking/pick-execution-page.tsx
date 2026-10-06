@@ -39,6 +39,7 @@ import { AppShell } from "@/features/shared/app-shell";
 import { alertToast, flashInput, playBarcodeBeep } from "@/lib/floor-feedback";
 import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { isBaySelectorCode, normalizeScannerText } from "@/lib/scan-input";
+import { getPickRequireLocationScan } from "@/lib/scan-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -512,6 +513,7 @@ function PickTaskCard({
     ReturnType<typeof previewPickSourceOverride>
   > | null>(null);
   const [alternateArmed, setAlternateArmed] = useState(false);
+  const [alternateError, setAlternateError] = useState("");
   const pallet = task.pallets as any;
   const product = pallet?.products as any;
   const location = task.locations ?? task.pick_balance?.locations ?? null;
@@ -522,7 +524,10 @@ function PickTaskCard({
     task.pick_balance?.available_quantity ?? pallet?.available_quantity ?? pallet?.quantity ?? task.requested_quantity;
   const wholePalletQuantity = Number(palletQuantity ?? task.requested_quantity ?? 0);
   const isOpen = PICK_OPEN_STATUSES.has(task.status);
-  const scannedLocation = String(form.watch("locationCode") ?? "").trim();
+  const requireLocationScan = getPickRequireLocationScan();
+  const typedLocation = String(form.watch("locationCode") ?? "").trim();
+  // When the location scan is switched off, the assigned location stands in for it.
+  const scannedLocation = typedLocation || (requireLocationScan ? "" : locationCode);
   const scannedPallet = String(form.watch("palletBarcode") ?? "").trim();
   const scannedPalletError = palletBarcodeError(scannedPallet);
   const alternatePalletError = palletBarcodeError(alternatePalletBarcode);
@@ -532,6 +537,7 @@ function PickTaskCard({
     (normalizeRackLocationCode(scannedLocation) !== locationCode ||
       scannedPallet.toUpperCase() !== String(palletBarcode).toUpperCase());
   const lockForConfirm = confirmPrompt && readyToConfirm;
+  const alternateReady = alternateMode && alternateArmed && Boolean(alternatePreview);
   const pickListId = String(task.pick_list_id ?? "");
 
   useEffect(() => {
@@ -630,19 +636,36 @@ function PickTaskCard({
   ];
 
   const handleSubmit = form.handleSubmit((values) => {
+    if (alternateReady && alternatePreview) {
+      onConfirm({
+        taskId: task.id,
+        locationCode: alternatePreview.scanned_location_code,
+        palletBarcode: alternatePreview.scanned_pallet_barcode,
+        quantity: Number(alternatePreview.scanned_available_quantity ?? alternatePreview.requested_quantity),
+        pickListCode,
+        confirmSourceOverride: true,
+        allowSourceQuantityVariance: Boolean(alternatePreview.quantity_variance),
+      });
+      return;
+    }
     if (!readyToConfirm) {
-      alertToast.noGo("Scan the bay/location and pallet before confirming.");
+      alertToast.noGo(
+        requireLocationScan
+          ? "Scan the bay/location and pallet before confirming."
+          : "Scan the pallet before confirming.",
+      );
       return;
     }
     if (sourceOverrideScanned) {
+      if (detectAlternate(scannedPallet)) return;
       alertToast.attention(
-        "This pallet or location differs from the task. Use Pick a different pallet to verify and override it.",
+        "This location differs from the task. Use Pick a different matching pallet to verify and override it.",
       );
       return;
     }
     onConfirm({
       taskId: task.id,
-      locationCode: values.locationCode,
+      locationCode: values.locationCode || scannedLocation,
       palletBarcode: values.palletBarcode,
       quantity: wholePalletQuantity,
       pickListCode,
@@ -682,8 +705,10 @@ function PickTaskCard({
     setAlternatePalletBarcode(scanned);
     setAlternatePreview(null);
     setAlternateArmed(false);
+    setAlternateError("");
     const prefixError = palletBarcodeError(scanned);
     if (prefixError) {
+      setAlternateError(prefixError);
       alertToast.noGo(prefixError);
       return;
     }
@@ -696,10 +721,40 @@ function PickTaskCard({
           return;
         }
         setAlternatePreview(preview);
+        setAlternateArmed(true);
+        setTimeout(() => {
+          confirmRef.current?.focus();
+        }, 50);
+        toast.success(
+          preview.quantity_variance
+            ? `Alternate pallet ${preview.scanned_pallet_barcode} verified — quantity differs. Review it, then confirm the alternate pick.`
+            : `Alternate pallet ${preview.scanned_pallet_barcode} verified. Confirm the alternate pick.`,
+          { duration: 6000 },
+        );
       })
-      .catch((error) =>
-        alertToast.noGo(error instanceof Error ? error.message : "Could not verify the alternate pallet."),
-      );
+      .catch((error) => {
+        const reason = `Alternate pallet can't be used: ${error instanceof Error ? error.message : "could not verify it."}`;
+        setAlternateError(reason);
+        alertToast.noGo(reason);
+      });
+  }
+
+  /**
+   * When the operator scans a pallet other than the directed one into the main
+   * pallet field, route it straight into the alternate-pallet check instead of
+   * dead-ending. Returns true when the scan was handed to the alternate flow.
+   */
+  function detectAlternate(value: string) {
+    const scanned = normalizePalletBarcode(value);
+    if (!scanned || palletBarcodeError(scanned)) return false;
+    if (scanned.toUpperCase() === String(palletBarcode).toUpperCase()) return false;
+    setConfirmPrompt(false);
+    setAlternateMode(true);
+    toast.info(`Alternate pallet detected (${scanned}). Checking SKU, quantity and availability…`, {
+      duration: 5000,
+    });
+    previewAlternate(scanned);
+    return true;
   }
 
   return (
@@ -731,7 +786,7 @@ function PickTaskCard({
                 name="locationCode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bay/Location Code</FormLabel>
+                    <FormLabel>Bay/Location Code{requireLocationScan ? "" : " (optional)"}</FormLabel>
                     <FormControl>
                       <div className="flex gap-2">
                         <Input
@@ -816,6 +871,7 @@ function PickTaskCard({
                               event.preventDefault();
                               playBarcodeBeep();
                               flashInput(palletRef.current, "blue");
+                              if (detectAlternate(normalizePalletBarcode(event.currentTarget.value))) return;
                               setConfirmPrompt(true);
                               setTimeout(() => {
                                 flashInput(confirmRef.current, "yellow");
@@ -827,9 +883,11 @@ function PickTaskCard({
                         <BarcodeScanButton
                           title="Scan pallet barcode"
                           onScan={(value) => {
-                            form.setValue("palletBarcode", normalizePalletBarcode(value));
+                            const scanned = normalizePalletBarcode(value);
+                            form.setValue("palletBarcode", scanned);
                             playBarcodeBeep();
                             flashInput(palletRef.current, "blue");
+                            if (detectAlternate(scanned)) return;
                             setConfirmPrompt(true);
                             setTimeout(() => {
                               flashInput(confirmRef.current, "yellow");
@@ -850,7 +908,7 @@ function PickTaskCard({
                 <span className="text-xs font-medium text-muted-foreground">Full pallet qty</span>
                 <span className="font-mono text-base font-semibold">{formatNumber(wholePalletQuantity)}</span>
               </div>
-              <div className="lg:col-span-4 rounded-md border border-dashed border-amber-400 bg-amber-50/60 p-3 dark:border-amber-600 dark:bg-amber-950/20">
+              <div className="lg:col-span-4 rounded-md border border-dashed border-warning bg-warning/10 p-3">
                 {!alternateMode ? (
                   <Button type="button" variant="outline" disabled={isPending} onClick={() => setAlternateMode(true)}>
                     Pick a different matching pallet
@@ -858,10 +916,9 @@ function PickTaskCard({
                 ) : (
                   <div className="grid gap-3">
                     <div>
-                      <p className="font-medium text-amber-900 dark:text-amber-200">Verify an alternate pallet</p>
-                      <p className="text-xs text-amber-800 dark:text-amber-300">
-                        Scan the pallet. Its live location, SKU, quantity, assignment, and freeze status are checked
-                        before an override can be armed.
+                      <p className="font-semibold text-warning">Verify an alternate pallet</p>
+                      <p className="text-xs text-muted-foreground">
+                        Scan or type the pallet. We check SKU, quantity, location and holds.
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -869,7 +926,10 @@ function PickTaskCard({
                         value={alternatePalletBarcode}
                         disabled={isPending}
                         placeholder="Scan alternate pallet barcode (PLT-…)"
-                        onChange={(event) => setAlternatePalletBarcode(normalizePalletBarcode(event.target.value))}
+                        onChange={(event) => {
+                          setAlternateError("");
+                          setAlternatePalletBarcode(normalizePalletBarcode(event.target.value));
+                        }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -877,6 +937,14 @@ function PickTaskCard({
                           }
                         }}
                       />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={isPending || !alternatePalletBarcode}
+                        onClick={() => previewAlternate(alternatePalletBarcode)}
+                      >
+                        Verify pallet
+                      </Button>
                       <BarcodeScanButton
                         title="Scan alternate pallet barcode"
                         disabled={isPending}
@@ -884,6 +952,12 @@ function PickTaskCard({
                       />
                     </div>
                     {alternatePalletError ? <p className="text-xs text-destructive">{alternatePalletError}</p> : null}
+                    {alternateError ? (
+                      <p className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+                        <AlertTriangle className="mr-1 inline h-4 w-4" />
+                        {alternateError}
+                      </p>
+                    ) : null}
                     {alternatePreview
                       ? (() => {
                           const scannedQty = Number(
@@ -892,7 +966,7 @@ function PickTaskCard({
                           const variance = Boolean(alternatePreview.quantity_variance);
                           const delta = scannedQty - Number(alternatePreview.requested_quantity ?? 0);
                           return (
-                            <div className="grid gap-2 rounded-md border border-amber-400 bg-amber-100/70 p-3 text-sm text-amber-950 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100">
+                            <div className="grid gap-2 rounded-md border border-warning bg-card p-3 text-sm text-foreground">
                               {variance ? (
                                 <p>
                                   <AlertTriangle className="mr-1 inline h-4 w-4" />
@@ -924,57 +998,27 @@ function PickTaskCard({
                                 Found: <span className="font-mono">{alternatePreview.scanned_pallet_barcode}</span> at{" "}
                                 <span className="font-mono">{alternatePreview.scanned_location_code}</span>
                               </p>
-                              {!alternateArmed ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="w-fit border-amber-500"
-                                  onClick={() => setAlternateArmed(true)}
-                                >
-                                  {variance
-                                    ? `Override & pick ${formatNumber(scannedQty)} (requested ${formatNumber(alternatePreview.requested_quantity)})`
-                                    : "Override source"}
-                                </Button>
-                              ) : (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium">
-                                    The directed pallet will be released from this task. Its inventory stays available.
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() =>
-                                      onConfirm({
-                                        taskId: task.id,
-                                        locationCode: alternatePreview.scanned_location_code,
-                                        palletBarcode: alternatePreview.scanned_pallet_barcode,
-                                        quantity: scannedQty,
-                                        pickListCode,
-                                        confirmSourceOverride: true,
-                                        allowSourceQuantityVariance: variance,
-                                      })
-                                    }
-                                  >
-                                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                    Confirm pick
-                                  </Button>
-                                </div>
-                              )}
+                              <p className="font-semibold">
+                                Verified — the directed pallet stays in stock. Confirm this alternate pick below.
+                              </p>
                             </div>
                           );
                         })()
                       : null}
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       className="w-fit"
                       onClick={() => {
                         setAlternateMode(false);
                         setAlternatePreview(null);
                         setAlternateArmed(false);
+                        setAlternateError("");
+                        setAlternatePalletBarcode("");
+                        form.setValue("palletBarcode", "");
                       }}
                     >
-                      Cancel alternate pallet
+                      Use directed pallet instead
                     </Button>
                   </div>
                 )}
@@ -1015,15 +1059,17 @@ function PickTaskCard({
                 ref={confirmRef}
                 className={cn(
                   "w-full lg:col-span-4",
-                  confirmPrompt &&
-                    readyToConfirm &&
-                    "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
+                  alternateReady
+                    ? "alternate-confirm-pulse bg-warning py-6 text-base font-bold text-warning-foreground hover:bg-warning/90"
+                    : confirmPrompt &&
+                        readyToConfirm &&
+                        "animate-pulse border border-yellow-300 bg-yellow-300 text-yellow-950 hover:bg-yellow-300",
                 )}
                 type="submit"
-                disabled={isPending || !readyToConfirm}
+                disabled={isPending || !(readyToConfirm || alternateReady)}
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Confirm pick
+                {alternateReady ? "Confirm alternate pick" : "Confirm pick"}
               </Button>
             </form>
           </Form>

@@ -11,6 +11,42 @@ const copilotMocks = vi.hoisted(() => ({
   saveCopilotFeedback: vi.fn(async () => undefined),
 }));
 
+vi.mock("@ai-sdk/react", async () => {
+  const React = await import("react");
+  return {
+    useChat: ({ onFinish }: { onFinish?: (event: any) => void }) => {
+      const [messages, setMessages] = React.useState<any[]>([]);
+      const [status, setStatus] = React.useState("ready");
+      const [error, setError] = React.useState<Error | undefined>();
+      const sendMessage = async (message: any, options?: any) => {
+        setMessages((current) => [...current, message]);
+        setStatus("submitted");
+        try {
+          const result = await (copilotMocks.askCopilot as unknown as (input: any) => Promise<any>)({
+            question: message.parts?.find((part: any) => part.type === "text")?.text ?? "",
+            pathname: options?.body?.context?.screen,
+            selection: options?.body?.context?.selection,
+          });
+          const parts: any[] = [{ type: "text", text: result.answer }];
+          for (const [index, entry] of (result.trace ?? []).entries()) {
+            parts.push({ type: `tool-${entry.tool}`, toolCallId: `t${index}`, state: "output-available", input: entry.input, output: { count: entry.rows } });
+          }
+          const assistant = { id: `a-${Date.now()}-${Math.random()}`, role: "assistant", parts };
+          setMessages((current) => [...current, assistant]);
+          onFinish?.({ message: assistant, messages: [], isAbort: false, isDisconnect: false, isError: false });
+        } catch (caught) {
+          const next = caught instanceof Error ? caught : new Error(String(caught));
+          setError(next);
+          throw next;
+        } finally {
+          setStatus("ready");
+        }
+      };
+      return { messages, setMessages, sendMessage, stop: vi.fn(), status, error, clearError: () => setError(undefined) };
+    },
+  };
+});
+
 vi.mock("@/features/copilot/copilot-core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/copilot/copilot-core")>();
   return { ...actual, ...copilotMocks };

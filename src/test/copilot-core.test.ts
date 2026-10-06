@@ -9,8 +9,10 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
-  askCopilot,
   buildProcedureContext,
+  copilotMessageText,
+  copilotMessageTrace,
+  copilotRequestBody,
   describeErrorForReport,
   isCopilotPreviewHost,
   onCopilotReportRequest,
@@ -18,12 +20,6 @@ import {
   setCopilotPreviewOverride,
 } from "@/features/copilot/copilot-core";
 import { recordAction, resetHabitTracking } from "@/lib/habit-tracking";
-
-/** The mock is declared with no arguments, so read the call args positionally. */
-function invokeBody(index = 0): any {
-  const args = supabaseMocks.invoke.mock.calls[index] as unknown as [string, { body: any }];
-  return args[1].body;
-}
 
 beforeEach(() => {
   supabaseMocks.invoke.mockReset();
@@ -36,12 +32,9 @@ afterEach(() => {
   resetHabitTracking();
 });
 
-describe("askCopilot", () => {
+describe("streaming Copilot request", () => {
   it("sends the screen, the question and the grounding procedures", async () => {
-    await askCopilot({ question: "what is open?", pathname: "/putaway-tasks", history: [] });
-
-    const body = invokeBody(0);
-    expect(body.message).toBe("what is open?");
+    const body = copilotRequestBody({ question: "what is open?", pathname: "/putaway-tasks" });
     expect(body.context.screen).toBe("/putaway-tasks");
     expect(body.context.appVersion).toBe("test");
     expect(Array.isArray(body.procedures)).toBe(true);
@@ -49,65 +42,23 @@ describe("askCopilot", () => {
 
   it("attaches the operator's recent actions and habits as report evidence", async () => {
     recordAction({ action: "putaway.confirm", route: "/putaway-tasks", outcome: "error" });
-    await askCopilot({ question: "it will not confirm", pathname: "/putaway-tasks", history: [] });
-
-    const context = invokeBody(0).context;
+    const context = copilotRequestBody({ question: "it will not confirm", pathname: "/putaway-tasks" }).context;
     expect(context.breadcrumbs).toHaveLength(1);
     expect(context.breadcrumbs[0].action).toBe("putaway.confirm");
     expect(context.habits.frictionPoints[0].action).toBe("putaway.confirm");
   });
 
-  it("returns the answer and trace on success", async () => {
-    supabaseMocks.invoke.mockResolvedValue({
-      data: { answer: "3 pallets", trace: [{ tool: "search_inventory", input: {}, outcome: "ok", rows: 3 }] },
-      error: null,
-    });
-
-    const result = await askCopilot({ question: "stock?", pathname: "/inventory", history: [] });
-    expect(result.answer).toBe("3 pallets");
-    expect(result.trace[0].tool).toBe("search_inventory");
-  });
-
-  it("surfaces the server's own message rather than a generic transport error", async () => {
-    // A 429 from the gateway carries useful wording; "Edge Function returned a
-    // non-2xx status code" does not.
-    supabaseMocks.invoke.mockResolvedValue({
-      data: null,
-      error: Object.assign(new Error("Edge Function returned a non-2xx status code"), {
-        context: { text: async () => JSON.stringify({ error: "The copilot is rate limited right now." }) },
-      }),
-    });
-
-    await expect(
-      askCopilot({ question: "stock?", pathname: "/inventory", history: [] }),
-    ).rejects.toThrow("The copilot is rate limited right now.");
-  });
-
-  it("keeps the transport message when the body is not readable JSON", async () => {
-    supabaseMocks.invoke.mockResolvedValue({
-      data: null,
-      error: Object.assign(new Error("Failed to send a request"), {
-        context: { text: async () => "<html>502</html>" },
-      }),
-    });
-
-    await expect(
-      askCopilot({ question: "stock?", pathname: "/inventory", history: [] }),
-    ).rejects.toThrow("Failed to send a request");
-  });
-
-  it("treats an error field in a 200 payload as a failure", async () => {
-    supabaseMocks.invoke.mockResolvedValue({ data: { error: "Ask a question first" }, error: null });
-
-    await expect(
-      askCopilot({ question: "x", pathname: "/inventory", history: [] }),
-    ).rejects.toThrow("Ask a question first");
-  });
-
-  it("tolerates a payload with no answer", async () => {
-    supabaseMocks.invoke.mockResolvedValue({ data: {}, error: null });
-    const result = await askCopilot({ question: "x", pathname: "/inventory", history: [] });
-    expect(result).toEqual({ answer: "", trace: [], context: undefined });
+  it("reads streamed message text and tool evidence", () => {
+    const message = {
+      id: "a1",
+      role: "assistant" as const,
+      parts: [
+        { type: "text" as const, text: "3 pallets" },
+        { type: "dynamic-tool" as const, toolName: "search_inventory", toolCallId: "t1", state: "output-available" as const, input: {}, output: { count: 3 } },
+      ],
+    };
+    expect(copilotMessageText(message)).toBe("3 pallets");
+    expect(copilotMessageTrace(message)[0]).toMatchObject({ tool: "search_inventory", rows: 3 });
   });
 });
 

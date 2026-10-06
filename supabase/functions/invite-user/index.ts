@@ -116,7 +116,16 @@ Deno.serve(async (req) => {
 
   if (createError || !newUser) {
     console.error('Failed to create user', { error: createError?.message })
-    return json({ error: createError?.message || 'Failed to create user' }, 500)
+    const message = createError?.message ?? ''
+    if (/weak|easy to guess|pwned|leaked/i.test(message)) {
+      return json({
+        error: 'That password is too common or has appeared in a data breach. Choose a stronger, unique password (mix words, numbers and symbols).',
+      }, 422)
+    }
+    if (/already|registered|exists/i.test(message)) {
+      return json({ error: 'A user with that email already exists' }, 409)
+    }
+    return json({ error: message || 'Failed to create user' }, 500)
   }
 
   // Assign role using caller's JWT so RLS and triggers see the admin/developer uid.

@@ -1205,7 +1205,6 @@ function FeatureFlagProvider({ children }: { children: ReactNode }) {
   return <FeatureFlagContext.Provider value={value}>{children}</FeatureFlagContext.Provider>;
 }
 
-
 function ResourceRoutes() {
   const resources = useMemo(
     () => ({

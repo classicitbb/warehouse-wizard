@@ -659,7 +659,11 @@ export const statusChangeSchema = z.object({
 
 export function formatDate(value: string | null | undefined) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy");
+  // A date-only value (expiry, due date) has no time zone; `new Date("2026-10-01")`
+  // reads it as UTC midnight, which displays as the previous day west of UTC.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = dateOnly ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])) : new Date(value);
+  return format(date, "dd MMM yyyy");
 }
 
 export function formatDateTime(value: string | null | undefined) {

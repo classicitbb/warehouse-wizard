@@ -9,6 +9,56 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.6",
+    date: "2026-10-06",
+    changes: [
+      "Copilot now streams shorter, more natural replies and asks focused follow-up questions for complex problems",
+      "Investigations can read location moves, transfers, cycle counts, audit history, system failures and notification failures within existing access rules",
+      "Advanced investigations prepare a developer repair brief and ask before filing the handoff",
+    ],
+    fixes: [
+      "Full conversation history now carries across follow-up questions, with stoppable responses and visible tool progress",
+    ],
+  },
+  {
+    version: "1.30.5",
+    date: "October 2026",
+    changes: [
+      "Pick Execution: a verified alternate pallet now goes straight to one flashing Confirm alternate pick button, removing the extra Override source step",
+      "Pick Lists: active task rows now separate product, SKU, source pallet, target quantity, and status for faster floor reading",
+      "Transfers and Inventory Status now use queue-first workspaces with stronger state visibility and honest future NetSuite reference areas",
+      "Reports now show live available stock, capacity, count exceptions, print failures, and NetSuite queue health from recorded sync jobs",
+      "Command Center: removed Fit to screen while keeping fullscreen and layout controls",
+    ],
+  },
+  {
+    version: "1.30.4",
+    date: "October 2026",
+    changes: [
+      "Pick Execution: the alternate pallet panel is easier to read, with a clear amber Override source button and one Confirm alternate pick button",
+      "Reasons an alternate pallet can't be used now show inside the panel, and Use directed pallet instead resets it",
+    ],
+  },
+  {
+    version: "1.30.3",
+    date: "October 2026",
+    changes: [
+      "Pick Execution: scanning a different pallet of the same SKU now opens the alternate-pallet check automatically, with a message guiding the operator through it",
+      "Alternate pallet panel has a Verify button, so the check works even when the scanner doesn't send Enter",
+      "New Help topic: Picking an Alternate Matching Pallet",
+    ],
+    fixes: [
+      "The main Confirm pick button now completes an alternate-pallet pick instead of staying greyed out",
+    ],
+  },
+  {
+    version: "1.30.2",
+    date: "October 2026",
+    changes: [
+      "Settings > Environment > Scanner timing: new switch to turn off the location scan when picking. When off, operators go to the location, scan the pallet only, and confirm the pick.",
+    ],
+  },
+  {
     version: "1.29.8",
     date: "September 2026",
     changes: [

@@ -79,7 +79,6 @@ export function DashboardPage() {
   const dashboardRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [simulatedFullscreen, setSimulatedFullscreen] = useState(false);
-  const [fitToScreen, setFitToScreen] = useState(false);
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(document.fullscreenElement === dashboardRef.current);
@@ -146,7 +145,7 @@ export function DashboardPage() {
       ref={dashboardRef}
       className={cn(
         "cc-grid-bg flex min-h-0 flex-col gap-6 overflow-y-auto overflow-x-hidden lg:h-full lg:gap-3",
-        (immersiveMode || fitToScreen) && "h-screen overflow-auto bg-background p-4",
+        immersiveMode && "h-screen overflow-auto bg-background p-4",
         simulatedFullscreen && "fixed inset-0 z-50",
       )}
     >
@@ -200,9 +199,6 @@ export function DashboardPage() {
             <TooltipContent>{editMode ? "Lock dashboard layout" : "Unlock dashboard layout"}</TooltipContent>
           </Tooltip>
           <div className="hidden items-center gap-2 sm:flex">
-            <Button size="sm" variant="outline" onClick={() => setFitToScreen((v) => !v)} aria-pressed={fitToScreen}>
-              {fitToScreen ? "Reset fit" : "Fit to screen"}
-            </Button>
             <Button size="sm" variant="outline" onClick={toggleFullscreen} aria-label={immersiveMode ? "Exit fullscreen" : "Enter fullscreen"} aria-pressed={immersiveMode}>
               {immersiveMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>

@@ -75,3 +75,23 @@ export function isWithinScanCooldown(
   if (last.value !== value) return false;
   return now - last.at < cooldownMs;
 }
+
+const PICK_LOCATION_SCAN_KEY = "ww.pick.requireLocationScan";
+
+/** Whether picking requires scanning the bay/location before the pallet (default on). */
+export function getPickRequireLocationScan(): boolean {
+  try {
+    return localStorage?.getItem(PICK_LOCATION_SCAN_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export function setPickRequireLocationScan(value: boolean): boolean {
+  try {
+    localStorage?.setItem(PICK_LOCATION_SCAN_KEY, value ? "true" : "false");
+  } catch {
+    // ignore
+  }
+  return value;
+}

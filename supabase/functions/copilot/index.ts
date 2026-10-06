@@ -13,22 +13,28 @@
 //    particular, text a tool returns can never cause a report to be filed.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { convertToModelMessages, jsonSchema, stepCountIs, streamText, tool, type UIMessage } from 'npm:ai@7'
+import { createOpenAI } from 'npm:@ai-sdk/openai@4'
+import {
+  createLovableAiGatewayRunIdFetch,
+  getLovableAiGatewayRunId,
+  withLovableAiGatewayRunIdHeader,
+} from '../_shared/lovable-ai-run-id.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
+const responseCorsHeaders = {
+  ...corsHeaders,
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-lovable-aig-run-id',
+  'Access-Control-Expose-Headers': 'X-Lovable-AIG-Run-ID',
 }
 
-const MODEL = 'google/gemini-3.6-flash'
-const GATEWAY = 'https://ai.gateway.lovable.dev/v1/chat/completions'
-const MAX_STEPS = 5
+const MODEL = 'openai/gpt-6-astra'
+const GATEWAY = 'https://ai.gateway.lovable.dev/v1'
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...responseCorsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
@@ -112,6 +118,95 @@ const toolDefs = [
     description: 'Find work that is stuck: stock on hold, quarantine or damaged, and pallets awaiting put-away for a long time.',
     parameters: { type: 'object', properties: {}, required: [] },
   },
+  {
+    name: 'list_location_moves',
+    description: 'List recent location-move tasks in a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        status: { type: ['string', 'null'] },
+        pallet_barcode: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'status', 'pallet_barcode', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_transfers',
+    description: 'List transfers touching a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        status: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'status', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_cycle_counts',
+    description: 'List cycle counts and optionally their lines in a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        status: { type: ['string', 'null'] },
+        include_lines: { type: ['boolean', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'status', 'include_lines', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_audit_events',
+    description: 'Read recent audit evidence for an accessible warehouse or named record.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        entity_table: { type: ['string', 'null'] },
+        entity_id: { type: ['string', 'null'] },
+        event_type: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'entity_table', 'entity_id', 'event_type', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_system_logs',
+    description: 'Read recent system failures. Existing role policies restrict this to approved support staff.',
+    parameters: {
+      type: 'object',
+      properties: {
+        severity: { type: ['string', 'null'] },
+        source: { type: ['string', 'null'] },
+        resolved: { type: ['boolean', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['severity', 'source', 'resolved', 'limit'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_notification_failures',
+    description: 'Read failed push/email notification dispatch records in a caller-accessible warehouse.',
+    parameters: {
+      type: 'object',
+      properties: {
+        warehouse_id: { type: 'string' },
+        kind: { type: ['string', 'null'] },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 200 },
+      },
+      required: ['warehouse_id', 'kind', 'limit'],
+      additionalProperties: false,
+    },
+  },
   // ── Support tools ──────────────────────────────────────────────────────────
   // The only tools that write, and they only ever write the caller's own report.
   {
@@ -155,8 +250,8 @@ const toolDefs = [
       'File the report so an engineer or agent can pick it up and repair it. Only call this after the report is complete AND the operator has confirmed. Returns the ticket number to read back to them.',
     parameters: {
       type: 'object',
-      properties: { report_id: { type: 'string' } },
-      required: ['report_id'],
+      properties: { report_id: { type: 'string' }, confirmed: { type: 'boolean' } },
+      required: ['report_id', 'confirmed'],
     },
   },
   {
@@ -169,6 +264,28 @@ const toolDefs = [
     },
   },
 ]
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function cappedLimit(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? Math.min(200, Math.max(1, Math.trunc(parsed))) : 50
+}
+
+function nullableText(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function requiredUuid(value: unknown, field: string) {
+  const candidate = nullableText(value)
+  if (!candidate || !uuidPattern.test(candidate)) throw new Error(`${field} must be a valid ID.`)
+  return candidate
+}
+
+async function assertWarehouseAccess(sb: ReturnType<typeof createClient>, warehouseId: string) {
+  const { data, error } = await sb.from('warehouses').select('id').eq('id', warehouseId).maybeSingle()
+  if (error || !data) throw new Error('That warehouse is unavailable or outside your access.')
+}
 
 // ── Operator report interview ────────────────────────────────────────────────
 // Mirrors src/features/copilot/feedback-core.ts so the chat panel and the model
@@ -436,6 +553,94 @@ async function runTool(
       return { rows: { blocked_stock: blockedStock ?? [], stale_putaway_tasks: stalePutaway ?? [] } }
     }
 
+    case 'list_location_moves': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let palletId: string | null = null
+      const palletBarcode = nullableText(args.pallet_barcode)
+      if (palletBarcode) {
+        const { data, error } = await sb.from('pallets').select('id').eq('pallet_code', palletBarcode).maybeSingle()
+        if (error) throw error
+        palletId = data?.id ?? null
+        if (!palletId) return { rows: [], count: 0, note: `No accessible pallet matches ${palletBarcode}.` }
+      }
+      let query = sb
+        .from('move_tasks')
+        .select('id, task_number, status, reason, pallet_id, from_location_id, to_location_id, completed_at, created_at, pallets(pallet_code), from_location:locations!move_tasks_from_location_id_fkey(code), to_location:locations!move_tasks_to_location_id_fkey(code)')
+        .eq('warehouse_id', targetWarehouse)
+        .order('created_at', { ascending: false })
+        .limit(cappedLimit(args.limit))
+      const status = nullableText(args.status)
+      if (status) query = query.eq('status', status)
+      if (palletId) query = query.eq('pallet_id', palletId)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Location-move tasks from the accessible warehouse.' }
+    }
+    case 'list_transfers': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let query = sb
+        .from('transfers')
+        .select('id, transfer_number, transfer_type, source_warehouse_id, destination_warehouse_id, status, dispatched_at, received_at, notes, created_at, transfer_lines(id, pallet_id, product_id, quantity)')
+        .or(`source_warehouse_id.eq.${targetWarehouse},destination_warehouse_id.eq.${targetWarehouse}`)
+        .order('created_at', { ascending: false })
+        .limit(cappedLimit(args.limit))
+      const status = nullableText(args.status)
+      if (status) query = query.eq('status', status)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Transfers touching the accessible warehouse.' }
+    }
+    case 'list_cycle_counts': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      const fields = args.include_lines === true
+        ? 'id, count_number, warehouse_id, zone_id, location_id, scope, status, variance_threshold_percent, notes, created_at, cycle_count_lines(id, location_id, product_id, pallet_id, expected_quantity, counted_quantity, variance_quantity, variance_percent, line_status, exception_reason)'
+        : 'id, count_number, warehouse_id, zone_id, location_id, scope, status, variance_threshold_percent, notes, created_at'
+      let query = sb.from('cycle_counts').select(fields).eq('warehouse_id', targetWarehouse).order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const status = nullableText(args.status)
+      if (status) query = query.eq('status', status)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Cycle-count evidence from the accessible warehouse.' }
+    }
+    case 'list_audit_events': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let query = sb.from('audit_events').select('id, event_type, entity_table, entity_id, warehouse_id, pallet_id, from_location_id, to_location_id, actor_user_id, metadata, created_at').eq('warehouse_id', targetWarehouse).order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const entityTable = nullableText(args.entity_table)
+      const entityId = nullableText(args.entity_id)
+      const eventType = nullableText(args.event_type)
+      if (entityTable) query = query.eq('entity_table', entityTable)
+      if (entityId) query = query.eq('entity_id', requiredUuid(entityId, 'entity_id'))
+      if (eventType) query = query.eq('event_type', eventType)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Append-only WMS audit evidence.' }
+    }
+    case 'list_system_logs': {
+      let query = sb.from('system_logs').select('id, log_type, severity, title, message, details, source, table_name, resolved, resolved_at, created_at').order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const severity = nullableText(args.severity)
+      const source = nullableText(args.source)
+      if (severity) query = query.eq('severity', severity)
+      if (source) query = query.ilike('source', `%${source}%`)
+      if (typeof args.resolved === 'boolean') query = query.eq('resolved', args.resolved)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'System records allowed by the caller’s existing role policy.' }
+    }
+    case 'list_notification_failures': {
+      const targetWarehouse = requiredUuid(args.warehouse_id, 'warehouse_id')
+      await assertWarehouseAccess(sb, targetWarehouse)
+      let query = sb.from('notification_events').select('id, kind, group_key, entity_table, entity_id, warehouse_id, push_dispatched_at, email_dispatched_at, dispatch_error, created_at').eq('warehouse_id', targetWarehouse).not('dispatch_error', 'is', null).order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
+      const kind = nullableText(args.kind)
+      if (kind) query = query.eq('kind', kind)
+      const { data, error } = await query
+      if (error) throw error
+      return { rows: data ?? [], count: data?.length ?? 0, note: 'Failed notification dispatch records from the accessible warehouse.' }
+    }
+
     // ── Support tools ────────────────────────────────────────────────────────
     case 'start_problem_report': {
       const kind = String(args.kind ?? 'bug')
@@ -517,6 +722,7 @@ async function runTool(
     case 'submit_problem_report': {
       const reportId = String(args.report_id ?? '').trim()
       if (!reportId) throw new Error('report_id is required')
+      if (args.confirmed !== true) throw new Error('Ask the operator to confirm filing this developer handoff before submitting it.')
       const { data: current, error: readError } = await sb
         .from('operator_tickets')
         .select(REPORT_COLUMNS)
@@ -601,7 +807,7 @@ function moduleForRoute(route: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
+  if (req.method === 'OPTIONS') return new Response(null, { headers: responseCorsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
@@ -630,8 +836,7 @@ Deno.serve(async (req) => {
   const user = { id: userId, email: typeof claims?.email === 'string' ? claims.email : null }
 
   let body: {
-    message?: string
-    history?: Array<{ role: string; content: string }>
+    messages?: UIMessage[]
     context?: Record<string, unknown>
     procedures?: Array<{ id: string; title: string; module?: string; text: string }>
     conversationId?: string | null
@@ -642,8 +847,8 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid request body' }, 400)
   }
 
-  const question = (body.message ?? '').trim()
-  if (!question) return json({ error: 'Ask a question first' }, 400)
+  const incomingMessages = Array.isArray(body.messages) ? body.messages : []
+  if (!incomingMessages.length) return json({ error: 'Ask a question first' }, 400)
 
   // Server-resolved context. Client-supplied screen/selection is a hint only;
   // warehouse and role scope come from the profile, never from the prompt.
@@ -704,8 +909,15 @@ Deno.serve(async (req) => {
     'You cannot change warehouse data — no stock, tasks, users or settings. If the user asks you to change something, explain the exact steps they should take in the app instead.',
     'The one thing you can create is the user\'s own problem report or feedback, using the support tools.',
     '',
+    'CONVERSATION STYLE:',
+    '- Talk like an able coworker: direct, natural, brisk, and specific. Usually answer in two to six short sentences.',
+    '- Investigate broadly with the read tools before guessing. For a complex problem, report the strongest evidence and ask one sharp follow-up question at a time.',
+    '- Run independent lookups together when possible. Do not repeat a lookup already answered in this conversation.',
+    '',
     'REPORTING A PROBLEM OR TAKING FEEDBACK:',
-    '- The moment the user says something is broken, wrong, stuck, confusing, missing, or that they want to suggest or complain about something, call start_problem_report. Do not talk them out of it and do not ask a question first.',
+    '- Investigate advanced operational or technical issues first. When the evidence points to an app defect, prepare a concise developer repair brief: observed problem, affected records, evidence, likely cause, expected behavior, and acceptance checks.',
+    '- Show that brief to the operator and ask whether to file it. Do not call start_problem_report or submit_problem_report until the operator explicitly agrees to the handoff.',
+    '- For a simple report the operator directly asks to file, call start_problem_report and collect only the missing facts.',
     '- Pick the kind: bug = something is broken; request = they want something added or changed; feedback = an opinion about how it works; question = they just need to know something.',
     '- The tool tells you the exact next question. Ask THAT question, one at a time, in plain language. Rephrase it for the operator if it helps, but do not skip a field or bundle two together.',
     '- Feed each answer straight back with record_report_answer. Their words, not your summary of their words.',
@@ -734,97 +946,78 @@ Deno.serve(async (req) => {
     ...procedures.map((p) => `### ${p.title}${p.module ? ` (${p.module})` : ''}\n${p.text}`),
   ].join('\n')
 
-  const messages: Array<Record<string, unknown>> = [
-    { role: 'system', content: systemPrompt },
-    ...(body.history ?? [])
-      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .slice(-6)
-      .map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: question },
-  ]
-
-  const tools = toolDefs.map((t) => ({ type: 'function', function: t }))
-  const trace: Array<{ tool: string; input: unknown; outcome: string; rows?: number }> = []
-
   try {
-    for (let step = 0; step < MAX_STEPS; step++) {
-      const res = await fetch(GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: MODEL, messages, tools, tool_choice: 'auto' }),
-      })
-
-      if (res.status === 429) return json({ error: 'The copilot is rate limited right now. Try again in a moment.' }, 429)
-      if (res.status === 402) return json({ error: 'AI credits are exhausted for this workspace.' }, 402)
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '')
-        console.error('[copilot] gateway error', res.status, detail)
-        return json({ error: 'The copilot service is unavailable. The rest of the app is unaffected.' }, 502)
-      }
-
-      const payload = await res.json()
-      const choice = payload?.choices?.[0]?.message
-      const toolCalls = choice?.tool_calls ?? []
-
-      if (!toolCalls.length) {
-        return json({
-          answer: choice?.content ?? 'I could not produce an answer for that.',
-          trace,
-          context: { warehouse: warehouseLabel, roles, screen },
-        })
-      }
-
-      messages.push(choice)
-
-      for (const call of toolCalls) {
-        const toolName = call?.function?.name ?? 'unknown'
-        let args: Record<string, unknown> = {}
-        try {
-          args = JSON.parse(call?.function?.arguments ?? '{}')
-        } catch {
-          args = {}
-        }
+    const gateway = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(req))
+    const provider = createOpenAI({
+      apiKey,
+      baseURL: GATEWAY,
+      headers: { 'Lovable-API-Key': apiKey, 'X-Lovable-AIG-SDK': 'vercel-ai-sdk' },
+      fetch: gateway.fetch,
+    })
+    const tools = Object.fromEntries(toolDefs.map((definition) => [definition.name, tool({
+      description: definition.description,
+      inputSchema: jsonSchema(definition.parameters as never),
+      execute: async (input) => {
+        const args = input as Record<string, unknown>
         const started = Date.now()
         let outcome = 'ok'
         let errorMessage: string | null = null
         let result: ToolResult
         try {
-          result = await runTool(sb, toolName, args, toolContext)
+          result = await runTool(sb, definition.name, args, toolContext)
         } catch (error) {
           outcome = 'error'
           errorMessage = error instanceof Error ? error.message : String(error)
           result = { note: `Tool failed: ${errorMessage}` }
         }
-        const latency = Date.now() - started
-        trace.push({ tool: toolName, input: args, outcome, rows: result.count })
-
         if (audit) {
           await audit.from('copilot_tool_calls').insert({
             conversation_id: body.conversationId ?? null,
             user_id: user.id,
             warehouse_id: warehouseId,
-            tool_name: toolName,
+            tool_name: definition.name,
             tool_input: args,
             outcome,
             row_count: result.count ?? null,
             error_message: errorMessage,
-            latency_ms: latency,
+            latency_ms: Date.now() - started,
           }).then(({ error }) => {
             if (error) console.error('[copilot] audit write failed:', error.message)
           })
         }
-
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify(result).slice(0, 24000),
-        })
-      }
-    }
-
-    return json({ answer: 'That question needed more lookups than I am allowed to run in one go. Try narrowing it down.', trace })
+        return result
+      },
+    })]))
+    const result = streamText({
+      model: provider.responses(MODEL),
+      instructions: systemPrompt,
+      messages: await convertToModelMessages(incomingMessages),
+      tools,
+      stopWhen: stepCountIs(8),
+      abortSignal: req.signal,
+      providerOptions: {
+        openai: {
+          forceReasoning: true,
+          reasoningEffort: 'low',
+          reasoningSummary: 'auto',
+          store: false,
+          include: ['reasoning.encrypted_content'],
+        },
+      },
+    })
+    const response = result.toUIMessageStreamResponse({
+      originalMessages: incomingMessages,
+      sendReasoning: true,
+      headers: responseCorsHeaders,
+      onError: (error) => error instanceof Error ? error.message : 'The Copilot service could not answer this request.',
+    })
+    return await withLovableAiGatewayRunIdHeader(response, gateway)
   } catch (error) {
     console.error('[copilot] unexpected failure:', error)
-    return json({ error: 'The copilot could not complete that request.' }, 500)
+    if (req.signal.aborted) return json({ error: 'Copilot request stopped.' }, 499)
+    const status = typeof error === 'object' && error && 'statusCode' in error && typeof error.statusCode === 'number'
+      ? error.statusCode
+      : 500
+    return json({ error: error instanceof Error ? error.message : 'The copilot could not complete that request.' }, status)
   }
 })

@@ -34,3 +34,14 @@ describe("scan settings", () => {
     expect(isWithinScanCooldown(null, "PLT-1", 1_100, 1_500)).toBe(false);
   });
 });
+
+import { getPickRequireLocationScan, setPickRequireLocationScan } from "@/lib/scan-settings";
+
+describe("pick location scan setting", () => {
+  it("defaults to required and can be switched off", () => {
+    localStorage.clear();
+    expect(getPickRequireLocationScan()).toBe(true);
+    setPickRequireLocationScan(false);
+    expect(getPickRequireLocationScan()).toBe(false);
+  });
+});
