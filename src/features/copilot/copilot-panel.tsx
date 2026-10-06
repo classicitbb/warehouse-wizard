@@ -190,6 +190,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const [historyOpen, setHistoryOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const activeConversationRef = useRef<string | null>(null);
+  const sendingRef = useRef(false);
   /** Screen capture in flight for the report the operator is about to file. */
   const pendingShotRef = useRef<Promise<string | null> | null>(null);
   /** True while a report is open in this thread — the attach controls belong to it. */
@@ -390,7 +391,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
   const send = useCallback(
     async (question: string) => {
       const trimmed = question.trim();
-      if (!trimmed || busy) return;
+      if (!trimmed || busy || sendingRef.current) return;
+      sendingRef.current = true;
       clearError();
       const userMessage: CopilotMessage = { id: messageId(), role: "user", parts: [{ type: "text", text: trimmed }] };
       setInput("");
@@ -445,6 +447,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           },
         ]);
       } finally {
+        sendingRef.current = false;
         inputRef.current?.focus();
       }
     },
