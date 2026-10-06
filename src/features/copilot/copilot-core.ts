@@ -124,6 +124,9 @@ export function copilotMessageTrace(message: UIMessage): CopilotTraceEntry[] {
   return message.parts.flatMap((part) => {
     const value = part as unknown as Record<string, unknown>;
     const type = String(value.type ?? "");
+    if (type === "data-saved-trace" && Array.isArray(value.data)) {
+      return value.data as CopilotTraceEntry[];
+    }
     if (type !== "dynamic-tool" && !type.startsWith("tool-")) return [];
     const output = value.output as { count?: number; note?: string } | undefined;
     return [{

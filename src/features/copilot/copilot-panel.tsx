@@ -118,7 +118,17 @@ const SOURCE_LABELS: Record<string, string> = {
   get_expiring_inventory: "Expiry records",
   get_open_tasks: "Open-work records",
   get_blocked_workflows: "Blocked-work records",
+  list_location_moves: "Location-move records",
+  list_transfers: "Transfer records",
+  list_cycle_counts: "Cycle-count records",
+  list_audit_events: "Audit trail",
+  list_system_logs: "System log",
+  list_notification_failures: "Notification log",
 };
+
+function isToolPart(part: UIMessage["parts"][number]): part is ToolUIPart | DynamicToolUIPart {
+  return part.type === "dynamic-tool" || part.type.startsWith("tool-");
+}
 
 /** A screenshot or log excerpt the operator added, and where it has got to. */
 type AttachmentChip = {
@@ -216,7 +226,21 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           .catch((error: unknown) => reportSaveFailure(error, "assistant"));
       }
       const usedTools = new Set(copilotMessageTrace(message).map((entry) => entry.tool));
-      if (usedTools.has("start_problem_report")) setReportFlow(true);
+      if (usedTools.has("start_problem_report")) {
+        setReportFlow(true);
+        if (!reportContextRef.current) {
+          const context = activeReportContext();
+          if (context) {
+            reportContextRef.current = context;
+            pendingEvidenceRef.current.push({ id: messageId(), screenContext: context });
+          }
+        }
+        if (pendingShotRef.current) {
+          const shot = pendingShotRef.current;
+          pendingShotRef.current = null;
+          void shot.then((path) => (path ? attachScreenshotToLatestDraft(path) : false));
+        }
+      }
       void flushEvidence().then(() => {
         if (usedTools.has("submit_problem_report")) setReportFlow(false);
       });
