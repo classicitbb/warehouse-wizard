@@ -673,6 +673,13 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
                   return null;
                 })}
               </MessageContent>
+              {trace.length > 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {trace.some((entry) => SUPPORT_TOOLS.has(entry.tool))
+                    ? `${trace.length} report step${trace.length === 1 ? "" : "s"}`
+                    : `${trace.length} record lookup${trace.length === 1 ? "" : "s"}`}
+                </p>
+              ) : null}
               {message.role === "assistant" && !message.error ? (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2">
                   {trace.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).length ? (

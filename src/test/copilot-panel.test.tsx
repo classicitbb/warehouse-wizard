@@ -31,7 +31,7 @@ vi.mock("@ai-sdk/react", async () => {
           for (const [index, entry] of (result.trace ?? []).entries()) {
             parts.push({ type: `tool-${entry.tool}`, toolCallId: `t${index}`, state: "output-available", input: entry.input, output: { count: entry.rows } });
           }
-          const assistant = { id: `a-${Date.now()}`, role: "assistant", parts };
+          const assistant = { id: `a-${Date.now()}-${Math.random()}`, role: "assistant", parts };
           setMessages((current) => [...current, assistant]);
           onFinish?.({ message: assistant, messages: [], isAbort: false, isDisconnect: false, isError: false });
         } catch (caught) {
