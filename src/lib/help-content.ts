@@ -806,6 +806,17 @@ export const helpArticles: HelpArticle[] = [
     ],
   },
   {
+    id: "warehouse-copilot",
+    title: "Warehouse Copilot",
+    module: "copilot",
+    audience: "All warehouse users",
+    keywords: ["copilot", "assistant", "investigate", "developer repair", "problem report", "handoff"],
+    sections: [
+      { title: "Working Together", content: ["Ask brief questions in normal warehouse language. Copilot answers from records your role can already see and can ask one focused follow-up when an issue needs more evidence.", "Its investigation tools are read-only. Copilot cannot alter stock, tasks, users, transfers, counts, or settings."] },
+      { title: "Developer Handoff", content: ["For an advanced issue, Copilot can assemble the affected records, evidence, likely cause, expected behaviour, and repair checks into a suggested developer brief.", "Review the brief before filing it. Copilot must ask for your confirmation and cannot file the handoff without it."] },
+    ],
+  },
+  {
     id: "operational-status-and-transfers",
     title: "Transfers and Controlled Stock",
     module: "transfers",
