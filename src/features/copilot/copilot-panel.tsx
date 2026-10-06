@@ -660,7 +660,9 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
                   if (isToolPart(part)) {
                     return (
                       <Tool key={`${message.id}-tool-${index}`} defaultOpen={false}>
-                        <ToolHeader type={part.type} state={part.state} {...(part.type === "dynamic-tool" ? { toolName: part.toolName } : {})} />
+                        {part.type === "dynamic-tool"
+                          ? <ToolHeader type="dynamic-tool" state={part.state} toolName={part.toolName} />
+                          : <ToolHeader type={part.type} state={part.state} />}
                         <ToolContent>
                           <ToolInput input={part.input} />
                           <ToolOutput output={part.output} errorText={part.errorText} />
