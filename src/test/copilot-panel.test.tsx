@@ -22,7 +22,7 @@ vi.mock("@ai-sdk/react", async () => {
         setMessages((current) => [...current, message]);
         setStatus("submitted");
         try {
-          const result = await copilotMocks.askCopilot({
+          const result = await (copilotMocks.askCopilot as unknown as (input: any) => Promise<any>)({
             question: message.parts?.find((part: any) => part.type === "text")?.text ?? "",
             pathname: options?.body?.context?.screen,
             selection: options?.body?.context?.selection,
