@@ -596,7 +596,8 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           </div>
         ) : null}
 
-        <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        <Conversation className="flex-1">
+          <ConversationContent className="gap-3 px-4 py-4">
           {messages.length === 0 ? (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
@@ -645,49 +646,36 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             </div>
           ) : null}
 
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "text-sm",
-                message.role === "user"
-                  ? "ml-auto w-fit max-w-[85%] rounded-lg bg-primary px-3 py-2 text-primary-foreground"
-                  : "max-w-full text-foreground",
-                message.error ? "text-destructive" : "",
-              )}
-            >
-              {message.role === "assistant" && !message.error ? (
-                <div className="space-y-2 overflow-x-auto text-sm leading-relaxed [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_h3]:mt-2 [&_h3]:text-xs [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-semibold [&_li]:ml-4 [&_li]:list-disc [&_strong]:font-semibold [&_table]:w-full [&_table]:border-collapse [&_table]:text-[11px] [&_td]:border [&_td]:border-border [&_td]:px-1.5 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-1.5 [&_th]:py-1 [&_th]:text-left [&_ul]:space-y-1">
-                  <Suspense fallback={<p className="whitespace-pre-wrap">{message.content}</p>}>
-                    <CopilotMarkdown>{message.content}</CopilotMarkdown>
-                  </Suspense>
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-              )}
-              {message.trace && message.trace.length > 0 ? (
-                <details className="mt-2 rounded-md border border-border/70 bg-muted/30 px-2 py-1.5">
-                  <summary className="cursor-pointer text-[11px] text-muted-foreground">
-                    {message.trace.some((entry) => SUPPORT_TOOLS.has(entry.tool))
-                      ? `${message.trace.length} report step${message.trace.length === 1 ? "" : "s"}`
-                      : `${message.trace.length} record lookup${message.trace.length === 1 ? "" : "s"}`}
-                  </summary>
-                  <ul className="mt-1 space-y-1">
-                    {message.trace.map((entry, index) => (
-                      <li key={`${entry.tool}-${index}`} className="text-[11px] text-muted-foreground">
-                        <span className="font-medium text-foreground">{entry.tool}</span>
-                        {typeof entry.rows === "number" ? ` — ${entry.rows} row${entry.rows === 1 ? "" : "s"}` : ""}
-                        {entry.outcome !== "ok" ? ` — ${entry.outcome}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : null}
+          {messages.map((message) => {
+            const trace = copilotMessageTrace(message);
+            return (
+            <Message key={message.id} from={message.role} className={message.error ? "text-destructive" : undefined}>
+              <MessageContent>
+                {message.parts.map((part, index) => {
+                  if (part.type === "text") {
+                    return message.role === "assistant" && !message.error
+                      ? <MessageResponse key={`${message.id}-text-${index}`}>{part.text}</MessageResponse>
+                      : <p key={`${message.id}-text-${index}`} className="whitespace-pre-wrap leading-relaxed">{part.text}</p>;
+                  }
+                  if (isToolPart(part)) {
+                    return (
+                      <Tool key={`${message.id}-tool-${index}`} defaultOpen={false}>
+                        <ToolHeader type={part.type} state={part.state} {...(part.type === "dynamic-tool" ? { toolName: part.toolName } : {})} />
+                        <ToolContent>
+                          <ToolInput input={part.input} />
+                          <ToolOutput output={part.output} errorText={part.errorText} />
+                        </ToolContent>
+                      </Tool>
+                    );
+                  }
+                  return null;
+                })}
+              </MessageContent>
               {message.role === "assistant" && !message.error ? (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2">
-                  {message.trace?.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).length ? (
+                  {trace.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).length ? (
                     <span className="mr-auto text-[11px] text-muted-foreground" title="Only records returned through the server-side, warehouse-scoped tools are sources.">
-                      Sources: {Array.from(new Set(message.trace.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).map((entry) => SOURCE_LABELS[entry.tool] ?? entry.tool))).join(", ")}
+                      Sources: {Array.from(new Set(trace.filter((entry) => !SUPPORT_TOOLS.has(entry.tool)).map((entry) => SOURCE_LABELS[entry.tool] ?? entry.tool))).join(", ")}
                     </span>
                   ) : <span className="mr-auto text-[11px] text-muted-foreground">No record sources used</span>}
                   <span className="text-[11px] text-muted-foreground">Was this helpful?</span>
@@ -699,16 +687,16 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
                   </Button>
                 </div>
               ) : null}
-            </div>
-          ))}
+            </Message>
+          )})}
 
           {busy ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Checking the records…
-            </p>
+            <Shimmer className="text-xs">Checking the records…</Shimmer>
           ) : null}
-        </div>
+          {chatError ? <p className="text-xs text-destructive">{chatError.message}</p> : null}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
         {reportFlow ? (
           <div className="border-t border-border bg-muted/20 px-4 py-2">
@@ -829,13 +817,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
           </div>
         ) : null}
 
-        <form
-          className="flex items-end gap-2 border-t border-border px-4 py-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void send(input);
-          }}
-        >
+        <div className="border-t border-border px-4 py-3">
           {dictation.state !== "idle" ? (
             <div className="absolute bottom-[4.25rem] left-4 right-4 flex items-center gap-2 rounded-md border border-primary/30 bg-background px-3 py-2 text-xs shadow-sm">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
@@ -843,43 +825,18 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
               {dictation.state === "listening" ? <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={dictation.stop}>Done</Button> : null}
             </div>
           ) : null}
-          <Button
-            type="button"
-            size="icon"
-            variant={dictation.state === "listening" ? "destructive" : "ghost"}
-            className="h-9 w-9 shrink-0"
-            aria-label={dictation.state === "listening" ? "Stop voice input" : "Start voice input"}
-            title={dictation.state === "listening" ? "Stop and transcribe" : "Speak your question"}
-            disabled={busy || dictation.state === "starting" || dictation.state === "transcribing"}
-            onClick={() => (dictation.state === "listening" ? dictation.stop() : void dictation.start())}
-          >
-            {dictation.state === "listening" ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-          </Button>
-          <Textarea
-            ref={inputRef}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={busy || dictation.state !== "idle"}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void send(input);
-              }
-            }}
-            placeholder="Ask anything about this warehouse…"
-            rows={1}
-            className="min-h-[2.5rem] max-h-36 flex-1 resize-none overflow-y-auto text-sm"
-          />
-          {busy ? (
-            <Button type="button" size="icon" variant="destructive" className="h-9 w-9 shrink-0" onClick={stop} aria-label="Stop response" title="Stop response">
-              <Square className="h-3.5 w-3.5 fill-current" />
-            </Button>
-          ) : (
-            <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={!input.trim()} aria-label="Send">
-              <Send className="h-4 w-4" />
-            </Button>
-          )}
-        </form>
+          <PromptInput onSubmit={({ text }) => void send(text)}>
+            <PromptInputTextarea ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} disabled={dictation.state !== "idle"} placeholder="Ask anything about this warehouse…" />
+            <PromptInputFooter>
+              <PromptInputTools>
+                <Button type="button" size="icon" variant={dictation.state === "listening" ? "destructive" : "ghost"} className="h-8 w-8" aria-label={dictation.state === "listening" ? "Stop voice input" : "Start voice input"} disabled={busy || dictation.state === "starting" || dictation.state === "transcribing"} onClick={() => (dictation.state === "listening" ? dictation.stop() : void dictation.start())}>
+                  {dictation.state === "listening" ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </Button>
+              </PromptInputTools>
+              <PromptInputSubmit status={status} onStop={() => void stop()} disabled={!busy && !input.trim()} />
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
         {dictation.error ? <p className="border-t border-border px-4 py-2 text-xs text-destructive">{dictation.error}</p> : null}
       </SheetContent>
     </Sheet>
