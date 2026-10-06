@@ -238,23 +238,30 @@ export async function fetchNetSuiteAccessToken(creds: NetSuiteM2MCredentials): P
     return { ok: false, error: `Could not sign the NetSuite client assertion - regenerate the certificate (${message})` }
   }
 
-  try {
-    const res = await fetch(netsuiteTokenUrl(creds.accountId), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_assertion_type: JWT_BEARER,
-        client_assertion: assertion,
-      }).toString(),
-    })
-    const text = await res.text()
-    if (!res.ok) return { ok: false, error: describeTokenError(res.status, text) }
-    let token = ''
-    try { token = String((JSON.parse(text) as { access_token?: string }).access_token ?? '') } catch { /* handled below */ }
-    if (!token) return { ok: false, error: 'NetSuite token response missing access_token' }
-    return { ok: true, token }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  // Transient network failures (connection reset, timeouts) are retried with
+  // backoff; HTTP error responses from NetSuite are returned immediately.
+  let lastError = ''
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)))
+    try {
+      const res = await fetch(netsuiteTokenUrl(creds.accountId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_assertion_type: JWT_BEARER,
+          client_assertion: assertion,
+        }).toString(),
+      })
+      const text = await res.text()
+      if (!res.ok) return { ok: false, error: describeTokenError(res.status, text) }
+      let token = ''
+      try { token = String((JSON.parse(text) as { access_token?: string }).access_token ?? '') } catch { /* handled below */ }
+      if (!token) return { ok: false, error: 'NetSuite token response missing access_token' }
+      return { ok: true, token }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
+    }
   }
+  return { ok: false, error: `Could not reach NetSuite after 3 attempts (network issue, please try again): ${lastError}` }
 }
