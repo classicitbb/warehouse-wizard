@@ -386,6 +386,8 @@ function NotificationBell({
   showSetupReminder: boolean;
   onSetupReminderAction: () => void | Promise<void>;
 }) {
+  const navigate = useNavigate();
+  const { toPath } = useTenantPath();
   const connectivityCount = alerts.length + (offline ? 1 : 0);
   const reorderCount = showReorder ? reorderAlerts.length : 0;
   // Put-away events share a group_key, one per batch - count the batch, not
@@ -486,19 +488,30 @@ function NotificationBell({
               if (event.kind === "pick_list_created") {
                 const orderNumber = typeof payload.order_number === "string" ? payload.order_number : null;
                 return (
-                  <div key={key} className="min-h-11 rounded-md px-3 py-2.5 text-sm hover:bg-accent">
+                  <DropdownMenuItem
+                    key={key}
+                    className="block min-h-11 cursor-pointer rounded-md px-3 py-2.5 text-sm"
+                    onSelect={() => navigate(toPath(event.entity_id ? `/pick-lists/${event.entity_id}` : "/pick-lists"))}
+                  >
                     <p className="font-medium">Pick ticket {String(payload.pick_list_number ?? "")} released</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {[orderNumber ? `Order ${orderNumber}` : null, warehouseCode].filter(Boolean).join(" · ") || "Ready to pick"}
                     </p>
                     <p className="mt-1 text-[11px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>
-                  </div>
+                  </DropdownMenuItem>
                 );
               }
               const containerNumber = typeof payload.container_number === "string" ? payload.container_number : null;
               const poNumber = typeof payload.po_number === "string" ? payload.po_number : null;
+              const putawaySearch = containerNumber ?? poNumber ?? null;
               return (
-                <div key={key} className="min-h-11 rounded-md px-3 py-2.5 text-sm hover:bg-accent">
+                <DropdownMenuItem
+                  key={key}
+                  className="block min-h-11 cursor-pointer rounded-md px-3 py-2.5 text-sm"
+                  onSelect={() =>
+                    navigate(toPath(putawaySearch ? `/putaway-tasks?search=${encodeURIComponent(putawaySearch)}` : "/putaway-tasks?open=1"))
+                  }
+                >
                   <p className="font-medium">{count === 1 ? "1 pallet" : `${count} pallets`} ready for put-away</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {[containerNumber ? `Container ${containerNumber}` : null, poNumber ? `PO ${poNumber}` : null, warehouseCode]
@@ -506,7 +519,7 @@ function NotificationBell({
                       .join(" · ") || "Waiting in receiving"}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>
-                </div>
+                </DropdownMenuItem>
               );
             })}
           </div>
