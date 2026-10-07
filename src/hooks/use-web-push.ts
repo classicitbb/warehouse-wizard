@@ -38,6 +38,7 @@ export type NotificationEventRow = {
   id: string;
   kind: "pick_list_created" | "putaway_task_created";
   group_key: string | null;
+  entity_id?: string | null;
   payload: Record<string, unknown> | null;
   created_at: string;
   push_dispatched_at: string | null;
@@ -179,7 +180,7 @@ export function useWebPushNotifications(enabled: boolean, options?: { pickListRi
     enabled,
     queryFn: async () => {
       const { data, error } = await (supabase.from as never as (t: string) => any)("notification_events")
-        .select("id, kind, group_key, payload, created_at, push_dispatched_at")
+        .select("id, kind, group_key, entity_id, payload, created_at, push_dispatched_at")
         .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
         .order("created_at", { ascending: false })
         .limit(30);
