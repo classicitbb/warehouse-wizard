@@ -21,6 +21,14 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    // Emits /version.json so a running tab can ask "is there a newer build?" on
+    // first touch, without waiting on the service worker. See src/lib/version-check.ts.
+    {
+      name: "ww-version-manifest",
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version: pkg.version }) });
+      },
+    },
     // The code generator currently emits non-portable absolute imports on Windows.
     process.platform !== "win32" && mcpPlugin(),
     VitePWA({

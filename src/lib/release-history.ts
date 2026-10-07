@@ -9,6 +9,17 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.30.7",
+    date: "2026-10-06",
+    changes: [
+      "Updates now reach a device the moment it is touched: when a tablet wakes or loads on an old version, Warehouse Wizard shows an 'updating' notice, installs the newest version and reloads before you start work",
+      "If you are in the middle of a scan or confirm step, the update waits and installs right after you finish; offline devices update as soon as they reconnect",
+    ],
+    fixes: [
+      "Starting the app with no connection no longer clears the offline copy of the app",
+    ],
+  },
+  {
     version: "1.30.6",
     date: "2026-10-06",
     changes: [
