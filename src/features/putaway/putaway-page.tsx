@@ -688,6 +688,8 @@ export function PutawayTasksPage() {
         pallet?.pallet_code,
         pallet?.products?.sku,
         pallet?.products?.name,
+        pallet?.receipt_lines?.receipts?.container_number,
+        pallet?.receipt_lines?.receipts?.po_number,
         task.task_number,
       ].some((value) => String(value ?? "").toLowerCase().includes(normalizedTaskSearch));
     });
