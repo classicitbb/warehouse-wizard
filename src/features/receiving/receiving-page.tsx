@@ -43,7 +43,7 @@ import { invalidateAfterPalletMove } from "@/lib/query-invalidation";
 import { ButtonProgress, useTimedButtonProgress } from "@/features/receiving/button-progress";
 import { ShipmentLineCard, type ShipmentLineRefs } from "@/features/receiving/shipment-line-card";
 import { NetSuiteLookupPanel } from "@/features/receiving/netsuite-lookup-panel";
-import { buildShipmentLinesFromLookup, mergeLoadedLines } from "@/features/receiving/netsuite-lookup-lines";
+import { buildShipmentLinesFromLookup, mergeLoadedLines, netsuiteRefFromDraftMeta } from "@/features/receiving/netsuite-lookup-lines";
 import type { NetSuiteLookupDocument } from "@/features/receiving/netsuite-lookup";
 import { DraftPalletList } from "@/features/receiving/draft-pallet-list";
 import { PrintDraftsDialog } from "@/features/receiving/print-drafts-dialog";
@@ -552,6 +552,7 @@ export function ReceivingPage() {
         remainder_quantity: remainderForLine(line),
         remainder_action: line.remainder_action || undefined,
         create_special_pallet: line.remainder_action === "special",
+        netsuite: line.netsuite,
       }));
       const missingExpiry = shipmentForm.lines.find((line) => {
         const product = productOptions.find((item) => item.id === line.product_id);
@@ -836,6 +837,7 @@ export function ReceivingPage() {
       lot_number: values.lot_number ?? "",
       batch_number: values.batch_number ?? "",
       packaging_profile_id: values.packaging_profile_id ?? "",
+      netsuite: netsuiteRefFromDraftMeta(meta),
     };
     // The saved draft already carries a real qty per pallet, so the line starts
     // known: retyping the total recalculates against it instead of asking for a

@@ -52,12 +52,12 @@ Last updated: 2026-09-29, after the NetSuite dev's J2 update.
 | **Us-2** | Confirm the integration record has the RESTlets scope | [ ] | Dev confirmation. |
 | **Us-3** | Add RESTlet URL, script id and deploy id to the connection config | [ ] | Nothing. |
 | **W1** | Bring Pine and Lower Estate in and audit single-warehouse assumptions (5-8 d) | [ ] | Nothing. |
-| **W4** | Record the NetSuite source line number on each Warehouse Wizard line (2-4 d) | [ ] | Nothing. |
+| **W4** | Record the NetSuite source line number on each Warehouse Wizard line (2-4 d) | [x] | Saved as `netsuite` in each pallet draft's `receipts.notes` JSON (line key, line number, ordered, received, remaining) and restored when a draft is edited. The same `receipts` row becomes the completed receipt, so W3 reads it from there. No migration. |
 | **W2** | On-demand lookup by document number for PO, inbound shipment and transfer order (10-15 d) | [~] | PO and transfer order lookup done end to end: `netsuite-lookup` function plus the Receiving screen (unit-tested, not yet run against NetSuite). Remaining: inbound shipment lookup, deploy the function to the beta, live check (J5, S1). |
 | **W3a** | Post receipts: purchase order, via `purchaseOrder/{id}/!transform/itemReceipt` (part of 12-18 d) | [ ] | J5, S1. |
 | **W3b** | Post receipts: transfer order, via `transferOrder/{id}/!transform/itemReceipt` | [ ] | J5, S1. Verify how the transform names the fulfilment. |
 | **W3c** | Post receipts: inbound shipment, via the RESTlet. Send `externalRef`, treat `alreadyProcessed` as success, store all receipt ids. | [!] | J2 tested, J10. |
-| **W3d** | Add `externalRef` idempotency to all receipt job payloads | [ ] | Nothing. |
+| **W3d** | Add `externalRef` idempotency to all receipt job payloads | [~] | Helpers done in `_shared/netsuite-receipt.ts` (deterministic `externalRef`, one idempotency key per posting, payload builder, response reader that treats `alreadyProcessed` as success and keeps all receipt ids). Not yet used: W3a-c must call them when they enqueue receipt jobs. |
 | **W5** | Map Warehouse Wizard bins to NetSuite bins, with tooling to create them (4-7 d) | [!] | S5. |
 | **W16** | Queue reliability: ordering, retries, monitoring, runbook (5-8 d) | [ ] | Nothing. Extend the existing worker. |
 | **W15** | Beta sandbox environment, parallel running and cutover (6-10 d) | [~] | J5. See `docs/netsuite-beta-sandbox-runbook.md`. |
@@ -106,5 +106,5 @@ Last updated: 2026-09-29, after the NetSuite dev's J2 update.
 - A found document shows status, vendor and each line as ordered, received and remaining. **Load lines into shipment** creates one shipment line per line that can still be received, with total set to what NetSuite expects and left as a single pallet for the operator to split.
 - Lines are skipped, with the reason shown, when nothing is left to receive or the item has not been imported. Looking a document up twice replaces its lines rather than duplicating them.
 - Each loaded line shows its NetSuite line, ordered, already received and expecting, and flags "short by n" or "over by n" as the operator edits the total. This is display only until the short-delivery policy (P7) is decided.
-- **Not persisted yet:** the NetSuite line reference lives in the form only, so it is lost when a draft is saved. Storing it with the draft is W4, and the receipt posting (W3) needs it.
+- **Persisted (W4):** the NetSuite line reference is saved with each pallet draft and restored on edit. One NetSuite line split over several pallets produces several drafts that share the same line key; W3 should sum them per line.
 - Files: `netsuite-lookup-panel.tsx`, `netsuite-lookup-lines.ts`, `netsuite-lookup.ts` in `src/features/receiving/`; wiring in `receiving-page.tsx` and `shipment-line-card.tsx`.

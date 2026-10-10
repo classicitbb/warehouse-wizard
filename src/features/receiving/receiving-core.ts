@@ -309,6 +309,15 @@ export type DraftReceipt = {
   source_label: string | null;
 };
 
+export type NetSuiteDraftLineRef = {
+  lineKey: string | null;
+  lineNumber: number | null;
+  itemName: string;
+  ordered: number;
+  received: number;
+  remaining: number;
+};
+
 export type ShipmentDraftLineInput = {
   product_id: string;
   client_id?: string;
@@ -324,6 +333,8 @@ export type ShipmentDraftLineInput = {
   remainder_quantity?: number;
   remainder_action?: "waive" | "manual" | "special";
   create_special_pallet?: boolean;
+  /** NetSuite source line, kept in the draft notes so posting the receipt (W3) can name it. */
+  netsuite?: NetSuiteDraftLineRef;
 };
 
 export type ShipmentDraftInput = {
@@ -459,6 +470,7 @@ export async function saveShipmentDrafts(input: ShipmentDraftInput): Promise<{ g
           manufacture_date: line.manufacture_date,
           loading_date: line.loading_date,
           packaging_profile_id: line.packaging_profile_id,
+          ...(line.netsuite ? { netsuite: line.netsuite } : {}),
         }),
       });
     });

@@ -1,7 +1,7 @@
 // Turns a NetSuite lookup result into Receiving shipment lines. Pure, so the
 // mapping is unit-tested without rendering the screen.
 
-import { newShipmentLine, type ReceivingShipmentLineState } from "@/features/receiving/receiving-form-state";
+import { newShipmentLine, type NetSuiteLineRef, type ReceivingShipmentLineState } from "@/features/receiving/receiving-form-state";
 import type { NetSuiteDocumentType, NetSuiteLookupDocument } from "@/features/receiving/netsuite-lookup";
 
 export function documentTypeForReceipt(receiptType: string): NetSuiteDocumentType | null {
@@ -88,6 +88,21 @@ export function mergeLoadedLines(
     return !(key && incomingKeys.has(key));
   });
   return [...kept, ...loaded];
+}
+
+/** Reads back the NetSuite line saved in a draft's notes (W4); null for drafts without one. */
+export function netsuiteRefFromDraftMeta(meta: Record<string, unknown> | null | undefined): NetSuiteLineRef | undefined {
+  const raw = meta?.netsuite as Partial<NetSuiteLineRef> | undefined;
+  if (!raw || typeof raw !== "object") return undefined;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    lineKey: typeof raw.lineKey === "string" ? raw.lineKey : null,
+    lineNumber: typeof raw.lineNumber === "number" ? raw.lineNumber : null,
+    itemName: typeof raw.itemName === "string" ? raw.itemName : "",
+    ordered: num(raw.ordered),
+    received: num(raw.received),
+    remaining: num(raw.remaining),
+  };
 }
 
 export type LineVariance = { kind: "exact" } | { kind: "short" | "over"; by: number };
