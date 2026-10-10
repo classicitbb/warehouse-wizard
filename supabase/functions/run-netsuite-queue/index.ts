@@ -15,13 +15,14 @@ Deno.serve(async (req) => {
   if (!token) return json({ error: 'Unauthorized' }, 401)
 
   const admin = createClient(url, serviceKey)
-  const { data: userData, error: userErr } = await admin.auth.getUser(token)
-  if (userErr || !userData?.user) return json({ error: 'Unauthorized' }, 401)
+  const { data: claimData, error: claimErr } = await admin.auth.getClaims(token)
+  const userId = claimData?.claims?.sub
+  if (claimErr || !userId) return json({ error: 'Unauthorized', detail: claimErr?.message ?? 'no user' }, 401)
 
   const { data: roles } = await admin
     .from('user_roles')
     .select('roles(code)')
-    .eq('user_id', userData.user.id)
+    .eq('user_id', userId)
   const codes = (roles ?? []).map((r: any) => r.roles?.code)
   if (!codes.some((c: string) => ['admin', 'developer', 'dev'].includes(c))) {
     return json({ error: 'Forbidden' }, 403)
