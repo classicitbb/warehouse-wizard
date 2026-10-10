@@ -16,7 +16,7 @@ export type ReceivingShipmentLineState = {
   batch_number: string;
   packaging_profile_id: string;
   remainder_action: "waive" | "manual" | "special" | "";
-  /** Set when the line was loaded from a NetSuite document. Not yet persisted with the draft (W4). */
+  /** Set when the line was loaded from a NetSuite document. Saved in the draft notes as `netsuite` (W4). */
   netsuite?: NetSuiteLineRef;
 };
 
