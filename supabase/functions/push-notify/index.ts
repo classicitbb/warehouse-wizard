@@ -80,7 +80,7 @@ async function renderNotification(sb: Client, claim: ClaimRow) {
     return {
       title: `Pick ticket ${number} released`,
       body: parts || 'A new pick ticket is ready to pick.',
-      url: '/pick-lists',
+      url: pickListId ? `/pick-lists/${pickListId}` : '/pick-lists',
       // The ring. Everything else is silent.
       silent: false,
       tag: `ww-pick-${pickListId ?? claim.event_ids[0]}`,
@@ -99,7 +99,7 @@ async function renderNotification(sb: Client, claim: ClaimRow) {
   return {
     title: count === 1 ? '1 pallet ready for put-away' : `${count} pallets ready for put-away`,
     body: detail || 'New put-away work is waiting.',
-    url: '/putaway-tasks',
+    url: container || po ? `/putaway-tasks?search=${encodeURIComponent(container ?? po ?? '')}` : '/putaway-tasks?open=1',
     silent: true,
     tag: `ww-putaway-${claim.group_key ?? claim.event_ids[0]}`,
   }

@@ -361,6 +361,8 @@ export function PutawayTasksPage() {
   const [selectedBatchReturnTaskIds, setSelectedBatchReturnTaskIds] = useState<Set<string>>(new Set());
   const [batchReturnErrors, setBatchReturnErrors] = useState<Record<string, string>>({});
   const correctionTaskId = searchParams.get("correctionTask");
+  const notificationSearch = searchParams.get("search");
+  const notificationOpen = searchParams.get("open");
 
   const clearSelectedTaskState = useCallback((taskId?: string | null) => {
     if (!taskId) return;
@@ -588,6 +590,15 @@ export function PutawayTasksPage() {
       description: "Open the task list and scan it when you're ready to store it.",
     });
   }, [correctionTaskId, isLoading, pendingTasks, setSearchParams]);
+  // Deep link from a put-away notification: show the open queue filtered to
+  // the batch (container / PO) so the operator lands on the work to store.
+  useEffect(() => {
+    if (!resumeHydrated || (notificationSearch === null && notificationOpen === null)) return;
+    if (notificationSearch) setTaskSearch(notificationSearch);
+    setSelectedTaskId(null);
+    setOpenTasksExpanded(true);
+    setSearchParams({}, { replace: true });
+  }, [notificationOpen, notificationSearch, resumeHydrated, setSearchParams]);
   const selectedBatchReturnTasks = pendingTasks.filter((task: any) => selectedBatchReturnTaskIds.has(task.id));
 
   useEffect(() => {
@@ -677,6 +688,8 @@ export function PutawayTasksPage() {
         pallet?.pallet_code,
         pallet?.products?.sku,
         pallet?.products?.name,
+        pallet?.receipt_lines?.receipts?.container_number,
+        pallet?.receipt_lines?.receipts?.po_number,
         task.task_number,
       ].some((value) => String(value ?? "").toLowerCase().includes(normalizedTaskSearch));
     });

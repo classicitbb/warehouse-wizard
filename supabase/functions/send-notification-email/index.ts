@@ -82,7 +82,7 @@ async function deliver(
     /** Rendered into the footer by shell(). Omit for mail nobody may opt out of. */
     unsubscribeUrl?: string | null
   },
-): Promise<boolean> {
+): Promise<boolean | null> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
   if (!apiKey) {
     console.error('LOVABLE_API_KEY is not configured')
@@ -101,6 +101,7 @@ async function deliver(
     }
   }
 
+  for (let attempt = 0; ; attempt++) {
   try {
     await sendLovableEmail(
       {
@@ -116,15 +117,22 @@ async function deliver(
       },
       { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') },
     )
+    break
   } catch (error) {
     if (error instanceof EmailAPIError && error.code === 'recipient_suppressed') {
       await log('suppressed')
-      return false
+      return null
     }
     const message = error instanceof Error ? error.message : String(error)
+    // Rate limited: back off and retry (idempotency key makes retries safe).
+    if (/429|rate_limited/i.test(message) && attempt < 4) {
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt))
+      continue
+    }
     console.error('Could not send notification email', { label: input.label, message })
     await log('failed', message.slice(0, 1000))
     return false
+  }
   }
 
   await log('sent')
@@ -239,15 +247,16 @@ async function sendPickListCreated(sb: Client, eventId: string) {
   const functionsBase = (Deno.env.get('SUPABASE_URL') ?? '') + '/functions/v1/email-unsubscribe'
 
   let sent = 0
+  let failed = 0
   for (const to of recipients) {
+    if (sent + failed > 0) await new Promise((r) => setTimeout(r, 250))
     let unsubscribeUrl: string | null = null
     const { data: token } = await sb.rpc('get_or_create_unsubscribe_token', { in_email: to })
     if (typeof token === 'string' && token) {
       unsubscribeUrl = functionsBase + '?t=' + encodeURIComponent(token)
     }
 
-    if (
-      await deliver(sb, {
+    const outcome = await deliver(sb, {
         to,
         subject: rendered.subject,
         title: rendered.subject,
@@ -257,15 +266,14 @@ async function sendPickListCreated(sb: Client, eventId: string) {
         idempotencyKey: 'pick-list-created-' + eventId + '-' + to,
         unsubscribeUrl,
       })
-    ) {
-      sent += 1
-    }
+    if (outcome === true) sent += 1
+    else if (outcome === false) failed += 1
   }
 
   await sb.rpc('complete_notification_dispatch', {
     in_event_ids: [eventId],
     in_channel: 'email',
-    in_error: null,
+    in_error: failed > 0 ? `${failed} of ${recipients.length} pick list emails failed to send` : null,
   })
 
   return { sent, recipients: recipients.length }
