@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { NetSuiteSyncJobsCard } from "@/features/admin/netsuite-sync-jobs";
 
 /**
  * One-time reveal for a server-generated shared secret. The plaintext is
@@ -689,6 +690,7 @@ export function NetSuiteIntegrationsTab() {
       <NetSuiteIntegrationCard />
       <NetSuiteWarehouseMappingCard />
       <NetSuiteImportCard />
+      <NetSuiteSyncJobsCard />
     </>
   );
 }
