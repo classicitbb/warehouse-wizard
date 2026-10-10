@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => ({
       generateBundle() {
         this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version: pkg.version }) });
       },
-    },
+    } satisfies Plugin,
     // The code generator currently emits non-portable absolute imports on Windows.
     process.platform !== "win32" && mcpPlugin(),
     VitePWA({
