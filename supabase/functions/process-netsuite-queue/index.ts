@@ -59,7 +59,11 @@ Deno.serve(async (req) => {
   // has to wait until the connection is loaded below.
   const authHeader = req.headers.get('Authorization')
   const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : ''
-  const hasServiceRoleJwt = bearer ? parseJwtClaims(bearer)?.role === 'service_role' : false
+  // New-format service keys (sb_secret_...) are not JWTs, so also accept an
+  // exact timing-safe match against the runtime's own service-role key.
+  const hasServiceRoleJwt = bearer
+    ? parseJwtClaims(bearer)?.role === 'service_role' || timingSafeEqual(bearer, serviceRoleKey)
+    : false
   const providedQueueSecret = req.headers.get('x-queue-secret') ?? ''
 
   if (!hasServiceRoleJwt && !providedQueueSecret) {
