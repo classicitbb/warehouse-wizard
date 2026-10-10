@@ -176,6 +176,9 @@ export function FillBar({ stats, disabled = false }: { stats?: FillStats; disabl
     : 0;
   const hasDisabled = disabled || safeStats.disabled > 0;
   const available = safeStats.total - safeStats.disabled;
+  // Pallets in blocked/disabled bins still physically exist; keep them visible.
+  const shownPallets = safeStats.occupied + safeStats.disabledOccupied;
+  const shownCapacity = safeStats.capacity > 0 ? safeStats.capacity : safeStats.totalCapacity;
   const title = [
     `${safeStats.occupied}/${safeStats.capacity} pallets in usable bins (${percent}% full)`,
     `Locations: ${safeStats.total} total · ${available} available · ${safeStats.filled} filled`,
@@ -192,7 +195,7 @@ export function FillBar({ stats, disabled = false }: { stats?: FillStats; disabl
         />
       </div>
       <span className="w-10 shrink-0 text-right font-mono text-[10px] text-muted-foreground">
-        {safeStats.occupied}/{safeStats.capacity}
+        {shownPallets}/{shownCapacity}
       </span>
     </div>
   );

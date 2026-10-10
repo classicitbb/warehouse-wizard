@@ -9,6 +9,7 @@ import { isActiveWorkInProgress } from "@/lib/active-work";
 import { notifyNewBuildAvailable } from "@/lib/build-notification";
 import { installDailyRefresh } from "@/lib/daily-refresh";
 import { installFloorAudioPrimer } from "@/lib/audio-unlock";
+import { FirstTouchUpdateGate } from "@/components/first-touch-update-gate";
 
 import "./index.css";
 
@@ -81,9 +82,13 @@ window.addEventListener("error", (event) => {
 // ── App mount ─────────────────────────────────────────────────────────────────
 
 createRoot(document.getElementById("root")!).render(
-  <AppErrorBoundary>
-    <App />
-  </AppErrorBoundary>,
+  <>
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
+    {/* Outside the boundary on purpose: a crashed tablet on a stale build still needs the update. */}
+    <FirstTouchUpdateGate />
+  </>,
 );
 
 // Auto-check for new service worker every hour and prompt to reload when an
@@ -106,7 +111,9 @@ if (!isInIframe && !isPreviewHost) {
   // published app get a fresh shell after a deploy, even if a prior SW
   // precached stale bundles. Runs before re-registering the current SW.
   const PURGE_KEY = `__ww_cache_purged_v_${String(__APP_VERSION__)}`;
-  if (!sessionStorage.getItem(PURGE_KEY)) {
+  // Never while offline: unregistering the worker with no network leaves the
+  // device with no app. The key stays unset, so the next online launch retries.
+  if (!sessionStorage.getItem(PURGE_KEY) && navigator.onLine !== false) {
     void (async () => {
       let removed = false;
       try {
