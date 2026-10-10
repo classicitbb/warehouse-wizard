@@ -23,7 +23,7 @@ import { logErrorTelemetry } from "@/lib/system-telemetry";
 import { describeErrorForReport, requestCopilotReport } from "@/features/copilot/report-request";
 import { activeReportContext } from "@/features/copilot/report-context";
 import { recordAction } from "@/lib/habit-tracking";
-import { navigatePreservingPreviewParams } from "@/lib/preview-env";
+import { navigatePreservingPreviewParams, requestAppRefresh } from "@/lib/preview-env";
 
 // ── Chunk-load detection ──────────────────────────────────────────────────────
 
