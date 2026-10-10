@@ -1008,10 +1008,13 @@ Deno.serve(async (req) => {
     const response = result.toUIMessageStreamResponse({
       originalMessages: incomingMessages,
       sendReasoning: true,
-      headers: responseCorsHeaders,
       onError: (error) => error instanceof Error ? error.message : 'The Copilot service could not answer this request.',
     })
-    return await withLovableAiGatewayRunIdHeader(response, gateway)
+    // toUIMessageStreamResponse no longer accepts a headers option, so the
+    // CORS headers are merged onto the returned Response instead.
+    const corsResponse = new Response(response.body, { status: response.status, statusText: response.statusText, headers: new Headers(response.headers) })
+    for (const [key, value] of Object.entries(responseCorsHeaders)) corsResponse.headers.set(key, value)
+    return await withLovableAiGatewayRunIdHeader(corsResponse, gateway)
   } catch (error) {
     console.error('[copilot] unexpected failure:', error)
     if (req.signal.aborted) return json({ error: 'Copilot request stopped.' }, 499)
