@@ -36,5 +36,5 @@ Deno.serve(async (req) => {
   const text = await res.text()
   let body: unknown = text
   try { body = JSON.parse(text) } catch { /* keep raw text */ }
-  return json({ upstream_status: res.status, upstream_body: body })
+  return json({ upstream_status: res.status, upstream_body: body, key_format: serviceKey.startsWith('eyJ') ? 'jwt' : serviceKey.slice(0, 9) + '…' })
 })
