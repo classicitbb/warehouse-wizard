@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Boxes, Download, KeyRound, Loader2, MapPinned, Network, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Boxes, Download, KeyRound, Loader2, MapPinned, Network, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -488,6 +488,13 @@ type NetSuiteListedItem = {
   alreadyImported: boolean;
 };
 
+type ItemSortKey = "datecreated" | "itemid" | "displayname" | "status";
+type ItemSortDir = "asc" | "desc";
+
+function toImportPayload(i: NetSuiteListedItem) {
+  return { externalId: i.externalId, itemId: i.itemId, displayName: i.displayName, upcCode: i.upcCode, active: i.active };
+}
+
 function NetSuiteImportCard() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -496,11 +503,15 @@ function NetSuiteImportCard() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importAllProgress, setImportAllProgress] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, NetSuiteListedItem>>({});
   const [notConfigured, setNotConfigured] = useState(false);
+  // Newest-added first by default. Item/name sort in NetSuite; status sorts the loaded page.
+  const [sortKey, setSortKey] = useState<ItemSortKey>("datecreated");
+  const [sortDir, setSortDir] = useState<ItemSortDir>("desc");
   const limit = 25;
 
-  const fetchItems = useCallback(async (nextOffset: number, nextSearch: string) => {
+  const fetchItems = useCallback(async (nextOffset: number, nextSearch: string, nextSort: ItemSortKey, nextDir: ItemSortDir) => {
     setLoading(true);
     try {
       const { data: statusData, error: statusError } = await supabase.functions.invoke("netsuite-connection", {
@@ -515,8 +526,10 @@ function NetSuiteImportCard() {
         return;
       }
 
+      const serverSort = nextSort === "status" ? "datecreated" : nextSort;
+      const serverDir = nextSort === "status" ? "desc" : nextDir;
       const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: { action: "list_items", search: nextSearch || undefined, limit, offset: nextOffset },
+        body: { action: "list_items", search: nextSearch || undefined, limit, offset: nextOffset, sort: serverSort, direction: serverDir },
       });
       const result = data as { items?: NetSuiteListedItem[]; hasMore?: boolean; error?: string; notConfigured?: boolean };
       const errMsg = result?.error ?? (error instanceof Error ? error.message : "");
@@ -540,19 +553,34 @@ function NetSuiteImportCard() {
     }
   }, []);
 
-  useEffect(() => { void fetchItems(0, ""); }, [fetchItems]);
+  useEffect(() => { void fetchItems(0, "", "datecreated", "desc"); }, [fetchItems]);
 
   const runSearch = () => {
     const trimmed = searchInput.trim();
     setSearch(trimmed);
     setOffset(0);
-    void fetchItems(0, trimmed);
+    void fetchItems(0, trimmed, sortKey, sortDir);
   };
 
   const goToPage = (nextOffset: number) => {
     setOffset(nextOffset);
-    void fetchItems(nextOffset, search);
+    void fetchItems(nextOffset, search, sortKey, sortDir);
   };
+
+  const toggleSort = (key: ItemSortKey) => {
+    const dir: ItemSortDir = sortKey === key ? (sortDir === "asc" ? "desc" : "asc") : "asc";
+    setSortKey(key);
+    setSortDir(dir);
+    if (key === "status") return; // client-side on the loaded page
+    setOffset(0);
+    void fetchItems(0, search, key, dir);
+  };
+
+  const visibleItems = useMemo(() => {
+    if (sortKey !== "status") return items;
+    const factor = sortDir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => (Number(a.alreadyImported) - Number(b.alreadyImported)) * factor);
+  }, [items, sortKey, sortDir]);
 
   const toggleSelected = (item: NetSuiteListedItem) => {
     setSelected((prev) => {
@@ -565,39 +593,84 @@ function NetSuiteImportCard() {
 
   const selectedCount = Object.keys(selected).length;
 
+  const sendImport = async (batch: NetSuiteListedItem[]) => {
+    const { data, error } = await supabase.functions.invoke("netsuite-connection", {
+      body: { action: "import_items", items: batch.map(toImportPayload) },
+    });
+    if (error) throw error;
+    const result = data as { succeeded?: number; failed?: number; error?: string };
+    if (result?.error) throw new Error(result.error);
+    return { succeeded: result?.succeeded ?? 0, failed: result?.failed ?? 0 };
+  };
+
+  const reportImport = (succeeded: number, failed: number) => {
+    if (failed > 0) toast.warning(`Imported ${succeeded}, ${failed} failed — check System Log for details.`);
+    else toast.success(`Imported ${succeeded} product${succeeded === 1 ? "" : "s"} from NetSuite`);
+  };
+
   const handleImport = async () => {
     const toImport = Object.values(selected);
     if (toImport.length === 0) return;
     setImporting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("netsuite-connection", {
-        body: {
-          action: "import_items",
-          items: toImport.map((i) => ({
-            externalId: i.externalId,
-            itemId: i.itemId,
-            displayName: i.displayName,
-            upcCode: i.upcCode,
-            active: i.active,
-          })),
-        },
-      });
-      if (error) throw error;
-      const result = data as { succeeded?: number; failed?: number; error?: string };
-      if (result?.error) throw new Error(result.error);
-      if ((result?.failed ?? 0) > 0) {
-        toast.warning(`Imported ${result?.succeeded ?? 0}, ${result?.failed} failed — check System Log for details.`);
-      } else {
-        toast.success(`Imported ${result?.succeeded ?? 0} product${result?.succeeded === 1 ? "" : "s"} from NetSuite`);
-      }
+      const r = await sendImport(toImport);
+      reportImport(r.succeeded, r.failed);
       setSelected({});
-      await fetchItems(offset, search);
+      await fetchItems(offset, search, sortKey, sortDir);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
     }
   };
+
+  // Walks every page matching the current search (100 at a time) and imports the not-yet-imported items.
+  const handleImportAll = async () => {
+    setImporting(true);
+    let succeeded = 0;
+    let failed = 0;
+    let scanned = 0;
+    try {
+      let pageOffset = 0;
+      for (;;) {
+        setImportAllProgress(`Checked ${scanned} · imported ${succeeded}…`);
+        const { data, error } = await supabase.functions.invoke("netsuite-connection", {
+          body: { action: "list_items", search: search || undefined, limit: 100, offset: pageOffset, sort: "datecreated", direction: "desc" },
+        });
+        if (error) throw error;
+        const result = data as { items?: NetSuiteListedItem[]; hasMore?: boolean; error?: string };
+        if (result?.error) throw new Error(result.error);
+        const page = result?.items ?? [];
+        scanned += page.length;
+        const pending = page.filter((i) => !i.alreadyImported);
+        if (pending.length > 0) {
+          const r = await sendImport(pending);
+          succeeded += r.succeeded;
+          failed += r.failed;
+        }
+        if (!result?.hasMore || page.length === 0) break;
+        pageOffset += page.length;
+      }
+      if (succeeded === 0 && failed === 0) toast.info("Everything in this list is already imported.");
+      else reportImport(succeeded, failed);
+      setSelected({});
+      await fetchItems(offset, search, sortKey, sortDir);
+    } catch (err) {
+      toast.error(`${err instanceof Error ? err.message : "Import failed"} (imported ${succeeded} before stopping — run Import all again to continue)`);
+    } finally {
+      setImporting(false);
+      setImportAllProgress(null);
+    }
+  };
+
+  const sortHead = (key: ItemSortKey, label: string) => (
+    <TableHead aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort(key)}>
+        {label}
+        {sortKey === key ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-50" />}
+      </button>
+    </TableHead>
+  );
 
   return (
     <Card className="xl:col-span-2">
