@@ -9,6 +9,7 @@ import {
   inboundStatusLabel,
   indexReceived,
   indexTotals,
+  looksLikeContainerNumber,
   mapShipmentDetail,
   mapShipmentSummary,
   normalizeFieldId,
@@ -155,10 +156,28 @@ describe("container field", () => {
 
   it("finds the custom container number column among the record's columns", () => {
     const columns = ["id", "shipmentnumber", "externaldocumentnumber", "custrecord_container_size", "custrecord_container_status", "custrecord_container_no", "custrecord_sn_number"];
-    expect(findContainerField(columns)).toBe("custrecord_container_no");
-    expect(findContainerField(["id", "custrecord_containers"])).toBe("custrecord_containers");
-    expect(findContainerField(["id", "shipmentnumber", "custrecord_container_size"])).toBeNull();
-    expect(findContainerField([])).toBeNull();
+    const sample = [{ custrecord_container_no: "SMLU7872173, SMLU3120938" }];
+    expect(findContainerField(columns, sample)).toBe("custrecord_container_no");
+    expect(findContainerField(["id", "custrecord_containers"], [{ custrecord_containers: "SMLU7872173" }])).toBe("custrecord_containers");
+    expect(findContainerField(["id", "shipmentnumber", "custrecord_container_size"], [{ custrecord_container_size: "20GP" }])).toBeNull();
+    expect(findContainerField([], [])).toBeNull();
+  });
+
+  it("rejects a container-named column whose values are not container numbers", () => {
+    // Live on the Simplex account: `custrecord_container_stat` holds a small count,
+    // and selecting it would put "2" in the container field of a receiving draft.
+    const columns = ["id", "shipmentnumber", "custrecord_container_stat", "custrecord_container_size"];
+    const sample = [{ custrecord_container_stat: "2", custrecord_container_size: "40HC" }];
+    expect(findContainerField(columns, sample)).toBeNull();
+  });
+
+  it("reads only ISO 6346 shaped values as container numbers", () => {
+    expect(looksLikeContainerNumber("SMLU7872173")).toBe(true);
+    expect(looksLikeContainerNumber("SMLU7872173, SMLU3120938")).toBe(true);
+    expect(looksLikeContainerNumber("2")).toBe(false);
+    expect(looksLikeContainerNumber("SN0427")).toBe(false);
+    expect(looksLikeContainerNumber("C 48443, C 48445")).toBe(false);
+    expect(looksLikeContainerNumber(null)).toBe(false);
   });
 
   it("splits several containers out of one value", () => {
