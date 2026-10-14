@@ -316,10 +316,17 @@ export type NetSuiteDraftLineRef = {
   ordered: number;
   received: number;
   remaining: number;
+  poId?: string;
+  poNumber?: string;
+  inboundShipmentId?: string;
+  inboundShipmentNumber?: string;
+  inboundContainerCount?: number;
 };
 
 export type ShipmentDraftLineInput = {
   product_id: string;
+  /** This line's own PO. An inbound shipment carries several; falls back to the shipment form's PO. */
+  po_number?: string;
   client_id?: string;
   packaging_profile_id?: string;
   total_quantity: number;
@@ -429,15 +436,16 @@ export async function saveShipmentDrafts(input: ShipmentDraftInput): Promise<{ g
       quantities.push(remainderQty);
     }
 
+    const linePoNumber = line.po_number?.trim() || input.po_number?.trim() || "";
     quantities.forEach((quantity, index) => {
       const receiptNumber = buildPalletCode("RCT");
       const draftBarcode = buildPalletCode("PLT");
       rows.push({
         receipt_number: receiptNumber,
         receipt_type: input.receipt_type,
-        reference_number: input.reference_number || input.po_number || receiptNumber,
+        reference_number: input.reference_number || linePoNumber || receiptNumber,
         container_number: input.container_number.trim(),
-        po_number: input.po_number?.trim() || null,
+        po_number: linePoNumber || null,
         draft_group_id: groupId,
         draft_pallet_barcode: draftBarcode,
         draft_sequence: index + 1,
@@ -456,7 +464,7 @@ export async function saveShipmentDrafts(input: ShipmentDraftInput): Promise<{ g
           draft_sequence: index + 1,
           draft_count: quantities.length,
           container_number: input.container_number.trim(),
-          po_number: input.po_number?.trim() || "",
+          po_number: linePoNumber,
           product_id: line.product_id,
           quantity,
           total_quantity: line.total_quantity,

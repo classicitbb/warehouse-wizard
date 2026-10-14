@@ -9,6 +9,7 @@ import {
   type NetSuiteLookupCandidate,
   type NetSuiteLookupDocument,
 } from "@/features/receiving/netsuite-lookup";
+import { findOpenShipmentsForPo, type InboundShipmentSummary } from "@/features/receiving/netsuite-inbound";
 import { documentTypeForReceipt, lineVariance, type SkippedNetSuiteLine } from "@/features/receiving/netsuite-lookup-lines";
 import type { ReceivingShipmentLineState } from "@/features/receiving/receiving-form-state";
 
@@ -31,22 +32,28 @@ export function NetSuiteLookupPanel({
   documentNumber,
   online,
   onLoadDocument,
+  onOpenInbound,
 }: {
   receiptType: string;
   documentNumber: string;
   online: boolean;
   onLoadDocument: LoadDocument;
+  /** Opens the inbound shipment browser, pre-searched. */
+  onOpenInbound?: (search: string) => void;
 }) {
   const documentType = documentTypeForReceipt(receiptType);
   const [state, setState] = useState<PanelState>({ kind: "idle" });
   const [skipped, setSkipped] = useState<SkippedNetSuiteLine[]>([]);
   const [loadedCount, setLoadedCount] = useState<number | null>(null);
+  // Open inbound shipments carrying the PO that was found. A PO on a shipment can only be received through it.
+  const [onShipments, setOnShipments] = useState<InboundShipmentSummary[]>([]);
 
   // A different number or receipt type makes any previous result stale.
   useEffect(() => {
     setState({ kind: "idle" });
     setSkipped([]);
     setLoadedCount(null);
+    setOnShipments([]);
   }, [documentNumber, documentType]);
 
   if (!documentType) return null;
@@ -60,7 +67,10 @@ export function NetSuiteLookupPanel({
     setLoadedCount(null);
     try {
       const result = await lookupNetSuiteDocument(documentType, number);
-      if (result.kind === "found") setState({ kind: "found", document: result.document });
+      if (result.kind === "found") {
+        setState({ kind: "found", document: result.document });
+        if (documentType === "purchase_order") setOnShipments(await findOpenShipmentsForPo(result.document.internalId));
+      }
       else if (result.kind === "not_found") setState({ kind: "message", tone: "info", text: `NetSuite has no ${label} numbered ${number}.` });
       else if (result.kind === "ambiguous") {
         setState({
@@ -124,9 +134,23 @@ export function NetSuiteLookupPanel({
               </li>
             ))}
           </ul>
-          <Button type="button" size="sm" className="w-fit" onClick={() => load(state.document)}>
-            Load lines into shipment
-          </Button>
+          {onShipments.length > 0 ? (
+            <div role="alert" className="grid gap-1 text-xs text-amber-600 dark:text-amber-400">
+              <p>
+                This purchase order is on inbound shipment {onShipments.map((s) => s.number).join(", ")}. NetSuite only lets it be
+                received through the shipment, so load it from there.
+              </p>
+              {onOpenInbound && (
+                <Button type="button" size="sm" className="w-fit" onClick={() => onOpenInbound(onShipments[0].number)}>
+                  Open shipment {onShipments[0].number}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Button type="button" size="sm" className="w-fit" onClick={() => load(state.document)}>
+              Load lines into shipment
+            </Button>
+          )}
         </div>
       )}
 
@@ -152,10 +176,12 @@ export function NetSuiteLookupPanel({
 export function NetSuiteLineNote({ line }: { line: ReceivingShipmentLineState }) {
   if (!line.netsuite) return null;
   const variance = lineVariance(line);
-  const { lineNumber, ordered, received, remaining } = line.netsuite;
+  const { lineNumber, ordered, received, remaining, poNumber, inboundShipmentNumber } = line.netsuite;
   return (
     <p className="text-xs text-muted-foreground">
-      NetSuite line {lineNumber ?? "?"} · ordered {ordered} · already received {received} · expecting {remaining}
+      {poNumber ? `PO ${poNumber} · ` : ""}
+      {inboundShipmentNumber ? `shipment ${inboundShipmentNumber} · ` : ""}
+      NetSuite line {lineNumber ?? "?"} · {inboundShipmentNumber ? "expected" : "ordered"} {ordered} · already received {received} · expecting {remaining}
       {variance && variance.kind !== "exact" ? (
         <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">
           · {variance.kind === "short" ? `short by ${variance.by}` : `over by ${variance.by}`}

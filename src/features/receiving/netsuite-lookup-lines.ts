@@ -13,6 +13,8 @@ export function documentTypeForReceipt(receiptType: string): NetSuiteDocumentTyp
 export type SkippedNetSuiteLine = {
   lineNumber: number | null;
   itemName: string;
+  /** Set for inbound shipment lines, where line numbers repeat across POs. */
+  poNumber?: string;
   reason: "item_not_imported" | "nothing_remaining";
 };
 
@@ -95,6 +97,12 @@ export function netsuiteRefFromDraftMeta(meta: Record<string, unknown> | null | 
   const raw = meta?.netsuite as Partial<NetSuiteLineRef> | undefined;
   if (!raw || typeof raw !== "object") return undefined;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const optionalText = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  const poId = optionalText(raw.poId);
+  const poNumber = optionalText(raw.poNumber);
+  const inboundShipmentId = optionalText(raw.inboundShipmentId);
+  const inboundShipmentNumber = optionalText(raw.inboundShipmentNumber);
+  const inboundContainerCount = typeof raw.inboundContainerCount === "number" && raw.inboundContainerCount > 0 ? raw.inboundContainerCount : undefined;
   return {
     lineKey: typeof raw.lineKey === "string" ? raw.lineKey : null,
     lineNumber: typeof raw.lineNumber === "number" ? raw.lineNumber : null,
@@ -102,6 +110,11 @@ export function netsuiteRefFromDraftMeta(meta: Record<string, unknown> | null | 
     ordered: num(raw.ordered),
     received: num(raw.received),
     remaining: num(raw.remaining),
+    ...(poId ? { poId } : {}),
+    ...(poNumber ? { poNumber } : {}),
+    ...(inboundShipmentId ? { inboundShipmentId } : {}),
+    ...(inboundShipmentNumber ? { inboundShipmentNumber } : {}),
+    ...(inboundContainerCount ? { inboundContainerCount } : {}),
   };
 }
 
