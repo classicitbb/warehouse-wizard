@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
   let body: {
     action?: 'save' | 'generate_certificate' | 'test' | 'status' | 'list_items' | 'import_items'
     accountId?: string
+    sort?: string
+    direction?: string
     clientId?: string
     certificateId?: string
     // Unlike the credential fields, these are not masked, so a string (even an
