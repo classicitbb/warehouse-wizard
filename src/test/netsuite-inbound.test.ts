@@ -6,6 +6,7 @@ import {
   buildInboundTotalsQuery,
   buildShipmentsForPoQuery,
   findContainerField,
+  inboundStatusLabel,
   indexReceived,
   indexTotals,
   mapShipmentDetail,
@@ -102,7 +103,7 @@ describe("mapShipmentSummary", () => {
   it("maps a header row with totals", () => {
     const totals = indexTotals([{ shipmentid: "5", pocount: "2", linecount: 7, quantityexpected: "1860" }]).get("5");
     const s = mapShipmentSummary(
-      { id: 5, shipmentnumber: "ISH-0098", externaldocumentnumber: "MSKU1234565", statusname: "In Transit", statuscode: "inTransit", expecteddeliverydate: "10/20/2026" },
+      { id: 5, shipmentnumber: "ISH-0098", externaldocumentnumber: "MSKU1234565", statuscode: "inTransit", expecteddeliverydate: "10/20/2026" },
       totals,
     );
     expect(s).toMatchObject({
@@ -182,5 +183,27 @@ describe("container field", () => {
   it("reads containers into the summary", () => {
     expect(mapShipmentSummary({ id: "1", containerno: "SMLU7872173, SMLU3120938" }).containers).toEqual(["SMLU7872173", "SMLU3120938"]);
     expect(mapShipmentSummary({ id: "1" }).containers).toEqual([]);
+  });
+});
+
+describe("shipment status", () => {
+  it("derives the label itself, because NetSuite rejects BUILTIN.DF on the status field", () => {
+    expect(inboundStatusLabel("inTransit")).toBe("In Transit");
+    expect(inboundStatusLabel("partiallyReceived")).toBe("Partially Received");
+    expect(inboundStatusLabel("PARTIALLY_RECEIVED")).toBe("Partially Received");
+    expect(inboundStatusLabel("")).toBe("");
+  });
+
+  it("maps a status code to a labelled status", () => {
+    expect(mapShipmentSummary({ id: "1", statuscode: "inTransit" }).status).toEqual({ code: "inTransit", label: "In Transit" });
+    expect(mapShipmentSummary({ id: "1" }).status).toEqual({ code: null, label: "" });
+  });
+
+  it("never asks NetSuite to resolve the status field", () => {
+    const base = { search: "", status: "open", sort: "expected_delivery", direction: "asc" } as const;
+    expect(buildInboundListQuery(base)).not.toContain("BUILTIN.DF(s.shipmentstatus)");
+    expect(buildInboundListQuery(base)).toContain("s.shipmentstatus AS statuscode");
+    expect(buildShipmentsForPoQuery("9")).not.toContain("BUILTIN.DF(s.shipmentstatus)");
+    expect(buildShipmentsForPoQuery("9")).toContain("s.shipmentstatus AS statuscode");
   });
 });
