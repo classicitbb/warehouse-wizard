@@ -306,6 +306,7 @@ export function indexTotals(rows: Row[]): Map<string, InboundTotals> {
 }
 
 export function mapShipmentSummary(row: Row, totals?: InboundTotals): InboundShipmentSummary {
+  const statuscode = text(row.statuscode)
   return {
     id: text(row.id),
     number: text(row.shipmentnumber),
@@ -313,7 +314,7 @@ export function mapShipmentSummary(row: Row, totals?: InboundTotals): InboundShi
     externalDocumentNumber: text(row.externaldocumentnumber),
     billOfLading: text(row.billoflading),
     vesselNumber: text(row.vesselnumber),
-    status: { code: text(row.statuscode) || null, label: text(row.statusname) },
+    status: { code: statuscode || null, label: inboundStatusLabel(statuscode) },
     expectedDeliveryDate: normalizeNetSuiteDate(row.expecteddeliverydate),
     actualShippingDate: normalizeNetSuiteDate(row.actualshippingdate),
     memo: text(row.shipmentmemo),
