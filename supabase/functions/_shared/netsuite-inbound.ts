@@ -33,6 +33,23 @@ export function isInboundSortKey(value: unknown): value is InboundSortKey {
   return value === 'expected_delivery' || value === 'shipment_number' || value === 'status'
 }
 
+/**
+ * Human label for a shipment status code. NetSuite will not resolve it for us —
+ * `BUILTIN.DF(s.shipmentstatus)` is rejected with "Static field is not supported",
+ * because the status is a static list rather than a record reference — so the
+ * label is derived from the code. Handles both the camelCase and the
+ * UPPER_SNAKE spellings accounts use for the same value.
+ */
+export function inboundStatusLabel(code: string): string {
+  const words = code
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(' ')
+    .filter(Boolean)
+  return words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')
+}
+
 // ── input ────────────────────────────────────────────────────────────────────
 
 // Same pattern as `normalizeDocumentNumber` in netsuite-lookup.ts: the term ends up
@@ -98,14 +115,31 @@ export function normalizeFieldId(value: unknown): string | null {
   return typeof value === 'string' && FIELD_ID_PATTERN.test(value.trim()) ? value.trim().toLowerCase() : null
 }
 
-/** Picks the custom container-number column from a `SELECT *` row. Null when nothing plausible is there. */
-export function findContainerField(columns: string[]): string | null {
+/** A token that reads as a real container number: four letters then seven digits (ISO 6346). */
+const CONTAINER_TOKEN = /^[A-Z]{4}\d{7}$/
+
+/** True when a field value holds at least one container-shaped number. */
+export function looksLikeContainerNumber(value: unknown): boolean {
+  return parseContainers(value).some((token) => CONTAINER_TOKEN.test(token))
+}
+
+/**
+ * Picks the custom container-number column from a `SELECT *` sample. The column
+ * name alone is not enough: the Simplex account carries `custrecord_container_stat`
+ * among its columns, whose values are small counts, and selecting it would put
+ * "2" into the container field of a receiving draft. A column is accepted only
+ * when a sampled value actually looks like a container number. Null when none
+ * does, and the browser then falls back to the vessel number.
+ */
+export function findContainerField(columns: string[], sample: Row[] = []): string | null {
   const candidates = columns
     .map((c) => normalizeFieldId(c))
     .filter((c): c is string => c !== null && c.startsWith('cust') && c.includes('container'))
-    .filter((c) => !/(size|status|type|line|count|seal|date|weight)/.test(c))
-  const numbered = candidates.find((c) => /(no|num|number|numbers|nos)$/.test(c))
-  return numbered ?? candidates[0] ?? null
+    .filter((c) => !/(size|stat|type|line|count|seal|date|weight)/.test(c))
+  const holding = candidates.filter((c) => sample.some((row) => looksLikeContainerNumber(row[c])))
+  if (holding.length === 0) return null
+  const numbered = holding.find((c) => /(no|num|number|numbers|nos)$/.test(c))
+  return numbered ?? holding[0] ?? null
 }
 
 /** "SMLU7872173, SMLU3120938" → two containers. Splits on commas, semicolons, slashes and whitespace. */
@@ -142,7 +176,7 @@ export function buildInboundListQuery(params: InboundListParams, containerField:
   const nulls = 'NULLS LAST'
   return `SELECT s.id, s.shipmentnumber, s.externaldocumentnumber, s.billoflading, s.vesselnumber, `
     + (field ? `s.${field} AS containerno, ` : '')
-    + `BUILTIN.DF(s.shipmentstatus) AS statusname, s.shipmentstatus AS statuscode, `
+    + `s.shipmentstatus AS statuscode, `
     + `s.expecteddeliverydate, s.actualshippingdate, s.shipmentmemo `
     + `FROM inboundshipment s${where.length ? ` WHERE ${where.join(' AND ')}` : ''} `
     + `ORDER BY ${SORT_COLUMNS[params.sort]} ${direction} ${nulls}, s.id DESC`
@@ -186,7 +220,7 @@ export function buildInboundReceivedQuery(shipmentId: string): string {
 export function buildShipmentsForPoQuery(poInternalId: string): string {
   const id = normalizeInternalId(poInternalId)
   if (!id) throw new Error('Invalid purchase order id')
-  return `SELECT DISTINCT s.id, s.shipmentnumber, s.externaldocumentnumber, BUILTIN.DF(s.shipmentstatus) AS statusname `
+  return `SELECT DISTINCT s.id, s.shipmentnumber, s.externaldocumentnumber, s.shipmentstatus AS statuscode `
     + `FROM inboundshipmentitem i JOIN inboundshipment s ON s.id = i.inboundshipment `
     + `WHERE i.purchaseordertransaction = ${id} AND s.shipmentstatus IN (${quoteList(INBOUND_OPEN_STATUSES)})`
 }
@@ -289,6 +323,7 @@ export function indexTotals(rows: Row[]): Map<string, InboundTotals> {
 }
 
 export function mapShipmentSummary(row: Row, totals?: InboundTotals): InboundShipmentSummary {
+  const statuscode = text(row.statuscode)
   return {
     id: text(row.id),
     number: text(row.shipmentnumber),
@@ -296,7 +331,7 @@ export function mapShipmentSummary(row: Row, totals?: InboundTotals): InboundShi
     externalDocumentNumber: text(row.externaldocumentnumber),
     billOfLading: text(row.billoflading),
     vesselNumber: text(row.vesselnumber),
-    status: { code: text(row.statuscode) || null, label: text(row.statusname) },
+    status: { code: statuscode || null, label: inboundStatusLabel(statuscode) },
     expectedDeliveryDate: normalizeNetSuiteDate(row.expecteddeliverydate),
     actualShippingDate: normalizeNetSuiteDate(row.actualshippingdate),
     memo: text(row.shipmentmemo),

@@ -6,8 +6,10 @@ import {
   buildInboundTotalsQuery,
   buildShipmentsForPoQuery,
   findContainerField,
+  inboundStatusLabel,
   indexReceived,
   indexTotals,
+  looksLikeContainerNumber,
   mapShipmentDetail,
   mapShipmentSummary,
   normalizeFieldId,
@@ -102,7 +104,7 @@ describe("mapShipmentSummary", () => {
   it("maps a header row with totals", () => {
     const totals = indexTotals([{ shipmentid: "5", pocount: "2", linecount: 7, quantityexpected: "1860" }]).get("5");
     const s = mapShipmentSummary(
-      { id: 5, shipmentnumber: "ISH-0098", externaldocumentnumber: "MSKU1234565", statusname: "In Transit", statuscode: "inTransit", expecteddeliverydate: "10/20/2026" },
+      { id: 5, shipmentnumber: "ISH-0098", externaldocumentnumber: "MSKU1234565", statuscode: "inTransit", expecteddeliverydate: "10/20/2026" },
       totals,
     );
     expect(s).toMatchObject({
@@ -154,10 +156,28 @@ describe("container field", () => {
 
   it("finds the custom container number column among the record's columns", () => {
     const columns = ["id", "shipmentnumber", "externaldocumentnumber", "custrecord_container_size", "custrecord_container_status", "custrecord_container_no", "custrecord_sn_number"];
-    expect(findContainerField(columns)).toBe("custrecord_container_no");
-    expect(findContainerField(["id", "custrecord_containers"])).toBe("custrecord_containers");
-    expect(findContainerField(["id", "shipmentnumber", "custrecord_container_size"])).toBeNull();
-    expect(findContainerField([])).toBeNull();
+    const sample = [{ custrecord_container_no: "SMLU7872173, SMLU3120938" }];
+    expect(findContainerField(columns, sample)).toBe("custrecord_container_no");
+    expect(findContainerField(["id", "custrecord_containers"], [{ custrecord_containers: "SMLU7872173" }])).toBe("custrecord_containers");
+    expect(findContainerField(["id", "shipmentnumber", "custrecord_container_size"], [{ custrecord_container_size: "20GP" }])).toBeNull();
+    expect(findContainerField([], [])).toBeNull();
+  });
+
+  it("rejects a container-named column whose values are not container numbers", () => {
+    // Live on the Simplex account: `custrecord_container_stat` holds a small count,
+    // and selecting it would put "2" in the container field of a receiving draft.
+    const columns = ["id", "shipmentnumber", "custrecord_container_stat", "custrecord_container_size"];
+    const sample = [{ custrecord_container_stat: "2", custrecord_container_size: "40HC" }];
+    expect(findContainerField(columns, sample)).toBeNull();
+  });
+
+  it("reads only ISO 6346 shaped values as container numbers", () => {
+    expect(looksLikeContainerNumber("SMLU7872173")).toBe(true);
+    expect(looksLikeContainerNumber("SMLU7872173, SMLU3120938")).toBe(true);
+    expect(looksLikeContainerNumber("2")).toBe(false);
+    expect(looksLikeContainerNumber("SN0427")).toBe(false);
+    expect(looksLikeContainerNumber("C 48443, C 48445")).toBe(false);
+    expect(looksLikeContainerNumber(null)).toBe(false);
   });
 
   it("splits several containers out of one value", () => {
@@ -182,5 +202,27 @@ describe("container field", () => {
   it("reads containers into the summary", () => {
     expect(mapShipmentSummary({ id: "1", containerno: "SMLU7872173, SMLU3120938" }).containers).toEqual(["SMLU7872173", "SMLU3120938"]);
     expect(mapShipmentSummary({ id: "1" }).containers).toEqual([]);
+  });
+});
+
+describe("shipment status", () => {
+  it("derives the label itself, because NetSuite rejects BUILTIN.DF on the status field", () => {
+    expect(inboundStatusLabel("inTransit")).toBe("In Transit");
+    expect(inboundStatusLabel("partiallyReceived")).toBe("Partially Received");
+    expect(inboundStatusLabel("PARTIALLY_RECEIVED")).toBe("Partially Received");
+    expect(inboundStatusLabel("")).toBe("");
+  });
+
+  it("maps a status code to a labelled status", () => {
+    expect(mapShipmentSummary({ id: "1", statuscode: "inTransit" }).status).toEqual({ code: "inTransit", label: "In Transit" });
+    expect(mapShipmentSummary({ id: "1" }).status).toEqual({ code: null, label: "" });
+  });
+
+  it("never asks NetSuite to resolve the status field", () => {
+    const base = { search: "", status: "open", sort: "expected_delivery", direction: "asc" } as const;
+    expect(buildInboundListQuery(base)).not.toContain("BUILTIN.DF(s.shipmentstatus)");
+    expect(buildInboundListQuery(base)).toContain("s.shipmentstatus AS statuscode");
+    expect(buildShipmentsForPoQuery("9")).not.toContain("BUILTIN.DF(s.shipmentstatus)");
+    expect(buildShipmentsForPoQuery("9")).toContain("s.shipmentstatus AS statuscode");
   });
 });
