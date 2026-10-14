@@ -350,8 +350,8 @@ Deno.serve(async (req) => {
         ? `WHERE isinactive = 'F' AND (UPPER(itemid) LIKE UPPER('%${safeSearch}%') OR UPPER(displayname) LIKE UPPER('%${safeSearch}%'))`
         : `WHERE isinactive = 'F'`
       // Whitelisted sort; default is newest-added first.
-      const sortColumn = body.sort === 'itemid' ? 'itemid' : body.sort === 'displayname' ? 'displayname' : 'datecreated'
-      const sortDir = body.direction === 'asc' ? 'ASC' : body.direction === 'desc' ? 'DESC' : (sortColumn === 'datecreated' ? 'DESC' : 'ASC')
+      const sortColumn = body.sort === 'itemid' ? 'itemid' : body.sort === 'displayname' ? 'displayname' : 'createddate'
+      const sortDir = body.direction === 'asc' ? 'ASC' : body.direction === 'desc' ? 'DESC' : (sortColumn === 'createddate' ? 'DESC' : 'ASC')
       const q = `SELECT id, itemid, displayname, upccode, isinactive FROM item ${where} ORDER BY ${sortColumn} ${sortDir}, id ${sortDir}`
 
       let suiteqlRes: Response
