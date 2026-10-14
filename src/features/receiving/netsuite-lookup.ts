@@ -52,7 +52,7 @@ export type NetSuiteLookupResult =
 // supabase-js reports any non-2xx as "Edge Function returned a non-2xx status
 // code" and keeps the function's own message on error.context. Surface that
 // message (permission denied, NetSuite busy, ...) rather than the generic one.
-async function describeInvokeError(error: { message: string; context?: unknown }): Promise<string> {
+export async function describeInvokeError(error: { message: string; context?: unknown }): Promise<string> {
   const context = error.context;
   if (context instanceof Response) {
     const body = await context.clone().json().catch(() => null);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, Pencil, Plus, Printer, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronDown, Pencil, Plus, Printer, RotateCcw, Search, Ship, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
@@ -45,6 +45,9 @@ import { ShipmentLineCard, type ShipmentLineRefs } from "@/features/receiving/sh
 import { NetSuiteLookupPanel } from "@/features/receiving/netsuite-lookup-panel";
 import { buildShipmentLinesFromLookup, mergeLoadedLines, netsuiteRefFromDraftMeta } from "@/features/receiving/netsuite-lookup-lines";
 import type { NetSuiteLookupDocument } from "@/features/receiving/netsuite-lookup";
+import { InboundBrowserDialog } from "@/features/receiving/inbound-browser-dialog";
+import { buildShipmentLinesFromInbound, pickContainerNumber, summarizeInboundLines } from "@/features/receiving/inbound-shipment-lines";
+import type { InboundShipmentDetail, InboundShipmentSummary } from "@/features/receiving/netsuite-inbound";
 import { DraftPalletList } from "@/features/receiving/draft-pallet-list";
 import { PrintDraftsDialog } from "@/features/receiving/print-drafts-dialog";
 
@@ -135,6 +138,8 @@ export function ReceivingPage() {
   const [activeShipmentLineId, setActiveShipmentLineId] = useState<string | null>(null);
   const [shipmentEntryMode, setShipmentEntryMode] = useState<ShipmentEntryMode>("shipment");
   const [shipmentOpen, setShipmentOpen] = useState(false);
+  const [inboundOpen, setInboundOpen] = useState(false);
+  const [inboundSearch, setInboundSearch] = useState("");
   const [showShipmentMore, setShowShipmentMore] = useState(false);
   const [draftSearch, setDraftSearch] = useState("");
   const [printOpen, setPrintOpen] = useState(false);
@@ -515,6 +520,8 @@ export function ReceivingPage() {
   });
   useReportContext(reportContext);
 
+  const inboundSummary = useMemo(() => summarizeInboundLines(shipmentForm.lines), [shipmentForm.lines]);
+
   const captureLine = captureLineId
     ? shipmentForm.lines.find((line) => line.id === captureLineId && line.product_id) ?? null
     : null;
@@ -552,6 +559,7 @@ export function ReceivingPage() {
         remainder_quantity: remainderForLine(line),
         remainder_action: line.remainder_action || undefined,
         create_special_pallet: line.remainder_action === "special",
+        po_number: line.netsuite?.poNumber,
         netsuite: line.netsuite,
       }));
       const missingExpiry = shipmentForm.lines.find((line) => {
@@ -900,15 +908,53 @@ export function ReceivingPage() {
 
   // Loads the lines NetSuite still expects into the shipment. Returns the ones
   // it could not load so the lookup panel can say why.
-  function loadNetSuiteDocument(document: NetSuiteLookupDocument) {
-    const { lines, skipped } = buildShipmentLinesFromLookup(document, {
-      productExpiryTracked: (productId) => productRequiresExpiry(productOptions.find((item) => item.id === productId)),
+  // How a line loaded from NetSuite picks up this product's expiry rule and pack standard.
+  function netsuiteLineHelpers() {
+    return {
+      productExpiryTracked: (productId: string) => productRequiresExpiry(productOptions.find((item) => item.id === productId)),
       defaultExpiryDate,
-      defaultPackagingProfileId: (productId) => {
+      defaultPackagingProfileId: (productId: string) => {
         const standard = resolveDefaultProfileForProduct(packagingProfiles as any[], productId);
         return standard ? String(standard.id) : "";
       },
-    });
+    };
+  }
+
+  /** Hands an inbound shipment from the browser to the New Shipment dialog. True when lines were loaded. */
+  function loadInboundShipment(shipment: InboundShipmentSummary, detail: InboundShipmentDetail, chosenContainer = ""): boolean {
+    const { lines, skipped } = buildShipmentLinesFromInbound(shipment, detail, netsuiteLineHelpers());
+    if (lines.length === 0) {
+      toast.error(skipped.length > 0
+        ? `Nothing on ${shipment.number || "this shipment"} can be received: ${skipped.length} line${skipped.length === 1 ? " is" : "s are"} done or not imported yet.`
+        : `${shipment.number || "This shipment"} has no lines.`);
+      return false;
+    }
+    if (!shipmentOpen) openNewShipment();
+    const container = chosenContainer || pickContainerNumber(shipment);
+    setShipmentContainerTouched(Boolean(container));
+    setShipmentContainerScanWarning(null);
+    setShipmentForm((current) => ({
+      ...current,
+      receipt_type: "po",
+      container_number: container,
+      po_number: "",
+      reference_number: shipment.number,
+      lines: mergeLoadedLines(current.lines, lines),
+    }));
+    setActiveShipmentLineId(lines[0].id);
+    if (skipped.length > 0) {
+      toast.warning(`${skipped.length} line${skipped.length === 1 ? "" : "s"} skipped: ${skipped.map((s) => `${s.poNumber ? `${s.poNumber} ` : ""}line ${s.lineNumber ?? "?"} (${s.reason === "item_not_imported" ? "item not imported" : "nothing left"})`).join(", ")}.`);
+    }
+    return true;
+  }
+
+  function openInboundBrowser(search = "") {
+    setInboundSearch(search);
+    setInboundOpen(true);
+  }
+
+  function loadNetSuiteDocument(document: NetSuiteLookupDocument) {
+    const { lines, skipped } = buildShipmentLinesFromLookup(document, netsuiteLineHelpers());
     if (lines.length > 0) {
       const number = document.number.toUpperCase();
       setShipmentForm((current) => ({
@@ -1119,6 +1165,10 @@ export function ReceivingPage() {
             <Printer data-icon="inline-start" />
             <span className="truncate">Print drafts</span>
           </Button>
+          <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm" variant="outline" onClick={() => openInboundBrowser()}>
+            <Ship data-icon="inline-start" />
+            <span className="truncate">View inbound</span>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm">
@@ -1173,6 +1223,19 @@ export function ReceivingPage() {
         onReceive={(draft) => receiveMutation.mutate(draft)}
         onEdit={openEditDraft}
         onDelete={(draftId) => deleteDraftMutation.mutate(draftId)}
+      />
+
+      <InboundBrowserDialog
+        open={inboundOpen}
+        onOpenChange={setInboundOpen}
+        online={online}
+        initialSearch={inboundSearch}
+        drafts={drafts}
+        onReceive={loadInboundShipment}
+        onShowDrafts={(shipment, container) => {
+          setDraftSearch(container || pickContainerNumber(shipment) || shipment.number);
+          setInboundOpen(false);
+        }}
       />
 
       <Dialog open={shipmentOpen} onOpenChange={(open) => {
@@ -1275,25 +1338,46 @@ export function ReceivingPage() {
                         {shipmentContainerMessage}
                       </p>
                     </div>
-                    <div className="grid gap-1.5">
-                      <ShipmentFieldLabel>PO number</ShipmentFieldLabel>
-                      <Input
-                        ref={shipmentPoInputRef}
-                        className="h-9 sm:h-10"
-                        value={shipmentForm.po_number}
-                        aria-label="PO number"
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusFirstProductSearch(); } }}
-                        onChange={(e) => setShipmentForm((cur) => ({ ...cur, po_number: e.target.value.toUpperCase(), reference_number: e.target.value.toUpperCase() }))}
-                      />
-                      {!editingDraft && (
-                        <NetSuiteLookupPanel
-                          receiptType={shipmentForm.receipt_type}
-                          documentNumber={shipmentForm.po_number}
-                          online={online}
-                          onLoadDocument={loadNetSuiteDocument}
+                    {inboundSummary ? (
+                      <div className="grid gap-1.5">
+                        <ShipmentFieldLabel>Inbound shipment</ShipmentFieldLabel>
+                        <div className="flex flex-wrap items-center gap-1.5" aria-label="Purchase orders on this shipment">
+                          <Badge variant="outline">{inboundSummary.shipmentNumber || "NetSuite shipment"}</Badge>
+                          {inboundSummary.poNumbers.map((po) => <Badge key={po} variant="secondary">PO {po}</Badge>)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {inboundSummary.containerCount > 1
+                            ? `This shipment has ${inboundSummary.containerCount} containers, and these lines cover all of them. Set each quantity to what is in container ${shipmentForm.container_number || "this one"}.`
+                            : "Each line below keeps its own PO. Change the quantity to what is actually on the floor."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-1.5">
+                        <ShipmentFieldLabel>PO number</ShipmentFieldLabel>
+                        <Input
+                          ref={shipmentPoInputRef}
+                          className="h-9 sm:h-10"
+                          value={shipmentForm.po_number}
+                          aria-label="PO number"
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusFirstProductSearch(); } }}
+                          onChange={(e) => setShipmentForm((cur) => ({ ...cur, po_number: e.target.value.toUpperCase(), reference_number: e.target.value.toUpperCase() }))}
                         />
-                      )}
-                    </div>
+                        {!editingDraft && (
+                          <NetSuiteLookupPanel
+                            receiptType={shipmentForm.receipt_type}
+                            documentNumber={shipmentForm.po_number}
+                            online={online}
+                            onLoadDocument={loadNetSuiteDocument}
+                            onOpenInbound={openInboundBrowser}
+                          />
+                        )}
+                        {!editingDraft && (
+                          <button type="button" className="w-fit text-sm font-medium text-primary underline-offset-2 hover:underline" onClick={() => openInboundBrowser()}>
+                            Browse inbound shipments
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <button type="button" className="w-fit text-sm font-medium text-primary underline-offset-2 hover:underline" onClick={() => setShowShipmentMore((v) => !v)}>
                     {showShipmentMore ? "Hide" : "Show"} shipment options

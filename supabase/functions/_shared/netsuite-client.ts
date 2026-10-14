@@ -76,9 +76,10 @@ export async function netsuiteSuiteQL<T = Record<string, unknown>>(
   session: NetSuiteSession,
   q: string,
   limit = 100,
+  offset = 0,
 ): Promise<T[]> {
   const res = await fetch(
-    `https://${netsuiteHost(session.accountId)}/services/rest/query/v1/suiteql?limit=${limit}&offset=0`,
+    `https://${netsuiteHost(session.accountId)}/services/rest/query/v1/suiteql?limit=${limit}&offset=${offset}`,
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json', Prefer: 'transient' },
