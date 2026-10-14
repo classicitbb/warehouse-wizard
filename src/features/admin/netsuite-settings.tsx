@@ -694,9 +694,31 @@ function NetSuiteImportCard() {
           </div>
           <Button variant="outline" size="sm" onClick={runSearch} disabled={loading}>Search</Button>
           <Button size="sm" onClick={handleImport} disabled={selectedCount === 0 || importing}>
-            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {importing && !importAllProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Import selected ({selectedCount})
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="secondary" disabled={importing || notConfigured}>
+                {importAllProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {importAllProgress ?? "Import all"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Import all items?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {search
+                    ? `Every active NetSuite item matching "${search}" that is not imported yet will be added.`
+                    : "Every active NetSuite item that is not imported yet will be added. Large catalogs can take a few minutes — keep this page open."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void handleImportAll()}>Import all</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {loading ? (
@@ -711,14 +733,14 @@ function NetSuiteImportCard() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10"></TableHead>
-                  <TableHead>Item ID</TableHead>
-                  <TableHead>Name</TableHead>
+                  {sortHead("itemid", "Item ID")}
+                  {sortHead("displayname", "Name")}
                   <TableHead>UPC</TableHead>
-                  <TableHead>Status</TableHead>
+                  {sortHead("status", "Status")}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => (
+                {visibleItems.map((item) => (
                   <TableRow key={item.externalId}>
                     <TableCell>
                       <Checkbox
