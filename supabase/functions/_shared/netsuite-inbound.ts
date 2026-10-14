@@ -33,6 +33,23 @@ export function isInboundSortKey(value: unknown): value is InboundSortKey {
   return value === 'expected_delivery' || value === 'shipment_number' || value === 'status'
 }
 
+/**
+ * Human label for a shipment status code. NetSuite will not resolve it for us —
+ * `BUILTIN.DF(s.shipmentstatus)` is rejected with "Static field is not supported",
+ * because the status is a static list rather than a record reference — so the
+ * label is derived from the code. Handles both the camelCase and the
+ * UPPER_SNAKE spellings accounts use for the same value.
+ */
+export function inboundStatusLabel(code: string): string {
+  const words = code
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(' ')
+    .filter(Boolean)
+  return words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')
+}
+
 // ── input ────────────────────────────────────────────────────────────────────
 
 // Same pattern as `normalizeDocumentNumber` in netsuite-lookup.ts: the term ends up
@@ -142,7 +159,7 @@ export function buildInboundListQuery(params: InboundListParams, containerField:
   const nulls = 'NULLS LAST'
   return `SELECT s.id, s.shipmentnumber, s.externaldocumentnumber, s.billoflading, s.vesselnumber, `
     + (field ? `s.${field} AS containerno, ` : '')
-    + `BUILTIN.DF(s.shipmentstatus) AS statusname, s.shipmentstatus AS statuscode, `
+    + `s.shipmentstatus AS statuscode, `
     + `s.expecteddeliverydate, s.actualshippingdate, s.shipmentmemo `
     + `FROM inboundshipment s${where.length ? ` WHERE ${where.join(' AND ')}` : ''} `
     + `ORDER BY ${SORT_COLUMNS[params.sort]} ${direction} ${nulls}, s.id DESC`
@@ -186,7 +203,7 @@ export function buildInboundReceivedQuery(shipmentId: string): string {
 export function buildShipmentsForPoQuery(poInternalId: string): string {
   const id = normalizeInternalId(poInternalId)
   if (!id) throw new Error('Invalid purchase order id')
-  return `SELECT DISTINCT s.id, s.shipmentnumber, s.externaldocumentnumber, BUILTIN.DF(s.shipmentstatus) AS statusname `
+  return `SELECT DISTINCT s.id, s.shipmentnumber, s.externaldocumentnumber, s.shipmentstatus AS statuscode `
     + `FROM inboundshipmentitem i JOIN inboundshipment s ON s.id = i.inboundshipment `
     + `WHERE i.purchaseordertransaction = ${id} AND s.shipmentstatus IN (${quoteList(INBOUND_OPEN_STATUSES)})`
 }
