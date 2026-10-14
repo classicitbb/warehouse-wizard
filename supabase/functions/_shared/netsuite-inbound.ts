@@ -115,14 +115,31 @@ export function normalizeFieldId(value: unknown): string | null {
   return typeof value === 'string' && FIELD_ID_PATTERN.test(value.trim()) ? value.trim().toLowerCase() : null
 }
 
-/** Picks the custom container-number column from a `SELECT *` row. Null when nothing plausible is there. */
-export function findContainerField(columns: string[]): string | null {
+/** A token that reads as a real container number: four letters then seven digits (ISO 6346). */
+const CONTAINER_TOKEN = /^[A-Z]{4}\d{7}$/
+
+/** True when a field value holds at least one container-shaped number. */
+export function looksLikeContainerNumber(value: unknown): boolean {
+  return parseContainers(value).some((token) => CONTAINER_TOKEN.test(token))
+}
+
+/**
+ * Picks the custom container-number column from a `SELECT *` sample. The column
+ * name alone is not enough: the Simplex account carries `custrecord_container_stat`
+ * among its columns, whose values are small counts, and selecting it would put
+ * "2" into the container field of a receiving draft. A column is accepted only
+ * when a sampled value actually looks like a container number. Null when none
+ * does, and the browser then falls back to the vessel number.
+ */
+export function findContainerField(columns: string[], sample: Row[] = []): string | null {
   const candidates = columns
     .map((c) => normalizeFieldId(c))
     .filter((c): c is string => c !== null && c.startsWith('cust') && c.includes('container'))
-    .filter((c) => !/(size|status|type|line|count|seal|date|weight)/.test(c))
-  const numbered = candidates.find((c) => /(no|num|number|numbers|nos)$/.test(c))
-  return numbered ?? candidates[0] ?? null
+    .filter((c) => !/(size|stat|type|line|count|seal|date|weight)/.test(c))
+  const holding = candidates.filter((c) => sample.some((row) => looksLikeContainerNumber(row[c])))
+  if (holding.length === 0) return null
+  const numbered = holding.find((c) => /(no|num|number|numbers|nos)$/.test(c))
+  return numbered ?? holding[0] ?? null
 }
 
 /** "SMLU7872173, SMLU3120938" → two containers. Splits on commas, semicolons, slashes and whitespace. */

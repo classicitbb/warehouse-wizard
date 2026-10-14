@@ -55,8 +55,8 @@ async function resolveContainerField(admin: any, session: Parameters<typeof nets
     value = configured
   } else {
     try {
-      const rows = await netsuiteSuiteQL<Record<string, unknown>>(session, 'SELECT * FROM inboundshipment FETCH FIRST 1 ROWS ONLY', 1)
-      value = rows[0] ? findContainerField(Object.keys(rows[0])) : null
+      const sample = await netsuiteSuiteQL<Record<string, unknown>>(session, 'SELECT * FROM inboundshipment FETCH FIRST 10 ROWS ONLY', 10)
+      value = sample[0] ? findContainerField(Object.keys(sample[0]), sample) : null
     } catch (err) {
       if (err instanceof NetSuiteHttpError && err.retryable) throw err
       console.warn('netsuite-inbound: could not read inbound shipment columns', err instanceof Error ? err.message : err)
