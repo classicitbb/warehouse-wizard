@@ -1,16 +1,13 @@
-// One-click unsubscribe landing for notification emails.
+// Unsubscribe API for notification emails.
 //
-// GET  /email-unsubscribe?t=<token>  -> renders a confirmation page
-// POST /email-unsubscribe { token }  -> same, as JSON
+// GET  /email-unsubscribe?t=<token>  -> 302 to the app's /unsubscribe page.
+//      Older emails link here directly; the backend gateway serves HTML as
+//      plain text, so we never render a page here. GET never writes, so mail
+//      scanners that prefetch links cannot unsubscribe anyone.
+// POST /email-unsubscribe { token }  -> performs the unsubscribe, JSON reply.
 //
-// verify_jwt is false: this is opened from an email client by someone who is
-// not signed in, and often prefetched by the mail provider. The token is the
-// only credential, which is why it is a 64-char random string issued by
-// get_or_create_unsubscribe_token and never guessable.
-//
-// Suppression is written exactly the way handle-email-events writes it, so a
-// manual unsubscribe and a provider complaint land in the same place and the
-// existing send path already honours both.
+// verify_jwt is false: called by someone who is not signed in. The token is a
+// 64-char random credential issued by get_or_create_unsubscribe_token.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
 
@@ -19,49 +16,39 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-function page(title: string, message: string, status = 200) {
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:48px 16px;"><tr><td align="center">
-<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-<tr><td style="background:#0f172a;padding:20px 28px;"><span style="color:#ffffff;font-size:18px;font-weight:600;">Warehouse Wizard</span></td></tr>
-<tr><td style="padding:28px;">
-<h1 style="margin:0 0 12px;font-size:19px;color:#0f172a;">${title}</h1>
-<p style="margin:0;color:#334155;font-size:15px;line-height:1.5;">${message}</p>
-</td></tr></table></td></tr></table></body></html>`
-  return new Response(html, {
+const APP_URL = 'https://www.warehousewizard.app'
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
-  let token = ''
   if (req.method === 'GET') {
-    token = new URL(req.url).searchParams.get('t')?.trim() ?? ''
-  } else if (req.method === 'POST') {
-    try {
-      const body = await req.json()
-      token = String(body?.token ?? '').trim()
-    } catch {
-      token = ''
-    }
-  } else {
-    return page('Not allowed', 'This link only supports opening in a browser.', 405)
+    const token = new URL(req.url).searchParams.get('t')?.trim() ?? ''
+    return new Response(null, {
+      status: 302,
+      headers: { ...corsHeaders, Location: `${APP_URL}/unsubscribe?t=${encodeURIComponent(token)}` },
+    })
   }
+  if (req.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405)
 
-  if (!token) {
-    return page('Link incomplete', 'This unsubscribe link is missing its token. Please use the link exactly as it appears in the email.', 400)
+  let token = ''
+  try {
+    const body = await req.json()
+    token = String(body?.token ?? '').trim()
+  } catch {
+    token = ''
   }
+  if (!token || token.length > 200) return json({ ok: false, error: 'This unsubscribe link is incomplete.' }, 200)
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!supabaseUrl || !serviceRoleKey) {
-    return page('Not available', 'Unsubscribe is temporarily unavailable. Please contact your warehouse administrator.', 500)
-  }
+  if (!supabaseUrl || !serviceRoleKey) return json({ ok: false, error: 'Unsubscribe is temporarily unavailable.' }, 200)
 
   const sb = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -74,37 +61,27 @@ Deno.serve(async (req) => {
       .eq('token', token)
       .maybeSingle()
     if (error) throw new Error(error.message)
-
-    const email = (row as { email?: string } | null)?.email
+    const email = (row as { email?: string } | null)?.email?.toLowerCase()
     if (!email) {
-      return page('Link not recognised', 'This unsubscribe link is no longer valid. If you keep receiving these emails, contact your warehouse administrator.', 404)
+      return json({ ok: false, error: 'This unsubscribe link is no longer valid. Contact your warehouse administrator.' }, 200)
     }
 
-    // Same shape handle-email-events uses for bounces and complaints.
     const { error: suppressError } = await sb
       .from('suppressed_emails')
-      .upsert({ email: email.toLowerCase(), reason: 'unsubscribe', metadata: null }, { onConflict: 'email' })
+      .upsert({ email, reason: 'unsubscribe', metadata: null }, { onConflict: 'email' })
     if (suppressError) throw new Error(suppressError.message)
 
-    await sb
-      .from('email_unsubscribe_tokens')
-      .update({ used_at: new Date().toISOString() })
-      .eq('token', token)
-
+    await sb.from('email_unsubscribe_tokens').update({ used_at: new Date().toISOString() }).eq('token', token)
     await sb.from('email_send_log').insert({
       template_name: 'system',
-      recipient_email: email.toLowerCase(),
+      recipient_email: email,
       status: 'suppressed',
       error_message: 'Unsubscribed via emailed link',
     })
 
-    return page(
-      'You are unsubscribed',
-      `<strong>${email}</strong> will no longer receive Warehouse Wizard notification emails. In-app and push notifications are unaffected — you can change those in Settings.`,
-    )
+    return json({ ok: true, email })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error('Unsubscribe failed', { message })
-    return page('Something went wrong', 'We could not complete the unsubscribe. Please try again, or contact your warehouse administrator.', 500)
+    console.error('Unsubscribe failed', { message: error instanceof Error ? error.message : String(error) })
+    return json({ ok: false, error: 'We could not complete the unsubscribe. Please try again.' }, 200)
   }
 })
