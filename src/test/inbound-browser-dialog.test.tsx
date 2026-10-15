@@ -161,10 +161,17 @@ describe("InboundBrowserDialog", () => {
     expect(screen.queryByRole("button", { name: "Receive SMLU7872173" })).not.toBeInTheDocument();
   });
 
-  it("warns when NetSuite's Container No field could not be found", async () => {
+  it("says nothing about NetSuite's container field, which the browser no longer needs", async () => {
     mocks.list.mockResolvedValue({ shipments: [shipment({})], hasMore: false, containerField: null });
     renderDialog();
-    expect(await screen.findByText(/Container No field was not found/)).toBeInTheDocument();
+    expect(await screen.findByText("ISH-0098")).toBeInTheDocument();
+    expect(screen.queryByText(/Container No field was not found/)).not.toBeInTheDocument();
+  });
+
+  it("says how many shipments are shown and whether more can be loaded", async () => {
+    mocks.list.mockResolvedValue({ shipments: [shipment({})], hasMore: true });
+    renderDialog();
+    expect(await screen.findByText(/1 shown · more available/)).toBeInTheDocument();
   });
 
   it("says so when nothing matches, and offers All", async () => {
