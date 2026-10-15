@@ -21,6 +21,7 @@ import {
   type BoardData,
   type Tone,
 } from "./board-tile-content";
+import { InboundTile } from "./inbound-tile";
 
 export type { BoardData, Tone } from "./board-tile-content";
 
@@ -51,7 +52,7 @@ const TILES = {
     tone: (d) => ((d.metrics?.expiryWarning30 ?? 0) > 0 ? "critical" : (d.metrics?.expiryWarning60 ?? 0) > 0 ? "warning" : undefined),
     render: (d) => <StockHealthTile data={d} />,
   },
-  inbound: { id: "inbound", label: "Inbound", moduleKey: "receiving", limits: sized(4, 6, 4, 10), tone: queueTone("Inbound"), render: (d) => <QueueTile data={d} label="Inbound" /> },
+  inbound: { id: "inbound", label: "Inbound", moduleKey: "receiving", limits: sized(4, 6, 4, 10), tone: queueTone("Inbound"), render: (d) => <InboundTile data={d} /> },
   putaway: { id: "putaway", label: "Put-Away", moduleKey: "putaway", limits: sized(4, 6, 4, 10), tone: queueTone("Put-Away"), render: (d) => <QueueTile data={d} label="Put-Away" /> },
   outbound: { id: "outbound", label: "Outbound", moduleKey: "pick-lists", limits: sized(4, 6, 4, 10), tone: queueTone("Outbound"), render: (d) => <QueueTile data={d} label="Outbound" /> },
   "moves-counts": { id: "moves-counts", label: "Moves & Counts", moduleKey: "location-moves", limits: sized(4, 6, 4, 10), tone: queueTone("Moves & Counts"), render: (d) => <QueueTile data={d} label="Moves & Counts" /> },

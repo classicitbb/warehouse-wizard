@@ -82,7 +82,7 @@ const PROPOSAL_LAYER_CANDIDATES = [4, 5, 6, 8, 9, 10, 12, 15, 16, 20, 24];
 export function ReceivingPage() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { online } = useNetworkStatus();
@@ -952,6 +952,19 @@ export function ReceivingPage() {
     setInboundSearch(search);
     setInboundOpen(true);
   }
+
+  // Deep link from the Command Center Inbound tile: ?inbound=1 opens the browser, any other value pre-fills its search.
+  const inboundParam = searchParams.get("inbound");
+  useEffect(() => {
+    if (inboundParam === null) return;
+    openInboundBrowser(inboundParam === "1" ? "" : inboundParam);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("inbound");
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inboundParam]);
 
   function loadNetSuiteDocument(document: NetSuiteLookupDocument) {
     const { lines, skipped } = buildShipmentLinesFromLookup(document, netsuiteLineHelpers());
