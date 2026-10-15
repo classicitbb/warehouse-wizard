@@ -3,7 +3,7 @@
 // New Shipment dialog. Read-only: nothing here writes to NetSuite.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownUp, Loader2, Search } from "lucide-react";
+import { ArrowDownUp, Loader2, PackageSearch, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { resolveContainerScanValue, normalizeScannerText } from "@/lib/scan-input";
+import { cn } from "@/lib/utils";
 import { InboundShipmentCard } from "@/features/receiving/inbound-shipment-card";
 import { containersOf, findShipmentDrafts } from "@/features/receiving/inbound-shipment-lines";
 import {
@@ -135,7 +136,7 @@ export function InboundBrowserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100dvh-0.75rem)] max-h-[calc(100dvh-0.75rem)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground sm:h-[88vh] sm:max-w-[min(48rem,96vw)]">
+      <DialogContent className="flex h-[calc(100dvh-0.75rem)] max-h-[calc(100dvh-0.75rem)] w-[calc(100vw-0.75rem)] max-w-[calc(100vw-0.75rem)] flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground sm:h-[88vh] sm:max-w-[min(56rem,96vw)]">
         <DialogHeader className="border-b border-border px-3 py-2 sm:px-4 sm:py-3">
           <DialogTitle>Inbound shipments</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
@@ -143,7 +144,7 @@ export function InboundBrowserDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-2 border-b border-border px-3 py-3 sm:px-4">
+        <div className="grid gap-2 border-b border-border bg-secondary/25 px-3 py-2.5 sm:px-4">
           <div className="flex min-w-0 gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -158,24 +159,35 @@ export function InboundBrowserDialog({
             </div>
             <BarcodeScanButton title="Scan container, shipment, or PO" enableTextRecognition onScan={applyScan} />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1" role="group" aria-label="Shipment status">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <div className="flex overflow-hidden rounded-md border border-border bg-background" role="group" aria-label="Shipment status">
               {STATUS_OPTIONS.map((option) => (
                 <Button
                   key={option.value}
                   type="button"
                   size="sm"
-                  variant={status === option.value ? "default" : "outline"}
+                  variant="ghost"
                   aria-pressed={status === option.value}
+                  className={cn(
+                    "h-8 rounded-none border-r border-border px-3 text-xs font-medium last:border-r-0",
+                    status === option.value
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                   onClick={() => { setStatus(option.value); setLimit(INBOUND_PAGE_SIZE); }}
                 >
                   {option.label}
                 </Button>
               ))}
             </div>
+            {result?.kind === "ok" && shipments.length > 0 && (
+              <p role="status" className="text-xs tabular-nums text-muted-foreground">
+                {shipments.length} shown{result.hasMore ? " · more available" : ""}
+              </p>
+            )}
             <div className="ml-auto flex items-center gap-1">
               <Select value={sort} onValueChange={(value) => { setSort(value as InboundSortKey); setLimit(INBOUND_PAGE_SIZE); }}>
-                <SelectTrigger className="h-8 w-44 text-xs" aria-label="Sort by"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort by"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.keys(SORT_LABELS) as InboundSortKey[]).map((key) => <SelectItem key={key} value={key}>{SORT_LABELS[key]}</SelectItem>)}
                 </SelectContent>
@@ -196,28 +208,31 @@ export function InboundBrowserDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
-          {!online && <p role="status" className="text-sm text-muted-foreground">Connect to the network to browse NetSuite.</p>}
+          {!online && (
+            <p role="status" className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              Connect to the network to browse NetSuite.
+            </p>
+          )}
           {online && list.isLoading && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading inbound shipments…</p>
+            <p className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading inbound shipments…
+            </p>
           )}
           {online && list.isError && (
             <p role="alert" className="text-sm text-destructive">{list.error instanceof Error ? list.error.message : "The NetSuite lookup failed."}</p>
           )}
-          {result?.kind === "ok" && result.containerField === null && (
-            <p role="status" className="mb-2 text-xs text-amber-600 dark:text-amber-400">
-              NetSuite's Container No field was not found, so container numbers are missing and container search only covers the carrier reference.
-              Ask your NetSuite admin for the field's script id.
-            </p>
-          )}
           {result?.kind === "unavailable" && <p role="alert" className="text-sm text-destructive">{result.message}</p>}
           {result?.kind === "ok" && shipments.length === 0 && (
-            <p role="status" className="text-sm text-muted-foreground">
-              {search ? `No inbound shipments match "${search}".` : "No inbound shipments to show."}
-              {status === "open" ? " Try All to include shipments that are already received." : ""}
-            </p>
+            <div className="grid place-items-center gap-2 py-16 text-center">
+              <PackageSearch className="h-7 w-7 text-muted-foreground/50" />
+              <p role="status" className="text-sm text-muted-foreground">
+                {search ? `No inbound shipments match "${search}".` : "No inbound shipments to show."}
+                {status === "open" ? " Try All to include shipments that are already received." : ""}
+              </p>
+            </div>
           )}
           {shipments.length > 0 && (
-            <ul className={fetching ? "grid gap-2 opacity-70" : "grid gap-2"} aria-busy={fetching}>
+            <ul className={cn("grid gap-2", fetching && "opacity-70")} aria-busy={fetching}>
               {shipments.map((shipment) => (
                 <InboundShipmentCard
                   key={shipment.id}
@@ -234,13 +249,15 @@ export function InboundBrowserDialog({
             </ul>
           )}
           {canLoadMore && (
-            <Button type="button" variant="outline" size="sm" className="mt-3" disabled={fetching} onClick={() => setLimit((n) => n + INBOUND_PAGE_SIZE)}>
-              {fetching && <Loader2 className="animate-spin" data-icon="inline-start" />}
-              Load more
-            </Button>
+            <div className="flex justify-center pt-3">
+              <Button type="button" variant="outline" size="sm" disabled={fetching} onClick={() => setLimit((n) => n + INBOUND_PAGE_SIZE)}>
+                {fetching && <Loader2 className="animate-spin" data-icon="inline-start" />}
+                Load more
+              </Button>
+            </div>
           )}
           {result?.kind === "ok" && result.hasMore && limit >= INBOUND_MAX_ROWS && (
-            <p className="mt-3 text-xs text-muted-foreground">Showing the first {INBOUND_MAX_ROWS}. Search to narrow the list.</p>
+            <p className="pt-3 text-center text-xs text-muted-foreground">Showing the first {INBOUND_MAX_ROWS}. Search to narrow the list.</p>
           )}
         </div>
       </DialogContent>
