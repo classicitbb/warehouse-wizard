@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => ({
     // first touch, without waiting on the service worker. See src/lib/version-check.ts.
     {
       name: "ww-version-manifest",
-      generateBundle() {
+      generateBundle(this: { emitFile: (file: { type: "asset"; fileName: string; source: string }) => string }) {
         this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version: pkg.version }) });
       },
     },
