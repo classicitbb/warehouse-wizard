@@ -6,7 +6,7 @@ import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NetSuiteSection } from "@/features/admin/netsuite-section";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,12 +213,8 @@ export function NetSuiteSyncJobsCard() {
 
   const rows = jobs.data?.jobs ?? [];
   return (
-    <Card className="xl:col-span-2">
-      <CardHeader>
-        <CardTitle>NetSuite sync jobs</CardTitle>
-        <CardDescription>Status, attempt history and NetSuite adjustment IDs. Open a job for its request and response log.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <NetSuiteSection value="sync-jobs" icon={<RefreshCw className="h-4 w-4" />} title="NetSuite sync jobs" description="Status, attempt history and NetSuite adjustment IDs. Open a job for its request and response log.">
+      <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <Label htmlFor="sync-status">Status</Label>
@@ -278,8 +274,8 @@ export function NetSuiteSyncJobsCard() {
             ))}
           </TableBody>
         </Table>
-      </CardContent>
+      </div>
       <JobDetailDialog jobId={openJob} onClose={() => setOpenJob(null)} />
-    </Card>
+    </NetSuiteSection>
   );
 }
