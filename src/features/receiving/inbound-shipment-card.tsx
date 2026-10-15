@@ -173,7 +173,7 @@ export function InboundShipmentCard({
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-1">
-                          {line.quantityRemaining <= 0 && <Check className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                          <Check className={cn("h-3 w-3 shrink-0", line.quantityRemaining <= 0 ? "text-muted-foreground" : "invisible")} />
                           <span className="min-w-0 truncate">{line.itemName || line.description || "Item"}</span>
                         </span>
                         <span className="shrink-0 tabular-nums text-foreground/90">
