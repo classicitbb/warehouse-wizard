@@ -442,3 +442,11 @@ export function useAuth() {
 
   return context;
 }
+
+/** Read-only variant that never throws: returns null outside AuthProvider (or
+ *  during an HMR update where the module graph is duplicated). Consumers that
+ *  merely want the current user to tune behaviour should use this so a missing
+ *  provider cannot blank the whole screen. */
+export function useAuthOptional() {
+  return useContext(AuthContext) ?? null;
+}

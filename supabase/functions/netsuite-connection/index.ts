@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
   let body: {
     action?: 'save' | 'generate_certificate' | 'test' | 'status' | 'list_items' | 'import_items'
     accountId?: string
+    sort?: string
+    direction?: string
     clientId?: string
     certificateId?: string
     // Unlike the credential fields, these are not masked, so a string (even an
@@ -347,7 +349,10 @@ Deno.serve(async (req) => {
       const where = safeSearch
         ? `WHERE isinactive = 'F' AND (UPPER(itemid) LIKE UPPER('%${safeSearch}%') OR UPPER(displayname) LIKE UPPER('%${safeSearch}%'))`
         : `WHERE isinactive = 'F'`
-      const q = `SELECT id, itemid, displayname, upccode, isinactive FROM item ${where} ORDER BY itemid`
+      // Whitelisted sort; default is newest-added first.
+      const sortColumn = body.sort === 'itemid' ? 'itemid' : body.sort === 'displayname' ? 'displayname' : 'createddate'
+      const sortDir = body.direction === 'asc' ? 'ASC' : body.direction === 'desc' ? 'DESC' : (sortColumn === 'createddate' ? 'DESC' : 'ASC')
+      const q = `SELECT id, itemid, displayname, upccode, isinactive FROM item ${where} ORDER BY ${sortColumn} ${sortDir}, id ${sortDir}`
 
       let suiteqlRes: Response
       try {

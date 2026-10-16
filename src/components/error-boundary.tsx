@@ -23,7 +23,7 @@ import { logErrorTelemetry } from "@/lib/system-telemetry";
 import { describeErrorForReport, requestCopilotReport } from "@/features/copilot/report-request";
 import { activeReportContext } from "@/features/copilot/report-context";
 import { recordAction } from "@/lib/habit-tracking";
-import { isPreviewEnvironment, navigatePreservingPreviewParams, requestAppRefresh } from "@/lib/preview-env";
+import { navigatePreservingPreviewParams, requestAppRefresh } from "@/lib/preview-env";
 
 // ── Chunk-load detection ──────────────────────────────────────────────────────
 
@@ -92,10 +92,11 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Chunk-load errors mean a stale tab with missing assets — reload once.
-    // Never auto-reload inside the Lovable preview: re-fetching the
-    // token-bearing proxy URL intermittently yields the browser's generic
-    // "page may have moved permanently" error instead of the app.
-    if (isChunkLoadError(error) && !isPreviewEnvironment()) {
+    // This also runs inside the Lovable preview: a soft refresh cannot fetch
+    // the new chunks, so the card would otherwise reappear forever. The
+    // accepted trade-off is that the preview proxy re-fetch can occasionally
+    // show the browser's generic "page may have moved permanently" error.
+    if (isChunkLoadError(error)) {
       const CHUNK_RELOAD_KEY = "__ww_chunk_reload__";
       if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
         sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
@@ -178,7 +179,7 @@ function DefaultFallback({
 
           <div className="flex flex-wrap gap-2">
             {isChunk ? (
-              <Button size="sm" onClick={() => requestAppRefresh()}>
+              <Button size="sm" onClick={() => window.location.reload()}>
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Reload now
               </Button>
