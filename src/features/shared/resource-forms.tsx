@@ -36,6 +36,7 @@ import { PalletStackPreview } from "@/components/pallet-stack-preview";
 import { formatPackCode } from "@/lib/measure";
 import { packStandardDraftFromProfile } from "@/lib/pack-standard-payload";
 import { PackagingProfileQuickStart } from "@/features/shared/packaging-profile-quick-start";
+import { PackageTypeSelect } from "@/features/shared/package-type-select";
 import { fetchProductPackOptions, PRODUCT_PACK_OPTIONS_KEY } from "@/features/shared/product-pack-options";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
 import { ProductSearch, type ProductSearchHandle } from "@/components/product-search";
@@ -409,7 +410,29 @@ function PackagingProfileFormFields({
       <PackagingProfileQuickStart form={form} />
       {resource.fields
         .filter((field) => !PACK_SECTION_FIELDS.has(field.name) && field.name !== "product_id")
-        .map((field) => renderField(field, form, getResourceFieldOptions(field, options)))}
+        .map((field) =>
+          field.name === "package_type_id" ? (
+            <FormField
+              key={field.name}
+              control={form.control}
+              name="package_type_id"
+              render={({ field: controllerField }) => (
+                <FormItem>
+                  <FormLabel>{field.label}</FormLabel>
+                  <FormControl>
+                    <PackageTypeSelect
+                      value={controllerField.value ? String(controllerField.value) : null}
+                      onChange={controllerField.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            renderField(field, form, getResourceFieldOptions(field, options))
+          ),
+        )}
       <div className="border-t border-border pt-4">
         <PackStandardFormSection form={form} />
       </div>

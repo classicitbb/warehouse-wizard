@@ -22,10 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { PalletStackPreview } from "@/components/pallet-stack-preview";
 import { upsertRecord } from "@/features/admin/admin-core";
+import { PackageTypeSelect } from "@/features/shared/package-type-select";
+import { resolvePackageType, usePackageTypes } from "@/features/shared/package-types";
 import { formatPackCode } from "@/lib/measure";
 import {
   EMPTY_PACK_STANDARD_DRAFT,
@@ -35,7 +36,6 @@ import {
 } from "@/lib/pack-standard-payload";
 import { resolvePalletStackMetrics } from "@/lib/pallet-geometry";
 
-const PACKAGE_TYPES = ["case", "carton", "box", "tray", "bag"];
 
 export interface PackStandardCaptureProps {
   open: boolean;
@@ -72,7 +72,10 @@ export function PackStandardCaptureDialog({
   const [perLayer, setPerLayer] = useState<number | null>(packagesPerLayer ?? null);
   const [layers, setLayers] = useState<number | null>(layersPerPallet ?? null);
   const [cartonHeightMm, setCartonHeightMm] = useState<number | null>(null);
-  const [packageType, setPackageType] = useState("case");
+  const { data: packageTypes = [] } = usePackageTypes();
+  const [pickedTypeId, setPickedTypeId] = useState<string | null>(null);
+  // Defaults to Case once the master has loaded, until someone picks.
+  const packageTypeId = pickedTypeId ?? resolvePackageType(packageTypes, "case")?.id ?? null;
   const [perPackage, setPerPackage] = useState<number>(unitsPerPackage && unitsPerPackage > 0 ? unitsPerPackage : 1);
   const [makeStandard, setMakeStandard] = useState(!hasExistingStandard);
   const [name, setName] = useState("");
@@ -99,7 +102,7 @@ export function PackStandardCaptureDialog({
         ...buildPackStandardPayload(draft),
         product_id: productId,
         profile_name: effectiveName,
-        package_type: packageType,
+        package_type_id: packageTypeId,
         units_per_package: perPackage,
       };
       return upsertRecord("product_packaging_profiles", payload);
@@ -166,12 +169,7 @@ export function PackStandardCaptureDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="capture-type">Package type</Label>
-                <Select value={packageType} onValueChange={setPackageType}>
-                  <SelectTrigger id="capture-type"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PACKAGE_TYPES.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <PackageTypeSelect id="capture-type" value={packageTypeId} onChange={setPickedTypeId} />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="capture-units">Units per package</Label>

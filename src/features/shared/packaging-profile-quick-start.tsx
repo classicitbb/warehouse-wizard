@@ -13,6 +13,7 @@ import type { UseFormReturn } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatPackCodeAscii, parsePackCode } from "@/lib/measure";
+import { resolvePackageType, usePackageTypes } from "@/features/shared/package-types";
 
 export function PackagingProfileQuickStart({
   form,
@@ -20,6 +21,8 @@ export function PackagingProfileQuickStart({
   form: UseFormReturn<Record<string, unknown>>;
 }) {
   const codeRef = useRef<HTMLInputElement>(null);
+  const { data: packageTypes = [] } = usePackageTypes();
+  const caseTypeId = resolvePackageType(packageTypes, "case")?.id ?? null;
   const packagesPerLayer = form.watch("packages_per_layer");
   const layersPerPallet = form.watch("layers_per_pallet");
 
@@ -38,14 +41,14 @@ export function PackagingProfileQuickStart({
       generatedNameRef.current = code;
       form.setValue("profile_name", code, { shouldDirty: true });
     }
-    if (!String(form.getValues("package_type") ?? "").trim()) {
-      form.setValue("package_type", "case", { shouldDirty: true });
+    if (caseTypeId && !String(form.getValues("package_type_id") ?? "").trim()) {
+      form.setValue("package_type_id", caseTypeId, { shouldDirty: true });
     }
     const units = Number(form.getValues("units_per_package"));
     if (!Number.isFinite(units) || units <= 0) {
       form.setValue("units_per_package", 1, { shouldDirty: true });
     }
-  }, [packagesPerLayer, layersPerPallet, form]);
+  }, [packagesPerLayer, layersPerPallet, form, caseTypeId]);
 
   function applyCode(raw: string) {
     const parsed = parsePackCode(raw);
