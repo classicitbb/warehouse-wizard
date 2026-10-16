@@ -27,6 +27,7 @@ import {
   Tags,
   Truck,
   Users,
+  Contact,
 } from "lucide-react";
 import { toast } from "sonner";
 import { type AppRoute } from "@/lib/wms-core";
@@ -101,6 +102,7 @@ export const navIcons: Record<AppRoute, typeof LayoutDashboard> = {
   "/zones": Boxes,
   "/locations": MapPinned,
   "/clients": Users,
+  "/customers": Contact,
   "/products": Package,
   "/packaging-profiles": Tags,
   "/receiving": Download,

@@ -44,3 +44,8 @@ verify_jwt = false
 # caller role itself after the platform has verified the JWT.
 [functions.netsuite-sync-admin]
 verify_jwt = true
+
+# Admin/developer-only customer import and delta from NetSuite (Customers page);
+# the handler verifies the caller role itself after the platform verifies the JWT.
+[functions.netsuite-customers]
+verify_jwt = true

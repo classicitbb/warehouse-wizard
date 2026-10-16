@@ -118,6 +118,15 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     permissions: "Managed by admins and warehouse managers.",
     wikiArticleIds: ["client-ownership", "product-mastery", "receiving-flow"],
   },
+  customers: {
+    id: "customers",
+    title: "Customers",
+    summary: "Customers are the ship-to parties on NetSuite sales orders, mirrored with their delivery zone, default ship-to address and credit flags. They are separate from clients, which own stock.",
+    keyActions: ["Filter by delivery zone", "Spot customers on credit hold or credit review", "Admins: import all customers or sync recent changes from NetSuite"],
+    commonMistakes: ["Editing customer details here instead of in NetSuite", "Confusing customers (who receive orders) with clients (who own stock)"],
+    permissions: "Visible while NetSuite is set up. Admins and developers run the import and sync.",
+    wikiArticleIds: ["client-ownership"],
+  },
   zones: {
     id: "zones",
     title: "Zones",
@@ -907,6 +916,7 @@ export const helpArticles: HelpArticle[] = [
 const routeMatchers: Array<{ match: (pathname: string) => boolean; helpId: string }> = [
   { match: (pathname) => pathname === "/dashboard", helpId: "dashboard" },
   { match: (pathname) => pathname === "/clients", helpId: "clients" },
+  { match: (pathname) => pathname === "/customers", helpId: "customers" },
   { match: (pathname) => pathname === "/warehouses", helpId: "warehouses" },
   { match: (pathname) => pathname === "/zones", helpId: "zones" },
   { match: (pathname) => pathname === "/locations", helpId: "locations" },

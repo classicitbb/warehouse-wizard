@@ -111,6 +111,7 @@ const EmailLogPage = lazy(() => import("@/features/system/system-page").then((mo
 const TransfersPage = lazy(() => import("@/features/transfers/transfers-page").then((mod) => ({ default: mod.TransfersPage })));
 const UsersRolesPage = lazy(() => import("@/features/admin/users-roles-page").then((mod) => ({ default: mod.UsersRolesPage })));
 const CycleCountsPage = lazy(() => import("@/features/cycle-counts/cycle-counts-page").then((mod) => ({ default: mod.CycleCountsPage })));
+const CustomersPage = lazy(() => import("@/features/customers/customers-page").then((mod) => ({ default: mod.CustomersPage })));
 const LocationMovesPage = lazy(() => import("@/features/moves/moves-page").then((mod) => ({ default: mod.LocationMovesPage })));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
 const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
@@ -1229,6 +1230,7 @@ function ResourceRoutes() {
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/clients" element={<ResourcePage resource={resources.clients as any} />} />
+          <Route path="/customers" element={<CustomersPage />} />
           <Route path="/warehouses" element={<ResourcePage resource={resources.warehouses as any} />} />
           <Route path="/zones" element={<ResourcePage resource={resources.zones as any} />} />
           <Route path="/locations" element={<ResourcePage resource={resources.locations as any} />} />
