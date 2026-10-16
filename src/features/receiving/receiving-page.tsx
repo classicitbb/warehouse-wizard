@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { completedFromBatchError, runBatch } from "@/lib/batch-mutation";
 import { type DraftReceipt, floorOptionsQuery, RECEIVING_OPTION_KEYS, formatDate, listDraftReceipts, saveShipmentDrafts, updateDraftReceipt, completeReceiptFromDraft, deleteDraftReceipt, writeSystemLog } from "@/lib/wms-core";
@@ -86,6 +87,7 @@ export function ReceivingPage() {
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { online } = useNetworkStatus();
+  const netsuiteActive = useNetSuiteActive();
   const { roles, profile } = useAuth();
   const restrictedToDefaultWarehouse = shouldRestrictToDefaultWarehouse(roles);
   const { data: options } = useQuery(
@@ -1178,10 +1180,12 @@ export function ReceivingPage() {
             <Printer data-icon="inline-start" />
             <span className="truncate">Print drafts</span>
           </Button>
-          <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm" variant="outline" onClick={() => openInboundBrowser()}>
-            <Ship data-icon="inline-start" />
-            <span className="truncate">View inbound</span>
-          </Button>
+          {netsuiteActive && (
+            <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm" variant="outline" onClick={() => openInboundBrowser()}>
+              <Ship data-icon="inline-start" />
+              <span className="truncate">View inbound</span>
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm">
@@ -1238,7 +1242,7 @@ export function ReceivingPage() {
         onDelete={(draftId) => deleteDraftMutation.mutate(draftId)}
       />
 
-      <InboundBrowserDialog
+      {netsuiteActive && <InboundBrowserDialog
         open={inboundOpen}
         onOpenChange={setInboundOpen}
         online={online}
@@ -1249,7 +1253,7 @@ export function ReceivingPage() {
           setDraftSearch(container || pickContainerNumber(shipment) || shipment.number);
           setInboundOpen(false);
         }}
-      />
+      />}
 
       <Dialog open={shipmentOpen} onOpenChange={(open) => {
         setShipmentOpen(open);
@@ -1375,7 +1379,7 @@ export function ReceivingPage() {
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusFirstProductSearch(); } }}
                           onChange={(e) => setShipmentForm((cur) => ({ ...cur, po_number: e.target.value.toUpperCase(), reference_number: e.target.value.toUpperCase() }))}
                         />
-                        {!editingDraft && (
+                        {!editingDraft && netsuiteActive && (
                           <NetSuiteLookupPanel
                             receiptType={shipmentForm.receipt_type}
                             documentNumber={shipmentForm.po_number}
@@ -1384,7 +1388,7 @@ export function ReceivingPage() {
                             onOpenInbound={openInboundBrowser}
                           />
                         )}
-                        {!editingDraft && (
+                        {!editingDraft && netsuiteActive && (
                           <button type="button" className="w-fit text-sm font-medium text-primary underline-offset-2 hover:underline" onClick={() => openInboundBrowser()}>
                             Browse inbound shipments
                           </button>

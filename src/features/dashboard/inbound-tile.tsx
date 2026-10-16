@@ -1,5 +1,5 @@
 // Command Center "Inbound" tile: open NetSuite inbound shipments, one row per container.
-// Falls back to the plain receipts queue when NetSuite is unavailable or the user may not browse it.
+// Shows the plain receipts queue when NetSuite is not set up, unavailable, or the user may not browse it.
 
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { PackageCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/features/shared/core-types";
 import { useTenantPath } from "@/hooks/use-tenant-path";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { containersOf } from "@/features/receiving/inbound-shipment-lines";
 import { listInboundShipments, type InboundShipmentSummary } from "@/features/receiving/netsuite-inbound";
 import { QueueTile, type BoardData } from "./board-tile-content";
@@ -31,6 +32,10 @@ function toRows(shipments: InboundShipmentSummary[]): ContainerRow[] {
 }
 
 export function InboundTile({ data }: { data: BoardData }) {
+  return useNetSuiteActive() ? <NetSuiteInboundTile data={data} /> : <QueueTile data={data} label="Inbound" />;
+}
+
+function NetSuiteInboundTile({ data }: { data: BoardData }) {
   const to = useTenantPath().toPath;
   const list = useQuery({
     queryKey: ["netsuite-inbound-list", "dashboard"] as const,

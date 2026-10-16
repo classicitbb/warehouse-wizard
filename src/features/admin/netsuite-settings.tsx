@@ -1,4 +1,5 @@
 // Settings > Integrations: NetSuite connection and warehouse mapping, plus the sync job monitor, in one accordion.
+// The connection and mapping are always shown; everything else NetSuite appears once useNetSuiteActive() is true.
 // Item import lives in the Products page settings gear (features/products/netsuite-import-dialog.tsx).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Accordion } from "@/components/ui/accordion";
 import { NetSuiteSection } from "@/features/admin/netsuite-section";
 import { NetSuiteSyncJobsCard } from "@/features/admin/netsuite-sync-jobs";
+import { NETSUITE_ACTIVE_QUERY_KEY, useNetSuiteActive } from "@/hooks/use-netsuite-active";
 
 /**
  * One-time reveal for a server-generated shared secret. The plaintext is
@@ -39,6 +41,7 @@ function downloadNetSuiteCertificate(pem: string) {
 }
 
 function NetSuiteIntegrationCard() {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<{
     configured: boolean;
     enabled: boolean;
@@ -79,12 +82,14 @@ function NetSuiteIntegrationCard() {
       const posting = data as { adjustmentAccountId?: string | null; adjustmentSubsidiaryId?: string | null } | null;
       setAdjustmentAccountId(posting?.adjustmentAccountId ?? "");
       setAdjustmentSubsidiaryId(posting?.adjustmentSubsidiaryId ?? "");
+      // Saving, testing or replacing the certificate can switch NetSuite features on or off app-wide.
+      void queryClient.invalidateQueries({ queryKey: NETSUITE_ACTIVE_QUERY_KEY });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load NetSuite status");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -468,11 +473,12 @@ function NetSuiteWarehouseMappingCard() {
 }
 
 export function NetSuiteIntegrationsTab() {
+  const netsuiteActive = useNetSuiteActive();
   return (
     <Accordion type="multiple" defaultValue={["connection"]} className="rounded-lg border bg-card px-4 xl:col-span-2">
       <NetSuiteIntegrationCard />
       <NetSuiteWarehouseMappingCard />
-      <NetSuiteSyncJobsCard />
+      {netsuiteActive && <NetSuiteSyncJobsCard />}
     </Accordion>
   );
 }
