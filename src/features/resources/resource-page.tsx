@@ -32,6 +32,7 @@ import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
 import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
+import { fetchPackageTypes, PACKAGE_TYPES_QUERY_KEY } from "@/features/shared/package-types";
 import {
   enqueueOfflineWork,
   flushOfflineQueue,
@@ -620,6 +621,18 @@ export function ResourcePage({
     return map;
   }, [productOptions]);
 
+  const hasPackageTypeRef = resource.fields.some((f) => f.name === "package_type_id");
+  const { data: packageTypeOptions = [] } = useQuery({
+    queryKey: PACKAGE_TYPES_QUERY_KEY,
+    queryFn: fetchPackageTypes,
+    enabled: hasPackageTypeRef,
+    staleTime: 30 * 60_000,
+  });
+  const packageTypeMap = useMemo(
+    () => new Map(packageTypeOptions.map((t) => [t.id, t.name] as const)),
+    [packageTypeOptions],
+  );
+
   const hasClientRef = resource.fields.some((f) => f.name === "client_id" || f.name === "client_owner_id");
   const { data: clientOptions = [] } = useQuery({
     queryKey: ["clients", "options-for-table"],
@@ -727,7 +740,7 @@ export function ResourcePage({
       // them belong on the form; only the ones an operator scans for belong in
       // the table.
       const shown = [
-        "profile_name", "product_id", "package_type", "units_per_package",
+        "profile_name", "product_id", "package_type_id", "units_per_package",
         "packages_per_layer", "layers_per_pallet", "is_pallet_standard", "is_default",
       ];
       return shown
@@ -1237,6 +1250,8 @@ export function ResourcePage({
                         } else if (field.name === "product_id") {
                           const p = productMap.get(String(rawValue));
                           displayValue = p ? `${p.sku} - ${p.name}` : String(rawValue);
+                        } else if (field.name === "package_type_id") {
+                          displayValue = packageTypeMap.get(String(rawValue)) ?? String(rawValue);
                         } else if (field.name === "client_id" || field.name === "client_owner_id") {
                           displayValue = clientMap.get(String(rawValue)) ?? String(rawValue);
                         } else if (field.name === "warehouse_id") {

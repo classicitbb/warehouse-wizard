@@ -2265,6 +2265,36 @@ export type Database = {
           },
         ]
       }
+      package_types: {
+        Row: {
+          aliases: string[]
+          code: string
+          created_at: string
+          id: string
+          name: string
+          sort: number
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[]
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          sort?: number
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pallets: {
         Row: {
           available_quantity: number
@@ -2857,6 +2887,7 @@ export type Database = {
           package_height_mm: number | null
           package_length_mm: number | null
           package_type: string | null
+          package_type_id: string | null
           package_width_mm: number | null
           packages_per_layer: number | null
           packages_per_pallet: number | null
@@ -2900,6 +2931,7 @@ export type Database = {
           package_height_mm?: number | null
           package_length_mm?: number | null
           package_type?: string | null
+          package_type_id?: string | null
           package_width_mm?: number | null
           packages_per_layer?: number | null
           packages_per_pallet?: number | null
@@ -2943,6 +2975,7 @@ export type Database = {
           package_height_mm?: number | null
           package_length_mm?: number | null
           package_type?: string | null
+          package_type_id?: string | null
           package_width_mm?: number | null
           packages_per_layer?: number | null
           packages_per_pallet?: number | null
@@ -3006,8 +3039,12 @@ export type Database = {
           sku: string
           stackable: boolean
           supplier_lead_time_days: number
+          purchase_unit_id: string | null
+          sale_unit_id: string | null
+          stock_unit_id: string | null
           temperature_requirement: Database["public"]["Enums"]["temperature_class"]
           unit_cost: number | null
+          uom_type_id: string | null
           updated_at: string
           velocity_class: string
           weight: number | null
@@ -3037,8 +3074,12 @@ export type Database = {
           sku: string
           stackable?: boolean
           supplier_lead_time_days?: number
+          purchase_unit_id?: string | null
+          sale_unit_id?: string | null
+          stock_unit_id?: string | null
           temperature_requirement?: Database["public"]["Enums"]["temperature_class"]
           unit_cost?: number | null
+          uom_type_id?: string | null
           updated_at?: string
           velocity_class?: string
           weight?: number | null
@@ -3068,8 +3109,12 @@ export type Database = {
           sku?: string
           stackable?: boolean
           supplier_lead_time_days?: number
+          purchase_unit_id?: string | null
+          sale_unit_id?: string | null
+          stock_unit_id?: string | null
           temperature_requirement?: Database["public"]["Enums"]["temperature_class"]
           unit_cost?: number | null
+          uom_type_id?: string | null
           updated_at?: string
           velocity_class?: string
           weight?: number | null
@@ -4326,6 +4371,102 @@ export type Database = {
           },
         ]
       }
+      uom_types: {
+        Row: {
+          created_at: string
+          id: string
+          is_inactive: boolean
+          last_synced_at: string | null
+          name: string
+          ns_internal_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_inactive?: boolean
+          last_synced_at?: string | null
+          name: string
+          ns_internal_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_inactive?: boolean
+          last_synced_at?: string | null
+          name?: string
+          ns_internal_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      uom_units: {
+        Row: {
+          abbreviation: string | null
+          conversion_rate: number
+          created_at: string
+          id: string
+          in_use: boolean
+          is_base: boolean
+          last_synced_at: string | null
+          ns_internal_id: string
+          package_type_id: string | null
+          plural_abbreviation: string | null
+          plural_name: string | null
+          unit_name: string
+          uom_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          abbreviation?: string | null
+          conversion_rate?: number
+          created_at?: string
+          id?: string
+          in_use?: boolean
+          is_base?: boolean
+          last_synced_at?: string | null
+          ns_internal_id: string
+          package_type_id?: string | null
+          plural_abbreviation?: string | null
+          plural_name?: string | null
+          unit_name: string
+          uom_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          abbreviation?: string | null
+          conversion_rate?: number
+          created_at?: string
+          id?: string
+          in_use?: boolean
+          is_base?: boolean
+          last_synced_at?: string | null
+          ns_internal_id?: string
+          package_type_id?: string | null
+          plural_abbreviation?: string | null
+          plural_name?: string | null
+          unit_name?: string
+          uom_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uom_units_package_type_id_fkey"
+            columns: ["package_type_id"]
+            isOneToOne: false
+            referencedRelation: "package_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uom_units_uom_type_id_fkey"
+            columns: ["uom_type_id"]
+            isOneToOne: false
+            referencedRelation: "uom_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_action_events: {
         Row: {
           action: string
@@ -4929,6 +5070,7 @@ export type Database = {
       admin_update_user_pin:
         | { Args: { in_pin: string; in_user_id: string }; Returns: undefined }
         | { Args: { in_pin: string; in_user_id: string }; Returns: undefined }
+      apply_netsuite_product_units: { Args: { p_rows: Json }; Returns: number }
       archive_system_log: { Args: { in_id: string }; Returns: undefined }
       archive_system_logs_older_than: {
         Args: { in_days?: number }
@@ -5256,6 +5398,7 @@ export type Database = {
         }[]
       }
       reset_wms_data: { Args: never; Returns: Json }
+      resolve_package_type_id: { Args: { p_text: string }; Returns: string }
       return_putaway_to_receiving_draft: {
         Args: { in_task_id: string }
         Returns: {

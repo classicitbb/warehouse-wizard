@@ -531,7 +531,11 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     fields: [
       { name: "product_id", label: "Product", type: "select", required: true },
       { name: "profile_name", label: "Profile name", type: "text", required: true },
-      { name: "package_type", label: "Package type", type: "text", required: true },
+      // FK to the package_types master, rendered by PackageTypeSelect. Not
+      // required: legacy text the master does not know (e.g. "pallet") leaves it
+      // null. CSV imports accept a code or alias here (or in a legacy
+      // package_type column) and resolve it in parseCsvForResource.
+      { name: "package_type_id", label: "Package type", type: "select" },
       { name: "units_per_package", label: "Units per package", type: "number", required: true },
       { name: "length", label: "Length", type: "number" },
       { name: "width", label: "Width", type: "number" },

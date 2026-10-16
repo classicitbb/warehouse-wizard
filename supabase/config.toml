@@ -44,3 +44,8 @@ verify_jwt = false
 # caller role itself after the platform has verified the JWT.
 [functions.netsuite-sync-admin]
 verify_jwt = true
+
+# Admin/developer-only import of NetSuite units of measure; the handler
+# verifies the caller role itself after the platform has verified the JWT.
+[functions.netsuite-units]
+verify_jwt = true
