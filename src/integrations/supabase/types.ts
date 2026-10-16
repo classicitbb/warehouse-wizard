@@ -5106,10 +5106,6 @@ export type Database = {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
         Returns: boolean
       }
-      has_feature_permission: {
-        Args: { _feature_code: string; _mode?: string; _user_id: string }
-        Returns: boolean
-      }
       has_min_role: {
         Args: { _minimum_role: string; _user_id: string }
         Returns: boolean
