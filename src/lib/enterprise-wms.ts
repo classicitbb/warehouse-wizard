@@ -141,7 +141,7 @@ export type EnterpriseDashboardSnapshot = {
   floorQueues: Array<{ label: string; count: number; action: string; route: string; tone: "success" | "warning" | "critical" | "info"; tasks: DashboardTaskRow[] }>;
   dockLoads: DockHandoffLoad[];
   leanMetrics: Array<{ label: string; value: string; target: string; status: "on_target" | "watch" | "off_target"; route: string }>;
-  setupChecklist: Array<{ label: string; complete: boolean; owner: string }>;
+  setupChecklist: Array<{ label: string; complete: boolean; owner: string; requiresNetSuite?: boolean }>;
   recommendations: WarehouseBrainRecommendation[];
 };
 
@@ -430,7 +430,7 @@ export function buildEnterpriseDashboard(
     setupChecklist: [
       { label: "Warehouse layout and zones", complete: occupancy.length > 0, owner: "Admin" },
       { label: "Zebra printer stations", complete: activePrinters > 0 && failedPrintJobs === 0, owner: "Admin" },
-      { label: "NetSuite connector mapping", complete: false, owner: "IT" },
+      { label: "NetSuite connector mapping", complete: false, owner: "IT", requiresNetSuite: true },
       { label: "Barcode standards and label templates", complete: activeLabelTemplates > 0, owner: "Warehouse manager" },
       { label: "Operator tablet workflows", complete: (metrics?.recentAuditEvents ?? 0) > 0, owner: "Supervisor" },
       { label: "Saved reports and AI review cadence", complete: (reportData?.aiRecommendations ?? []).length > 0, owner: "Manager" },

@@ -9,6 +9,20 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.31.0",
+    date: "2026-10-15",
+    changes: [
+      "NetSuite integration: connect Warehouse Wizard to NetSuite in Settings > Integrations. NetSuite features stay hidden everywhere else until the connection is set up and switched on",
+      "Receiving: look up a NetSuite purchase order or transfer order and load its lines, or use View inbound to browse open inbound shipments and receive a container",
+      "Command Center: the Inbound tile lists open NetSuite containers, soonest first",
+      "Products: import items from NetSuite from the Products settings menu, and admins can watch NetSuite sync jobs in Settings",
+      "Storage capacity tile leads with pallet space and counts only enabled bins",
+    ],
+    fixes: [
+      "Inventory search for a bay or location code such as E-18 or E01 now matches whole code segments instead of any text containing it",
+    ],
+  },
+  {
     version: "1.30.7",
     date: "2026-10-06",
     changes: [

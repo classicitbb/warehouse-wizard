@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   saveShipmentDrafts: vi.fn(async () => ({ groupId: "shipment-1", draftIds: ["draft-1", "draft-2"], count: 2 })),
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
   invoke: vi.fn(),
+  netsuiteActive: true,
 }));
 
 // Only the edge-function call is faked; the rest of the client stays real.
@@ -50,6 +51,11 @@ vi.mock("@/components/barcode-scan-button", () => ({
 
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({ profile: { id: "user-1", default_warehouse_id: "wh-1" }, roles: ["warehouse_manager"] }),
+}));
+
+vi.mock("@/hooks/use-netsuite-active", () => ({
+  NETSUITE_ACTIVE_QUERY_KEY: ["netsuite-integration-active"],
+  useNetSuiteActive: () => mocks.netsuiteActive,
 }));
 
 vi.mock("@/hooks/use-network-status", async (importOriginal) => {
@@ -130,7 +136,18 @@ describe("Receiving > View inbound", () => {
     mocks.saveShipmentDrafts.mockClear();
     mocks.toast.error.mockClear();
     mocks.toast.warning.mockClear();
+    mocks.netsuiteActive = true;
     window.localStorage.clear();
+  });
+
+  it("hides every NetSuite entry point when NetSuite is not set up", async () => {
+    mocks.netsuiteActive = false;
+    mockNetSuite();
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: /print drafts/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /view inbound/i })).not.toBeInTheDocument();
+    expect(mocks.invoke).not.toHaveBeenCalledWith("netsuite-inbound", expect.anything());
   });
 
   it("loads every PO's lines into the New Shipment dialog with the container, and saves each line under its own PO", async () => {

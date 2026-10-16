@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import {
   enqueueOfflineWork,
   flushOfflineQueue,
@@ -494,6 +495,7 @@ export function ResourcePage({
   const hasTrailingLabelColumn = ["warehouses", "zones"].includes(resource.table);
   const extraColumnCount = (resource.supportsHide ? 1 : 0) + (hasTrailingLabelColumn ? 1 : 0) + 1 + (resource.table === "products" ? 2 : 0);
   const isProducts = resource.table === "products";
+  const netsuiteActive = useNetSuiteActive();
   const isLocations = resource.table === "locations";
   const isPackagingProfiles = resource.table === "product_packaging_profiles";
   // Packaging Profiles uses the same compact rows as Products and Locations,
@@ -852,7 +854,7 @@ export function ResourcePage({
                     <ImportButton resource={resource} asMenuItems />
                   </>
                 ) : null}
-                {isProducts ? (
+                {isProducts && netsuiteActive ? (
                   <NetSuiteImportDialog
                     trigger={
                       <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
