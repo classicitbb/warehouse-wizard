@@ -181,12 +181,26 @@ async function pickListEmailRecipients(sb: Client): Promise<string[]> {
     .map((row) => row.email.toLowerCase())
   if (wanted.length === 0) return []
 
+  return withoutSuppressed(sb, wanted)
+}
+
+/** Drops anyone in the local suppressed_emails list (link unsubscribes, bounces, complaints). */
+async function withoutSuppressed(sb: Client, emails: Array<string | null>): Promise<string[]> {
+  const wanted = normaliseRecipients(emails).map((e) => e.toLowerCase())
+  if (wanted.length === 0) return []
   const { data: suppressed } = await sb.from('suppressed_emails').select('email').in('email', wanted)
   const blocked = new Set(
     ((suppressed ?? []) as Array<{ email: string }>).map((row) => String(row.email).toLowerCase()),
   )
+  return wanted.filter((email) => !blocked.has(email))
+}
 
-  return normaliseRecipients(wanted.filter((email) => !blocked.has(email)))
+/** App-hosted confirmation page; the click (not the link open) unsubscribes. */
+async function unsubscribeUrlFor(sb: Client, to: string): Promise<string | null> {
+  const { data: token } = await sb.rpc('get_or_create_unsubscribe_token', { in_email: to })
+  return typeof token === 'string' && token
+    ? 'https://www.warehousewizard.app/unsubscribe?t=' + encodeURIComponent(token)
+    : null
 }
 
 /**
@@ -241,20 +255,11 @@ async function sendPickListCreated(sb: Client, eventId: string) {
   const rendered = renderPickListCreated({ pickListNumber, orderNumber, warehouseName, lineCount })
   const recipients = await pickListEmailRecipients(sb)
 
-  // The link points straight at the edge function rather than at an app route:
-  // it is opened by someone who is not signed in, often from a mail client
-  // that will not run the SPA.
-  const functionsBase = (Deno.env.get('SUPABASE_URL') ?? '') + '/functions/v1/email-unsubscribe'
-
   let sent = 0
   let failed = 0
   for (const to of recipients) {
     if (sent + failed > 0) await new Promise((r) => setTimeout(r, 250))
-    let unsubscribeUrl: string | null = null
-    const { data: token } = await sb.rpc('get_or_create_unsubscribe_token', { in_email: to })
-    if (typeof token === 'string' && token) {
-      unsubscribeUrl = functionsBase + '?t=' + encodeURIComponent(token)
-    }
+    const unsubscribeUrl = await unsubscribeUrlFor(sb, to)
 
     const outcome = await deliver(sb, {
         to,
@@ -309,7 +314,7 @@ async function sendReorderAlert(sb: Client, alertId: string) {
     recommended: Number(alert.recommended_quantity ?? 0),
   })
 
-  const recipients = normaliseRecipients(await emailsForRoles(sb, ['admin', 'warehouse_manager']))
+  const recipients = await withoutSuppressed(sb, await emailsForRoles(sb, ['admin', 'warehouse_manager']))
 
   let sent = 0
   for (const to of recipients) {
@@ -322,6 +327,7 @@ async function sendReorderAlert(sb: Client, alertId: string) {
         text: rendered.text,
         label: 'reorder-alert',
         idempotencyKey: `reorder-alert-${alertId}-${to}`,
+        unsubscribeUrl: await unsubscribeUrlFor(sb, to),
       })
     ) {
       sent += 1
