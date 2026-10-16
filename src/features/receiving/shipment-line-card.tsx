@@ -16,6 +16,7 @@ import { formatPackCode, parsePackCode, resolveUnitsPerPallet } from "@/lib/meas
 import { type PalletQtyHint } from "@/lib/ai-assist";
 import { normalizeScannerText } from "@/lib/scan-input";
 import { reconcilePackToQuantity, shouldRedistributeOnTotal, type PerPalletSource, type ShipmentQuantityIssues } from "@/features/receiving/receiving-quantity-rules";
+import { NetSuiteLineNote } from "@/features/receiving/netsuite-lookup-panel";
 import { ShipmentFieldLabel, productRequiresExpiry, remainderForLine, type ReceivingShipmentLineState } from "@/features/receiving/receiving-form-state";
 
 function parseShipmentDate(value: string) {
@@ -224,6 +225,7 @@ export function ShipmentLineCard({
               <span>Pallets {line.pallet_count}</span>
               <span>Exp. {line.expiry_date || "—"}</span>
             </div>
+            <NetSuiteLineNote line={line} />
             {/* A collapsed line must not hide a split that does not add up. */}
             {quantities?.blocking ? (
               <p role="alert" className="text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -254,6 +256,7 @@ export function ShipmentLineCard({
           )}
         </div>
       </div>
+      <NetSuiteLineNote line={line} />
       <div className="grid min-w-0 gap-2 lg:gap-3">
         <div className="grid min-w-0 gap-1.5">
           <ShipmentFieldLabel>Product</ShipmentFieldLabel>

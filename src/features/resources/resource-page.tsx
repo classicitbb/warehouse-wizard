@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpDown, Filter, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, X } from "lucide-react";
+import { CloudDownload, Activity, AlertCircle, AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpDown, Filter, BarChart3, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
 import { assertOnline, useNetworkStatus } from "@/hooks/use-network-status";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import {
   enqueueOfflineWork,
   flushOfflineQueue,
@@ -228,6 +229,7 @@ import {
   getResourceFieldOptions,
 } from "@/features/shared/resource-forms";
 import { ImportButton } from "@/features/shared/resource-import";
+import { NetSuiteImportDialog } from "@/features/products/netsuite-import-dialog";
 import { BarcodePrintDialog } from "@/features/shared/ui-shared";
 import { LocationWizardDialog } from "@/features/shared/location-wizard";
 import { shouldRestrictToDefaultWarehouse, normalizeScannerText } from "@/lib/scan-input";
@@ -493,6 +495,7 @@ export function ResourcePage({
   const hasTrailingLabelColumn = ["warehouses", "zones"].includes(resource.table);
   const extraColumnCount = (resource.supportsHide ? 1 : 0) + (hasTrailingLabelColumn ? 1 : 0) + 1 + (resource.table === "products" ? 2 : 0);
   const isProducts = resource.table === "products";
+  const netsuiteActive = useNetSuiteActive();
   const isLocations = resource.table === "locations";
   const isPackagingProfiles = resource.table === "product_packaging_profiles";
   // Packaging Profiles uses the same compact rows as Products and Locations,
@@ -850,6 +853,16 @@ export function ResourcePage({
                     <DropdownMenuSeparator />
                     <ImportButton resource={resource} asMenuItems />
                   </>
+                ) : null}
+                {isProducts && netsuiteActive ? (
+                  <NetSuiteImportDialog
+                    trigger={
+                      <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
+                        <CloudDownload className="mr-2 h-4 w-4" />
+                        Import from NetSuite
+                      </DropdownMenuItem>
+                    }
+                  />
                 ) : null}
                 {resource.table === "locations" ? (
                   <LocationWizardDialog

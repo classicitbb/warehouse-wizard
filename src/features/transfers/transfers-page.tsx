@@ -7,6 +7,7 @@ import { ArrowRight, Loader2, Package, PackageX, Plus, Search, Truck } from "luc
 import { z } from "zod";
 
 import { useTenantPath } from "@/hooks/use-tenant-path";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import {
   createTransferFlow,
   dispatchTransfer,
@@ -60,6 +61,7 @@ type TransferRow = {
 };
 
 export function TransfersPage() {
+  const netsuiteActive = useNetSuiteActive();
   const navigate = useNavigate();
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
@@ -245,11 +247,13 @@ export function TransfersPage() {
                 <CardDescription>{transfer.notes || (transfer.transfer_type === "inter_warehouse" ? "Inter-warehouse transfer" : "Warehouse transfer")}{transfer.dispatch_signed_off_at ? ` · departed ${formatDate(transfer.dispatch_signed_off_at)}` : transfer.created_at ? ` · created ${formatDate(transfer.created_at)}` : ""}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
-                <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs">
-                  <span className="font-semibold uppercase text-muted-foreground">NetSuite</span>
-                  <span className="text-muted-foreground">No transfer-order reference linked</span>
-                  <Badge variant="outline">Local workflow</Badge>
-                </div>
+                {netsuiteActive && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs">
+                    <span className="font-semibold uppercase text-muted-foreground">NetSuite</span>
+                    <span className="text-muted-foreground">No transfer-order reference linked</span>
+                    <Badge variant="outline">Local workflow</Badge>
+                  </div>
+                )}
                 {/* Pallet / product summary */}
                 {lines.map((line) => {
                   const product = line.pallets?.products;
@@ -352,7 +356,7 @@ export function TransfersPage() {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>New transfer</DialogTitle>
-            <DialogDescription>Create the local pallet movement. A NetSuite transfer-order reference can be linked when synchronization is released.</DialogDescription>
+            <DialogDescription>Create the local pallet movement.{netsuiteActive ? " A NetSuite transfer-order reference can be linked when synchronization is released." : ""}</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form className="grid gap-4" onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}>

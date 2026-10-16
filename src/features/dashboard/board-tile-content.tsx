@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowRight, Bot, ClipboardCheck, Gauge, Hourglass, ListT
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, type DashboardMetrics } from "@/features/shared/core-types";
 import { useTenantPath } from "@/hooks/use-tenant-path";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import type { ModuleKey } from "@/hooks/use-feature-flags";
 import type { DockHandoffLoad, EnterpriseDashboardSnapshot } from "@/lib/enterprise-wms";
 import { cn } from "@/lib/utils";
@@ -331,12 +332,14 @@ export function OfficeWidgetTile({ data, label, title }: { data: BoardData; labe
 }
 
 export function SetupChecklistTile({ data }: { data: BoardData }) {
-  const open = data.snapshot.setupChecklist.filter((item) => !item.complete).length;
+  const netsuiteActive = useNetSuiteActive();
+  const checklist = data.snapshot.setupChecklist.filter((item) => netsuiteActive || !item.requiresNetSuite);
+  const open = checklist.filter((item) => !item.complete).length;
   return (
     <div className="grid gap-2">
       <TileTitle icon={<ClipboardCheck />} title="Setup checklist" value={`${open} open`} />
       <div className="grid gap-1">
-        {data.snapshot.setupChecklist.map((item) => (
+        {checklist.map((item) => (
           <div key={item.label} className="flex items-center justify-between gap-3 rounded-md border border-border px-2.5 py-1.5">
             <span className="min-w-0">
               <span className="block break-words text-sm">{item.label}</span>

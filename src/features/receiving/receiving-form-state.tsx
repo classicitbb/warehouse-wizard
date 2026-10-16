@@ -16,6 +16,26 @@ export type ReceivingShipmentLineState = {
   batch_number: string;
   packaging_profile_id: string;
   remainder_action: "waive" | "manual" | "special" | "";
+  /** Set when the line was loaded from a NetSuite document. Saved in the draft notes as `netsuite` (W4). */
+  netsuite?: NetSuiteLineRef;
+};
+
+/** Where a shipment line came from in NetSuite, and what NetSuite expected of it. */
+export type NetSuiteLineRef = {
+  lineKey: string | null;
+  lineNumber: number | null;
+  itemName: string;
+  ordered: number;
+  received: number;
+  /** Still receivable on the NetSuite document when the lookup ran. */
+  remaining: number;
+  /** Set when the line came from an inbound shipment, which can carry several POs. */
+  poId?: string;
+  poNumber?: string;
+  inboundShipmentId?: string;
+  inboundShipmentNumber?: string;
+  /** How many containers the shipment holds; the lines are for all of them. */
+  inboundContainerCount?: number;
 };
 
 export type ReceivingShipmentFormState = {

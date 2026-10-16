@@ -103,3 +103,17 @@ Credential and configuration **names** (values live only in Supabase and GitHub 
 
 Retention: `integration_payload_logs` purges at 90 days and succeeded `integration_sync_jobs`
 at 365 days, both by `pg_cron` (see migration `20260915180000`). Dead letters are never aged out.
+
+## NetSuite sync job monitor (Settings > Integrations)
+
+Admins and developers can inspect `integration_sync_jobs` from the "NetSuite sync jobs" card
+(`src/features/admin/netsuite-sync-jobs.tsx`). It calls the `netsuite-sync-admin` edge function
+(`list`, `detail`, `summarize`), which verifies the caller's role and reads with the service role.
+Attempt history is the job's `integration_payload_logs` rows (purged after 90 days); the adjustment
+ID is `result.netsuiteId`. "Summarize with AI" sends capped, secret-redacted jobs and logs to the
+Lovable AI Gateway (`LOVABLE_API_KEY`); the prompt treats record text as data. Prompt and redaction
+logic lives in `supabase/functions/_shared/netsuite-sync-summary.ts`.
+
+Migration `20261010210000_restrict_sync_job_reads.sql` limits direct access to sync jobs, payload
+logs and dead letters to admin/developer roles, so the Reports page's sync-job panel is empty for
+other roles. Deploy the new function with a deploy-only Lovable message after merging.

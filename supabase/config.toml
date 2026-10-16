@@ -39,3 +39,8 @@ verify_jwt = false
 # checks both itself.
 [functions.process-netsuite-queue]
 verify_jwt = false
+
+# Admin/developer-only sync job view and AI summary; the handler verifies the
+# caller role itself after the platform has verified the JWT.
+[functions.netsuite-sync-admin]
+verify_jwt = true

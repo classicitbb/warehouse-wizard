@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -5106,6 +5106,10 @@ export type Database = {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
         Returns: boolean
       }
+      has_feature_permission: {
+        Args: { _feature_code: string; _mode?: string; _user_id: string }
+        Returns: boolean
+      }
       has_min_role: {
         Args: { _minimum_role: string; _user_id: string }
         Returns: boolean
@@ -5138,6 +5142,7 @@ export type Database = {
         }
         Returns: string
       }
+      netsuite_integration_active: { Args: never; Returns: boolean }
       next_operator_ticket_number: { Args: never; Returns: string }
       notification_email_shell: {
         Args: { in_body_html: string; in_title: string }

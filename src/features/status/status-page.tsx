@@ -8,6 +8,7 @@ import { z } from "zod";
 import { normalizePalletBarcode } from "@/lib/code-input";
 
 import { useInfiniteRows } from "@/hooks/use-infinite-rows";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import {
   changePalletStatus,
   downloadCsv,
@@ -75,6 +76,7 @@ type IntegrationJobRow = {
 
 export function StatusPage() {
   const queryClient = useQueryClient();
+  const netsuiteActive = useNetSuiteActive();
   const { data = [] } = useQuery({ queryKey: ["status-pallets"], queryFn: listStatusPallets });
   // A missing pallet that has turned up with no location to go back to.
   const [foundPallet, setFoundPallet] = useState<StatusStockRow | null>(null);
@@ -243,10 +245,10 @@ export function StatusPage() {
         </CardContent>
       </Card>
 
-      <div className="flex items-start gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+      {netsuiteActive && <div className="flex items-start gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <p>NetSuite status posting is not active on this screen. Warehouse Wizard records the pallet state and audit event locally; external status mapping will appear only after the account’s Inventory Status setup is confirmed.</p>
-      </div>
+      </div>}
 
       {/* A found pallet has two honest homes, and they differ on the pallet
           number: put-away keeps the label that is already on the pallet, drafts
@@ -277,6 +279,7 @@ export function StatusPage() {
 }
 
 export function ReportsPage() {
+  const netsuiteActive = useNetSuiteActive();
   const { data, isLoading } = useQuery({ queryKey: ["reports"], queryFn: () => getReportData() });
   const { data: metrics } = useQuery({ queryKey: ["dashboard-metrics", "reports"], queryFn: () => getDashboardMetrics() });
   const snapshot = useMemo(() => buildEnterpriseDashboard(metrics, data), [metrics, data]);
@@ -342,14 +345,14 @@ export function ReportsPage() {
           </Card>
         ))}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
+      <div className={`grid gap-3 sm:grid-cols-2 ${netsuiteActive ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
+        {([
           ["Available units", formatNumber(operationalStats.availableQuantity), "Live pickable stock"],
           ["Full locations", formatNumber(operationalStats.fullLocations), `${formatNumber(operationalStats.freeLocations)} empty locations`],
           ["Count exceptions", formatNumber(operationalStats.countExceptions), "Recent variance lines"],
           ["Print failures", formatNumber(operationalStats.failedPrintJobs), "Recent label jobs"],
-          ["NetSuite queue", formatNumber(integrationStats.queued), integrationStats.successRate === null ? "No completed jobs" : `${integrationStats.successRate}% recent success`],
-        ].map(([label, value, detail]) => (
+          netsuiteActive ? ["NetSuite queue", formatNumber(integrationStats.queued), integrationStats.successRate === null ? "No completed jobs" : `${integrationStats.successRate}% recent success`] : null,
+        ].filter((tile): tile is string[] => tile !== null)).map(([label, value, detail]) => (
           <Card key={label} className="border-l-4 border-l-primary"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p><p className="mt-1 font-mono text-2xl font-bold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></CardContent></Card>
         ))}
       </div>
@@ -399,7 +402,7 @@ export function ReportsPage() {
           <CardContent className="grid gap-3">
             {[
               ["Expiration risk", "Lots approaching FEFO cutoff by SKU, warehouse, and customer owner", "CSV"],
-              ["Low stock warnings", "Balances at or below replenishment threshold with NetSuite sync status", "CSV"],
+              ["Low stock warnings", netsuiteActive ? "Balances at or below replenishment threshold with NetSuite sync status" : "Balances at or below replenishment threshold", "CSV"],
               ["Low turn stock", "Slow-moving inventory candidates for slotting or commercial review", "CSV"],
               ["Dock performance", "Staged, loaded, blocked, delayed, and route handoff timings", "CSV"],
               ["Six Sigma variance", "Cycle-count defects, DPMO, root cause, and corrective action fields", "CSV"],
@@ -416,7 +419,7 @@ export function ReportsPage() {
         </Card>
         <WarehouseBrainPanel recommendations={snapshot.recommendations} />
       </div>
-      <Card className={integrationStats.failed > 0 ? "border-l-4 border-l-destructive" : "border-l-4 border-l-success"}>
+      {netsuiteActive && <Card className={integrationStats.failed > 0 ? "border-l-4 border-l-destructive" : "border-l-4 border-l-success"}>
         <CardHeader>
           <CardTitle>NetSuite integration health</CardTitle>
           <CardDescription>Latest {integrationJobs.length} real synchronization jobs · {integrationStats.succeeded} succeeded · {integrationStats.failed} failed or dead-lettered · {integrationStats.queued} queued</CardDescription>
@@ -430,7 +433,7 @@ export function ReportsPage() {
             </div>
           ))}
         </CardContent>
-      </Card>
+      </Card>}
       <Card>
         <CardHeader>
           <CardTitle>Recent movements</CardTitle>

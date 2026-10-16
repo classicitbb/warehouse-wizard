@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
@@ -25,10 +25,10 @@ export default defineConfig(({ mode }) => ({
     // first touch, without waiting on the service worker. See src/lib/version-check.ts.
     {
       name: "ww-version-manifest",
-      generateBundle(this: { emitFile: (file: { type: "asset"; fileName: string; source: string }) => string }) {
+      generateBundle() {
         this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version: pkg.version }) });
       },
-    },
+    } satisfies Plugin,
     // The code generator currently emits non-portable absolute imports on Windows.
     process.platform !== "win32" && mcpPlugin(),
     VitePWA({
