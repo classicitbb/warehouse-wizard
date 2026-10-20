@@ -53,7 +53,7 @@ const cancelCycleCountMigration = readFileSync(
 const warehouseIntelligencePhaseOneMigration = readFileSync(
   path.resolve(process.cwd(), "supabase/migrations/20260830021615_warehouse_intelligence_phase_one_scope.sql"),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 const receivingPutawayLifecycleMigration = readFileSync(
   path.resolve(process.cwd(), "supabase/migrations/20260901155226_receiving_putaway_lifecycle_integrity.sql"),
   "utf8",

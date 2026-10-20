@@ -1,3 +1,4 @@
+import { sortInventoryByRotation } from "./inventory-rotation";
 import { supabase } from "@/integrations/supabase/client";
 import {
   db,
@@ -432,32 +433,10 @@ async function loadInventoryRowsOnce(filters: Omit<InventorySearchFilters, "sear
 
   const scopeZoneCode = String(filters.zoneCode ?? "").trim().toUpperCase();
   const scopeLocationPrefix = String(filters.locationPrefix ?? "").trim().toUpperCase();
-  // Structure scopes are matched client-side (the view exposes prefixed codes),
-  // so every matching row has to be in hand before filtering — same as search.
-  const loadAll = searching || Boolean(scopeZoneCode) || Boolean(scopeLocationPrefix);
-  let rawRows: any[];
-  if (loadAll) {
-    rawRows = await fetchAllRows<any>((from, to) => query.order("received_at", { ascending: false }).range(from, to));
-  } else {
-    // Keep fetching pages until we have enough *visible* rows (retired/zero-qty rows
-    // are filtered client-side and would otherwise silently shrink the page and hide
-    // the "load more" affordance).
-    const wanted = Math.max(1, filters.limit ?? 50);
-    const pageSize = wanted;
-    rawRows = [];
-    let visibleCount = 0;
-    for (let page = 0; page < 20; page += 1) {
-      const from = page * pageSize;
-      const { data, error } = await query
-        .order("received_at", { ascending: false })
-        .range(from, from + pageSize - 1);
-      if (error) throw error;
-      const batch = data ?? [];
-      rawRows.push(...batch);
-      visibleCount += batch.filter(isVisibleRow).length;
-      if (batch.length < pageSize || visibleCount >= wanted) break;
-    }
-  }
+  // Read all stable database pages before product-specific rotation and UI paging.
+  // Sorting one received-at page would hide earlier eligible stock.
+  const rawRows = await fetchAllRows<any>((from, to) => query
+    .order("inventory_balance_id", { ascending: true }).range(from, to));
   let rows = rawRows
     .filter(isVisibleRow)
     .map((row) => ({
@@ -472,7 +451,7 @@ async function loadInventoryRowsOnce(filters: Omit<InventorySearchFilters, "sear
   if (scopeLocationPrefix) {
     rows = rows.filter((row) => locationCodeInScope(row.location_code, scopeLocationPrefix));
   }
-  return rows;
+  return sortInventoryByRotation(rows);
 }
 
 /** Filters rows from `loadInventoryRows` by the typed term, plus the orphan-pallet lookup. */

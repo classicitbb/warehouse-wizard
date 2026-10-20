@@ -45,4 +45,10 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Lovable regenerates this file and removes inline suppressions. Its timer
+    // is assigned after the callbacks that close over it; keep auth code intact.
+    files: ["src/integrations/supabase/previewAuthStorage.ts"],
+    rules: { "prefer-const": "off" },
+  },
 );
