@@ -12,6 +12,8 @@
 
 Add every real external service when verified. Access to one service does not imply access to another.
 
+- 2026-10-20 harmless Supabase connector `list_projects` read succeeded, but returned no active Warehouse Wizard data project. No target/schema/data query or write was made. Inventory Search pick work therefore uses isolated PGlite SQL tests and a separate local browser fixture for this branch; authenticated non-production and migration-application proof remain pending. No connector configuration or credentials changed.
+
 ## Rules
 
 - Prefer installed/authenticated MCP, then approved CLI/SDK, then controlled browser interaction.
