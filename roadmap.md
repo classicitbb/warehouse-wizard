@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Add Microsoft sign-in while preserving existing approvals; button visibility and six automated checks passed.
+- [ ] Verify a complete Microsoft sign-in in the hosted preview; local testing lacks the hosted OAuth redirect service and a Microsoft account session.
+
 - [x] Standardize close controls and scrollbar tracks across all dialogs; test every known dialog.
 - [x] Prevent hidden role assignments from granting elevated access.
 - [x] Simplify alternate-pallet confirmation and improve active pick-row readability.

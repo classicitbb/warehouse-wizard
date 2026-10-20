@@ -55,6 +55,7 @@ import { ConnectionRecovery, WhatsNewOnUpdate } from "@/features/shared/app-runt
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import { MicrosoftSignIn } from "@/components/microsoft-sign-in";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -980,6 +981,7 @@ function LoginPage() {
                   </form>
                 </Form>
               )}
+              <MicrosoftSignIn />
             </div>
           ) : mode === "reset" ? (
             <Form {...resetForm}>
