@@ -35,7 +35,7 @@ Evidence: `package.json`.
 | build | `npm run build` | `vite build` |
 | build:dev | `npm run build:dev` | `vite build --mode development` |
 | lint | `npm run lint` | `eslint .` |
-| typecheck | `npm run typecheck` | `tsc -p tsconfig.app.json --noEmit` |
+| typecheck | `npm run typecheck` | `tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.sw.json --noEmit` |
 | preview | `npm run preview` | `vite preview` |
 | test | `npm run test` | `vitest run` |
 | test:watch | `npm run test:watch` | `vitest` |
@@ -59,6 +59,7 @@ Update this section whenever code introduces, removes, or renames configuration.
 
 ## Durable decisions
 
+- Deployment repair (2026-10-20): the current PostCSS plugin configuration and CSS directives require Tailwind 3; upgrading only the dependency to Tailwind 4 breaks `npm run build`. Keep the root dependency on `^3.4.17` until an intentional CSS/config migration. `eslint.config.js` scopes a `prefer-const` exception to the generated `previewAuthStorage.ts` because Lovable regeneration repeatedly removes inline suppressions; auth source/behavior is unchanged. Migration text assertions normalize CRLF before LF-sensitive checks so Windows and Linux verify the same SQL. No environment-variable names or services changed.
 - Keep verified project context and resumable handoff state in `docs/agent/`.
 - Inventory row actions use a 24px icon-only ghost trigger with an accessible pallet-specific name; its cell has no vertical padding so it cannot enlarge the established text/badge row height, including during selection (2026-10-20 browser annotation follow-up). Existing table tokens/padding elsewhere remain unchanged.
 - Inventory Search whole-pallet pick work (2026-10-20, local feature branch): complete stable inventory pages are read before product FIFO/FEFO sorting and display pagination; receipt and pallet/balance IDs break ties, missing dates sort last. Effective expiry is lot expiry with balance expiry fallback. The dedicated invoker RPC `inventory_whole_pallet_pick_work` previews and atomically creates/appends queued work; This product chooses one whole pallet, never quantity allocation. Rotation overrides require explicit review, stale plans fail closed, and owner groups receive separate new lists. The additive migration is authored only, not applied; existing policies/privileges remain authoritative. See `docs/testing/inventory-whole-pallet-picking.md` for eligibility, lock/concurrency constraints, commands and verification boundaries. No environment-variable names changed. `@electric-sql/pglite` is a pinned test-only dependency for executing migration behavior locally; the explicit browser fixture replaces backend/auth context only in its own Vite configuration and makes no real backend calls.

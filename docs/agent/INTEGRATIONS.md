@@ -12,6 +12,7 @@
 
 Add every real external service when verified. Access to one service does not imply access to another.
 
+- 2026-10-20 deployment diagnosis: Vercel connector harmless `get_deployment` and `list_deployment_events` reads verified the Warehouse Wizard branch preview failed in PostCSS after `npm ci` succeeded. GitHub CLI `gh pr list --head codex/inventory-whole-pallet-picking --json number,title,url,headRefOid,statusCheckRollup` and `gh run view 39452610629 --log-failed` verified PR #31 and its independent lint failure. No deployment, data, auth, credential or connector settings were changed.
 - 2026-10-20 harmless Supabase connector `list_projects` read succeeded, but returned no active Warehouse Wizard data project. No target/schema/data query or write was made. Inventory Search pick work therefore uses isolated PGlite SQL tests and a separate local browser fixture for this branch; authenticated non-production and migration-application proof remain pending. No connector configuration or credentials changed.
 
 ## Rules
