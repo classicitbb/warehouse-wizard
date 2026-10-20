@@ -1,4 +1,7 @@
 # AGENTS.md — Implementation Guardrails
+<!-- LOVABLE:BEGIN -->
+Microsoft OAuth uses the managed Lovable helper and a public login callback, separate from password/badge handlers, so existing profile, role, and approval guards remain authoritative.
+<!-- LOVABLE:END -->
 
 ## 1. Product surface guardrails
 
