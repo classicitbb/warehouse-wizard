@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { MoreHorizontal } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,9 @@ export function InventoryResultContext({ children, onOpen, ...actions }: Actions
 export function InventoryResultActions({ palletCode, ...actions }: Actions & { palletCode: string }) {
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button type="button" variant="ghost" size="sm" aria-label={`Actions for ${palletCode}`}>Actions</Button>
+      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label={`Actions for ${palletCode}`} title="Actions">
+        <MoreHorizontal aria-hidden="true" />
+      </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent>
       <DropdownMenuItem disabled={!actions.canView} onSelect={actions.onView}>View item</DropdownMenuItem>

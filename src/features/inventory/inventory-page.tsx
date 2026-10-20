@@ -677,7 +677,7 @@ export function InventorySearchPage() {
                       }}
                       title={detailId ? "Double-click or double-tap to open details" : "This pallet has no inventory record left — history only"}
                     >
-                      <TableCell>
+                      <TableCell className="py-0">
                         <div className="flex items-center gap-2">
                           {selectionMode ? <Checkbox aria-label={`Select ${row.pallet_code}`} disabled={!canAdd}
                             checked={selectedPallets.has(row.pallet_id)} onCheckedChange={() => togglePallet(row)} /> : null}
