@@ -1,5 +1,15 @@
 # Work Handoff
 
+## NetSuite putaway/receipt double count — 2026-10-21
+
+- Status: Complete in source; migration not applied.
+- Problem: putaway posts an inventory adjustment for every pallet. Once receipts post to NetSuite as item receipts at label print (W3), goods received against a NetSuite PO, transfer order or inbound shipment would reach NetSuite twice. Receipt posting is not built yet, so the adjustment is currently the only NetSuite record of received stock and must keep running until W3 lands.
+- Found while fixing it: pallets were never linked to their receipt line. `20260902143104` added `#variable_conflict use_column` to `confirm_receiving_draft_labels_printed`, which made its `receipt_line_id = receipt_line_id` assignment a no-op. In the beta every pallet (105 of 105 checked) had a null `receipt_line_id`. No other function patched by that migration has the same self-assignment.
+- Implemented (`supabase/migrations/20261021200000_netsuite_receipt_sourced_putaway.sql`): renames the label-print function's local variable in its live definition (patch-in-place, raises if the expected text is not found exactly once); backfills missing links from the latest `receiving_labels_confirmed` audit event per pallet; adds `netsuite_receipt_sourced_pallet(uuid)`; and `enqueue_netsuite_inventory_sync` skips the adjustment for receipt-sourced pallets only while the connection config has `receipts_post_to_netsuite = true`. Unset means no behaviour change. Safe to re-run. Documented in `INTEGRATIONS.md` under the outbound adjustment record.
+- Verification: `src/test/netsuite-receipt-sourced-putaway-sql.test.ts` runs the repository's label-print function, the real `20260902143104` patch and this migration in PGlite (7 tests): the link is broken before, backfilled and fixed after, adjustments unchanged with the switch off, skipped only for NetSuite-sourced receipts with it on, and free-text notes never block a putaway. Mutating the skip rule or the link fix fails 2 tests each. `npm run typecheck`, focused ESLint and the full suite (93 files, 1067 tests) pass.
+- Approval required: applying the migration to the beta (a Lovable message in the sandbox project: apply migration `20261021200000_netsuite_receipt_sourced_putaway.sql`). No edge function changed.
+- Exact next action: after applying, check that new label prints set `pallets.receipt_line_id` and that the 88 pallets waiting for putaway were backfilled. Set `receipts_post_to_netsuite = true` only in the same change that turns on receipt posting (W3).
+
 ## Duplicate inbound receiving — 2026-10-21
 
 - Status: App safeguard verified; database-atomic safeguard blocked.
