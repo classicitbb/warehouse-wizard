@@ -7,9 +7,10 @@
 // while this is proven. Move it onto this module once W2 is accepted.
 
 import { netsuiteHost } from './netsuite.ts'
-import { fetchNetSuiteAccessToken } from './netsuite-auth.ts'
+import { fetchNetSuiteAccessToken, type NetSuiteScope } from './netsuite-auth.ts'
+import { buildRestletUrl, resolveRestletTarget, type RestletTarget } from './netsuite-restlet.ts'
 
-export type NetSuiteSession = { accountId: string; token: string }
+export type NetSuiteSession = { accountId: string; token: string; restlet: RestletTarget }
 
 export type NetSuiteSessionResult =
   | { ok: true; session: NetSuiteSession }
@@ -40,8 +41,15 @@ async function loadSecret(admin: ServiceClient, connectionId: string, type: stri
   return data?.secret_value ?? null
 }
 
-/** Loads the NetSuite connection and exchanges the certificate for an access token. */
-export async function openNetSuiteSession(admin: ServiceClient): Promise<NetSuiteSessionResult> {
+/**
+ * Loads the NetSuite connection and exchanges the certificate for an access
+ * token. Pass `restlets` in `scopes` for calls to a RESTlet: a token only
+ * carries the scopes it was asked for.
+ */
+export async function openNetSuiteSession(
+  admin: ServiceClient,
+  scopes?: NetSuiteScope[],
+): Promise<NetSuiteSessionResult> {
   const { data: connection, error } = await admin
     .from('integration_connections')
     .select('id, enabled, config')
@@ -62,9 +70,12 @@ export async function openNetSuiteSession(admin: ServiceClient): Promise<NetSuit
     return { ok: false, reason: 'incomplete', message: 'NetSuite credentials are incomplete' }
   }
 
-  const tokenResult = await fetchNetSuiteAccessToken(creds)
+  const tokenResult = await fetchNetSuiteAccessToken(creds, scopes)
   if (!tokenResult.ok) return { ok: false, reason: 'auth_failed', message: tokenResult.error }
-  return { ok: true, session: { accountId: creds.accountId, token: tokenResult.token } }
+  return {
+    ok: true,
+    session: { accountId: creds.accountId, token: tokenResult.token, restlet: resolveRestletTarget(config) },
+  }
 }
 
 async function readOrThrow(res: Response): Promise<unknown> {
@@ -98,6 +109,26 @@ export async function netsuiteGetRecord(
   const res = await fetch(
     `https://${netsuiteHost(session.accountId)}/services/rest/record/v1/${recordType}/${encodeURIComponent(internalId)}?expandSubResources=true`,
     { headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json' } },
+  )
+  return await readOrThrow(res)
+}
+
+/** Read-only GET against the inbound shipment RESTlet. The session must have been opened with the `restlets` scope. */
+export async function netsuiteRestletGet(
+  session: NetSuiteSession,
+  params: Record<string, string>,
+): Promise<unknown> {
+  const res = await fetch(buildRestletUrl(session.accountId, session.restlet, params), {
+    headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json' },
+  })
+  return await readOrThrow(res)
+}
+
+/** Field-level schema for a REST record type, from the account's metadata catalog. */
+export async function netsuiteGetMetadataCatalog(session: NetSuiteSession, recordType: string): Promise<unknown> {
+  const res = await fetch(
+    `https://${netsuiteHost(session.accountId)}/services/rest/record/v1/metadata-catalog/${encodeURIComponent(recordType)}`,
+    { headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/schema+json' } },
   )
   return await readOrThrow(res)
 }
