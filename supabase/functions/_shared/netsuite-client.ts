@@ -113,13 +113,18 @@ export async function netsuiteGetRecord(
   return await readOrThrow(res)
 }
 
-/** Read-only GET against the inbound shipment RESTlet. The session must have been opened with the `restlets` scope. */
+/**
+ * Read-only GET against the inbound shipment RESTlet. The session must have
+ * been opened with the `restlets` scope. A RESTlet may return an object only
+ * when the request declares JSON: without a JSON Content-Type NetSuite answers
+ * 400 INVALID_RETURN_DATA_FORMAT ("You should return text"), even on a GET.
+ */
 export async function netsuiteRestletGet(
   session: NetSuiteSession,
   params: Record<string, string>,
 ): Promise<unknown> {
   const res = await fetch(buildRestletUrl(session.accountId, session.restlet, params), {
-    headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
   })
   return await readOrThrow(res)
 }
