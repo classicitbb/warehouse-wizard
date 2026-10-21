@@ -14,6 +14,7 @@ import {
   type InventoryStatus,
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
+import { listInboundReceivingWork, matchingReceivingWork, receivingWorkMessage } from "@/features/receiving/inbound-receiving-work";
 
 function buildPalletCode(prefix: string) {
   const time = Date.now().toString().slice(-8);
@@ -417,6 +418,11 @@ export async function saveShipmentDrafts(input: ShipmentDraftInput): Promise<{ g
   }
   const entryMode = input.receipt_type === "other" && !input.container_number.trim() ? "pallet" : "shipment";
   if (!input.lines.length) throw new Error("Add at least one SKU line.");
+  if (input.container_number || input.lines.some((line) => line.netsuite?.inboundShipmentId)) {
+    const work = await listInboundReceivingWork(input.warehouse_id);
+    const matching = input.lines.flatMap((line) => matchingReceivingWork(work, input.container_number, line.netsuite?.inboundShipmentId));
+    if (matching.length) throw new Error(receivingWorkMessage(matching));
+  }
 
   const groupId = buildClientId("shipment");
   const rows: any[] = [];

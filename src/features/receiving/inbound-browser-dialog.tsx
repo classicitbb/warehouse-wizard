@@ -14,6 +14,7 @@ import { resolveContainerScanValue, normalizeScannerText } from "@/lib/scan-inpu
 import { cn } from "@/lib/utils";
 import { InboundShipmentCard } from "@/features/receiving/inbound-shipment-card";
 import { containersOf, findShipmentDrafts } from "@/features/receiving/inbound-shipment-lines";
+import { listInboundReceivingWork, matchingReceivingWork, receivingWorkMessage } from "@/features/receiving/inbound-receiving-work";
 import {
   INBOUND_MAX_ROWS,
   INBOUND_PAGE_SIZE,
@@ -46,6 +47,8 @@ export function InboundBrowserDialog({
   online,
   initialSearch,
   drafts,
+  warehouseId,
+  onShowPutaway,
   onReceive,
   onShowDrafts,
 }: {
@@ -55,8 +58,10 @@ export function InboundBrowserDialog({
   /** Pre-fills the search, e.g. the shipment number from the PO lookup. */
   initialSearch: string;
   drafts: DraftLike[];
+  warehouseId?: string;
+  onShowPutaway?: () => void;
   /** Loads the shipment into the New Shipment dialog. Returns true when it did, so the browser can close. */
-  onReceive: (shipment: InboundShipmentSummary, detail: InboundShipmentDetail, container: string) => boolean;
+  onReceive: (shipment: InboundShipmentSummary, detail: InboundShipmentDetail, container: string) => boolean | Promise<boolean>;
   onShowDrafts: (shipment: InboundShipmentSummary, container: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -97,6 +102,13 @@ export function InboundBrowserDialog({
   });
 
   const result = list.data;
+  const work = useQuery({
+    queryKey: ["inbound-receiving-work", warehouseId],
+    queryFn: () => listInboundReceivingWork(warehouseId ?? ""),
+    enabled: open && online && Boolean(warehouseId),
+    staleTime: 0,
+    refetchInterval: 15_000,
+  });
   const shipments = useMemo(() => (result?.kind === "ok" ? result.shipments : []), [result]);
   // Drafts standing for each container of each shipment, so the card can block exactly the one already started.
   const draftCounts = useMemo(() => {
@@ -118,12 +130,16 @@ export function InboundBrowserDialog({
   async function receive(shipment: InboundShipmentSummary, container: string) {
     setReceivingId(shipment.id);
     try {
+      if (warehouseId) {
+        const matching = matchingReceivingWork(await listInboundReceivingWork(warehouseId), container, shipment.id);
+        if (matching.length) { toast.error(receivingWorkMessage(matching)); await work.refetch(); return; }
+      }
       const detail = await queryClient.fetchQuery(inboundDetailQuery(shipment.id));
       if (detail.kind === "unavailable") {
         toast.error(detail.message);
         return;
       }
-      if (onReceive(shipment, detail.detail, container)) onOpenChange(false);
+      if (await onReceive(shipment, detail.detail, container)) onOpenChange(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not load this shipment from NetSuite.");
     } finally {
@@ -240,7 +256,10 @@ export function InboundBrowserDialog({
                   expanded={expandedId === shipment.id}
                   online={online}
                   receiving={receivingId === shipment.id}
-                  draftCountFor={(container) => draftCounts.get(`${shipment.id}|${container}`) ?? 0}
+                  checkingWork={Boolean(warehouseId) && (!work.data || work.isError)}
+                  putawayCountFor={(container) => matchingReceivingWork(work.data ?? [], container, shipment.id).filter((row) => row.stage === "putaway").length}
+                  onShowPutaway={onShowPutaway}
+                  draftCountFor={(container) => Math.max(draftCounts.get(`${shipment.id}|${container}`) ?? 0, matchingReceivingWork(work.data ?? [], container, shipment.id).filter((row) => row.stage === "draft").length)}
                   onToggle={() => setExpandedId((current) => (current === shipment.id ? null : shipment.id))}
                   onReceive={(container) => void receive(shipment, container)}
                   onShowDrafts={(container) => onShowDrafts(shipment, container)}

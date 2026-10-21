@@ -40,6 +40,9 @@ export function InboundShipmentCard({
   online,
   receiving,
   draftCountFor,
+  putawayCountFor = () => 0,
+  checkingWork = false,
+  onShowPutaway,
   onToggle,
   onReceive,
   onShowDrafts,
@@ -50,6 +53,9 @@ export function InboundShipmentCard({
   receiving: boolean;
   /** Pallet drafts already standing for this container. When set, receiving it again is blocked. */
   draftCountFor: (container: string) => number;
+  putawayCountFor?: (container: string) => number;
+  checkingWork?: boolean;
+  onShowPutaway?: () => void;
   onToggle: () => void;
   /** `container` is "" when NetSuite holds no container number for the shipment. */
   onReceive: (container: string) => void;
@@ -58,6 +64,7 @@ export function InboundShipmentCard({
   const containers = containersOf(shipment);
   const targets = containers.length > 0 ? containers : [""];
   const draftCount = targets.reduce((n, c) => n + draftCountFor(c), 0);
+  const putawayCount = targets.reduce((n, c) => n + putawayCountFor(c), 0);
   const multi = containers.length > 1;
   const detail = useQuery({ ...inboundDetailQuery(shipment.id), enabled: expanded && online });
   const result = detail.data;
@@ -87,6 +94,7 @@ export function InboundShipmentCard({
                 {shipment.status.label || "Unknown status"}
               </Badge>
               {draftCount > 0 && <Badge variant="outline" className="shrink-0">Drafts in progress</Badge>}
+              {putawayCount > 0 && <Badge variant="outline" className="shrink-0">In Put-Away</Badge>}
             </span>
             <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
               <span className="font-medium text-foreground/90">{shipment.number || `Shipment ${shipment.id}`}</span>
@@ -110,13 +118,17 @@ export function InboundShipmentCard({
               <Button key={container || "none"} type="button" size="sm" variant="outline" className="whitespace-nowrap" onClick={() => onShowDrafts(container)}>
                 {multi ? `${container}: ` : ""}Show drafts ({drafted})
               </Button>
+            ) : putawayCountFor(container) > 0 ? (
+              <Button key={container || "none"} type="button" size="sm" variant="outline" onClick={onShowPutaway} disabled={!onShowPutaway}>
+                {multi ? `${container}: ` : ""}Go to Put-Away
+              </Button>
             ) : (
               <Button
                 key={container || "none"}
                 type="button"
                 size="sm"
                 className="whitespace-nowrap"
-                disabled={!online || receiving}
+                disabled={!online || receiving || checkingWork}
                 title={!online ? "Connect to the network to load this shipment" : undefined}
                 onClick={() => onReceive(container)}
               >
