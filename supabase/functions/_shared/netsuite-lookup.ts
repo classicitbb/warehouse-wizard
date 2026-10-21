@@ -9,9 +9,15 @@
 // code:
 //   - Line number: `line` on both records (`orderLine` is the back-reference on
 //     item receipt and fulfilment lines, and is never read here).
-//   - Line key: a purchase order line has `uniqueKey`. A transfer order line has
-//     no key of any kind, so one is built from the document id and `line`.
-//   - Status: a purchase order has `status`; a transfer order only `orderStatus`.
+//   - Line key: the catalog lists `uniqueKey` on a purchase order line, but the
+//     REST record does not return it (seen on PO76), and a transfer order line has
+//     no key at all. Both get a key built from the document id and `line`.
+//   - Status: `orderStatus.id` is the letter code (`B`). The label is `status.refName`
+//     on a purchase order and `orderStatus.refName` on a transfer order, which has
+//     no `status`. A purchase order's `status.id` is its label, not a code.
+//   - Units: `units` is the units-of-measure internal id, a string ("575").
+//   - Location: a purchase order line carries `targetLocation`; a transfer order
+//     line has none, so the header location applies.
 
 export const LOOKUP_DOCUMENT_TYPES = {
   purchase_order: { recordType: 'purchaseOrder', tranType: 'PurchOrd', label: 'Purchase order' },
@@ -49,10 +55,10 @@ export type NamedRef = { id: string; name: string }
 
 export type LookupLine = {
   /**
-   * Stable identity of the line across lookups. A purchase order line's
-   * `uniqueKey`; for a transfer order, `<internal id>:<line>` because its lines
-   * have no key and `line` alone repeats across documents. Not the value to
-   * send back to NetSuite: receipts name the line with `lineNumber` (`orderLine`).
+   * Stable identity of the line across lookups: `<internal id>:<line>`, since
+   * NetSuite returns no line key on these records and `line` alone repeats across
+   * documents. Not the value to send back: receipts name the line with
+   * `lineNumber` (`orderLine`).
    */
   lineKey: string | null
   /** The source line number. Not sequential in NetSuite, so never assume position. */
@@ -64,9 +70,12 @@ export type LookupLine = {
   /** Transfer orders only: what the sending warehouse has shipped so far. */
   quantityFulfilled: number | null
   quantityReceived: number
+  /** Purchase orders only: quantity already on an inbound shipment. Above zero, J6 applies (it may not be receivable directly). */
+  quantityOnShipments: number | null
   /** What can still be received against this line. Zero when the line is closed. */
   quantityRemaining: number
-  unit: string | null
+  /** Units-of-measure internal id as NetSuite sends it; the name comes from the synced units (netsuite-units). */
+  unitId: string | null
   location: NamedRef | null
   closed: boolean
 }
@@ -125,6 +134,7 @@ export function normalizeLine(type: LookupDocumentType, raw: unknown, documentIn
   const lineNumber = num(line.line)
   const ordered = num(line.quantity) ?? 0
   const received = num(line.quantityReceived) ?? 0
+  const onShipments = type === 'purchase_order' ? (num(line.quantityOnShipments) ?? 0) : null
   const fulfilled = type === 'transfer_order' ? (num(line.quantityFulfilled) ?? 0) : null
   const closed = bool(line.isClosed)
 
@@ -133,9 +143,7 @@ export function normalizeLine(type: LookupDocumentType, raw: unknown, documentIn
   const remaining = closed ? 0 : Math.max(receivable - received, 0)
 
   return {
-    lineKey: type === 'purchase_order'
-      ? str(line.uniqueKey)
-      : documentInternalId && lineNumber !== null ? `${documentInternalId}:${lineNumber}` : null,
+    lineKey: documentInternalId && lineNumber !== null ? `${documentInternalId}:${lineNumber}` : null,
     lineNumber,
     itemId: item?.id ?? null,
     itemName: item?.name ?? '',
@@ -143,9 +151,10 @@ export function normalizeLine(type: LookupDocumentType, raw: unknown, documentIn
     quantityOrdered: ordered,
     quantityFulfilled: fulfilled,
     quantityReceived: received,
+    quantityOnShipments: onShipments,
     quantityRemaining: remaining,
-    unit: ref(line.units)?.name ?? null,
-    location: ref(line.location),
+    unitId: str(line.units),
+    location: ref(line.location) ?? ref(line.targetLocation),
     closed,
   }
 }
@@ -153,8 +162,8 @@ export function normalizeLine(type: LookupDocumentType, raw: unknown, documentIn
 /** Turns the REST record (fetched with `expandSubResources=true`) into a LookupDocument. */
 export function normalizeDocument(type: LookupDocumentType, internalId: string, record: unknown): LookupDocument {
   const doc = asObject(record) ?? {}
-  // A transfer order has no `status`, only `orderStatus`.
-  const status = asObject(doc.status) ?? asObject(doc.orderStatus)
+  const status = asObject(doc.status)
+  const orderStatus = asObject(doc.orderStatus)
   const itemSublist = asObject(doc.item)
   const rawLines = Array.isArray(itemSublist?.items) ? (itemSublist.items as unknown[]) : []
 
@@ -163,8 +172,8 @@ export function normalizeDocument(type: LookupDocumentType, internalId: string, 
     internalId,
     number: str(doc.tranId) ?? '',
     status: {
-      code: str(status?.id) ?? (typeof doc.status === 'string' ? doc.status : null),
-      label: str(status?.refName) ?? '',
+      code: str(orderStatus?.id) ?? str(status?.id) ?? (typeof doc.status === 'string' ? doc.status : null),
+      label: str(status?.refName) ?? str(orderStatus?.refName) ?? '',
     },
     entity: ref(doc.entity),
     location: ref(doc.location),
