@@ -7,8 +7,8 @@
 | Supabase | Database/auth/storage/functions as used by code | Repository configuration detected | Verify project/account before writes |
 | Lovable | Project editing/generation workflow | MCP connector reachable 2026-09-02, but exposes only design-import and new-project tools — no migration, project-message, or diff capability in this session | Review generated diffs; verify publish path |
 | Supabase CLI | Applying migrations locally | `npx supabase --version` → 2.116.0 on 2026-09-02; project not linked | Linking and `db push` against the production project remain an approval gate |
-| NetSuite | ERP master data inbound, inventory adjustments outbound | Sandbox token endpoint reachable 2026-09-16. The deployed `netsuite-connection` signs an assertion NetSuite parses (`400 invalid_client` for an unregistered certificate). A real token has not yet been issued, pending the M2M certificate upload in NetSuite | Inbound `item` upserts `products` + `external_record_links`; outbound posts `inventoryAdjustment` only |
-| GitHub Actions | Scheduled drain of the NetSuite outbound queue | Workflow added 2026-09-15; never run, because its repository secrets do not exist yet | Calls `process-netsuite-queue` with a scoped runner secret, not the service-role key |
+| NetSuite | ERP master data inbound, inventory adjustments outbound | M2M certificate registered. Beta Sandbox project posts inventory adjustments to the `_SB1` sandbox successfully (17 jobs, checked 2026-10-21). The beta owns that sandbox account. Production's connection still points at `_SB1` but has been disabled since 2026-10-16 and has never sent a job; it gets its own live-account integration at cutover. See HANDOFF 2026-10-21 | Inbound `item` upserts `products` + `external_record_links`; outbound posts `inventoryAdjustment` only |
+| GitHub Actions | Scheduled drain of the NetSuite outbound queue | Workflow added 2026-09-15. As of 2026-10-21 production's queue has never drained; the beta's drains within seconds by a mechanism not yet identified. Production also has an inactive `pg_cron` job `process-netsuite-queue` using `pg_net` | Calls `process-netsuite-queue` with a scoped runner secret, not the service-role key |
 
 Add every real external service when verified. Access to one service does not imply access to another.
 
@@ -47,7 +47,7 @@ Three edge functions and one trigger, sharing the `integration_*` job spine.
 `/services/rest/record/v1/inventoryAdjustment`. The builder lives in `_shared/netsuite.ts` and is
 mirrored in `src/lib/enterprise-wms.ts`; `src/test/enterprise-wms.test.ts` fails if the two copies
 drift. The shape was checked against Oracle's REST example for the inventory adjustment record on
-2026-09-16. No live NetSuite account has accepted it yet, because no access token has been issued.
+2026-09-16. The `_SB1` sandbox has accepted it since 2026-10-10, through the Beta Sandbox project. No live (production) NetSuite account has received it.
 
 - The body is the record itself: `externalId`, `account`, optional `subsidiary`, `memo`, and
   `inventory.items[]` with `item`, `location`, `adjustQtyBy`. There are no wrapper keys. The
