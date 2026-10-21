@@ -1,5 +1,14 @@
 # Work Handoff
 
+## Duplicate inbound receiving — 2026-10-21
+
+- Status: App safeguard verified; database-atomic safeguard blocked.
+- Implemented: paginated active drafts and unfinished Put-Away receipt links, per-container browser blocking with Show drafts / Go to Put-Away, fresh checks on Receive, form load, and shipment draft save. Different containers remain independent.
+- Verification: `npm run test -- src/test/inbound-receiving-work.test.ts src/test/receiving-inbound.test.tsx src/test/inbound-browser-dialog.test.tsx src/test/inbound-shipment-lines.test.ts src/test/receiving-page.test.tsx` — 82 passed. Harness build OK. Authenticated browser with real removable fixtures: draft blocks IS052 and manual save, cancellation unblocks; completed receipt with queued Put-Away blocks IS052 and manual save, task completion unblocks. All fixtures removed; zero-stock Put-Away fixtures made no inventory balance changes.
+- Blocker: migration tool failed on pre-existing `policy "Supervisors delete product_packaging_profiles" for table "product_packaging_profiles" already exists`; no new migration applied. Do not claim simultaneous saves or direct database inserts are atomically protected. Returned/correction drafts lacking original container metadata remain an additional provenance edge case.
+- Exact next action: resolve the existing migration journal conflict through the migration system, then apply and test a statement-level receipt insert guard with advisory locking that excludes its own batch and preserves correction/returned-pallet flows. Do not edit shipped migrations or bypass the migration tool.
+- Files: `src/features/receiving/inbound-receiving-work.ts`, inbound browser/card, receiving page/core, receiving tests. Pre-existing type errors in units/package-type queries corrected using the established dynamic table helper; generated definitions untouched.
+
 - Repository: `classicitbb/warehouse-wizard`
 - Status: Incomplete — NetSuite inventory adjustment payload fix is merged to `main` and awaits migration and edge-function deployment approval; NetSuite M2M authentication fix is deployed and awaits the certificate upload in NetSuite; Release policy / fleet freshness awaits database migration and deployment approval; Copilot composer still awaits authorized browser verification
 - Last updated: 2026-10-20

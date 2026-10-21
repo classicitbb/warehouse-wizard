@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Block duplicate inbound receiving during drafts and open Put-Away; verify matching, loading, and save preflights (82 tests and authenticated live fixtures).
+- [ ] Add database-atomic duplicate protection for simultaneous operators; blocked by pre-existing migration journal conflict on the packaging-profile supervisor policy.
+
 - [x] Add Microsoft sign-in while preserving existing approvals; button visibility and six automated checks passed.
 - [ ] Verify a complete Microsoft sign-in in the hosted preview; local testing lacks the hosted OAuth redirect service and a Microsoft account session.
 

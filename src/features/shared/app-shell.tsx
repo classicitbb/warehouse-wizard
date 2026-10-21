@@ -30,6 +30,7 @@ import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { useFeatureFlags, MODULE_LABELS, STARTER_MODULES, type ModuleKey } from "@/hooks/use-feature-flags";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { useBackgroundSync } from "@/hooks/use-background-sync";
 import { useNotificationPermission } from "@/hooks/use-notification-permission";
@@ -217,7 +218,7 @@ const BREADCRUMB_SECTIONS: Array<{ label: string; routes: string[] }> = [
   },
   {
     label: "Warehouse",
-    routes: ["/warehouses", "/zones", "/locations", "/products", "/clients", "/packaging-profiles"],
+    routes: ["/warehouses", "/zones", "/locations", "/products", "/clients", "/customers", "/packaging-profiles"],
   },
   {
     label: "Admin",
@@ -578,6 +579,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
   const { isEnabled } = useFeatureFlags();
+  const netsuiteActive = useNetSuiteActive();
   const networkStatus = useNetworkStatus();
   const { online } = networkStatus;
   // Older narrow test doubles and frozen consumers return only `online`.
@@ -621,7 +623,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .filter(
       (item) =>
         item.roles.some((role) => roles.includes(role)) &&
-        (!item.moduleKey || isEnabled(item.moduleKey as ModuleKey)),
+        (!item.moduleKey || isEnabled(item.moduleKey as ModuleKey)) &&
+        (!item.netsuite || netsuiteActive),
     )
     // Settings and Help stay pinned below the module list.
     .sort((a, b) => {

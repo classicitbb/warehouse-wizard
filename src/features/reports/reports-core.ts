@@ -6,6 +6,7 @@ import {
   type ResourceDefinition,
 } from "@/features/shared/core-types";
 import { writeSystemLog } from "@/features/system/system-core";
+import { fetchPackageTypes, resolvePackageType, type PackageType } from "@/features/shared/package-types";
 import { displayRackLocationCode } from "@/features/setup/setup-core";
 
 export async function getReportData({ warehouseId }: { warehouseId?: string | null } = {}) {
@@ -326,6 +327,13 @@ export async function parseCsvForResource(resource: ResourceDefinition, file: Fi
     });
   }
 
+  // For packaging profiles: package types by code or alias ("Bale", "cs"),
+  // so a CSV can name the type instead of carrying its UUID.
+  let packageTypes: PackageType[] | null = null;
+  if (resource.table === "product_packaging_profiles") {
+    packageTypes = await fetchPackageTypes();
+  }
+
   // For products: preload existing SKUs to flag duplicates
   let existingSkus: Set<string> | null = null;
   if (resource.table === "products") {
@@ -352,6 +360,13 @@ export async function parseCsvForResource(resource: ResourceDefinition, file: Fi
     for (const [key, valueRaw] of Object.entries(raw)) {
       if (STRIP_FIELDS.has(key)) continue; // ignore server-managed fields
       const field = fieldByName.get(key);
+      if (!field && key === "package_type" && packageTypes) {
+        // Legacy column from older exports: same lookup as package_type_id.
+        const match = resolvePackageType(packageTypes, valueRaw);
+        if (match) normalized.package_type_id = match.id;
+        else if (valueRaw) warnings.push(`package_type: "${valueRaw}" is not a known package type — left blank`);
+        continue;
+      }
       if (!field) {
         warnings.push(`Unknown column "${key}" (ignored)`);
         continue;
@@ -393,6 +408,14 @@ export async function parseCsvForResource(resource: ResourceDefinition, file: Fi
             continue;
           }
           normalized[key] = value;
+        } else if (key === "package_type_id" && packageTypes) {
+          const match = resolvePackageType(packageTypes, value);
+          if (!match) {
+            warnings.push(`package_type_id: "${value}" is not a known package type — left blank`);
+            normalized[key] = null;
+            continue;
+          }
+          normalized[key] = match.id;
         } else if (key === "client_owner_id" && clientLookup) {
           const resolved = clientLookup.get(`code:${value.toLowerCase()}`) ?? clientLookup.get(`name:${value.toLowerCase()}`);
           if (!resolved) {
