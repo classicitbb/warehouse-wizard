@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   NetSuiteHttpError,
   netsuiteGetMetadataCatalog,
+  netsuiteGetRecord,
   netsuiteRestletGet,
   openNetSuiteSession,
 } from '../_shared/netsuite-client.ts'
@@ -16,6 +17,9 @@ import { DISCOVERY_RECORDS, isDiscoveryRecord, summariseSchema } from '../_share
 //       -> the inbound shipment RESTlet's own field report for that shipment
 //   { action: 'catalog', records?: string[], raw?: boolean }
 //       -> field and sublist ids per record from the metadata catalog
+//   { action: 'record', record: string, internalId: string }
+//       -> one record exactly as the REST API returns it (expandSubResources),
+//          to see what a field really looks like rather than what the catalog says
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,7 +67,7 @@ Deno.serve(async (req) => {
     return json({ error: 'Only admins and developers can run NetSuite discovery' }, 403)
   }
 
-  let body: { action?: string; inboundShipmentId?: unknown; records?: unknown; raw?: unknown }
+  let body: { action?: string; inboundShipmentId?: unknown; records?: unknown; raw?: unknown; record?: unknown; internalId?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -105,7 +109,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, records: out })
     }
 
-    return json({ error: "action must be 'restlet_get' or 'catalog'" }, 400)
+    if (body.action === 'record') {
+      if (!isDiscoveryRecord(body.record)) return json({ error: `record must be one of: ${DISCOVERY_RECORDS.join(', ')}` }, 400)
+      const id = String(body.internalId ?? '').trim()
+      if (!/^\d{1,12}$/.test(id)) return json({ error: 'internalId must be digits only' }, 400)
+
+      const opened = await openNetSuiteSession(admin)
+      if (!opened.ok) return json({ unavailable: true, reason: opened.reason, message: opened.message })
+      return json({ ok: true, record: await netsuiteGetRecord(opened.session, body.record, id) as Record<string, unknown> })
+    }
+
+    return json({ error: "action must be 'restlet_get', 'catalog' or 'record'" }, 400)
   } catch (err) {
     if (err instanceof NetSuiteHttpError) {
       console.error('netsuite-discovery NetSuite error', err.status, err.message)
