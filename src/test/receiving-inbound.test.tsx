@@ -15,7 +15,13 @@ const mocks = vi.hoisted(() => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
   invoke: vi.fn(),
   netsuiteActive: true,
+  work: vi.fn(async (): Promise<any[]> => []),
 }));
+
+vi.mock("@/features/receiving/inbound-receiving-work", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/receiving/inbound-receiving-work")>();
+  return { ...actual, listInboundReceivingWork: mocks.work };
+});
 
 // Only the edge-function call is faked; the rest of the client stays real.
 vi.mock("@/integrations/supabase/client", async (importOriginal) => {
@@ -137,6 +143,8 @@ describe("Receiving > View inbound", () => {
     mocks.toast.error.mockClear();
     mocks.toast.warning.mockClear();
     mocks.netsuiteActive = true;
+    mocks.work.mockReset();
+    mocks.work.mockResolvedValue([]);
     window.localStorage.clear();
   });
 
@@ -211,5 +219,29 @@ describe("Receiving > View inbound", () => {
     expect(within(browser).queryByRole("button", { name: /receive this shipment/i })).not.toBeInTheDocument();
     fireEvent.click(within(browser).getByRole("button", { name: /show drafts/i }));
     await waitFor(() => expect(screen.getByPlaceholderText(/search container, po/i)).toHaveValue("MSKU1234565"));
+  });
+
+  it("blocks an inbound container whose dock receipts are in Put-Away", async () => {
+    mocks.work.mockResolvedValue([{ id: "r1", container_number: "MSKU1234565", notes: JSON.stringify({ netsuite: { inboundShipmentId: "5" } }), stage: "putaway" }]);
+    mockNetSuite();
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /view inbound/i }));
+    const browser = await screen.findByRole("dialog", { name: /inbound shipments/i });
+    expect(await within(browser).findByText("In Put-Away")).toBeInTheDocument();
+    expect(within(browser).queryByRole("button", { name: /receive this shipment/i })).not.toBeInTheDocument();
+    expect(mocks.saveShipmentDrafts).not.toHaveBeenCalled();
+  });
+
+  it("rechecks work when Receive is clicked instead of trusting an earlier empty list", async () => {
+    mocks.work.mockResolvedValueOnce([]).mockResolvedValue([{ id: "r1", container_number: "MSKU1234565", notes: null, stage: "putaway" }]);
+    mockNetSuite();
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /view inbound/i }));
+    const browser = await screen.findByRole("dialog", { name: /inbound shipments/i });
+    const receive = await within(browser).findByRole("button", { name: /receive this shipment/i });
+    await waitFor(() => expect(receive).toBeEnabled());
+    fireEvent.click(receive);
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(expect.stringContaining("already in Put-Away")));
+    expect(screen.queryByRole("dialog", { name: /new shipment/i })).not.toBeInTheDocument();
   });
 });

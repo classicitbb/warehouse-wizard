@@ -71,6 +71,7 @@ export type AppRoute =
   | "/products"
   | "/packaging-profiles"
   | "/clients"
+  | "/customers"
   | "/receiving"
   | "/putaway-tasks"
   | "/inventory-search"
@@ -322,7 +323,8 @@ export type ModuleKey =
 
 export const TRANSFERS_ENABLED = false;
 
-export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[]; moduleKey?: ModuleKey }> = [
+// `netsuite: true` entries are listed only while the NetSuite integration is active.
+export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[]; moduleKey?: ModuleKey; netsuite?: boolean }> = [
   { label: "Dashboard", to: "/dashboard", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"], moduleKey: "dashboard" },
   { label: "Receiving", to: "/receiving", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "receiving" },
   { label: "Put-Away", to: "/putaway-tasks", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "putaway" },
@@ -336,6 +338,7 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Bin Locations", to: "/locations", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "locations" },
   { label: "Products", to: "/products", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "products" },
   { label: "Clients", to: "/clients", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "clients" },
+  { label: "Customers", to: "/customers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true },
   { label: "Settings", to: "/settings", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor"], moduleKey: "settings" },
   { label: "Help", to: "/help", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"] },
   { label: "Packaging", to: "/packaging-profiles", roles: ["developer", "admin", "warehouse_manager", "inventory_clerk"], moduleKey: "packaging" },
@@ -531,7 +534,11 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     fields: [
       { name: "product_id", label: "Product", type: "select", required: true },
       { name: "profile_name", label: "Profile name", type: "text", required: true },
-      { name: "package_type", label: "Package type", type: "text", required: true },
+      // FK to the package_types master, rendered by PackageTypeSelect. Not
+      // required: legacy text the master does not know (e.g. "pallet") leaves it
+      // null. CSV imports accept a code or alias here (or in a legacy
+      // package_type column) and resolve it in parseCsvForResource.
+      { name: "package_type_id", label: "Package type", type: "select" },
       { name: "units_per_package", label: "Units per package", type: "number", required: true },
       { name: "length", label: "Length", type: "number" },
       { name: "width", label: "Width", type: "number" },

@@ -21,9 +21,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { PackStandardSection } from "@/features/shared/pack-standard-form";
+import { PackageTypeSelect } from "@/features/shared/package-type-select";
+import { resolvePackageType, usePackageTypes } from "@/features/shared/package-types";
 import {
   PRODUCT_PACK_OPTIONS_KEY,
   fetchProductPackOptions,
@@ -49,7 +50,6 @@ import {
 } from "@/lib/pallet-geometry";
 import { cn } from "@/lib/utils";
 
-const PACKAGE_TYPES = ["case", "carton", "box", "tray", "bag"];
 
 const FIT_TONE = {
   fits: "border-success/50 bg-success/10 text-success",
@@ -67,7 +67,8 @@ const CONFORMANCE_TONE = {
 
 interface SaveDetails {
   profileName: string;
-  packageType: string;
+  /** package_types id; "" when the saved standard has none. */
+  packageTypeId: string;
   unitsPerPackage: number;
   isPalletStandard: boolean;
 }
@@ -91,8 +92,10 @@ export function PalletPakDesigner() {
   const [actualPackages, setActualPackages] = useState<number | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const [details, setDetails] = useState<SaveDetails>({
-    profileName: "", packageType: "case", unitsPerPackage: 1, isPalletStandard: true,
+    profileName: "", packageTypeId: "", unitsPerPackage: 1, isPalletStandard: true,
   });
+  const { data: packageTypes = [] } = usePackageTypes();
+  const caseTypeId = resolvePackageType(packageTypes, "case")?.id ?? "";
 
   // Narrow read: the picker only shows SKU, name and pack state, so pulling
   // whole product rows here is what made the drop-down look empty.
@@ -193,12 +196,14 @@ export function PalletPakDesigner() {
       profileName: existingStandard
         ? String((existingStandard as any).profile_name ?? suggestProfileName(draft, taken))
         : suggestProfileName(draft, taken),
-      packageType: String((existingStandard as any)?.package_type ?? "case"),
+      packageTypeId: existingStandard
+        ? String((existingStandard as any).package_type_id ?? "")
+        : caseTypeId,
       unitsPerPackage: Number((existingStandard as any)?.units_per_package ?? 1) || 1,
       isPalletStandard: existingStandard ? (existingStandard as any).is_pallet_standard === true : true,
     });
     setSaveOpen(true);
-  }, [draft, profiles, productId, existingStandard]);
+  }, [draft, profiles, productId, existingStandard, caseTypeId]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -206,7 +211,7 @@ export function PalletPakDesigner() {
         ...buildPackStandardPayload({ ...draft, isPalletStandard: details.isPalletStandard }),
         product_id: productId,
         profile_name: details.profileName.trim(),
-        package_type: details.packageType,
+        package_type_id: details.packageTypeId || null,
         units_per_package: details.unitsPerPackage,
       };
       // Editing the SKU's existing standard updates it in place rather than
@@ -419,15 +424,11 @@ export function PalletPakDesigner() {
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="pack-package-type">Package type</Label>
-              <Select
-                value={details.packageType}
-                onValueChange={(value) => setDetails((d) => ({ ...d, packageType: value }))}
-              >
-                <SelectTrigger id="pack-package-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PACKAGE_TYPES.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PackageTypeSelect
+                id="pack-package-type"
+                value={details.packageTypeId}
+                onChange={(value) => setDetails((d) => ({ ...d, packageTypeId: value }))}
+              />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="pack-units">Units per package</Label>

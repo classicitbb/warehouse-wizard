@@ -47,6 +47,7 @@ import { NetSuiteLookupPanel } from "@/features/receiving/netsuite-lookup-panel"
 import { buildShipmentLinesFromLookup, mergeLoadedLines, netsuiteRefFromDraftMeta } from "@/features/receiving/netsuite-lookup-lines";
 import type { NetSuiteLookupDocument } from "@/features/receiving/netsuite-lookup";
 import { InboundBrowserDialog } from "@/features/receiving/inbound-browser-dialog";
+import { listInboundReceivingWork, matchingReceivingWork, receivingWorkMessage } from "@/features/receiving/inbound-receiving-work";
 import { buildShipmentLinesFromInbound, pickContainerNumber, summarizeInboundLines } from "@/features/receiving/inbound-shipment-lines";
 import type { InboundShipmentDetail, InboundShipmentSummary } from "@/features/receiving/netsuite-inbound";
 import { DraftPalletList } from "@/features/receiving/draft-pallet-list";
@@ -923,7 +924,9 @@ export function ReceivingPage() {
   }
 
   /** Hands an inbound shipment from the browser to the New Shipment dialog. True when lines were loaded. */
-  function loadInboundShipment(shipment: InboundShipmentSummary, detail: InboundShipmentDetail, chosenContainer = ""): boolean {
+  async function loadInboundShipment(shipment: InboundShipmentSummary, detail: InboundShipmentDetail, chosenContainer = ""): Promise<boolean> {
+    const matching = matchingReceivingWork(await listInboundReceivingWork(currentWarehouseId), chosenContainer || pickContainerNumber(shipment), shipment.id);
+    if (matching.length) { toast.error(receivingWorkMessage(matching)); return false; }
     const { lines, skipped } = buildShipmentLinesFromInbound(shipment, detail, netsuiteLineHelpers());
     if (lines.length === 0) {
       toast.error(skipped.length > 0
@@ -1249,6 +1252,8 @@ export function ReceivingPage() {
         initialSearch={inboundSearch}
         drafts={drafts}
         onReceive={loadInboundShipment}
+        warehouseId={currentWarehouseId}
+        onShowPutaway={() => { setInboundOpen(false); navigate(toPath("/putaway-tasks")); }}
         onShowDrafts={(shipment, container) => {
           setDraftSearch(container || pickContainerNumber(shipment) || shipment.number);
           setInboundOpen(false);

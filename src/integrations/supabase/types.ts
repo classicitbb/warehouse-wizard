@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -563,6 +563,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      customers: {
+        Row: {
+          active: boolean
+          created_at: string
+          credit_review_required: boolean
+          customer_number: string
+          default_ship_address: Json | null
+          delivery_zone: string | null
+          email: string | null
+          id: string
+          last_synced_at: string | null
+          name: string
+          on_credit_hold: boolean
+          phone: string | null
+          ship_complete: boolean
+          source_modified_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          credit_review_required?: boolean
+          customer_number: string
+          default_ship_address?: Json | null
+          delivery_zone?: string | null
+          email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          on_credit_hold?: boolean
+          phone?: string | null
+          ship_complete?: boolean
+          source_modified_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          credit_review_required?: boolean
+          customer_number?: string
+          default_ship_address?: Json | null
+          delivery_zone?: string | null
+          email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          on_credit_hold?: boolean
+          phone?: string | null
+          ship_complete?: boolean
+          source_modified_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       cycle_count_assignees: {
         Row: {
@@ -5104,6 +5158,10 @@ export type Database = {
       }
       has_any_role: {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
+        Returns: boolean
+      }
+      has_feature_permission: {
+        Args: { _feature_code: string; _mode?: string; _user_id: string }
         Returns: boolean
       }
       has_min_role: {
