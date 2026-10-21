@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Block duplicate inbound receiving during drafts and open Put-Away; verify matching, loading, and save guards.
+
 - [x] Add Microsoft sign-in while preserving existing approvals; button visibility and six automated checks passed.
 - [ ] Verify a complete Microsoft sign-in in the hosted preview; local testing lacks the hosted OAuth redirect service and a Microsoft account session.
 
