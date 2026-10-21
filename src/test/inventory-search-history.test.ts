@@ -125,10 +125,10 @@ describe("searchInventory history", () => {
     const rows = await searchInventory({ status: "all", includeHistoric: true, limit: 50 });
 
     expect(rows.map((row: any) => row.pallet_code)).toEqual([
-      "PAL-LIVE",
-      "PAL-SHIPPED",
-      "PAL-MISSING",
       "PAL-EMPTIED",
+      "PAL-LIVE",
+      "PAL-MISSING",
+      "PAL-SHIPPED",
     ]);
     expect(rows.find((row: any) => row.pallet_code === "PAL-SHIPPED")?.is_historic).toBe(true);
     expect(rows.find((row: any) => row.pallet_code === "PAL-EMPTIED")?.is_historic).toBe(true);

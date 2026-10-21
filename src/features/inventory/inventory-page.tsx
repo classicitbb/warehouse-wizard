@@ -1,4 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { InventoryResultContext, InventoryResultActions } from "./inventory-result-actions";
+import { InventoryPickDialog } from "./inventory-pick-dialog";
 import { useInfiniteRows } from "@/hooks/use-infinite-rows";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
@@ -251,6 +253,23 @@ export function InventorySearchPage() {
   const [warehouseId, setWarehouseId] = useState(
     searchParams.get("warehouse") ?? (restrictedToDefaultWarehouse ? profile?.default_warehouse_id ?? "" : persistedInventorySearch.warehouseId),
   );
+  const activePickWarehouse = warehouseId || profile?.default_warehouse_id
+    || (options?.warehouses?.length === 1 ? options.warehouses[0].id : "") || "";
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPallets, setSelectedPallets] = useState<Map<string, string>>(new Map());
+  const [pickRequest, setPickRequest] = useState<{ balanceIds: string[]; single: boolean } | null>(null);
+  const suppressRowTapRef = useRef(false);
+  useEffect(() => {
+    setSelectedPallets(new Map()); setSelectionMode(false); setPickRequest(null);
+  }, [activePickWarehouse]);
+  function togglePallet(row: any) {
+    setSelectedPallets((previous) => {
+      const next = new Map(previous);
+      if (next.has(row.pallet_id)) next.delete(row.pallet_id);
+      else next.set(row.pallet_id, row.inventory_balance_id);
+      return next;
+    });
+  }
   const hasInventoryFilters = Boolean(
     searchTerm || warehouseId || status !== "all" || ageBucket || expiryWindow || structureScopeLabel || includeHistoric,
   );
@@ -287,10 +306,10 @@ export function InventorySearchPage() {
       const loaded = await queryClient.fetchQuery({
         queryKey: [
           "inventory-search", "__rows", status, warehouseId, ageBucket, expiryWindow, includeHistoric,
-          structureZoneCode, structureLocation, searching ? "all" : visibleRecordLimit,
+          structureZoneCode, structureLocation, "all",
         ],
         queryFn: () => loadInventoryRows(
-          { ...scope, includeHistoric, limit: searching ? undefined : visibleRecordLimit + 1 },
+          { ...scope, includeHistoric },
           searching,
         ),
         staleTime: 60_000,
@@ -395,6 +414,8 @@ export function InventorySearchPage() {
           <h2 className="text-2xl font-semibold">Inventory Search</h2>
           <HintButton label="Inventory Search hints">
             Search by SKU, pallet, container, PO, lot, batch, expiry, owner, or location.
+            Products use FIFO (oldest receipt) or FEFO (earliest expiry), with missing dates last.
+            Right-click, long-press, or use Actions for whole-pallet pick work.
           </HintButton>
         </div>
         <div className="flex items-center gap-2">
@@ -409,6 +430,23 @@ export function InventorySearchPage() {
           </HintButton>
         </div>
       </div>
+      {pickRequest && activePickWarehouse ? <InventoryPickDialog
+        warehouseId={activePickWarehouse} balanceIds={pickRequest.balanceIds} single={pickRequest.single}
+        onClose={() => setPickRequest(null)}
+        onAdded={(lists) => {
+          setPickRequest(null); setSelectedPallets(new Map()); setSelectionMode(false);
+          void queryClient.invalidateQueries({ queryKey: ["inventory-search"] });
+          void queryClient.invalidateQueries({ queryKey: ["pick-lists"] });
+          toast.success(`Added whole pallets to ${lists.map((list) => list.pick_list_number).join(", ")}. Picking still requires confirmation.`);
+        }}
+      /> : null}
+      {selectionMode ? <div className="flex flex-wrap items-center gap-2">
+        <span role="status" className="text-sm">{selectedPallets.size} selected</span>
+        <Button disabled={selectedPallets.size === 0} onClick={() => setPickRequest({ balanceIds: [...selectedPallets.values()], single: false })}>
+          Add to pick list ({selectedPallets.size})
+        </Button>
+        <Button variant="outline" onClick={() => { setSelectedPallets(new Map()); setSelectionMode(false); }}>Cancel selection</Button>
+      </div> : null}
       <UnrecordedPalletsBanner warehouseId={warehouseId || null} />
       <Card>
         <CardContent className="flex flex-col gap-2 p-3">
@@ -452,6 +490,9 @@ export function InventorySearchPage() {
             visible={tableData.length}
             total={totalRecordCount ?? null}
           />
+          <p className="text-xs text-muted-foreground">
+            Pick-list warehouse: {options?.warehouses?.find((warehouse) => warehouse.id === activePickWarehouse)?.name ?? "Select a warehouse to add pallets"}.
+          </p>
           {structureScopeLabel ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Showing contents of</span>
@@ -571,6 +612,7 @@ export function InventorySearchPage() {
             <Table className="min-w-[80rem] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
               <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
                 <TableRow>
+                  <TableHead>Actions</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Pallet</TableHead>
@@ -586,11 +628,11 @@ export function InventorySearchPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={10}>Searching…</TableCell>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={11}>Searching…</TableCell>
                   </TableRow>
                 ) : tableData.length === 0 ? (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={10}>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={11}>
                       {searchTerm.trim()
                         ? `No match for “${searchTerm.trim()}”, including past and missing pallets.`
                         : "No inventory matched."}
@@ -600,9 +642,19 @@ export function InventorySearchPage() {
                   tableData.map((row) => {
                     const detailId = row.inventory_balance_id as string | null;
                     const historic = Boolean(row.is_historic);
+                    const canAdd = Boolean(detailId && !historic && row.status === "available" && row.warehouse_id === activePickWarehouse);
+                    const actions = {
+                      canView: Boolean(detailId), canAdd,
+                      onView: () => detailId && openInventoryDetail(detailId),
+                      onAdd: () => detailId && setPickRequest({ balanceIds: [detailId], single: true }),
+                      onSelect: () => { setSelectionMode(true); if (!selectedPallets.has(row.pallet_id)) togglePallet(row); },
+                    };
                     return (
+                    <InventoryResultContext key={detailId ?? `pallet:${row.pallet_id}`} {...actions} onOpen={() => {
+                      suppressRowTapRef.current = true; lastDetailTapRef.current = null;
+                    }}>
                     <TableRow
-                      key={detailId ?? `pallet:${row.pallet_id}`}
+                      data-state={selectedPallets.has(row.pallet_id) ? "selected" : undefined}
                       className={cn(
                         "even:bg-muted/30 hover:bg-muted/50",
                         detailId ? "cursor-pointer" : "cursor-default",
@@ -610,10 +662,28 @@ export function InventorySearchPage() {
                       )}
                       onMouseEnter={() => detailId && prefetchInventoryDetail(detailId)}
                       onFocus={() => detailId && prefetchInventoryDetail(detailId)}
-                      onDoubleClick={() => detailId && openInventoryDetail(detailId)}
-                      onPointerUp={() => detailId && handleInventoryRowPointerUp(detailId)}
+                      onPointerDown={() => { suppressRowTapRef.current = false; }}
+                      onDoubleClick={(event) => {
+                        if ((event.target as HTMLElement).closest("button, [role=checkbox]")) return;
+                        if (!selectionMode && !suppressRowTapRef.current && detailId) openInventoryDetail(detailId);
+                      }}
+                      onPointerUp={(event) => {
+                        if ((event.target as HTMLElement).closest("button, [role=checkbox]")) return;
+                        if (!selectionMode && !suppressRowTapRef.current && detailId) handleInventoryRowPointerUp(detailId);
+                      }}
+                      onClick={(event) => {
+                        if ((event.target as HTMLElement).closest("button, [role=checkbox]")) return;
+                        if (selectionMode && canAdd && !suppressRowTapRef.current) togglePallet(row);
+                      }}
                       title={detailId ? "Double-click or double-tap to open details" : "This pallet has no inventory record left — history only"}
                     >
+                      <TableCell className="py-0">
+                        <div className="flex items-center gap-2">
+                          {selectionMode ? <Checkbox aria-label={`Select ${row.pallet_code}`} disabled={!canAdd}
+                            checked={selectedPallets.has(row.pallet_id)} onCheckedChange={() => togglePallet(row)} /> : null}
+                          <InventoryResultActions palletCode={row.pallet_code} {...actions} />
+                        </div>
+                      </TableCell>
                       <TableCell>{row.sku ?? "—"}</TableCell>
                       <TableCell>{row.product_name ?? "—"}</TableCell>
                       <TableCell>
@@ -636,8 +706,9 @@ export function InventorySearchPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{formatNumber(row.available_quantity)}</TableCell>
-                      <TableCell>{formatDate(row.expiry_date)}</TableCell>
+                      <TableCell>{formatDate(row.rotation_expiry_date ?? row.expiry_date)}</TableCell>
                     </TableRow>
+                    </InventoryResultContext>
                     );
                   })
                 )}
