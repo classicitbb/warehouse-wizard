@@ -11,6 +11,7 @@ Microsoft OAuth uses the managed Lovable helper and a public login callback, sep
 - Do not extend another agent's unrelated redesign; flag scope issues and focus on the current task. Clarify genuine ambiguity rather than guessing. These guardrails take precedence over generic design-improvement guidance.
 
 ## Data and compatibility
+- Duplicate inbound receiving uses a warehouse-scoped active-work query and receipt-insert guard so unfinished Put-Away and competing saves cannot bypass the browser check.
 - `supabase/migrations/**`: additive migrations only; never edit shipped files.
 - `supabase/config.toml`: function-specific blocks only, never project-level settings.
 - Never hand-edit auto-generated `.env`, `src/integrations/supabase/client.ts`, or `types.ts`.
