@@ -13,6 +13,7 @@ import { formatNumber } from "@/features/shared/core-types";
 import { supabase } from "@/integrations/supabase/client";
 
 const UNITS_SUMMARY_KEY = ["settings", "netsuite-units", "summary"] as const;
+const db = supabase.from.bind(supabase) as (table: string) => any;
 
 type ImportResult = {
   ok?: boolean;
@@ -28,7 +29,7 @@ type ImportResult = {
 };
 
 async function countRows(table: "uom_types" | "uom_units" | "products", filter?: (q: any) => any) {
-  let query: any = supabase.from(table).select("id", { count: "exact", head: true });
+  let query: any = db(table).select("id", { count: "exact", head: true });
   if (filter) query = filter(query);
   const { count, error } = await query;
   if (error) throw error;
@@ -48,8 +49,7 @@ export function NetSuiteUnitsCard() {
         countRows("uom_units", (q) => q.is("package_type_id", null)),
         countRows("products", (q) => q.not("uom_type_id", "is", null)),
       ]);
-      const { data: last } = await supabase
-        .from("uom_types")
+      const { data: last } = await db("uom_types")
         .select("last_synced_at")
         .not("last_synced_at", "is", null)
         .order("last_synced_at", { ascending: false })

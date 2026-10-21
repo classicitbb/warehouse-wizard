@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 // Mock at the Supabase boundary so the module's own detail query goes through the same fake.
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    from: vi.fn(),
     functions: {
       invoke: async (_name: string, { body }: { body: Record<string, unknown> }) => ({
         data: body.action === "list" ? await mocks.list(body) : await mocks.detail(body),

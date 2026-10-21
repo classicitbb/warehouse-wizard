@@ -15,10 +15,10 @@ export type PackageType = {
 };
 
 export const PACKAGE_TYPES_QUERY_KEY = ["package_types"] as const;
+const db = supabase.from.bind(supabase) as (table: string) => any;
 
 export async function fetchPackageTypes(): Promise<PackageType[]> {
-  const { data, error } = await supabase
-    .from("package_types")
+  const { data, error } = await db("package_types")
     .select("id, code, name, aliases, sort")
     .order("sort")
     .order("code");
