@@ -15,6 +15,9 @@ export const RELEASE_HISTORY: ReleaseNote[] = [
       "NetSuite settings: the inbound shipment RESTlet now has its own Script ID and Deploy ID fields, with the RESTlet host shown for the connected account. Leave them blank to use the standard IDs, which are the same in sandbox and production",
       "Admins and developers can read the real NetSuite field names for purchase orders, transfer orders, sales orders, returns and receipts, so receiving matches what NetSuite actually sends",
     ],
+    fixes: [
+      "Receiving: a NetSuite transfer order now shows its real status, and looking the same transfer order up twice no longer duplicates its lines",
+    ],
   },
   {
     version: "1.31.0",

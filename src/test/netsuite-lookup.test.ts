@@ -59,7 +59,7 @@ describe("normalizeLine", () => {
     const line = normalizeLine("purchase_order", {
       item: { id: "77", refName: "RICE-25KG" },
       line: 3,
-      lineUniqueKey: "4827",
+      uniqueKey: 4827,
       quantity: 100,
       quantityReceived: 40,
       location: { id: "6", refName: "Main" },
@@ -110,18 +110,42 @@ describe("normalizeLine", () => {
     expect(line.quantityRemaining).toBe(0);
   });
 
-  it("accepts numbers NetSuite serialises as strings and lower-case field spellings", () => {
+  it("accepts numbers NetSuite serialises as strings", () => {
     const line = normalizeLine("purchase_order", {
       item: { id: "5" },
       quantity: "12",
-      quantityreceived: "2",
-      lineuniquekey: "991",
-      isclosed: "F",
+      quantityReceived: "2",
+      uniqueKey: "991",
+      isClosed: "F",
     });
     expect(line.quantityOrdered).toBe(12);
     expect(line.quantityRemaining).toBe(10);
     expect(line.lineKey).toBe("991");
     expect(line.closed).toBe(false);
+  });
+
+  it("reads only the verified field names, not the guessed spellings", () => {
+    const line = normalizeLine("purchase_order", {
+      item: { id: "5" },
+      quantity: 12,
+      quantityreceived: 2,
+      lineuniquekey: "991",
+      lineUniqueKey: "992",
+      isclosed: true,
+      orderLine: 9,
+    });
+    expect(line.quantityReceived).toBe(0);
+    expect(line.lineKey).toBeNull();
+    expect(line.closed).toBe(false);
+    expect(line.lineNumber).toBeNull();
+  });
+
+  it("keys a transfer order line by document and line, since it has no unique key", () => {
+    const raw = { item: { id: "9" }, line: 2, quantity: 5, quantityFulfilled: 5 };
+    expect(normalizeLine("transfer_order", raw, "301").lineKey).toBe("301:2");
+    // The same line number on another transfer order must not collide.
+    expect(normalizeLine("transfer_order", raw, "302").lineKey).toBe("302:2");
+    expect(normalizeLine("transfer_order", raw).lineKey).toBeNull();
   });
 
   it("degrades to empty values instead of throwing on a sparse line", () => {
@@ -163,6 +187,16 @@ describe("normalizeDocument", () => {
     });
     expect(doc.lines.map((l) => l.lineNumber)).toEqual([1, 3]);
     expect(doc.lines.map((l) => l.quantityRemaining)).toEqual([10, 0]);
+  });
+
+  it("reads a transfer order's status from orderStatus, which is the only status it has", () => {
+    const doc = normalizeDocument("transfer_order", "301", {
+      tranId: "TO05",
+      orderStatus: { id: "E", refName: "Partially Fulfilled" },
+      item: { items: [{ item: { id: "9" }, line: 1, quantity: 4, quantityFulfilled: 4 }] },
+    });
+    expect(doc.status).toEqual({ code: "E", label: "Partially Fulfilled" });
+    expect(doc.lines[0].lineKey).toBe("301:1");
   });
 
   it("returns no lines when the record has no item sublist", () => {

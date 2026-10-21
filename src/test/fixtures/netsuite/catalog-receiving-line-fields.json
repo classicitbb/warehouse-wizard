@@ -1,0 +1,71 @@
+{
+  "_comment": "Line identity and quantity fields on each record's item sublist, from the sandbox REST metadata catalog (9738806-sb1), captured 2026-10-21 through the netsuite-discovery function. Custom fields (cust*) and unrelated standard fields are left out. Value is the catalog type.",
+  "purchaseOrder": {
+    "uniqueKey": "integer(int64)",
+    "line": "integer(int64)",
+    "orderLine": "integer(int64)",
+    "quantity": "number(float)",
+    "quantityReceived": "number(float)",
+    "quantityFulfilled": "number(float)",
+    "quantityOnShipments": "number(float)",
+    "isClosed": "boolean",
+    "units": "string",
+    "location": "object",
+    "inventoryDetail": "object"
+  },
+  "transferOrder": {
+    "line": "integer(int64)",
+    "quantity": "number(float)",
+    "quantityFulfilled": "number(float)",
+    "quantityReceived": "number(float)",
+    "isClosed": "boolean",
+    "units": "string",
+    "location": "object",
+    "inventoryDetail": "object"
+  },
+  "salesOrder": {
+    "lineUniqueKey": "string",
+    "line": "integer(int64)",
+    "quantity": "number(float)",
+    "quantityFulfilled": "number(float)",
+    "quantityReceived": "number(float)",
+    "isClosed": "boolean",
+    "units": "string",
+    "location": "object",
+    "inventoryDetail": "object"
+  },
+  "returnAuthorization": {
+    "lineUniqueKey": "string",
+    "line": "integer(int64)",
+    "quantity": "number(float)",
+    "quantityReceived": "number(float)",
+    "isClosed": "boolean",
+    "units": "string",
+    "location": "object",
+    "inventoryDetail": "object"
+  },
+  "itemReceipt": {
+    "line": "integer(int64)",
+    "orderLine": "integer(int64)",
+    "orderDoc": "object",
+    "quantity": "number(float)",
+    "quantityRemaining": "number(float)",
+    "itemReceive": "boolean",
+    "units": "string",
+    "location": "object",
+    "binNumbers": "string",
+    "inventoryDetail": "object"
+  },
+  "itemFulfillment": {
+    "line": "integer(int64)",
+    "orderLine": "integer(int64)",
+    "orderDoc": "object",
+    "quantity": "number(float)",
+    "quantityRemaining": "number(float)",
+    "itemReceive": "boolean",
+    "units": "string",
+    "location": "object",
+    "binNumbers": "string",
+    "inventoryDetail": "object"
+  }
+}

@@ -42,7 +42,7 @@ Last updated: 2026-10-21, after the NetSuite dev's reply of the same week (RESTl
 | J3 | Give us the GL account (and subsidiary) for inventory adjustments | [x] | Sandbox: set and in use (three adjustments posted 2026-10-10). Production account still to come. |
 | J5 | Sandbox integration record and beta certificate | [x] | Sandbox M2M auth works and Test connection passes (account `9738806-sb1`). |
 | J6 | Does receiving a PO directly off a shipment update the shipment, or is it refused? | [~] | Dev is testing on a separate PO so IS052 stays clean. Not yet answered. |
-| J10 | Confirm field names and line identifiers | [~] | **Ours to run now.** Dev's understanding: source orders use `line`, the receipt lines from `!transform/itemReceipt` use `orderLine`. Confirm against the metadata catalog (PO, TO, SO, RMA, item receipt) and the RESTlet GET for shipment 52 using the `netsuite-discovery` function, then tighten the lookup parser. |
+| J10 | Confirm field names and line identifiers | [x] | Run 2026-10-21 via `netsuite-discovery`. Confirmed, with two differences from the dev's note: see **J10 findings** below. Lookup parser tightened; output saved as fixtures in `src/test/fixtures/netsuite/` and pinned by `netsuite-field-contract.test.ts`. Still open: status letter codes, restock field on RMA receipt lines, inventory detail casing on the receipt transform. |
 | S1 | Create sandbox test data: inbound shipment with two POs, a lot-tracked item, a location with bins, plus a transfer order, a sales order and a return authorisation | [x] | Supplied: see the sandbox test data above. |
 | S2 | Scope the RESTlet deployment to the M2M role only | [!] | Waiting on the dev. Sandbox runs as Administrator (`-3`) with the deployment open to all internal roles. Before production he creates a dedicated role with only the permissions in our brief, scopes the deployment to it, and sends us its name and id. |
 | S3 | Run the read-only discovery queries and share the results | [ ] | Listed in the Developer Brief. The dev's last reply did not mention them: chase. |
@@ -101,7 +101,7 @@ Last updated: 2026-10-21, after the NetSuite dev's reply of the same week (RESTl
 - Lines come back with the source line number and `lineuniquekey` as NetSuite sent them, plus `quantityRemaining` (a transfer order line is capped at what has shipped). Lines whose item is not yet imported have `localProductId: null`.
 - If two records share a number the function returns `ambiguous` with candidates instead of guessing.
 - Pure logic is in `supabase/functions/_shared/netsuite-lookup.ts`, the shared client in `_shared/netsuite-client.ts`, the browser client in `src/features/receiving/netsuite-lookup.ts`.
-- **Unverified against the account (J10):** the REST field names on the PO and transfer order line sublists (`line`, `lineUniqueKey`, `quantityReceived`, `quantityFulfilled`, `isClosed`, `units`). The normaliser accepts several spellings. Tighten it after the first sandbox run.
+- **Verified against the account (J10, 2026-10-21):** the normaliser reads only the confirmed names. `line`, `quantity`, `quantityReceived`, `quantityFulfilled` (transfer order), `isClosed` and `units` on both records; the PO line key is `uniqueKey`; a transfer order line has no key, so the lookup builds `<internal id>:<line>`. A transfer order's status is `orderStatus` (it has no `status`). A real lookup against PO76 or TO05 has still not been run.
 - **Open:** does a PO that sits on an inbound shipment show up here as receivable? Per J6 it can only be received through the shipment, so the lookup should flag it once J6 is answered.
 - `netsuite-connection` still has its own credential and SuiteQL helpers. Move it onto `_shared/netsuite-client.ts` once W2 is accepted.
 
@@ -113,6 +113,16 @@ Last updated: 2026-10-21, after the NetSuite dev's reply of the same week (RESTl
 - Each loaded line shows its NetSuite line, ordered, already received and expecting, and flags "short by n" or "over by n" as the operator edits the total. This is display only until the short-delivery policy (P7) is decided.
 - **Persisted (W4):** the NetSuite line reference is saved with each pallet draft and restored on edit. One NetSuite line split over several pallets produces several drafts that share the same line key; W3 should sum them per line.
 - Files: `netsuite-lookup-panel.tsx`, `netsuite-lookup-lines.ts`, `netsuite-lookup.ts` in `src/features/receiving/`; wiring in `receiving-page.tsx` and `shipment-line-card.tsx`.
+
+## J10 findings (sandbox 9738806-sb1, 2026-10-21)
+
+- **`line` versus `orderLine`:** the dev's understanding holds. Source orders identify a line by `line`. Item receipt and item fulfilment lines carry `orderLine` (the source order's line) and `orderDoc` (the source order). `orderLine` also exists on PO, SO and RMA lines but is not the identifier; the parser never reads it.
+- **Line keys differ by record (correction to the dev's note):** purchase order `uniqueKey` (integer); sales order and return authorisation `lineUniqueKey` (string); **transfer order has no line key**. A transfer order line is identified by `line` alone.
+- **Receipt line (`itemReceipt.item`):** `line`, `orderLine`, `orderDoc`, `itemReceive` (boolean, to include or skip the line), `quantity`, `quantityRemaining`, `location`, `binNumbers`, `inventoryDetail`.
+- **PO line:** `quantityOnShipments` exists. It may be the way to flag a PO that sits on an inbound shipment (J6), once the dev confirms.
+- **Inbound shipment RESTlet GET for IS052** (`restlet-inbound-shipment-52.json`): record `receiveinboundshipment`, sublist `receiveitems`, 36 lines across the two POs. Line fields include `uniquekey`, `origline`, `purchaseorder`, `item`, `quantity`, `quantityremaining`, `quantityreceived`, `quantitytobereceived`, `receiveitem`, `unit`, `unitid`, `receivinglocation`, `inventorydetailreq`, `inventorydetailset`, `isnumbered`, `isserial`. Body fields include `trandate`, `receivinglocation`, `postingperiod`, `inboundshipmentnumber`, `externalid`, `vendor`, `incoterm`. Inventory detail is a subrecord (`inventorydetail`), not a line field.
+- **Gotcha:** a RESTlet GET without `Content-Type: application/json` fails with `400 INVALID_RETURN_DATA_FORMAT ("You should return text")` when the script returns an object. `netsuiteRestletGet` sends it. The POST must too.
+- **Token scope:** the RESTlet call needs `restlets` in the client assertion, not only the scope ticked on the integration record.
 
 ## Discovery function (J10)
 
