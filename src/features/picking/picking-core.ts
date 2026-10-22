@@ -90,7 +90,7 @@ async function selectPickCandidates(productId: string, warehouseId: string, quan
       .range(from, to));
   const busyPalletIds = new Set(openTaskPallets.map((task) => task.pallet_id).filter(Boolean));
 
-  const availableCandidates = excludeBusyPallets(
+  const availableCandidates: any[] = excludeBusyPallets(
     (data ?? []).filter((candidate: any) => !candidate.location_id || !frozenLocationIds.has(candidate.location_id)),
     busyPalletIds as Set<string>,
   );
