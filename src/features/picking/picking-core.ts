@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   db,
   buildPalletCode,
+  fetchAllRows,
   pickListSchema,
 } from "@/features/shared/core-types";
 import { upsertRecord } from "@/features/admin/admin-core";
@@ -59,7 +60,25 @@ async function selectPickCandidates(productId: string, warehouseId: string, quan
     .eq("status", "active");
   if (freezeError) throw freezeError;
   const frozenLocationIds = new Set((freezes ?? []).map((freeze: any) => freeze.location_id).filter(Boolean));
-  const availableCandidates = (data ?? []).filter((candidate: any) => !candidate.location_id || !frozenLocationIds.has(candidate.location_id));
+
+  // Skip pallets that are already directed onto another open pick task
+  // (queued, assigned, in_progress or exception). The database enforces one
+  // open task per pallet via guard_one_open_pick_per_pallet; without this
+  // filter the FIFO/FEFO-first pallet would be picked again and the insert
+  // would fail, leaving an orphan order and an empty pick list. A pallet
+  // lives in exactly one warehouse, so a global open-task read is scoped
+  // enough. Lines are processed sequentially, so tasks inserted for an
+  // earlier line are already visible here.
+  const openTaskPallets = await fetchAllRows<{ pallet_id: string | null }>((from, to) =>
+    db("pick_tasks").select("pallet_id")
+      .not("status", "in", '("completed","cancelled")')
+      .not("pallet_id", "is", null)
+      .range(from, to));
+  const busyPalletIds = new Set(openTaskPallets.map((task) => task.pallet_id).filter(Boolean));
+
+  const availableCandidates = (data ?? []).filter((candidate: any) =>
+    (!candidate.location_id || !frozenLocationIds.has(candidate.location_id)) &&
+    !busyPalletIds.has(candidate.pallet_id));
 
   const sorted = [...availableCandidates].sort((left, right) => {
     if (product?.rotation_method === "fefo") {
