@@ -99,6 +99,13 @@
       "when": 1790012805526,
       "tag": "0013_allow_supervisor_release_unrecorded_pallet",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792673065456,
+      "tag": "0014_netsuite_customers",
+      "breakpoints": true
     }
   ]
 }
