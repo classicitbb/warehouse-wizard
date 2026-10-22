@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -4796,6 +4796,7 @@ export type Database = {
           quantity: number | null
           received_at: string | null
           reserved_quantity: number | null
+          rotation_expiry_date: string | null
           rotation_method: Database["public"]["Enums"]["rotation_method"] | null
           sku: string | null
           status: Database["public"]["Enums"]["inventory_status"] | null
@@ -5160,10 +5161,6 @@ export type Database = {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
         Returns: boolean
       }
-      has_feature_permission: {
-        Args: { _feature_code: string; _mode?: string; _user_id: string }
-        Returns: boolean
-      }
       has_min_role: {
         Args: { _minimum_role: string; _user_id: string }
         Returns: boolean
@@ -5173,6 +5170,19 @@ export type Database = {
       inventory_correction_code: {
         Args: { in_prefix: string }
         Returns: string
+      }
+      inventory_whole_pallet_pick_work: {
+        Args: {
+          in_balance_ids: string[]
+          in_choice?: string
+          in_commit?: boolean
+          in_mode?: string
+          in_order_number?: string
+          in_pick_list_id?: string
+          in_token?: string
+          in_warehouse_id: string
+        }
+        Returns: Json
       }
       is_approved: { Args: never; Returns: boolean }
       location_clearance_mm: {
