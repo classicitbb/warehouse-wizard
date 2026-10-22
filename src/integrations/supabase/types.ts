@@ -564,6 +564,60 @@ export type Database = {
           },
         ]
       }
+      customers: {
+        Row: {
+          active: boolean
+          created_at: string
+          credit_review_required: boolean
+          customer_number: string
+          default_ship_address: Json | null
+          delivery_zone: string | null
+          email: string | null
+          id: string
+          last_synced_at: string | null
+          name: string
+          on_credit_hold: boolean
+          phone: string | null
+          ship_complete: boolean
+          source_modified_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          credit_review_required?: boolean
+          customer_number: string
+          default_ship_address?: Json | null
+          delivery_zone?: string | null
+          email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          on_credit_hold?: boolean
+          phone?: string | null
+          ship_complete?: boolean
+          source_modified_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          credit_review_required?: boolean
+          customer_number?: string
+          default_ship_address?: Json | null
+          delivery_zone?: string | null
+          email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          on_credit_hold?: boolean
+          phone?: string | null
+          ship_complete?: boolean
+          source_modified_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cycle_count_assignees: {
         Row: {
           assigned_by: string | null
