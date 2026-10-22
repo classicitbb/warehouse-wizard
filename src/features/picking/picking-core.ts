@@ -43,6 +43,20 @@ export function allocatePickQuantities<T extends { available_quantity: number | 
   return { allocations, short: remaining > 0 ? remaining : 0 };
 }
 
+/**
+ * Removes pallets that are already directed onto another open pick task.
+ * The database trigger guard_one_open_pick_per_pallet rejects a second open
+ * task for the same pallet, so creating a second list for a product (or a
+ * list whose oldest pallet was queued from Inventory Search) must rotate to
+ * the next eligible pallet instead of failing mid-flow.
+ */
+export function excludeBusyPallets<T extends { pallet_id: string | null }>(
+  candidates: T[],
+  busyPalletIds: ReadonlySet<string>,
+): T[] {
+  return candidates.filter((candidate) => !candidate.pallet_id || !busyPalletIds.has(candidate.pallet_id));
+}
+
 async function selectPickCandidates(productId: string, warehouseId: string, quantity: number) {
   const { data: product } = await db("products").select("*").eq("id", productId).single();
 
@@ -76,9 +90,10 @@ async function selectPickCandidates(productId: string, warehouseId: string, quan
       .range(from, to));
   const busyPalletIds = new Set(openTaskPallets.map((task) => task.pallet_id).filter(Boolean));
 
-  const availableCandidates = (data ?? []).filter((candidate: any) =>
-    (!candidate.location_id || !frozenLocationIds.has(candidate.location_id)) &&
-    !busyPalletIds.has(candidate.pallet_id));
+  const availableCandidates = excludeBusyPallets(
+    (data ?? []).filter((candidate: any) => !candidate.location_id || !frozenLocationIds.has(candidate.location_id)),
+    busyPalletIds as Set<string>,
+  );
 
   const sorted = [...availableCandidates].sort((left, right) => {
     if (product?.rotation_method === "fefo") {
