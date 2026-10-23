@@ -134,6 +134,13 @@
       "when": 1792778452952,
       "tag": "0018_20261016120000_netsuite_customers",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792778500504,
+      "tag": "0019_20261016130000_package_types",
+      "breakpoints": true
     }
   ]
 }

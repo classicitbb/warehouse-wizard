@@ -2319,6 +2319,36 @@ export type Database = {
           },
         ]
       }
+      package_types: {
+        Row: {
+          aliases: string[]
+          code: string
+          created_at: string
+          id: string
+          name: string
+          sort: number
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[]
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          sort?: number
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pallets: {
         Row: {
           available_quantity: number
@@ -2911,6 +2941,7 @@ export type Database = {
           package_height_mm: number | null
           package_length_mm: number | null
           package_type: string | null
+          package_type_id: string | null
           package_width_mm: number | null
           packages_per_layer: number | null
           packages_per_pallet: number | null
@@ -2954,6 +2985,7 @@ export type Database = {
           package_height_mm?: number | null
           package_length_mm?: number | null
           package_type?: string | null
+          package_type_id?: string | null
           package_width_mm?: number | null
           packages_per_layer?: number | null
           packages_per_pallet?: number | null
@@ -2997,6 +3029,7 @@ export type Database = {
           package_height_mm?: number | null
           package_length_mm?: number | null
           package_type?: string | null
+          package_type_id?: string | null
           package_width_mm?: number | null
           packages_per_layer?: number | null
           packages_per_pallet?: number | null
@@ -3019,6 +3052,13 @@ export type Database = {
           width?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "product_packaging_profiles_package_type_id_fkey"
+            columns: ["package_type_id"]
+            isOneToOne: false
+            referencedRelation: "package_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_packaging_profiles_product_id_fkey"
             columns: ["product_id"]
@@ -5324,6 +5364,7 @@ export type Database = {
         }[]
       }
       reset_wms_data: { Args: never; Returns: Json }
+      resolve_package_type_id: { Args: { p_text: string }; Returns: string }
       return_putaway_to_receiving_draft: {
         Args: { in_task_id: string }
         Returns: {
