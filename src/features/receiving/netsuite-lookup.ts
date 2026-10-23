@@ -15,8 +15,11 @@ export interface NetSuiteLookupLine {
   quantityOrdered: number;
   quantityFulfilled: number | null;
   quantityReceived: number;
+  /** Purchase orders only: already on an inbound shipment (J6). */
+  quantityOnShipments: number | null;
   quantityRemaining: number;
-  unit: string | null;
+  /** Units-of-measure internal id as NetSuite sends it, not a name. */
+  unitId: string | null;
   location: { id: string; name: string } | null;
   closed: boolean;
   /** Null when the NetSuite item has not been imported into Warehouse Wizard. */

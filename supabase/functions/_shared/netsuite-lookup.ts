@@ -3,11 +3,21 @@
 // the shape the receiving screen consumes. No network and no imports, so
 // Vitest runs it directly (see src/test/netsuite-lookup.test.ts).
 //
-// The REST field names read here follow Oracle's record schema but have NOT yet
-// been confirmed against the Simplex sandbox account (Developer Brief, J10).
-// Each read therefore falls back across the plausible spellings, and the raw
-// line is never discarded by the caller. Confirm and tighten once sandbox test
-// data exists.
+// The REST field names read here were confirmed against the Simplex sandbox
+// metadata catalog on 2026-10-21 (Developer Brief, J10); the captured field
+// lists are in src/test/fixtures/netsuite/. Where records differ, so does this
+// code:
+//   - Line number: `line` on both records (`orderLine` is the back-reference on
+//     item receipt and fulfilment lines, and is never read here).
+//   - Line key: the catalog lists `uniqueKey` on a purchase order line, but the
+//     REST record does not return it (seen on PO76), and a transfer order line has
+//     no key at all. Both get a key built from the document id and `line`.
+//   - Status: `orderStatus.id` is the letter code (`B`). The label is `status.refName`
+//     on a purchase order and `orderStatus.refName` on a transfer order, which has
+//     no `status`. A purchase order's `status.id` is its label, not a code.
+//   - Units: `units` is the units-of-measure internal id, a string ("575").
+//   - Location: a purchase order line carries `targetLocation`; a transfer order
+//     line has none, so the header location applies.
 
 export const LOOKUP_DOCUMENT_TYPES = {
   purchase_order: { recordType: 'purchaseOrder', tranType: 'PurchOrd', label: 'Purchase order' },
@@ -44,7 +54,12 @@ export function buildDocumentSearchQuery(type: LookupDocumentType, documentNumbe
 export type NamedRef = { id: string; name: string }
 
 export type LookupLine = {
-  /** NetSuite's stable line id (`lineuniquekey`); null if the record did not expose one. */
+  /**
+   * Stable identity of the line across lookups: `<internal id>:<line>`, since
+   * NetSuite returns no line key on these records and `line` alone repeats across
+   * documents. Not the value to send back: receipts name the line with
+   * `lineNumber` (`orderLine`).
+   */
   lineKey: string | null
   /** The source line number. Not sequential in NetSuite, so never assume position. */
   lineNumber: number | null
@@ -55,9 +70,12 @@ export type LookupLine = {
   /** Transfer orders only: what the sending warehouse has shipped so far. */
   quantityFulfilled: number | null
   quantityReceived: number
+  /** Purchase orders only: quantity already on an inbound shipment. Above zero, J6 applies (it may not be receivable directly). */
+  quantityOnShipments: number | null
   /** What can still be received against this line. Zero when the line is closed. */
   quantityRemaining: number
-  unit: string | null
+  /** Units-of-measure internal id as NetSuite sends it; the name comes from the synced units (netsuite-units). */
+  unitId: string | null
   location: NamedRef | null
   closed: boolean
 }
@@ -110,39 +128,33 @@ function ref(value: unknown): NamedRef | null {
   return id ? { id, name: id } : null
 }
 
-function firstDefined(obj: Json, keys: string[]): unknown {
-  for (const key of keys) {
-    if (obj[key] !== undefined && obj[key] !== null) return obj[key]
-  }
-  return undefined
-}
-
-export function normalizeLine(type: LookupDocumentType, raw: unknown): LookupLine {
+export function normalizeLine(type: LookupDocumentType, raw: unknown, documentInternalId?: string): LookupLine {
   const line = asObject(raw) ?? {}
   const item = ref(line.item)
+  const lineNumber = num(line.line)
   const ordered = num(line.quantity) ?? 0
-  const received = num(firstDefined(line, ['quantityReceived', 'quantityreceived'])) ?? 0
-  const fulfilled = type === 'transfer_order'
-    ? (num(firstDefined(line, ['quantityFulfilled', 'quantityfulfilled', 'quantityShipped'])) ?? 0)
-    : null
-  const closed = bool(firstDefined(line, ['isClosed', 'isclosed', 'closed']))
+  const received = num(line.quantityReceived) ?? 0
+  const onShipments = type === 'purchase_order' ? (num(line.quantityOnShipments) ?? 0) : null
+  const fulfilled = type === 'transfer_order' ? (num(line.quantityFulfilled) ?? 0) : null
+  const closed = bool(line.isClosed)
 
   // A transfer order line can only be received up to what has been shipped.
   const receivable = type === 'transfer_order' ? Math.min(ordered, fulfilled ?? 0) : ordered
   const remaining = closed ? 0 : Math.max(receivable - received, 0)
 
   return {
-    lineKey: str(firstDefined(line, ['lineUniqueKey', 'lineuniquekey', 'uniqueKey'])),
-    lineNumber: num(firstDefined(line, ['line', 'lineNumber', 'orderLine'])),
+    lineKey: documentInternalId && lineNumber !== null ? `${documentInternalId}:${lineNumber}` : null,
+    lineNumber,
     itemId: item?.id ?? null,
     itemName: item?.name ?? '',
     description: str(line.description) ?? '',
     quantityOrdered: ordered,
     quantityFulfilled: fulfilled,
     quantityReceived: received,
+    quantityOnShipments: onShipments,
     quantityRemaining: remaining,
-    unit: ref(firstDefined(line, ['units', 'unit']))?.name ?? null,
-    location: ref(line.location),
+    unitId: str(line.units),
+    location: ref(line.location) ?? ref(line.targetLocation),
     closed,
   }
 }
@@ -151,21 +163,22 @@ export function normalizeLine(type: LookupDocumentType, raw: unknown): LookupLin
 export function normalizeDocument(type: LookupDocumentType, internalId: string, record: unknown): LookupDocument {
   const doc = asObject(record) ?? {}
   const status = asObject(doc.status)
+  const orderStatus = asObject(doc.orderStatus)
   const itemSublist = asObject(doc.item)
   const rawLines = Array.isArray(itemSublist?.items) ? (itemSublist.items as unknown[]) : []
 
   return {
     type,
     internalId,
-    number: str(firstDefined(doc, ['tranId', 'tranid'])) ?? '',
+    number: str(doc.tranId) ?? '',
     status: {
-      code: str(status?.id) ?? (typeof doc.status === 'string' ? doc.status : null),
-      label: str(status?.refName) ?? '',
+      code: str(orderStatus?.id) ?? str(status?.id) ?? (typeof doc.status === 'string' ? doc.status : null),
+      label: str(status?.refName) ?? str(orderStatus?.refName) ?? '',
     },
     entity: ref(doc.entity),
     location: ref(doc.location),
-    tranDate: str(firstDefined(doc, ['tranDate', 'trandate'])),
+    tranDate: str(doc.tranDate),
     memo: str(doc.memo) ?? '',
-    lines: rawLines.map((l) => normalizeLine(type, l)),
+    lines: rawLines.map((l) => normalizeLine(type, l, internalId)),
   }
 }
