@@ -120,6 +120,34 @@
       "when": 1792778008957,
       "tag": "0016_20261021200000_netsuite_receipt_sourced_putaway",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792778433481,
+      "tag": "0017_20261016115900_set_updated_at_helper",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792778452952,
+      "tag": "0018_20261016120000_netsuite_customers",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792778500504,
+      "tag": "0019_20261016130000_package_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792778546767,
+      "tag": "0020_20261016130100_uom_mirror",
+      "breakpoints": true
     }
   ]
 }
