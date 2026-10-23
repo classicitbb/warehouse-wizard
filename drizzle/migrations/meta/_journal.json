@@ -148,6 +148,13 @@
       "when": 1792778546767,
       "tag": "0020_20261016130100_uom_mirror",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792780696344,
+      "tag": "0021_20261016050000_netsuite_live_inventory_sync",
+      "breakpoints": true
     }
   ]
 }
