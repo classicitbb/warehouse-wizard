@@ -1,0 +1,28 @@
+{
+  "_comment": "Real output of the inbound shipment RESTlet GET (script customscript_spx_ww_inb_receipt_rl) for IS052, internal id 52, in sandbox 9738806-sb1, captured 2026-10-21 through the netsuite-discovery function. IS052 carries PO76 and PO233.",
+  "ok": true,
+  "recordType": "receiveinboundshipment",
+  "configuredSublistId": "receiveitems",
+  "sublistIdExists": true,
+  "bodyFieldIds": [
+    "pp_s", "wfinstances", "nsapiFC", "nsapiLI", "inventorydetailuitype", "trandate", "wfVF", "externalid",
+    "_eml_nkey_", "type", "nsapiPS", "nsapiCT", "nsapiRC", "sys_id", "customwhence", "pp_e", "nsapiVF", "nsapiVD",
+    "vendor", "nsapiPI", "nsbrowserenv", "wfSR", "nsapiLC", "id", "nsapiVL", "nsapiVI", "transformtype", "nsapiPD",
+    "nsapiSR", "inboundshipmentnumber", "wfPS", "whence", "entryformquerystring", "ppsetbyuservalue",
+    "_multibtnstate_", "receivinglocation", "ppsetbyuser", "postingperiod", "incoterm", "wfFC", "trantype", "wfPI",
+    "selectedtab"
+  ],
+  "sublistIds": ["receiveitems"],
+  "lineCount": 36,
+  "firstLineFieldIds": [
+    "quantitytobereceived", "uniquekey", "exchangerate", "origline", "description", "fulfillmentstatus",
+    "quantityremaining", "itemkey", "sys_id", "inventorydetailset", "isserial", "quantityreceived", "binitem",
+    "purchaseorder", "rate", "vendor", "inventorydetailreq", "currency", "id", "purchaseorder_display", "itemurl",
+    "receiveitem", "amount", "item", "quantity", "sys_parentid", "ownershiptransferlineid", "ownershiptransferkey",
+    "ownershiptransfer", "porate", "unit", "itemtype", "receivinglocation", "currencyprecision", "incoterm",
+    "ownershiptransferurl", "unitid", "inventorydetailavail", "isnumbered", "unitrate"
+  ],
+  "inventoryDetailFieldId": "inventorydetail",
+  "inventoryDetailPresentOnFirstLine": false,
+  "inventoryDetailFieldIds": null
+}

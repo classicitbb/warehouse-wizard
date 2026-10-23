@@ -184,9 +184,15 @@ export async function generateNetSuiteCertificate(commonName: string): Promise<{
   }
 }
 
+/** The integration record needs each scope ticked; RESTlets are a separate scope from REST Web Services. */
+export type NetSuiteScope = 'rest_webservices' | 'restlets'
+
+export const DEFAULT_NETSUITE_SCOPES: NetSuiteScope[] = ['rest_webservices']
+
 export async function buildClientAssertion(
   creds: NetSuiteM2MCredentials,
   nowSeconds = Math.floor(Date.now() / 1000),
+  scopes: NetSuiteScope[] = DEFAULT_NETSUITE_SCOPES,
 ): Promise<string> {
   const key = await crypto.subtle.importKey(
     'pkcs8',
@@ -198,7 +204,7 @@ export async function buildClientAssertion(
   const header = { alg: 'ES256', typ: 'JWT', kid: creds.certificateId.trim() }
   const claims = {
     iss: creds.clientId.trim(),
-    scope: ['rest_webservices'],
+    scope: scopes,
     aud: netsuiteTokenUrl(creds.accountId),
     iat: nowSeconds,
     exp: nowSeconds + ASSERTION_TTL_SECONDS,
@@ -221,7 +227,7 @@ function describeTokenError(status: number, body: string): string {
   })()
   const raw = `NetSuite responded ${status}: ${body.trim().slice(0, 200)}`
   if (code === 'invalid_scope') {
-    return `${raw}. Enable the REST Web Services scope on the NetSuite integration record.`
+    return `${raw}. Enable the REST Web Services scope (and RESTlets, for the inbound shipment RESTlet) on the NetSuite integration record.`
   }
   if (['server_error', 'invalid_client', 'unauthorized_client', 'invalid_grant', 'invalid_request'].includes(code)) {
     return `${raw}. Check that the Certificate ID matches a certificate uploaded under Setup > Integration > Manage Authentication > OAuth 2.0 Client Credentials (M2M) Setup for this integration record, that the Client ID belongs to that integration record, and that the record has the Client Credentials (Machine to Machine) grant enabled. NetSuite's Login Audit Trail shows the exact reason.`
@@ -229,10 +235,13 @@ function describeTokenError(status: number, body: string): string {
   return raw
 }
 
-export async function fetchNetSuiteAccessToken(creds: NetSuiteM2MCredentials): Promise<NetSuiteTokenResult> {
+export async function fetchNetSuiteAccessToken(
+  creds: NetSuiteM2MCredentials,
+  scopes: NetSuiteScope[] = DEFAULT_NETSUITE_SCOPES,
+): Promise<NetSuiteTokenResult> {
   let assertion: string
   try {
-    assertion = await buildClientAssertion(creds)
+    assertion = await buildClientAssertion(creds, undefined, scopes)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return { ok: false, error: `Could not sign the NetSuite client assertion - regenerate the certificate (${message})` }

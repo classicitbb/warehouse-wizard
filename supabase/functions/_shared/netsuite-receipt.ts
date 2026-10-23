@@ -38,7 +38,7 @@ export function receiptIdempotencyKey(documentType: NetSuiteReceiptDocumentType,
 }
 
 export type ReceiptLinePayload = {
-  /** NetSuite `lineUniqueKey` or line number, as stored on the draft (W4). */
+  /** Identity of the line across lookups, as stored on the draft (W4). Not what NetSuite is sent: name the source line with `lineNumber` (`orderLine` on the receipt). */
   lineKey: string | null
   lineNumber: number | null
   itemId: string

@@ -72,6 +72,17 @@ drift. The shape was checked against Oracle's REST example for the inventory adj
   POST fails or times out, the worker looks up `inventoryAdjustment/eid:<externalId>` and marks the
   job succeeded if an earlier attempt already created the record. A create answers `204` with the
   new record's URL in `Location`; the worker stores it and the record id in the job `result`.
+- When it fires: the adjustment is queued when an `inventory_balances` row first becomes
+  `available`, which is putaway confirmed. Label print (`confirm_receiving_draft_labels_printed`)
+  completes the receipt and creates the pallet and its balance, but in `receiving` with nothing
+  available, so it posts nothing.
+- Receipt-sourced pallets (`20261021200000`): once receipts post to NetSuite as item receipts
+  (whitepaper W3), set `receipts_post_to_netsuite = true` in the NetSuite connection's `config`
+  in the same step. The trigger then skips the putaway adjustment for any pallet whose receipt was
+  loaded from a NetSuite purchase order, transfer order or inbound shipment
+  (`netsuite_receipt_sourced_pallet()`: the receipt's draft notes carry a `netsuite` line ref),
+  because the item receipt already added that stock. Manual and other receipts keep the
+  adjustment. Unset (today, everywhere) means no change.
 - Not handled yet: lot-numbered, serialized, and bin-managed items need an `inventoryDetail`
   subrecord on the line, which is not sent. `unitCost` is not sent either, so check the cost
   NetSuite applies to a positive adjustment during the first live post.

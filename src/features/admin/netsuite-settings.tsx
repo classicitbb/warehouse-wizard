@@ -54,6 +54,11 @@ function NetSuiteIntegrationCard() {
     certificateExpiresAt: string | null;
     adjustmentAccountId: string | null;
     adjustmentSubsidiaryId: string | null;
+    restletScriptId: string | null;
+    restletDeployId: string | null;
+    restletHost: string | null;
+    defaultRestletScriptId: string;
+    defaultRestletDeployId: string;
     queueRunnerConfigured: boolean;
     lastTestedAt: string | null;
     lastTestOk: boolean | null;
@@ -67,6 +72,8 @@ function NetSuiteIntegrationCard() {
   const [certificateId, setCertificateId] = useState("");
   const [adjustmentAccountId, setAdjustmentAccountId] = useState("");
   const [adjustmentSubsidiaryId, setAdjustmentSubsidiaryId] = useState("");
+  const [restletScriptId, setRestletScriptId] = useState("");
+  const [restletDeployId, setRestletDeployId] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<string | null>(null);
   const [revealedQueueSecret, setRevealedQueueSecret] = useState<string | null>(null);
@@ -83,6 +90,9 @@ function NetSuiteIntegrationCard() {
       const posting = data as { adjustmentAccountId?: string | null; adjustmentSubsidiaryId?: string | null } | null;
       setAdjustmentAccountId(posting?.adjustmentAccountId ?? "");
       setAdjustmentSubsidiaryId(posting?.adjustmentSubsidiaryId ?? "");
+      const restlet = data as { restletScriptId?: string | null; restletDeployId?: string | null } | null;
+      setRestletScriptId(restlet?.restletScriptId ?? "");
+      setRestletDeployId(restlet?.restletDeployId ?? "");
       // Saving, testing or replacing the certificate can switch NetSuite features on or off app-wide.
       void queryClient.invalidateQueries({ queryKey: NETSUITE_ACTIVE_QUERY_KEY });
     } catch (err) {
@@ -114,6 +124,8 @@ function NetSuiteIntegrationCard() {
           // Before status has loaded the fields are unknown, so keep what is stored.
           adjustmentAccountId: status ? adjustmentAccountId.trim() : undefined,
           adjustmentSubsidiaryId: status ? adjustmentSubsidiaryId.trim() : undefined,
+          restletScriptId: status ? restletScriptId.trim() : undefined,
+          restletDeployId: status ? restletDeployId.trim() : undefined,
           enabled,
         },
       });
@@ -203,7 +215,7 @@ function NetSuiteIntegrationCard() {
             </div>
 
             <ol className="list-decimal space-y-1 rounded-md border p-3 pl-7 text-xs text-muted-foreground">
-              <li>In NetSuite, open the integration record and enable <span className="text-foreground">Client Credentials (Machine to Machine) Grant</span> and the <span className="text-foreground">REST Web Services</span> scope. Save its Client ID and your Account ID here.</li>
+              <li>In NetSuite, open the integration record and enable <span className="text-foreground">Client Credentials (Machine to Machine) Grant</span> and the <span className="text-foreground">REST Web Services</span> and <span className="text-foreground">RESTlets</span> scopes. Save its Client ID and your Account ID here.</li>
               <li>Generate a certificate below. The public certificate downloads as a .pem file.</li>
               <li>In NetSuite, go to Setup &gt; Integration &gt; Manage Authentication &gt; OAuth 2.0 Client Credentials (M2M) Setup, create a mapping for the integration user, role, and this application, and upload the certificate.</li>
               <li>Paste the Certificate ID NetSuite assigns, save, then test the connection.</li>
@@ -291,6 +303,36 @@ function NetSuiteIntegrationCard() {
                     value={adjustmentSubsidiaryId}
                     onChange={(e) => setAdjustmentSubsidiaryId(e.target.value)}
                     placeholder="Blank uses the NetSuite default"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-2 rounded-md border p-3">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium"><Boxes className="h-4 w-4" />Inbound shipment RESTlet</p>
+                <p className="text-xs text-muted-foreground">
+                  Container receipts post through a NetSuite RESTlet{status?.restletHost ? <> on <span className="font-mono">{status.restletHost}</span></> : null}. Leave both blank to use the agreed text IDs, which are the same in sandbox and production.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1">
+                  <Label htmlFor="ns-restlet-script" className="text-xs text-muted-foreground">Script ID</Label>
+                  <Input
+                    id="ns-restlet-script"
+                    value={restletScriptId}
+                    onChange={(e) => setRestletScriptId(e.target.value)}
+                    placeholder={status?.defaultRestletScriptId ?? "customscript_..."}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="ns-restlet-deploy" className="text-xs text-muted-foreground">Deploy ID</Label>
+                  <Input
+                    id="ns-restlet-deploy"
+                    value={restletDeployId}
+                    onChange={(e) => setRestletDeployId(e.target.value)}
+                    placeholder={status?.defaultRestletDeployId ?? "customdeploy_..."}
                     autoComplete="off"
                   />
                 </div>

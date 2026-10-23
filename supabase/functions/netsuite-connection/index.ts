@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { mapNetSuiteItemToProduct, netsuiteHost, upsertProductFromNetSuiteItem, type NetSuiteItemPayload } from '../_shared/netsuite.ts'
 import { fetchNetSuiteAccessToken, generateNetSuiteCertificate, type NetSuiteM2MCredentials } from '../_shared/netsuite-auth.ts'
+import { DEFAULT_RESTLET_DEPLOY_ID, DEFAULT_RESTLET_SCRIPT_ID, isValidRestletId, restletHost } from '../_shared/netsuite-restlet.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,6 +83,9 @@ Deno.serve(async (req) => {
     // empty one) replaces the stored value and only `undefined` keeps it.
     adjustmentAccountId?: string
     adjustmentSubsidiaryId?: string
+    // Inbound shipment RESTlet. Blank stores nothing and the agreed text ids apply.
+    restletScriptId?: string
+    restletDeployId?: string
     webhookSecret?: string
     queueRunnerSecret?: string
     enabled?: boolean
@@ -159,7 +163,7 @@ Deno.serve(async (req) => {
     if (action === 'status') {
       const connection = await loadConnection()
       if (!connection) {
-        return json({ configured: false, enabled: false, missing: [], accountIdMasked: null, clientIdMasked: null, certificateId: null, certificatePem: null, certificateExpiresAt: null, adjustmentAccountId: null, adjustmentSubsidiaryId: null, queueRunnerConfigured: false, lastTestedAt: null, lastTestOk: null })
+        return json({ configured: false, enabled: false, missing: [], accountIdMasked: null, clientIdMasked: null, certificateId: null, certificatePem: null, certificateExpiresAt: null, adjustmentAccountId: null, adjustmentSubsidiaryId: null, restletScriptId: null, restletDeployId: null, restletHost: null, defaultRestletScriptId: DEFAULT_RESTLET_SCRIPT_ID, defaultRestletDeployId: DEFAULT_RESTLET_DEPLOY_ID, queueRunnerConfigured: false, lastTestedAt: null, lastTestOk: null })
       }
       const config = (connection.config ?? {}) as Record<string, unknown>
       const { creds, missing } = await loadCredentials(connection)
@@ -175,6 +179,11 @@ Deno.serve(async (req) => {
         certificateExpiresAt: typeof config.certificate_expires_at === 'string' ? config.certificate_expires_at : null,
         adjustmentAccountId: typeof config.adjustment_account_id === 'string' && config.adjustment_account_id ? config.adjustment_account_id : null,
         adjustmentSubsidiaryId: typeof config.adjustment_subsidiary_id === 'string' && config.adjustment_subsidiary_id ? config.adjustment_subsidiary_id : null,
+        restletScriptId: isValidRestletId(config.restlet_script_id) ? config.restlet_script_id : null,
+        restletDeployId: isValidRestletId(config.restlet_deploy_id) ? config.restlet_deploy_id : null,
+        restletHost: creds.accountId ? restletHost(creds.accountId) : null,
+        defaultRestletScriptId: DEFAULT_RESTLET_SCRIPT_ID,
+        defaultRestletDeployId: DEFAULT_RESTLET_DEPLOY_ID,
         queueRunnerConfigured: Boolean(queueRunnerSecret),
         lastTestedAt: typeof config.last_tested_at === 'string' ? config.last_tested_at : null,
         lastTestOk: typeof config.last_test_ok === 'boolean' ? config.last_test_ok : null,
@@ -196,9 +205,16 @@ Deno.serve(async (req) => {
       if (!accountId || !clientId) {
         return json({ error: 'Account ID and Client ID are required' }, 400)
       }
+      for (const [label, value] of [['RESTlet script ID', body.restletScriptId], ['RESTlet deploy ID', body.restletDeployId]] as const) {
+        if (typeof value === 'string' && value.trim() && !isValidRestletId(value.trim())) {
+          return json({ error: `${label} may contain only letters, digits and underscores` }, 400)
+        }
+      }
       const nextConfig = {
         ...existingConfig,
         account_id: accountId,
+        ...(typeof body.restletScriptId === 'string' ? { restlet_script_id: body.restletScriptId.trim() } : {}),
+        ...(typeof body.restletDeployId === 'string' ? { restlet_deploy_id: body.restletDeployId.trim() } : {}),
         ...(certificateIdInput ? { certificate_id: certificateIdInput } : {}),
         ...(typeof body.adjustmentAccountId === 'string' ? { adjustment_account_id: body.adjustmentAccountId.trim() } : {}),
         ...(typeof body.adjustmentSubsidiaryId === 'string' ? { adjustment_subsidiary_id: body.adjustmentSubsidiaryId.trim() } : {}),

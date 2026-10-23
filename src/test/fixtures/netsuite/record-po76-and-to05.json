@@ -1,0 +1,56 @@
+{
+  "_comment": "PO76 (internal id 2751) and TO05 (internal id 16317) as the sandbox REST API returned them with expandSubResources=true on 2026-10-21, via netsuite-discovery action 'record'. Trimmed to the header fields the lookup reads and the identity, quantity, unit and location fields of the one line each; links and custom fields removed. Nothing on either line carries a unique key.",
+  "purchaseOrder": {
+    "id": "2751",
+    "tranId": "PO76",
+    "tranDate": "2026-06-12",
+    "memo": "Legacy open PO 15067 | V2713 CHANGSHA GLOWJOY HARDWARE CO. | US Dollar",
+    "status": { "id": "Pending Receipt", "refName": "Pending Receipt" },
+    "orderStatus": { "id": "B", "refName": "B" },
+    "entity": { "id": "379", "refName": "Changsha Glowjoy Hardware Co." },
+    "location": { "id": "3", "refName": "LOC-01 Lower Estate" },
+    "item": {
+      "items": [
+        {
+          "line": 1,
+          "item": { "id": "6262", "refName": "GJWCFSLIP" },
+          "description": "White Coral Fleece Disposable Slippers (11 X 4 ) 80-Pairs/Cs",
+          "quantity": 15040,
+          "quantityReceived": 0,
+          "quantityBilled": 0,
+          "quantityOnShipments": 15040,
+          "isClosed": false,
+          "isOpen": true,
+          "units": "575",
+          "targetLocation": { "id": "3", "refName": "LOC-01 Lower Estate" },
+          "itemType": { "id": "InvtPart", "refName": "InvtPart" }
+        }
+      ]
+    }
+  },
+  "transferOrder": {
+    "id": "16317",
+    "tranId": "TO05",
+    "tranDate": "2026-09-10",
+    "memo": "",
+    "orderStatus": { "id": "B", "refName": "Pending Fulfillment" },
+    "location": { "id": "4", "refName": "LOC-02 Pine Showroom" },
+    "item": {
+      "items": [
+        {
+          "line": 1,
+          "item": { "id": "5986", "refName": "TTSW280-24" },
+          "description": "Soft Weave 280-Sheet Bathroom Tissue 24-Rolls/Bale",
+          "quantity": 1,
+          "quantityFulfilled": 0,
+          "quantityReceived": 0,
+          "quantityPicked": 1,
+          "quantityBackOrdered": 1,
+          "isClosed": false,
+          "units": "93",
+          "itemType": { "id": "InvtPart", "refName": "InvtPart" }
+        }
+      ]
+    }
+  }
+}

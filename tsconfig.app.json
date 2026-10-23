@@ -36,6 +36,7 @@
   ],
   "exclude": [
     "src/sw.ts",
-    "src/test/netsuite-live.integration.test.ts"
+    "src/test/netsuite-live.integration.test.ts",
+    "src/test/netsuite-auth-scopes.test.ts"
   ]
 }
