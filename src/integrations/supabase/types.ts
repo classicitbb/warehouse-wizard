@@ -5384,6 +5384,10 @@ export type Database = {
         Returns: string
       }
       netsuite_integration_active: { Args: never; Returns: boolean }
+      netsuite_receipt_sourced_pallet: {
+        Args: { p_pallet_id: string }
+        Returns: boolean
+      }
       next_operator_ticket_number: { Args: never; Returns: string }
       notification_email_shell: {
         Args: { in_body_html: string; in_title: string }
