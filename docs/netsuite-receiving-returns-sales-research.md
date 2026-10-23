@@ -769,11 +769,14 @@ WHERE type IN ('ItemShip','ItemRcpt')
 **Q7 — inbound shipments in flight:**
 
 ```sql
-SELECT id, shipmentnumber, externaldocumentnumber, BUILTIN.DF(shipmentstatus) AS status,
+SELECT id, shipmentnumber, externaldocumentnumber, shipmentstatus AS status,
        expecteddeliverydate FROM inboundshipment ORDER BY expecteddeliverydate DESC
 ```
 
-A table-not-found error means Inbound Shipment Management is off.
+A table-not-found error means Inbound Shipment Management is off. Do not wrap `shipmentstatus` in
+`BUILTIN.DF()`: it is a static field and NetSuite rejects it ("Static field is not supported for
+Builtin.DF function"). Select the raw code instead. The first discovery run on the Simplex account
+(23 Oct) failed this way.
 
 **Q8 — a real PO's lines, for the transform line-id test:**
 
