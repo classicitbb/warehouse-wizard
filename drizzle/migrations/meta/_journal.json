@@ -127,6 +127,13 @@
       "when": 1792778433481,
       "tag": "0017_20261016115900_set_updated_at_helper",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792778452952,
+      "tag": "0018_20261016120000_netsuite_customers",
+      "breakpoints": true
     }
   ]
 }
