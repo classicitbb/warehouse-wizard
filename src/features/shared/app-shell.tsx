@@ -589,6 +589,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useBackgroundSync(queryClient);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileNavGrid, setMobileNavGrid] = useState(false);
+  const mobileMenuHeaderRef = useRef<HTMLDivElement>(null);
   const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
   const networkStatusSeenRef = useRef(false);
   const shownOfflineAlertIdsRef = useRef<Set<string>>(new Set());
@@ -631,6 +633,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const pinnedOrder: Partial<Record<AppRoute, number>> = { "/settings": 1, "/help": 2 };
       return (pinnedOrder[a.to] ?? 0) - (pinnedOrder[b.to] ?? 0);
     });
+
+  // When the single-column mobile list would need a scrollbar, switch to a two-column grid.
+  // Measured against the viewport (not the list) so the result can't flip-flop once the grid is shorter.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const measure = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize || "16");
+      // Row = 1.125rem icon + 2 x 1.25rem icon padding + 1px bottom border.
+      const rowPx = 3.625 * rem + 1;
+      const headerPx = mobileMenuHeaderRef.current?.offsetHeight ?? 0;
+      setMobileNavGrid(items.length * rowPx > window.innerHeight - 24 - headerPx);
+    };
+    // The sheet mounts in a portal, so its header isn't measurable until the next frame.
+    const frame = requestAnimationFrame(measure);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+    };
+  }, [mobileMenuOpen, items.length]);
+
   const canAccessPutaway = items.some((item) => item.to === "/putaway-tasks");
   const canAccessReceiving = items.some((item) => item.to === "/receiving");
   const canAccessPickLists = items.some((item) => item.to === "/pick-lists");
@@ -915,7 +939,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [profile?.default_warehouse_id, queryClient, roles, user?.id]);
 
   // Rows are full-bleed now, so the old compact-top padding tweak is a no-op.
-  const renderNavigation = (_compactTop = false, collapsed = sidebarCollapsed) => (
+  const renderNavigation = (_compactTop = false, collapsed = sidebarCollapsed, grid = false) => (
       <div
         className={cn(
           "flex h-full flex-col overflow-hidden bg-sidebar",
@@ -925,12 +949,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav
         className={cn(
           "flex-1 overflow-y-auto",
+          grid && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           // The 10px themed scrollbar would eat a sixth of the 4rem-wide rail and push
           // the icons off-centre — hide it, wheel/keyboard scrolling still works.
           collapsed && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
-        <div className="flex flex-col">
+        <div
+          className={grid ? "grid grid-flow-col grid-cols-2" : "flex flex-col"}
+          // Column-major: the first column fills, the rest flow into the second (counts needn't match).
+          style={grid ? { gridTemplateRows: `repeat(${Math.ceil(items.length / 2)}, minmax(3.25rem, auto))` } : undefined}
+        >
           {items.map((item) => {
             const Icon = navIcons[item.to] ?? LayoutDashboard;
             const isActive = pathname === item.to;
@@ -963,7 +992,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             // Padding lives on the wrapper: box-sizing is border-box, so py on the
             // sized <svg> itself would eat the glyph instead of spacing it.
             const iconBox = (
-              <span className="relative flex shrink-0 items-center justify-center py-5">
+              <span className={cn("relative flex shrink-0 items-center justify-center", grid ? "py-0" : "py-5")}>
                 {icon}
                 {collapsed ? badge : null}
               </span>
@@ -976,7 +1005,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     "group relative flex items-center gap-3 border-b text-sm font-medium transition-colors duration-100 last:border-b-0",
                     // min-h (not h) so rows never compress when the list overflows the column.
                     "shrink-0",
-                    collapsed
+                    grid
+                      // Rectangular tiles: icon + label side by side, label may wrap to two lines.
+                      ? "min-h-[3.25rem] gap-2 border-b border-r border-sidebar-border/60 px-3 py-2 last:border-b leading-tight"
+                      : collapsed
                       // 4rem = the 24px icon plus its 20px padding either side.
                       ? "min-h-[4rem] w-full justify-center gap-0 border-teal-600/25 px-0"
                       : "min-h-[3.125rem] border-sidebar-border/60 px-3",
@@ -1000,7 +1032,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ) : (
                   <>
                     {iconBox}
-                    <span className="truncate">{item.label}</span>
+                    <span className={grid ? "min-w-0 break-words" : "truncate"}>{item.label}</span>
                     {badge}
                   </>
                 )}
@@ -1014,12 +1046,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Tooltip>
             ) : link;
 
-            if (showSeparator) {
+            if (showSeparator && !grid) {
               return (
                 <div key={item.to} className="contents">
                   <div
                     aria-hidden
-                    className={cn("h-px", collapsed ? "bg-teal-700/40" : "bg-sidebar-border")}
+                    className={cn("h-px", grid && "col-span-2", collapsed ? "bg-teal-700/40" : "bg-sidebar-border")}
                   />
                   {node}
                 </div>
@@ -1121,7 +1153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
-                <div className="flex flex-col border-b border-border bg-card/80 px-4 py-3 gap-2">
+                <div ref={mobileMenuHeaderRef} className="flex flex-col border-b border-border bg-card/80 px-4 py-3 gap-2">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
                       <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
@@ -1170,7 +1202,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">{renderNavigation(true, false)}</div>
+                <div className="flex-1 overflow-y-auto">{renderNavigation(true, false, mobileNavGrid)}</div>
               </SheetContent>
             </Sheet>
           </div>
