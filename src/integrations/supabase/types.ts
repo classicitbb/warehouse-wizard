@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -3924,6 +3924,53 @@ export type Database = {
           },
         ]
       }
+      report_subscriptions: {
+        Row: {
+          active: boolean
+          created_at: string
+          email_delivery: boolean
+          frequency: string
+          id: string
+          last_delivered_at: string | null
+          report_id: string
+          updated_at: string
+          user_id: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          email_delivery?: boolean
+          frequency?: string
+          id?: string
+          last_delivered_at?: string | null
+          report_id: string
+          updated_at?: string
+          user_id: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          email_delivery?: boolean
+          frequency?: string
+          id?: string
+          last_delivered_at?: string | null
+          report_id?: string
+          updated_at?: string
+          user_id?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_subscriptions_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       return_authorizations: {
         Row: {
           client_id: string | null
@@ -5336,6 +5383,10 @@ export type Database = {
       }
       has_any_role: {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
+        Returns: boolean
+      }
+      has_feature_permission: {
+        Args: { _feature_code: string; _mode?: string; _user_id: string }
         Returns: boolean
       }
       has_min_role: {
