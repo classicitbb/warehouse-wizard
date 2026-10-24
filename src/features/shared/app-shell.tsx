@@ -993,7 +993,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             // Padding lives on the wrapper: box-sizing is border-box, so py on the
             // sized <svg> itself would eat the glyph instead of spacing it.
             const iconBox = (
-              <span className={cn("relative flex shrink-0 items-center justify-center", grid ? "py-0" : "py-5")}>
+              <span className={cn("relative flex shrink-0 items-center justify-center", grid ? "py-0" : "py-3")}>
                 {icon}
                 {collapsed ? badge : null}
               </span>
@@ -1011,8 +1011,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       ? "min-h-[3.25rem] gap-2 border-b border-r border-sidebar-border/60 px-3 py-2 last:border-b leading-tight"
                       : collapsed
                       // 4rem = the 24px icon plus its 20px padding either side.
-                      ? "min-h-[4rem] w-full justify-center gap-0 border-teal-600/25 px-0"
-                      : "min-h-[3.125rem] border-sidebar-border/60 px-3",
+                      ? "min-h-[3.4rem] w-full justify-center gap-0 border-teal-600/25 px-0"
+                      : "min-h-[2.35rem] border-sidebar-border/60 px-3",
                     navActive || isActive
                       ? collapsed
                         ? "bg-teal-700 text-white hover:bg-teal-300 hover:text-teal-950"
