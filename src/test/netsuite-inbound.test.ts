@@ -9,6 +9,7 @@ import {
   inboundStatusLabel,
   indexReceived,
   indexTotals,
+  isInboundStatusFilter,
   looksLikeContainerNumber,
   mapShipmentDetail,
   mapShipmentSummary,
@@ -57,6 +58,14 @@ describe("buildInboundListQuery", () => {
     expect(q).toContain("s.shipmentstatus IN ('inTransit', 'partiallyReceived')");
     expect(q).toContain("ORDER BY s.expecteddeliverydate ASC NULLS LAST, s.id DESC");
     expect(q).not.toContain("LIKE");
+  });
+
+  it("filters to a single status for Partially received and In transit", () => {
+    expect(buildInboundListQuery({ ...base, status: "partially_received" })).toContain("s.shipmentstatus = 'partiallyReceived'");
+    expect(buildInboundListQuery({ ...base, status: "in_transit" })).toContain("s.shipmentstatus = 'inTransit'");
+    expect(isInboundStatusFilter("partially_received")).toBe(true);
+    expect(isInboundStatusFilter("in_transit")).toBe(true);
+    expect(isInboundStatusFilter("bogus")).toBe(false);
   });
 
   it("drops the status filter for All", () => {
