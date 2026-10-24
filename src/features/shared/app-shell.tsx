@@ -574,7 +574,8 @@ function OfflineFreezeBadge({ compact = false }: { compact?: boolean }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { pathname } = useLocation();
+  // Settings sub-routes (/settings/:tab) count as the Settings page for nav, breadcrumbs and help.
+  const pathname = useLocation().pathname.replace(/^\/settings\/.*$/, "/settings");
   const { profile, roles, signOut, user, refreshProfile } = useAuth();
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
@@ -1110,7 +1111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="truncate text-sm font-semibold">{appTitle}</span>
             </Link>
             <Link
-              to={`${toPath("/settings")}?tab=about`}
+              to={toPath("/settings/about")}
               title="Version details"
               className="shrink-0 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
             >
@@ -1234,7 +1235,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </a>
               ) : (
                 <Link
-                  to={`${toPath("/settings")}?tab=about`}
+                  to={toPath("/settings/about")}
                   title="Version details"
                   className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
                 >

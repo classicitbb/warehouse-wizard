@@ -297,29 +297,34 @@ export function SystemLogPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3 md:items-end">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">System Log</h2>
           <p className="text-sm text-muted-foreground">Software errors, bugs, system changes, infrastructure events, and record count snapshots. Archived entries are permanently deleted after 120 days.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {view === "active" ? (
-            <>
-              <Button variant="outline" onClick={() => snapshotMutation.mutate()} disabled={snapshotMutation.isPending}>
-                {snapshotMutation.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw data-icon="inline-start" />}
+        {view === "active" ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="outline" className="shrink-0" aria-label="System Log actions">
+                {snapshotMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem disabled={snapshotMutation.isPending} onSelect={() => snapshotMutation.mutate()}>
+                <RotateCcw className="mr-2 h-4 w-4" />
                 Snapshot counts
-              </Button>
-              <Button variant="outline" onClick={() => setArchiveDialogOpen(true)}>
-                <Archive data-icon="inline-start" />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setArchiveDialogOpen(true)}>
+                <Archive className="mr-2 h-4 w-4" />
                 Archive old logs
-              </Button>
-              <Button onClick={() => setAddOpen(true)}>
-                <Plus data-icon="inline-start" />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAddOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
                 Add entry
-              </Button>
-            </>
-          ) : null}
-        </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
       <Tabs value={view} onValueChange={(v) => setView(v as "active" | "archived")}>
         <TabsList>

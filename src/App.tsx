@@ -1248,7 +1248,7 @@ function ResourceRoutes() {
           <Route path="/status" element={<StatusPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/users" element={<UsersRolesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/*" element={<SettingsPage />} />
           <Route path="/system-log" element={<SystemLogPage />} />
           <Route path="/email-log" element={<EmailLogPage />} />
           <Route path="/help" element={<HelpCenterPage />} />
