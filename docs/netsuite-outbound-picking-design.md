@@ -152,3 +152,93 @@ The principle: a cycle count measures what is in **storage and forward-pick bins
 - **V8** — Do the trucks to Pine and Lower Estate share trips with customer deliveries in practice (T2)?
 - **V9** — Are there Simplex-to-Simplex moves that go through NetSuite inventory transfers today rather than TOs (T8)?
 - **V10** — Can the integration role create TOs, does a TO created at Pending Approval follow Simplex's existing approval workflow, and who approves WW-raised requests (T9)?
+
+## 7. Returns
+
+**Status: proposed 2026-10-26, not yet agreed.** Decisions R1–R14 cover customer returns (NetSuite RMAs), deliveries refused at the door, and vendor returns. The NetSuite record detail is in the research doc §5. Returns are received through the Phase 1 receiving flow; vendor returns ship through the outbound flow in §2–§3.
+
+### 7.1 What exists today
+
+- `return_authorizations` is **header only**: `rma_number`, `client_id`, `warehouse_id`, a `task_status`, one `disposition` for the whole RMA, and `reason`. It has no lines, no NetSuite id and no source order. `client_id` is the wrong party, because clients own stock and RMAs come from customers (D1).
+- `quality_disposition` is `pending`, `pass`, `fail`, `hold`, `release`, `scrap`, `return_to_vendor`. `quality_inspections` links a disposition to a pallet or receipt.
+- `orders.order_type` is free text, default `'sales'`. Vendor returns have no WW record at all.
+- **Sandbox (2026-10-21 discovery):** only two RMAs exist, one at `RtnAuth:A` and one at `:G` (Refunded), plus the test record RMA07. No `VendAuth` rows came back. Inventory Status has only "Good". 332 inventory items are serialised. The restock field id on RMA receipt lines is still open from J10.
+- Delivery exceptions are already flagged on the SO/IF: `custbody_ee_customer_refused`, `_damaged_item`, `_wrong_items`, `_missing_items` and the rest (§1).
+
+### 7.2 Ownership model
+
+**NetSuite owns the RMA; WW receives it and decides the disposition of each line.** The RMA carries approval, price, restocking fees and the credit, none of which WW should copy. The credit memo or cash refund stays with finance (research doc §5.1). WW never creates or approves an RMA. It owns the physical work: counting what came back, the disposition per line, quarantine, putaway and scrap.
+
+A **refused delivery is not a return.** The customer never accepted the goods, they come back on the same truck, and in most cases no credit is due because nothing was billed. WW handles it as a reversal of its own fulfillment (R7). It becomes an RMA only once the SO has been billed (R8).
+
+### 7.3 Customer returns (RMA)
+
+| # | Topic | Proposal |
+|---|---|---|
+| R1 | Discovery | The D2 SuiteQL poll also reads `RtnAuth:B`, `:D` and `:E` where the line location is a mapped location. They appear in **Receiving** as type **Return**, not in the Orders inbox. The W2 number lookup is extended to RMAs, so the dock can key or scan the RMA number on the customer's paperwork. `:A` (Pending Approval) is never shown, so goods that arrive without an approved RMA go to R5 |
+| R2 | Data model | `return_authorizations` gains `external_record_id`, `customer_id` (FK `customers`), the source SO id and number, and the NetSuite status. New `return_authorization_lines`: `external_line_id` (`line`) and the `<internal id>:<line>` key built by the lookup (J10), product, NetSuite unit id, expected and received quantity in **base units** (D9), reason code, and lot/serial. The header `disposition` becomes a summary derived from the lines. `client_id` stays, nullable. All changes are additive |
+| R3 | Receipt | A return is received as `receipts.receipt_type = 'return'`, with each `receipt_line` linked to its RMA line. The operator counts each line and gives it a disposition, and may split one line across several (e.g. 8 restock, 2 scrap). Posting uses `returnAuthorization/{id}/!transform/itemReceipt`: each line sends location, quantity converted to the RMA line's unit, and the restock flag. Serialised items carry their serial numbers in inventory detail. Idempotency uses `custbody_spx_ww_external_ref`, as Phase 1 receipts do. If one receipt cannot hold the same RMA line twice with different restock flags (V12), WW posts one receipt per disposition group |
+| R4 | Disposition | Per line, mapped as in 7.4. **Restock** goes through normal putaway, and the stock can feed forward-pick replenishment (D5). **Hold** goes into a returns-quarantine zone with `held_quantity` and a `quality_inspections` row, and is never pickable until released. **Scrap** posts restock ✗: no pallet is created in WW, and a reason and photo are kept. **Return to vendor** is held like Hold until a vendor return picks it (R12) |
+| R5 | Over, short and unexpected | WW never receives more than the open RMA quantity. Extra or unlisted items, and goods that arrive with no approved RMA, are booked into returns staging as an **unexpected return** exception with no NetSuite posting. Customer service amends or approves the RMA in NetSuite, and the next poll lets the dock receive against it without a recount. A short receipt leaves the RMA at `:D`/`:E` |
+| R6 | Who disposes | Any receiver may choose Restock or Hold. Scrap and Return to vendor need a Supervisor or a completed inspection, because both are written off or leave the business |
+
+### 7.4 Disposition mapping
+
+| WW disposition | `quality_disposition` | NetSuite receipt line | WW stock afterwards |
+|---|---|---|---|
+| Restock | `pass` / `release` | Restock ✓, status Good | Available, normal putaway |
+| Hold for inspection | `pending` / `hold` | Restock ✓ into a non-available status ("Quarantine") **if one is created (V13)**. Until then, restock ✓ as Good | Held in the quarantine zone. Inspection then releases it (status change to Good, if quarantined) or scraps it (`inventoryAdjustment` out) |
+| Scrap | `fail` / `scrap` | Restock ✗ (written off to expense) | None |
+| Return to vendor | `return_to_vendor` | Restock ✓, as Hold | Held, reserved for a VRMA |
+
+Without a Quarantine status, NetSuite counts held returns as available and can commit them to SOs. WW will not pick them, so those SO lines short-pick (D10) until the hold clears. That gap is why V13 matters.
+
+### 7.5 Refused deliveries
+
+| # | Case | Proposal |
+|---|---|---|
+| R7 | Refused at the door, SO not yet billed | The driver records the refusal and reason in the POD (slice G), which writes `custbody_ee_customer_refused` and the reason fields. When the trip closes, the dock scans the refused cartons back in at a **trip check-in** step, before anything is put away. WW then reduces its own fulfillment: it PATCHes the IF lines down, or deletes the IF if the whole order was refused (V14). The quantity goes back to available and committed in NetSuite, the SO returns to Pending Fulfillment or Partially Fulfilled, and it reappears in the Orders inbox to be redelivered or cancelled by customer service. No RMA and no credit memo are needed. Cartons scanned back as damaged (`_damaged_item`/`_damaged_box`) go to Hold, and the inspection result posts an `inventoryAdjustment` or status change |
+| R8 | Refused or returned after billing | Once the SO line is billed, the IF can no longer be reduced below the billed quantity. WW raises a **refusal needs RMA** exception to customer service, and the goods wait in returns staging, held. When the RMA appears through the R1 poll, receiving is pre-matched to the held stock and only needs confirming. A customer who sends goods back days later is always this case |
+| R9 | Wrong or missing items | `_missing_items` is a short delivery, not a return: nothing comes back, and the SO stays open for the missing quantity (D10). `_wrong_items`: the wrong item comes back through R7 (or R8), and the right item is a new pick against the still-open SO line |
+| R10 | Trip close | A trip cannot close while refused cartons from the POD are neither scanned back nor marked lost. Lost cartons raise a supervisor exception; WW does not adjust NetSuite for them on its own |
+
+### 7.6 Vendor returns
+
+| # | Topic | Proposal |
+|---|---|---|
+| R11 | Order type | Vendor returns become `orders.order_type = 'vendor_return'`, sourced from a NetSuite `vendorReturnAuthorization` (VRMA). NetSuite owns the VRMA (approval, vendor credit); WW picks and ships it. The D2 poll reads approved VRMAs (`VendAuth:B` Pending Return and `:D` Partially Returned, codes **[Verify]**) at mapped locations, and they appear in the Orders inbox as type **Vendor return** |
+| R12 | Pick source | VRMA lines pick **held stock first**: pallets with the `return_to_vendor` disposition, then other held stock for that item, then bulk. They never pick from a forward-pick face and add no D5 demand (as T4). This is the one pick type that may take held stock |
+| R13 | Shipping | `vendorReturnAuthorization/{id}/!transform/itemFulfillment`, on the same A/B/C lifecycle as D3. If the vendor's own carrier collects, the order goes to a **dock collection** instead of a trip: Picking at pick complete, then Packed and Shipped together at the collection scan, with the carrier's name and signature |
+| R14 | Raising a vendor return | WW does not create VRMAs. A `return_to_vendor` disposition notifies purchasing with the item, quantity, supplier (from the receipt or product) and the inspection notes, and purchasing raises the VRMA in NetSuite. A WW-raised request at Pending Approval, as T9 does for TOs, is left for Phase 3 |
+
+### 7.7 Status mapping
+
+| NetSuite record | WW | Trigger |
+|---|---|---|
+| `RtnAuth:A` Pending Approval | (not shown) | — |
+| `RtnAuth:B` Pending Receipt | Return in Receiving, `queued` | Poll |
+| `RtnAuth:D`/`:E` Partially Received | `in_progress` | Receipt posted, lines still open |
+| `RtnAuth:F` Pending Refund | `completed` | Last line received |
+| `RtnAuth:G` Refunded / `:H` Closed / `:C` Cancelled | closed, read only | Poll |
+| SO IF reduced or deleted after refusal | pick list reopened, SO back in the inbox | Trip check-in (R7) |
+| `VendAuth:B` Pending Return | Vendor return in the Orders inbox | Poll |
+| VRMA IF at A / B / C | `in_progress` → shipped | Pick, pack, collection or departure |
+
+### 7.8 Build placement
+
+| Slice | Contents | Depends on |
+|---|---|---|
+| H | RMA poll and lookup, `return_authorization_lines`, return receipt with per-line disposition, quarantine zone, RMA receipt posting | B, Phase 1 receipt posting (W3) |
+| G+ | Trip check-in of refused cartons, IF reduce/delete, refusal needs RMA exception | G |
+| I | `vendor_return` order type, VRMA poll, held-stock pick source, dock collection, VRMA fulfillment | E, H |
+
+### 7.9 To verify
+
+- **V11** — Is **Advanced Receiving** on? Without it, receipt and refund happen together on the credit memo, and WW cannot post an RMA receipt on its own (research doc §5.1). The sandbox has an RMA at Refunded but none at Pending Refund, so this is not yet shown.
+- **V12** — What is the restock field id on an RMA receipt line (open since J10)? Can one receipt carry the same RMA line twice with different restock flags, or does a split disposition need two receipts?
+- **V13** — Will Simplex add a "Quarantine" (or "Damaged") inventory status, so held returns are not committed to SOs? Is the Inventory Status feature actually on, or does the record exist with only "Good"?
+- **V14** — Can REST reduce or delete an IF that is already at Shipped (extends V7)? When is an SO billed after shipping: a scheduled Bill Sales Orders run, by hand, or straight away? That decides how long the R7 window stays open, and depends on V4.
+- **V15** — How are refusals handled today? Does the "ERP" driver app (V3) or a script create an RMA, or does someone edit the fulfillment by hand? Only two RMAs in the sandbox suggests refusals are not RMA'd.
+- **V16** — Are VRMAs used at all, exposed through REST, and readable by the integration role (no `VendAuth` rows came back)? Are vendor returns in scope now or later (research doc §12 Q9)?
+- **V17** — For the 332 serialised items, must the returned serial number match one shipped to that customer, and should WW check it?
+- **V18** — Does Simplex want WW's return reason codes written to an RMA field, and who may approve Scrap (R6)?
