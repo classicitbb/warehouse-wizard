@@ -1174,8 +1174,8 @@ export function ReceivingPage() {
             </HintButton>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm" variant="outline" onClick={() => {
+        <div className="flex flex-wrap gap-2">
+          <Button className="min-w-[6.5rem] flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm" variant="outline" onClick={() => {
             setPrintContainer(draftSearch);
             setSelectedDraftIds(new Set(visibleDrafts.map((draft) => draft.id)));
             setPrintOpen(true);
@@ -1184,14 +1184,14 @@ export function ReceivingPage() {
             <span className="truncate">Print drafts</span>
           </Button>
           {netsuiteActive && (
-            <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm" variant="outline" onClick={() => openInboundBrowser()}>
+            <Button className="min-w-[6.5rem] flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm" variant="outline" onClick={() => openInboundBrowser()}>
               <Ship data-icon="inline-start" />
               <span className="truncate">View inbound</span>
             </Button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="min-w-0 px-2 text-xs sm:px-4 sm:text-sm">
+              <Button className="min-w-[6.5rem] flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm">
                 <Plus data-icon="inline-start" />
                 <span className="truncate">New</span>
                 <ChevronDown className="ml-1 h-4 w-4" />

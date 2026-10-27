@@ -445,11 +445,6 @@ export function ResourcePage({
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
-  const useGearActions = ["warehouses", "zones", "locations", "products", "product_packaging_profiles"].includes(resource.table);
-  // Packaging Profiles keeps creating a profile as a standing primary button —
-  // it is the one action people come to that screen to repeat — while the CSV
-  // and archive actions move behind the gear with everything else.
-  const createOutsideGear = resource.table === "product_packaging_profiles";
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
   const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
@@ -835,14 +830,13 @@ export function ResourcePage({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3 md:items-end">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">{resource.title}</h2>
           <p className="text-sm text-muted-foreground">{resource.description} Double-click any row to edit. Double-tap on touch screens.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {useGearActions ? (
-            <DropdownMenu>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="outline" aria-label={`${resource.title} actions`}>
                   <Settings className="h-4 w-4" />
@@ -932,13 +926,13 @@ export function ResourcePage({
                 {hasWarehouseStructureShortcut ? (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate(toPath("/settings?tab=warehouse-structure"))}>
+                    <DropdownMenuItem onClick={() => navigate(toPath("/settings/warehouse-structure"))}>
                       <Network className="mr-2 h-4 w-4" />
                       Warehouse Structure
                     </DropdownMenuItem>
                   </>
                 ) : null}
-                {createOutsideGear ? null : (
+                {(
                   <ResourceFormDialog
                     resource={resource}
                     trigger={
@@ -950,32 +944,7 @@ export function ResourcePage({
                   />
                 )}
               </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <>
-              {resource.exportable ? (
-                <Button variant="outline" onClick={() => downloadCsv(`${resource.table}.csv`, data as Array<Record<string, unknown>>)}>
-                  <Download data-icon="inline-start" />
-                  Export CSV
-                </Button>
-              ) : null}
-              {resource.supportsHide ? (
-                <Button variant="outline" onClick={() => setIncludeHidden((current) => !current)}>
-                  {includeHidden ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}
-                  {includeHidden ? "Hide archived" : "Show archived"}
-                </Button>
-              ) : null}
-              {resource.importable ? <ImportButton resource={resource} /> : null}
-              {resource.table === "locations" ? (
-                <LocationWizardDialog
-                  defaultWarehouseId={locationWizardDefaultWarehouseId}
-                  defaultZoneId={locationWizardDefaultZoneId}
-                />
-              ) : null}
-              <ResourceFormDialog resource={resource} />
-            </>
-          )}
-          {createOutsideGear ? <ResourceFormDialog resource={resource} /> : null}
+          </DropdownMenu>
         </div>
       </div>
 

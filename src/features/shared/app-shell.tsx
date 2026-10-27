@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
+import { ChevronRight, SlidersHorizontal, Activity, AlertCircle, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CheckCircle2, ChevronDown, ClipboardCheck, ClipboardList, CloudOff, Download, Eye, EyeOff, FileDown, Forklift, GripVertical, HelpCircle, Home, Info, KeyRound, LayoutDashboard, Loader2, Lock, LockOpen, LogOut, Mail, Maximize2, MapPinned, Menu, Minimize2, Network, Package, PackageX, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Printer, QrCode, RadioTower, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Star, Tags, Trash2, Truck, Upload, UserPlus, Users } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -45,6 +45,7 @@ import {
 import { isActiveWorkInProgress } from "@/lib/active-work";
 import {
   NAVIGATION,
+  type NavGroupKey,
   ROLE_LABELS,
   ROLE_DESCRIPTIONS,
   type AdminInviteUserInput,
@@ -195,6 +196,8 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { requestAppRefresh } from "@/lib/preview-env";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { activeGroupKey, groupNavigation } from "@/features/shared/nav/nav-groups";
 
 
 import {
@@ -574,7 +577,8 @@ function OfflineFreezeBadge({ compact = false }: { compact?: boolean }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { pathname } = useLocation();
+  // Settings sub-routes (/settings/:tab) count as the Settings page for nav, breadcrumbs and help.
+  const pathname = useLocation().pathname.replace(/^\/settings\/.*$/, "/settings");
   const { profile, roles, signOut, user, refreshProfile } = useAuth();
   const { toPath } = useTenantPath();
   const queryClient = useQueryClient();
@@ -589,6 +593,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useBackgroundSync(queryClient);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileNavGrid, setMobileNavGrid] = useState(false);
+  // Nav groups (Setup) start collapsed; the rail flyout is separate so it never pins open.
+  const [expandedGroups, setExpandedGroups] = useState<Set<NavGroupKey>>(() => new Set());
+  const [railFlyout, setRailFlyout] = useState<NavGroupKey | null>(null);
+  const mobileMenuHeaderRef = useRef<HTMLDivElement>(null);
   const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
   const networkStatusSeenRef = useRef(false);
   const shownOfflineAlertIdsRef = useRef<Set<string>>(new Set());
@@ -606,6 +615,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    setRailFlyout(null);
   }, [pathname]);
 
   // Which screens this operator actually lives on. Feeds the habit profile and
@@ -631,6 +641,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const pinnedOrder: Partial<Record<AppRoute, number>> = { "/settings": 1, "/help": 2 };
       return (pinnedOrder[a.to] ?? 0) - (pinnedOrder[b.to] ?? 0);
     });
+
+  const navRows = groupNavigation(items);
+  // Landing on a grouped page opens its group so the active entry is never hidden.
+  const routeGroup = activeGroupKey(items, pathname);
+  useEffect(() => {
+    if (!routeGroup) return;
+    setExpandedGroups((prev) => (prev.has(routeGroup) ? prev : new Set(prev).add(routeGroup)));
+  }, [routeGroup]);
+  const toggleGroup = (key: NavGroupKey) =>
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  // When the single-column mobile list would need a scrollbar, switch to a two-column grid.
+  // Measured against the viewport (not the list) so the result can't flip-flop once the grid is shorter.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const measure = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize || "16");
+      // Row = 1.125rem icon + 2 x 1.25rem icon padding + 1px bottom border.
+      const rowPx = 3.625 * rem + 1;
+      const headerPx = mobileMenuHeaderRef.current?.offsetHeight ?? 0;
+      setMobileNavGrid(navRows.length * rowPx > window.innerHeight - 24 - headerPx);
+    };
+    // The sheet mounts in a portal, so its header isn't measurable until the next frame.
+    const frame = requestAnimationFrame(measure);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+    };
+  }, [mobileMenuOpen, navRows.length]);
+
   const canAccessPutaway = items.some((item) => item.to === "/putaway-tasks");
   const canAccessReceiving = items.some((item) => item.to === "/receiving");
   const canAccessPickLists = items.some((item) => item.to === "/pick-lists");
@@ -914,8 +959,161 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [profile?.default_warehouse_id, queryClient, roles, user?.id]);
 
+  const renderNavItem = (item: (typeof items)[number], collapsed: boolean, grid: boolean, child = false, fill = false) => {
+    const Icon = navIcons[item.to] ?? LayoutDashboard;
+    const isActive = pathname === item.to;
+    const badgeCount = getNavBadgeCount(item.to);
+    const icon = (
+      <Icon
+        data-active-icon={isActive ? "true" : "false"}
+        className={cn(
+          "shrink-0",
+          collapsed ? "h-6 w-6" : "h-[1.125rem] w-[1.125rem]",
+          isActive && "text-accent",
+        )}
+      />
+    );
+    const badge = badgeCount > 0 ? (
+      <span
+        className={cn(
+          "inline-flex items-center justify-center rounded-none bg-destructive font-semibold leading-none text-destructive-foreground",
+          collapsed
+            // Anchored to the icon, not the cell: at 8.25rem tall a corner badge floats away from it.
+            ? "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[9px]"
+            : "ml-auto h-5 min-w-5 px-1.5 text-[10px]",
+        )}
+        aria-label={getNavBadgeLabel(item.to, badgeCount)}
+      >
+        {badgeCount > 99 ? "99+" : badgeCount}
+      </span>
+    ) : null;
+    // Padding lives on the wrapper: box-sizing is border-box, so py on the
+    // sized <svg> itself would eat the glyph instead of spacing it.
+    const iconBox = (
+      <span className={cn("relative flex shrink-0 items-center justify-center", grid ? "py-0" : "py-3")}>
+        {icon}
+        {collapsed ? badge : null}
+      </span>
+    );
+    const link = (
+      <NavLink
+        key={item.to}
+        className={({ isActive: navActive }) =>
+          cn(
+            "group relative flex items-center gap-3 border-b text-sm font-medium transition-colors duration-100 last:border-b-0",
+            // min-h (not h) so rows never compress when the list overflows the column.
+            "shrink-0",
+            grid
+              // Rectangular tiles: icon + label side by side, label may wrap to two lines.
+              ? cn("min-h-[3.25rem] gap-2 border-b border-r border-sidebar-border/60 px-3 py-2 last:border-b leading-tight", fill && "col-span-2")
+              : collapsed
+              // 4rem = the 24px icon plus its 20px padding either side.
+              ? "min-h-[3.4rem] w-full justify-center gap-0 border-teal-600/25 px-0"
+              : cn("min-h-[2.35rem] border-sidebar-border/60", child ? "pl-8 pr-3" : "px-3"),
+            navActive || isActive
+              ? collapsed
+                ? "bg-teal-700 text-white hover:bg-teal-300 hover:text-teal-950"
+                : "bg-primary text-primary-foreground hover:bg-teal-300 hover:text-teal-950"
+              : collapsed
+                ? "text-sidebar-primary-foreground hover:bg-teal-400"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          )
+        }
+        to={toPath(item.to)}
+        aria-label={item.label}
+        onMouseEnter={() => prefetchRouteData(item.to)}
+        onFocus={() => prefetchRouteData(item.to)}
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        {collapsed ? (
+          iconBox
+        ) : (
+          <>
+            {iconBox}
+            <span className={grid ? "min-w-0 break-words" : "truncate"}>{item.label}</span>
+            {badge}
+          </>
+        )}
+      </NavLink>
+    );
+
+    const node = collapsed ? (
+      <Tooltip key={item.to}>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right">{item.label}</TooltipContent>
+      </Tooltip>
+    ) : link;
+
+    return node;
+  };
+
+  const groupHeaderClass = (collapsed: boolean, grid: boolean, containsActive: boolean) =>
+    cn(
+      "group relative flex w-full items-center gap-3 border-b text-sm font-medium transition-colors duration-100",
+      grid
+        ? "min-h-[3.25rem] gap-2 border-sidebar-border/60 px-3 py-2 leading-tight"
+        : collapsed
+        ? "min-h-[3.4rem] justify-center gap-0 border-teal-600/25 px-0"
+        : "min-h-[2.35rem] border-sidebar-border/60 px-3",
+      collapsed
+        ? cn("text-sidebar-primary-foreground hover:bg-teal-400", containsActive && "bg-teal-700 text-white")
+        : cn("text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", containsActive && "font-semibold text-accent"),
+    );
+
+  // Group row only toggles. Expanded sidebar/mobile: children inline. Icon rail: children in a flyout.
+  const renderGroup = (row: Extract<(typeof navRows)[number], { kind: "group" }>, collapsed: boolean, grid: boolean) => {
+    const open = expandedGroups.has(row.key);
+    const containsActive = row.children.some((child) => child.to === pathname);
+    const icon = <SlidersHorizontal className={cn("shrink-0", collapsed ? "h-6 w-6" : "h-[1.125rem] w-[1.125rem]")} />;
+    if (collapsed) {
+      return (
+        <Popover key={row.key} open={railFlyout === row.key} onOpenChange={(next) => setRailFlyout(next ? row.key : null)}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <button type="button" aria-label={row.label} className={groupHeaderClass(true, false, containsActive)}>
+                  <span className="flex shrink-0 items-center justify-center py-3">{icon}</span>
+                </button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right">{row.label}</TooltipContent>
+          </Tooltip>
+          <PopoverContent side="right" align="start" sideOffset={0} className="w-48 rounded-none border-sidebar-border bg-sidebar p-0">
+            <div className="border-b border-sidebar-border/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/70">
+              {row.label}
+            </div>
+            {row.children.map((child) => renderNavItem(child, false, false))}
+          </PopoverContent>
+        </Popover>
+      );
+    }
+    return (
+      <div key={row.key} className="contents">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={`nav-group-${row.key}`}
+          onClick={() => toggleGroup(row.key)}
+          className={groupHeaderClass(false, grid, containsActive)}
+        >
+          <span className="relative flex shrink-0 items-center justify-center py-3">{icon}</span>
+          <span className="truncate">{row.label}</span>
+          <ChevronRight className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-150", open && "rotate-90")} />
+        </button>
+        {open ? (
+          <div
+            id={`nav-group-${row.key}`}
+            className="flex animate-in flex-col fade-in slide-in-from-top-1 duration-150"
+          >
+            {row.children.map((child) => renderNavItem(child, false, false, true))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   // Rows are full-bleed now, so the old compact-top padding tweak is a no-op.
-  const renderNavigation = (_compactTop = false, collapsed = sidebarCollapsed) => (
+  const renderNavigation = (_compactTop = false, collapsed = sidebarCollapsed, grid = false) => (
       <div
         className={cn(
           "flex h-full flex-col overflow-hidden bg-sidebar",
@@ -925,109 +1123,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav
         className={cn(
           "flex-1 overflow-y-auto",
+          grid && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           // The 10px themed scrollbar would eat a sixth of the 4rem-wide rail and push
           // the icons off-centre — hide it, wheel/keyboard scrolling still works.
           collapsed && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
-        <div className="flex flex-col">
-          {items.map((item) => {
-            const Icon = navIcons[item.to] ?? LayoutDashboard;
-            const isActive = pathname === item.to;
-            const showSeparator = item.to === "/warehouses";
-            const badgeCount = getNavBadgeCount(item.to);
-            const icon = (
-              <Icon
-                data-active-icon={isActive ? "true" : "false"}
-                className={cn(
-                  "shrink-0",
-                  collapsed ? "h-6 w-6" : "h-[1.125rem] w-[1.125rem]",
-                  isActive && "text-accent",
-                )}
-              />
-            );
-            const badge = badgeCount > 0 ? (
-              <span
-                className={cn(
-                  "inline-flex items-center justify-center rounded-none bg-destructive font-semibold leading-none text-destructive-foreground",
-                  collapsed
-                    // Anchored to the icon, not the cell: at 8.25rem tall a corner badge floats away from it.
-                    ? "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[9px]"
-                    : "ml-auto h-5 min-w-5 px-1.5 text-[10px]",
-                )}
-                aria-label={getNavBadgeLabel(item.to, badgeCount)}
-              >
-                {badgeCount > 99 ? "99+" : badgeCount}
-              </span>
-            ) : null;
-            // Padding lives on the wrapper: box-sizing is border-box, so py on the
-            // sized <svg> itself would eat the glyph instead of spacing it.
-            const iconBox = (
-              <span className="relative flex shrink-0 items-center justify-center py-5">
-                {icon}
-                {collapsed ? badge : null}
-              </span>
-            );
-            const link = (
-              <NavLink
-                key={item.to}
-                className={({ isActive: navActive }) =>
-                  cn(
-                    "group relative flex items-center gap-3 border-b text-sm font-medium transition-colors duration-100 last:border-b-0",
-                    // min-h (not h) so rows never compress when the list overflows the column.
-                    "shrink-0",
-                    collapsed
-                      // 4rem = the 24px icon plus its 20px padding either side.
-                      ? "min-h-[4rem] w-full justify-center gap-0 border-teal-600/25 px-0"
-                      : "min-h-[3.125rem] border-sidebar-border/60 px-3",
-                    navActive || isActive
-                      ? collapsed
-                        ? "bg-teal-700 text-white hover:bg-teal-300 hover:text-teal-950"
-                        : "bg-primary text-primary-foreground hover:bg-teal-300 hover:text-teal-950"
-                      : collapsed
-                        ? "text-sidebar-primary-foreground hover:bg-teal-400"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )
-                }
-                to={toPath(item.to)}
-                aria-label={item.label}
-                onMouseEnter={() => prefetchRouteData(item.to)}
-                onFocus={() => prefetchRouteData(item.to)}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {collapsed ? (
-                  iconBox
-                ) : (
-                  <>
-                    {iconBox}
-                    <span className="truncate">{item.label}</span>
-                    {badge}
-                  </>
-                )}
-              </NavLink>
-            );
-
-            const node = collapsed ? (
-              <Tooltip key={item.to}>
-                <TooltipTrigger asChild>{link}</TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
-              </Tooltip>
-            ) : link;
-
-            if (showSeparator) {
-              return (
-                <div key={item.to} className="contents">
-                  <div
-                    aria-hidden
-                    className={cn("h-px", collapsed ? "bg-teal-700/40" : "bg-sidebar-border")}
-                  />
-                  {node}
-                </div>
+        {grid ? (
+          // Mobile tiles: two columns in reading order, an odd last tile fills the row, and Setup is a
+          // full-width row between runs so opening it simply lengthens the menu.
+          (() => {
+            const out: ReactNode[] = [];
+            let run: typeof navRows = [];
+            const flush = () => {
+              if (!run.length) return;
+              out.push(
+                <div key={`run-${out.length}`} className="grid grid-cols-2">
+                  {run.map((row, i) =>
+                    row.kind === "item"
+                      ? renderNavItem(row.item, false, true, false, run.length % 2 === 1 && i === run.length - 1)
+                      : null,
+                  )}
+                </div>,
               );
+              run = [];
+            };
+            for (const row of navRows) {
+              if (row.kind === "group") {
+                flush();
+                out.push(renderGroup(row, false, true));
+              } else run.push(row);
             }
-            return node;
-          })}
-        </div>
+            flush();
+            return out;
+          })()
+        ) : (
+          <div className="flex flex-col">
+            {navRows.map((row) =>
+              row.kind === "group" ? renderGroup(row, collapsed, false) : renderNavItem(row.item, collapsed, false),
+            )}
+          </div>
+        )}
       </nav>
 
       <div
@@ -1078,7 +1214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="truncate text-sm font-semibold">{appTitle}</span>
             </Link>
             <Link
-              to={`${toPath("/settings")}?tab=about`}
+              to={toPath("/settings/about")}
               title="Version details"
               className="shrink-0 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
             >
@@ -1121,7 +1257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
-                <div className="flex flex-col border-b border-border bg-card/80 px-4 py-3 gap-2">
+                <div ref={mobileMenuHeaderRef} className="flex flex-col border-b border-border bg-card/80 px-4 py-3 gap-2">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
                       <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
@@ -1170,7 +1306,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">{renderNavigation(true, false)}</div>
+                <div className="flex-1 overflow-y-auto">{renderNavigation(true, false, mobileNavGrid)}</div>
               </SheetContent>
             </Sheet>
           </div>
@@ -1202,7 +1338,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </a>
               ) : (
                 <Link
-                  to={`${toPath("/settings")}?tab=about`}
+                  to={toPath("/settings/about")}
                   title="Version details"
                   className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
                 >

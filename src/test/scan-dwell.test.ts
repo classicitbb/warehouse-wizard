@@ -44,6 +44,29 @@ describe("updateScanDwell", () => {
     expect(lost.ready).toBe(false);
   });
 
+  it("reports progress as the exact share of the dwell elapsed", () => {
+    const started = updateScanDwell(null, "PLT-1", 1000, 1000);
+    const quarter = updateScanDwell(started.state, "PLT-1", 1250, 1000);
+    expect(quarter.progress).toBe(0.25);
+    expect(quarter.state).toEqual({ value: "PLT-1", startedAt: 1000 });
+    expect(quarter.ready).toBe(false);
+  });
+
+  it("caps progress just short of complete until the dwell is reached", () => {
+    const started = updateScanDwell(null, "PLT-1", 0, 1000);
+    const almost = updateScanDwell(started.state, "PLT-1", 999, 1000);
+    expect(almost.progress).toBe(0.99);
+    expect(almost.ready).toBe(false);
+  });
+
+  it("trims scanner whitespace so a padded re-read continues the same dwell", () => {
+    const started = updateScanDwell(null, " PLT-1 ", 0, 1000);
+    expect(started.state).toEqual({ value: "PLT-1", startedAt: 0 });
+    const held = updateScanDwell(started.state, "PLT-1\n", 500, 1000);
+    expect(held.state).toEqual({ value: "PLT-1", startedAt: 0 });
+    expect(held.progress).toBe(0.5);
+  });
+
   it("ignores blank decodes without disturbing a tracked candidate", () => {
     const started = updateScanDwell(null, "PLT-1", 0, 1000);
     const blank = updateScanDwell(started.state, "   ", 400, 1000);

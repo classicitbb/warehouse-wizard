@@ -323,8 +323,14 @@ export type ModuleKey =
 
 export const TRANSFERS_ENABLED = false;
 
+/** Collapsible sidebar groups. Entries opt in with `group`; the group row only toggles. */
+export type NavGroupKey = "setup";
+export const NAV_GROUPS: Record<NavGroupKey, { label: string }> = {
+  setup: { label: "Setup" },
+};
+
 // `netsuite: true` entries are listed only while the NetSuite integration is active.
-export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[]; moduleKey?: ModuleKey; netsuite?: boolean }> = [
+export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[]; moduleKey?: ModuleKey; netsuite?: boolean; group?: NavGroupKey }> = [
   { label: "Dashboard", to: "/dashboard", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"], moduleKey: "dashboard" },
   { label: "Receiving", to: "/receiving", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "receiving" },
   { label: "Put-Away", to: "/putaway-tasks", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "putaway" },
@@ -333,19 +339,19 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Location Moves", to: "/location-moves", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
   { label: "Cycle Counts", to: "/cycle-counts", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "cycle-counts" },
   { label: "Transfers", to: "/transfers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "dispatch_driver"], moduleKey: "transfers" },
-  { label: "Warehouses", to: "/warehouses", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "warehouses" },
-  { label: "Zones", to: "/zones", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "zones" },
-  { label: "Bin Locations", to: "/locations", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "locations" },
-  { label: "Products", to: "/products", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "products" },
-  { label: "Clients", to: "/clients", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "clients" },
-  { label: "Customers", to: "/customers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true },
-  { label: "Settings", to: "/settings", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor"], moduleKey: "settings" },
-  { label: "Help", to: "/help", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"] },
-  { label: "Packaging", to: "/packaging-profiles", roles: ["developer", "admin", "warehouse_manager", "inventory_clerk"], moduleKey: "packaging" },
   { label: "Statuses", to: "/status", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "status" },
   { label: "Reports", to: "/reports", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "reports" },
-  { label: "System Log", to: "/system-log", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "system-log" },
-  { label: "Email Log", to: "/email-log", roles: ["developer", "admin"], moduleKey: "email-log" },
+  { label: "Warehouses", to: "/warehouses", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "warehouses", group: "setup" },
+  { label: "Zones", to: "/zones", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "zones", group: "setup" },
+  { label: "Bin Locations", to: "/locations", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "locations", group: "setup" },
+  { label: "Products", to: "/products", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "products", group: "setup" },
+  { label: "Clients", to: "/clients", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "clients", group: "setup" },
+  { label: "Customers", to: "/customers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true, group: "setup" },
+  { label: "Packaging", to: "/packaging-profiles", roles: ["developer", "admin", "warehouse_manager", "inventory_clerk"], moduleKey: "packaging", group: "setup" },
+  { label: "System Log", to: "/system-log", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "system-log", group: "setup" },
+  { label: "Email Log", to: "/email-log", roles: ["developer", "admin"], moduleKey: "email-log", group: "setup" },
+  { label: "Settings", to: "/settings", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor"], moduleKey: "settings" },
+  { label: "Help", to: "/help", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator", "dispatch_driver"] },
 ];
 
 const tempOptions: FieldDefinition["options"] = [
