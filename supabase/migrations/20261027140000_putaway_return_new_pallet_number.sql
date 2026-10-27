@@ -279,7 +279,7 @@ begin
         reused_from_pallet_id
       ) values (
         v_barcode, v_barcode, v_product_id, v_client_id, receipt_row.warehouse_id, v_lot_id,
-        packaging_row.id, v_quantity, 0, 'putaway', false,
+        packaging_row.id, v_quantity, 0, 'receiving', false,
         coalesce(nullif(receipt_meta->>'override_length', '')::numeric, packaging_row.length, product_row.length),
         coalesce(nullif(receipt_meta->>'override_width', '')::numeric, packaging_row.width, product_row.width),
         coalesce(nullif(receipt_meta->>'override_height', '')::numeric, packaging_row.height, product_row.height),
@@ -304,17 +304,17 @@ begin
     pallet_code = v_barcode, pallet_barcode = v_barcode, product_id = v_product_id, client_id = v_client_id,
     receipt_line_id = v_receipt_line_id, current_warehouse_id = receipt_row.warehouse_id, current_location_id = null,
     inventory_lot_id = v_lot_id, packaging_profile_id = packaging_row.id, quantity = v_quantity,
-    available_quantity = 0, status = 'putaway', is_stored = false
+    available_quantity = 0, status = 'receiving', is_stored = false
   where id = v_pallet_id;
 
   if balance_row.id is null then
     insert into public.inventory_balances (
       pallet_id, product_id, client_id, warehouse_id, inventory_lot_id, status, quantity, available_quantity, expiry_date
-    ) values (v_pallet_id, v_product_id, v_client_id, receipt_row.warehouse_id, v_lot_id, 'putaway', v_quantity, 0, lot_row.expiry_date);
+    ) values (v_pallet_id, v_product_id, v_client_id, receipt_row.warehouse_id, v_lot_id, 'receiving', v_quantity, 0, lot_row.expiry_date);
   else
     update public.inventory_balances set
       product_id = v_product_id, client_id = v_client_id, warehouse_id = receipt_row.warehouse_id,
-      zone_id = null, location_id = null, inventory_lot_id = v_lot_id, status = 'putaway',
+      zone_id = null, location_id = null, inventory_lot_id = v_lot_id, status = 'receiving',
       quantity = v_quantity, available_quantity = 0, expiry_date = lot_row.expiry_date
     where id = balance_row.id;
   end if;

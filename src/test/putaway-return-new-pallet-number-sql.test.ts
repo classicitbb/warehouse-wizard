@@ -97,7 +97,7 @@ describe("Put-Away return to Receiving", () => {
     expect(received.pallet_id).not.toBe(oldPallet);
     const created = (await pg.query<{ pallet_barcode: string; reused_from_pallet_id: string; quantity: string; status: string }>(
       "select pallet_barcode, reused_from_pallet_id, quantity, status from pallets where id = $1", [received.pallet_id])).rows[0];
-    expect(created).toMatchObject({ pallet_barcode: draft.draft_pallet_barcode, reused_from_pallet_id: oldPallet, status: "putaway" });
+    expect(created).toMatchObject({ pallet_barcode: draft.draft_pallet_barcode, reused_from_pallet_id: oldPallet, status: "receiving" });
     expect(Number(created.quantity)).toBe(90);
 
     const retired = (await pg.query("select correction_state, quantity from pallets where id = $1", [oldPallet])).rows[0] as any;
