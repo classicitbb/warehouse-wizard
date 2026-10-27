@@ -80,6 +80,9 @@ export function DraftPalletList({
                     Container {containerNumber ?? "—"} · PO {poNumber ?? "—"} · Qty {draft.quantity ?? "?"} · Exp {draft.expiry_date ? formatDate(draft.expiry_date) : "—"}
                   </p>
                   {draft.source_label && <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Returned from {draft.source_label}</p>}
+                  {meta.superseded_pallet_barcode && (
+                    <p className="text-xs text-muted-foreground">Replaces pallet <span className="font-mono">{meta.superseded_pallet_barcode}</span> — new label, old number retired</p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
                   <PalletLabelPage

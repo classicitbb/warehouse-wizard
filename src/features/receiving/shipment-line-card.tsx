@@ -3,6 +3,7 @@
 import { type Dispatch, type KeyboardEvent, type KeyboardEventHandler, type MutableRefObject, type SetStateAction } from "react";
 import { ArrowRight, CalendarDays, ChevronDown, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ProductSearch, type ProductOption, type ProductSearchHandle } from "@/components/product-search";
 import { BarcodeScanButton } from "@/components/barcode-scan-button";
@@ -77,6 +78,7 @@ function ShipmentExpiryPicker({
         <Calendar
           mode="single"
           selected={selected}
+          fromDate={startOfToday()}
           onSelect={(date) => {
             if (!date) return;
             onChange(formatShipmentDate(date));

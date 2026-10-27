@@ -9,6 +9,17 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.33.0",
+    date: "2026-10-27",
+    changes: [
+      "Put-Away returns now issue a new pallet number every time, so a returned pallet is never confused with the original",
+      "Expiry date calendar opens on the date already set, has month and year pickers, and blocks past dates",
+    ],
+    fixes: [
+      "Put-Away return confirmation keeps the Receiving status instead of resetting it",
+    ],
+  },
+  {
     version: "1.32.0",
     date: "2026-10-21",
     changes: [
