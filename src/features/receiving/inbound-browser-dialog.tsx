@@ -29,6 +29,8 @@ import {
 
 const STATUS_OPTIONS: { value: InboundStatusFilter; label: string }[] = [
   { value: "open", label: "Ready to receive" },
+  { value: "partially_received", label: "Partially received" },
+  { value: "in_transit", label: "In transit" },
   { value: "received", label: "Received" },
   { value: "all", label: "All" },
 ];
@@ -243,7 +245,7 @@ export function InboundBrowserDialog({
               <PackageSearch className="h-7 w-7 text-muted-foreground/50" />
               <p role="status" className="text-sm text-muted-foreground">
                 {search ? `No inbound shipments match "${search}".` : "No inbound shipments to show."}
-                {status === "open" ? " Try All to include shipments that are already received." : ""}
+                {status !== "all" && status !== "received" ? " Try All to include shipments that are already received." : ""}
               </p>
             </div>
           )}

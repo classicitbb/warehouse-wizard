@@ -1,13 +1,14 @@
-// Customers page header: admin/developer buttons that run the netsuite-customers
+// Customers page header: admin/developer settings gear whose actions run the netsuite-customers
 // edge function. "Import all" reads every active customer; "Sync changes" reads
 // only customers modified since the newest one already stored.
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/features/shared/core-types";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type SyncResult = {
   ok?: boolean;
@@ -45,15 +46,22 @@ export function CustomersSyncButtons() {
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" disabled={running !== null} onClick={() => void run("delta")}>
-        {running === "delta" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-        Sync changes
-      </Button>
-      <Button type="button" disabled={running !== null} onClick={() => void run("import")}>
-        {running === "import" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-        Import all from NetSuite
-      </Button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="icon" variant="outline" className="shrink-0" aria-label="Customers actions">
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem disabled={running !== null} onSelect={() => void run("delta")}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Sync changes
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={running !== null} onSelect={() => void run("import")}>
+          <Download className="mr-2 h-4 w-4" />
+          Import all from NetSuite
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

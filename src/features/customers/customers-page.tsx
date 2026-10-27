@@ -114,8 +114,8 @@ export function CustomersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">Customers</h2>
           <p className="text-sm text-muted-foreground">Ship-to customers mirrored from NetSuite, with delivery zone and credit flags. Clients (stock owners) are managed separately.</p>
         </div>

@@ -1,10 +1,19 @@
 // Settings: a tab shell. Each tab lives in its own module; the heavier tabs load on first open.
-import { lazy, Suspense, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { lazy, Suspense, type ReactNode } from "react";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Bell, FileText, Info, Loader2, MessageSquare, Network, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useTenantPath } from "@/hooks/use-tenant-path";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_SETTINGS_TAB,
+  getVisibleSettingsTabs,
+  isKnownSettingsTab,
+  settingsTabFromSplat,
+  settingsTabPath,
+  type SettingsTabSlug,
+} from "@/features/admin/settings-tabs";
 import { NotificationSettingsPanel } from "@/features/shared/notification-settings";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,29 +41,35 @@ function TabLoader({ children }: { children: ReactNode }) {
 export function SettingsPage() {
   const { roles } = useAuth();
   const { isEnabled } = useFeatureFlags();
+  const { toPath } = useTenantPath();
+  const navigate = useNavigate();
+  const params = useParams();
   const [searchParams] = useSearchParams();
   const canViewUsersRoles = roles.some((r) => ["developer", "admin", "warehouse_manager", "warehouse_supervisor"].includes(r));
   const canViewSupportRequests = canViewUsersRoles;
   const isDeveloperOrAdmin = roles.some((r) => ["developer", "admin"].includes(r));
-  const requestedTab = searchParams.get("tab");
-  const availableSettingsTabs = [
-    "warehouse-structure",
-    ...(canViewUsersRoles ? ["users-roles"] : []),
-    "modules",
-    "notifications",
-    "environment",
-    ...(canViewSupportRequests ? ["support-requests"] : []),
-    ...(isDeveloperOrAdmin ? ["integrations"] : []),
-    ...(isEnabled("clients") ? ["client-vars"] : []),
-    "about",
-    "license",
-  ];
+  const availableSettingsTabs = getVisibleSettingsTabs({
+    canViewUsersRoles,
+    isDeveloperOrAdmin,
+    clientsEnabled: isEnabled("clients"),
+  });
 
-  const defaultSettingsTab = requestedTab && availableSettingsTabs.includes(requestedTab)
-    ? requestedTab
-    : "warehouse-structure";
-  const [activeSettingsTab, setActiveSettingsTab] = useState(defaultSettingsTab);
-  const warehouseStructureActive = activeSettingsTab === "warehouse-structure";
+  const activeSettingsTab = settingsTabFromSplat(params["*"]);
+
+  // /settings, unknown slugs and legacy /settings?tab=<slug> links land on a real tab URL.
+  if (!isKnownSettingsTab(activeSettingsTab)) {
+    const legacyTab = searchParams.get("tab");
+    const target = isKnownSettingsTab(legacyTab ?? undefined) && availableSettingsTabs.includes(legacyTab as SettingsTabSlug)
+      ? (legacyTab as SettingsTabSlug)
+      : DEFAULT_SETTINGS_TAB;
+    const rest = new URLSearchParams(searchParams);
+    rest.delete("tab");
+    const search = rest.toString();
+    return <Navigate to={`${toPath(settingsTabPath(target))}${search ? `?${search}` : ""}`} replace />;
+  }
+
+  const tabAllowed = availableSettingsTabs.includes(activeSettingsTab);
+  const warehouseStructureActive = tabAllowed && activeSettingsTab === "warehouse-structure";
 
   return (
     <div className={cn("flex flex-col gap-6", warehouseStructureActive && "h-full min-h-0 overflow-hidden")}>
@@ -78,8 +93,8 @@ export function SettingsPage() {
         </Tooltip>
       </div>
       <Tabs
-        value={activeSettingsTab}
-        onValueChange={setActiveSettingsTab}
+        value={tabAllowed ? activeSettingsTab : ""}
+        onValueChange={(slug) => navigate(toPath(settingsTabPath(slug as SettingsTabSlug)))}
         className={cn(warehouseStructureActive && "flex min-h-0 flex-1 flex-col")}
       >
         <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 sm:w-fit">
@@ -103,6 +118,12 @@ export function SettingsPage() {
           <TabsTrigger value="license" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><FileText className="h-3.5 w-3.5" />License</TabsTrigger>
 
         </TabsList>
+
+        {!tabAllowed && (
+          <div className="mt-4 rounded-md border border-border p-4 text-sm text-muted-foreground" role="alert">
+            You don't have access to this settings section. Pick another tab above.
+          </div>
+        )}
 
         <TabsContent value="modules" className="mt-4">
           <TabLoader><ModulesSettingsPanel isAdmin={isDeveloperOrAdmin} /></TabLoader>
