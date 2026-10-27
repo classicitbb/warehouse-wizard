@@ -1186,6 +1186,12 @@ export function PutawayTasksPage() {
                     {(task.pallets as any)?.quantity ?? "?"} units
                     <br />
                     Task: <span className="font-mono">{task.task_number}</span>
+                    {taskPallet?.replaces?.pallet_barcode ? (
+                      <>
+                        <br />
+                        Replaces <span className="font-mono">{taskPallet.replaces.pallet_barcode}</span>
+                      </>
+                    ) : null}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
