@@ -17,6 +17,7 @@ import { PalletLabelPage } from "@/components/pallet-label-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { startOfToday } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -325,6 +326,7 @@ export function PalletEditDialog({
                     <Calendar
                       mode="single"
                       selected={parseIsoDate(effectiveExpiry)}
+                      fromDate={startOfToday()}
                       onSelect={(date) => {
                         if (!date) return;
                         setExpiry(formatIsoDate(date));

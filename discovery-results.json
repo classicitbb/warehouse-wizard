@@ -1,0 +1,45 @@
+{
+  "locations": [
+    {"id": 3, "name": "LOC-01 Lower Estate", "subsidiary": "Simplex Trading Co LTD", "usebins": "T", "makeinventoryavailable": "T", "isinactive": "F"},
+    {"id": 4, "name": "LOC-02 Pine Showroom", "subsidiary": "Simplex Trading Co LTD", "usebins": "T", "makeinventoryavailable": "T", "isinactive": "F"}
+  ],
+  "binsPerLocation": [],
+  "inventoryStatuses": [
+    {"id": 1, "name": "Good", "inventoryavailable": "T"}
+  ],
+  "itemMix": [
+    {"itemtype": "OthCharge", "islotitem": "F", "isserialitem": "F", "usebins": null, "n": 7},
+    {"itemtype": "InvtPart", "islotitem": "F", "isserialitem": "F", "usebins": "F", "n": 5098},
+    {"itemtype": "Assembly", "islotitem": "F", "isserialitem": "F", "usebins": "F", "n": 36},
+    {"itemtype": "Discount", "islotitem": "F", "isserialitem": "F", "usebins": null, "n": 1},
+    {"itemtype": "NonInvtPart", "islotitem": "F", "isserialitem": "F", "usebins": null, "n": 37},
+    {"itemtype": "InvtPart", "islotitem": "F", "isserialitem": "T", "usebins": "F", "n": 332},
+    {"itemtype": "Service", "islotitem": "F", "isserialitem": "F", "usebins": null, "n": 2}
+  ],
+  "statusCodes": [
+    {"type": "SalesOrd", "status": "B", "label": "Sales Order : Pending Fulfillment", "n": 140},
+    {"type": "SalesOrd", "status": "F", "label": "Sales Order : Pending Billing", "n": 15},
+    {"type": "TrnfrOrd", "status": "D", "label": "Transfer Order : Partially Fulfilled", "n": 1},
+    {"type": "PurchOrd", "status": "B", "label": "Purchase Order : Pending Receipt", "n": 184},
+    {"type": "RtnAuth", "status": "A", "label": "Return Authorization : Pending Approval", "n": 1},
+    {"type": "TrnfrOrd", "status": "F", "label": "Transfer Order : Pending Receipt", "n": 6},
+    {"type": "PurchOrd", "status": "E", "label": "Purchase Order : Pending Billing/Partially Received", "n": 26},
+    {"type": "SalesOrd", "status": "G", "label": "Sales Order : Billed", "n": 1369},
+    {"type": "PurchOrd", "status": "A", "label": "Purchase Order : Pending Supervisor Approval", "n": 17},
+    {"type": "PurchOrd", "status": "H", "label": "Purchase Order : Closed", "n": 4},
+    {"type": "TrnfrOrd", "status": "G", "label": "Transfer Order : Received", "n": 3},
+    {"type": "TrnfrOrd", "status": "B", "label": "Transfer Order : Pending Fulfillment", "n": 9},
+    {"type": "SalesOrd", "status": "D", "label": "Sales Order : Partially Fulfilled", "n": 450},
+    {"type": "ItemRcpt", "status": "Y", "label": "Item Receipt : Undefined", "n": 91},
+    {"type": "PurchOrd", "status": "G", "label": "Purchase Order : Fully Billed", "n": 14},
+    {"type": "ItemShip", "status": "C", "label": "Item Fulfillment : Shipped", "n": 1953},
+    {"type": "PurchOrd", "status": "D", "label": "Purchase Order : Partially Received", "n": 4},
+    {"type": "SalesOrd", "status": "H", "label": "Sales Order : Closed", "n": 16},
+    {"type": "PurchOrd", "status": "F", "label": "Purchase Order : Pending Bill", "n": 35},
+    {"type": "SalesOrd", "status": "E", "label": "Sales Order : Pending Billing/Partially Fulfilled", "n": 14},
+    {"type": "RtnAuth", "status": "G", "label": "Return Authorization : Refunded", "n": 1},
+    {"type": "ItemShip", "status": "A", "label": "Item Fulfillment : Picking", "n": 73}
+  ],
+  "inboundShipments": {"error": "SSS_SEARCH_ERROR_OCCURRED: Search error occurred: Cannot build builtin function, validation failed. Static field is not supported for Builtin.DF function."},
+  "waveCount": {"error": "SSS_SEARCH_ERROR_OCCURRED: Search error occurred: Record 'wave' was not found."}
+}

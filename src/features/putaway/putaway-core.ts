@@ -13,7 +13,7 @@ import { palletHasStockRecord, UNRECORDED_PALLET_MESSAGE } from "@/features/inve
 
 export async function getPutawayTasks(userId?: string, warehouseId?: string | null) {
   let query = db("putaway_tasks")
-    .select("*, pallets(*, products(*), receipt_lines(receipts(container_number, po_number))), locations: suggested_location_id(*)")
+    .select("*, pallets(*, products(*), replaces:reused_from_pallet_id(pallet_barcode), receipt_lines(receipts(container_number, po_number))), locations: suggested_location_id(*)")
     .in("status", ["queued", "assigned", "in_progress", "exception"])
     .order("created_at", { ascending: false });
 
