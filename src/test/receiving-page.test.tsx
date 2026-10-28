@@ -36,7 +36,7 @@ const wmsMocks = vi.hoisted(() => {
     draft,
     listDraftReceipts: vi.fn(async (): Promise<any[]> => []),
     saveShipmentDrafts: vi.fn(async () => ({ groupId: "shipment-1", draftIds: ["draft-1"], count: 1 })),
-    updateDraftReceipt: vi.fn(async () => undefined),
+    updateDraftReceiptSplit: vi.fn(async (id: string) => ({ draftIds: [id] })),
     completeReceiptFromDraft: vi.fn(async () => ({ palletBarcode: "PLT-1", putawayTaskNumber: "PTA-1" })),
     cancelInventoryPalletCorrection: vi.fn(async () => undefined),
     completeInventoryPalletCorrection: vi.fn(async (): Promise<any> => ({ inventoryBalanceId: "balance-new", palletId: "pallet-new", palletBarcode: "PLT-NEW", putawayTaskId: null, putawayTaskNumber: null })),
@@ -138,7 +138,7 @@ vi.mock("@/lib/wms-core", async (importOriginal) => {
     }),
     listDraftReceipts: wmsMocks.listDraftReceipts,
     saveShipmentDrafts: wmsMocks.saveShipmentDrafts,
-    updateDraftReceipt: wmsMocks.updateDraftReceipt,
+    updateDraftReceiptSplit: wmsMocks.updateDraftReceiptSplit,
     completeReceiptFromDraft: wmsMocks.completeReceiptFromDraft,
     cancelInventoryPalletCorrection: wmsMocks.cancelInventoryPalletCorrection,
     completeInventoryPalletCorrection: wmsMocks.completeInventoryPalletCorrection,
@@ -634,12 +634,12 @@ describe("ReceivingPage", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: /save draft/i }));
 
-    await waitFor(() => expect(wmsMocks.updateDraftReceipt).toHaveBeenCalledTimes(1));
-    expect(wmsMocks.updateDraftReceipt).toHaveBeenCalledWith("draft-1", expect.objectContaining({
+    await waitFor(() => expect(wmsMocks.updateDraftReceiptSplit).toHaveBeenCalledTimes(1));
+    expect(wmsMocks.updateDraftReceiptSplit).toHaveBeenCalledWith("draft-1", expect.objectContaining({
       receipt_type: "other",
       container_number: "",
       po_number: "",
-    }));
+    }), [1]);
   });
 
   it("keeps shipment drafts in shipment edit mode with container fields", async () => {
@@ -667,12 +667,30 @@ describe("ReceivingPage", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: /save draft/i }));
 
-    await waitFor(() => expect(wmsMocks.updateDraftReceipt).toHaveBeenCalledTimes(1));
-    expect(wmsMocks.updateDraftReceipt).toHaveBeenCalledWith("draft-1", expect.objectContaining({
+    await waitFor(() => expect(wmsMocks.updateDraftReceiptSplit).toHaveBeenCalledTimes(1));
+    expect(wmsMocks.updateDraftReceiptSplit).toHaveBeenCalledWith("draft-1", expect.objectContaining({
       receipt_type: "po",
       container_number: "MSKU1234565",
       po_number: "PO-1",
-    }));
+    }), [1]);
+  });
+
+  it("splits an edited draft into one draft per pallet when the quantity is divided", async () => {
+    wmsMocks.listDraftReceipts.mockResolvedValue([{
+      ...wmsMocks.draft,
+      notes: JSON.stringify({ _draft: true, entry_mode: "shipment", receipt_type: "po", product_id: "prod-1", quantity: 100, draft_pallet_barcode: "PLT-1", container_number: "MSKU1234565", po_number: "PO-1" }),
+    }] as never);
+    wmsMocks.updateDraftReceiptSplit.mockResolvedValueOnce({ draftIds: ["draft-1", "draft-2"] });
+    renderReceivingPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /edit draft pallet/i });
+    fireEvent.change(within(dialog).getByLabelText("Qty per pallet"), { target: { value: "50" } });
+    expect(within(dialog).getByLabelText("Pallets")).toHaveDisplayValue("2");
+    fireEvent.click(within(dialog).getByRole("button", { name: /save draft/i }));
+
+    await waitFor(() => expect(wmsMocks.updateDraftReceiptSplit).toHaveBeenCalledTimes(1));
+    expect(wmsMocks.updateDraftReceiptSplit).toHaveBeenCalledWith("draft-1", expect.anything(), [50, 50]);
   });
 
   it("printing a draft row keeps it out of inventory until labels are confirmed", async () => {
