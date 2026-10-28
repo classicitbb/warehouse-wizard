@@ -3924,6 +3924,53 @@ export type Database = {
           },
         ]
       }
+      report_subscriptions: {
+        Row: {
+          active: boolean
+          created_at: string
+          email_delivery: boolean
+          frequency: string
+          id: string
+          last_delivered_at: string | null
+          report_id: string
+          updated_at: string
+          user_id: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          email_delivery?: boolean
+          frequency?: string
+          id?: string
+          last_delivered_at?: string | null
+          report_id: string
+          updated_at?: string
+          user_id: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          email_delivery?: boolean
+          frequency?: string
+          id?: string
+          last_delivered_at?: string | null
+          report_id?: string
+          updated_at?: string
+          user_id?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_subscriptions_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       return_authorizations: {
         Row: {
           client_id: string | null

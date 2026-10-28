@@ -445,11 +445,6 @@ export function ResourcePage({
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
-  const useGearActions = ["warehouses", "zones", "locations", "products", "product_packaging_profiles"].includes(resource.table);
-  // Packaging Profiles keeps creating a profile as a standing primary button —
-  // it is the one action people come to that screen to repeat — while the CSV
-  // and archive actions move behind the gear with everything else.
-  const createOutsideGear = resource.table === "product_packaging_profiles";
   const hasWarehouseStructureShortcut = ["warehouses", "zones", "locations"].includes(resource.table);
   const usesIncrementalTable = ["products", "zones", "locations", "warehouses", "clients"].includes(resource.table);
   const activeFilter = filterQuery.trim();
@@ -499,10 +494,12 @@ export function ResourcePage({
   const netsuiteActive = useNetSuiteActive();
   const isLocations = resource.table === "locations";
   const isPackagingProfiles = resource.table === "product_packaging_profiles";
-  // Packaging Profiles uses the same compact rows as Products and Locations,
-  // sized like Locations (px-2, not the wider Products px-4).
-  const denseRows = isProducts || isLocations || isPackagingProfiles;
-  const denseCompact = isLocations || isPackagingProfiles;
+  const isWarehouses = resource.table === "warehouses";
+  const isZones = resource.table === "zones";
+  // Packaging Profiles, Warehouses and Zones use the same compact rows as
+  // Products and Locations, sized like Locations (px-2, not the wider Products px-4).
+  const denseRows = isProducts || isLocations || isPackagingProfiles || isWarehouses || isZones;
+  const denseCompact = isLocations || isPackagingProfiles || isWarehouses || isZones;
   const { data: reorderAlerts = [] } = useQuery({
     queryKey: ["reorder-alerts"],
     enabled: isProducts,
@@ -835,14 +832,13 @@ export function ResourcePage({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3 md:items-end">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">{resource.title}</h2>
           <p className="text-sm text-muted-foreground">{resource.description} Double-click any row to edit. Double-tap on touch screens.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {useGearActions ? (
-            <DropdownMenu>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="outline" aria-label={`${resource.title} actions`}>
                   <Settings className="h-4 w-4" />
@@ -932,13 +928,13 @@ export function ResourcePage({
                 {hasWarehouseStructureShortcut ? (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate(toPath("/settings?tab=warehouse-structure"))}>
+                    <DropdownMenuItem onClick={() => navigate(toPath("/settings/warehouse-structure"))}>
                       <Network className="mr-2 h-4 w-4" />
                       Warehouse Structure
                     </DropdownMenuItem>
                   </>
                 ) : null}
-                {createOutsideGear ? null : (
+                {(
                   <ResourceFormDialog
                     resource={resource}
                     trigger={
@@ -950,32 +946,7 @@ export function ResourcePage({
                   />
                 )}
               </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <>
-              {resource.exportable ? (
-                <Button variant="outline" onClick={() => downloadCsv(`${resource.table}.csv`, data as Array<Record<string, unknown>>)}>
-                  <Download data-icon="inline-start" />
-                  Export CSV
-                </Button>
-              ) : null}
-              {resource.supportsHide ? (
-                <Button variant="outline" onClick={() => setIncludeHidden((current) => !current)}>
-                  {includeHidden ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}
-                  {includeHidden ? "Hide archived" : "Show archived"}
-                </Button>
-              ) : null}
-              {resource.importable ? <ImportButton resource={resource} /> : null}
-              {resource.table === "locations" ? (
-                <LocationWizardDialog
-                  defaultWarehouseId={locationWizardDefaultWarehouseId}
-                  defaultZoneId={locationWizardDefaultZoneId}
-                />
-              ) : null}
-              <ResourceFormDialog resource={resource} />
-            </>
-          )}
-          {createOutsideGear ? <ResourceFormDialog resource={resource} /> : null}
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1197,7 +1168,7 @@ export function ResourcePage({
                         <TableHead key={`${field.name}-pack`} className="h-8 w-40 px-2 py-1 text-xs">Pack std</TableHead>
                       ) : null,
                   ])}
-                  {hasTrailingLabelColumn ? <TableHead className="w-28">Label</TableHead> : null}
+                  {hasTrailingLabelColumn ? <TableHead className={cn("w-12", denseCompact && "h-7 px-2 py-1 text-xs")}>Label</TableHead> : null}
                   {resource.supportsHide ? <TableHead className={cn("w-32", denseCompact && "h-7 px-2 py-1 text-xs")}>Visibility</TableHead> : null}
                   <TableHead className={cn("w-16", denseCompact && "h-7 px-2 py-1")} />
                 </TableRow>
@@ -1326,7 +1297,7 @@ export function ResourcePage({
                         return cell;
                       })}
                       {hasTrailingLabelColumn ? (
-                        <TableCell>
+                        <TableCell className={cn(denseCompact && "px-2 py-1")}>
                           <div className="flex items-center gap-1">
                             {resource.table === "warehouses" ? (
                                 <BarcodePrintDialog
@@ -1343,9 +1314,14 @@ export function ResourcePage({
                                     isDispatch={Boolean((row as Record<string, unknown>).is_dispatch)}
                                     isQuarantine={Boolean((row as Record<string, unknown>).is_quarantine)}
                                     trigger={
-                                      <Button size="sm" variant="outline">
-                                        <QrCode className="mr-2 h-4 w-4" />
-                                        Print label
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        aria-label="Print zone label"
+                                        title="Print zone label"
+                                      >
+                                        <Printer className="h-3.5 w-3.5" />
                                       </Button>
                                     }
                                   />

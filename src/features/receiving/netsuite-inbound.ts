@@ -5,7 +5,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { describeInvokeError } from "@/features/receiving/netsuite-lookup";
 
-export type InboundStatusFilter = "open" | "received" | "all";
+export type InboundStatusFilter = "open" | "partially_received" | "in_transit" | "received" | "all";
 export type InboundSortKey = "expected_delivery" | "shipment_number" | "status";
 export type InboundSortDirection = "asc" | "desc";
 

@@ -19,7 +19,7 @@
 export const INBOUND_OPEN_STATUSES = ['inTransit', 'partiallyReceived'] as const
 export const INBOUND_RECEIVED_STATUSES = ['received', 'closed'] as const
 
-export type InboundStatusFilter = 'open' | 'received' | 'all'
+export type InboundStatusFilter = 'open' | 'partially_received' | 'in_transit' | 'received' | 'all'
 export type InboundSortKey = 'expected_delivery' | 'shipment_number' | 'status'
 export type InboundSortDirection = 'asc' | 'desc'
 
@@ -27,7 +27,7 @@ export const INBOUND_PAGE_SIZE = 25
 export const INBOUND_MAX_ROWS = 200
 
 export function isInboundStatusFilter(value: unknown): value is InboundStatusFilter {
-  return value === 'open' || value === 'received' || value === 'all'
+  return value === 'open' || value === 'partially_received' || value === 'in_transit' || value === 'received' || value === 'all'
 }
 export function isInboundSortKey(value: unknown): value is InboundSortKey {
   return value === 'expected_delivery' || value === 'shipment_number' || value === 'status'
@@ -82,6 +82,8 @@ function quoteList(values: readonly string[]): string {
 
 function statusClause(filter: InboundStatusFilter): string | null {
   if (filter === 'open') return `s.shipmentstatus IN (${quoteList(INBOUND_OPEN_STATUSES)})`
+  if (filter === 'partially_received') return `s.shipmentstatus = 'partiallyReceived'`
+  if (filter === 'in_transit') return `s.shipmentstatus = 'inTransit'`
   if (filter === 'received') return `s.shipmentstatus IN (${quoteList(INBOUND_RECEIVED_STATUSES)})`
   return null
 }
