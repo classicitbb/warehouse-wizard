@@ -630,7 +630,9 @@ export async function updateDraftReceiptSplit(
   if (savedError) throw savedError;
   const savedMeta = parseReceiptNotes(saved?.notes);
   // A reused pallet number belongs to the edited draft only.
-  const { reuse_pallet_barcode: _reuse, ...inheritedMeta } = savedMeta;
+  // and only that draft may keep a linked physical pallet (confirm resolves
+  // returned_pallet_id to that one pallet, so sharing it would merge the split).
+  const { reuse_pallet_barcode: _reuse, returned_pallet_id: _returned, ...inheritedMeta } = savedMeta;
   const rows = quantities.slice(1).map((quantity, index) => {
     const receiptNumber = buildPalletCode("RCT");
     const draftBarcode = buildPalletCode("PLT");
@@ -663,7 +665,16 @@ export async function updateDraftReceiptSplit(
   if (error && isMissingReceiptDraftColumn(error)) {
     ({ data, error } = await db("receipts").insert(rows.map(withoutReceiptDraftColumns)).select("id"));
   }
-  if (error) throw error;
+  if (error) {
+    // The edited draft already holds only its share; put the original back so no quantity is lost.
+    await db("receipts").update({
+      notes: before.notes,
+      draft_group_id: before.draft_group_id ?? null,
+      draft_sequence: before.draft_sequence ?? null,
+      draft_count: before.draft_count ?? null,
+    }).eq("id", draftId);
+    throw error;
+  }
   await writeSystemLog({
     log_type: "system_change",
     severity: "info",
