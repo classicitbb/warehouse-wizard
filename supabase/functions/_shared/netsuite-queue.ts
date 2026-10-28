@@ -7,7 +7,7 @@ import { payloadDigest } from './netsuite.ts'
  * records deliberately share the job table but remain queued until their own
  * processors exist.
  */
-export const NETSUITE_OUTBOUND_JOB_TYPES = ['inventory_adjustment'] as const
+export const NETSUITE_OUTBOUND_JOB_TYPES = ['inventory_adjustment', 'receipt_purchase_order'] as const
 
 export type NetSuiteWebhookEnvelope = {
   recordType: string
