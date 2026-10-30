@@ -242,3 +242,35 @@ Without a Quarantine status, NetSuite counts held returns as available and can c
 - **V16** — Are VRMAs used at all, exposed through REST, and readable by the integration role (no `VendAuth` rows came back)? Are vendor returns in scope now or later (research doc §12 Q9)?
 - **V17** — For the 332 serialised items, must the returned serial number match one shipped to that customer, and should WW check it?
 - **V18** — Does Simplex want WW's return reason codes written to an RMA field, and who may approve Scrap (R6)?
+
+## 8. Office-planned dispatch (sandbox findings 2026-10-30)
+
+**Status: agreed with Russell 2026-10-30.** The research behind this section is a read-only SuiteQL pass over the `_SB1` sandbox (fulfillments dated 1 Sep – 28 Oct 2026). The flow chart is the "Simplex Order-to-Dispatch Flow" artifact.
+
+### 8.1 What the sandbox showed
+
+- **The office plans every trip.** The Simplex Fulfill Orders page (`SL_Bulk_Fulfill_Orders`, `customscript1118`) lists SOs and TOs together. It creates the IF at Picked with `custbody_simplex_picked_by` (list `customlist_spx_pickers`), `custbody_truck` (list `customlist_truck_fulfillment`, named by driver, plus "Pending" and "Pine" placeholders) and `custbody_simplex_trip_number` (free text). Submit and Print calls `SL_print_picking_tickets` (`customscript1120`). Truck and picker are set on about 97% of IFs.
+- **The trip number is the run of the day.** Trip 1 appears on 21 dates and trip 2 on 19, so a trip is keyed by date + truck + trip number.
+- **Packed is never used.** IF status is Picked (73) or Shipped (1,954), never Packed. 73 IFs have been stuck at Picked for 33 days on average.
+- **Shorts become second deliveries.** 88 SOs needed 2–3 IFs, and 450 SOs are Partially Fulfilled (48 days on average).
+- **The invoice follows the truck.** Invoices are raised minutes after Shipped, and 35 orders were invoiced before shipping.
+- **The KPI timestamps are already scripted.** The SPX Operations KPI – Event Capture user event (SO, IF, invoice) writes `custbody_spx_kpi_*` and `customrecord_spx_order_kpi`. Windows: ordered 7:30–10:30, deliver the same day. Ordered 10:30–1:30, ship by 9:30 the next day. Ordered 1:30–4:30, ship by 12:30 the next day. 337 orders met the KPI and 829 missed it.
+- **The sandbox has no driver data.** No IF has a signature or `custbody_ee_*` exception flag, though the ERP app's fields exist (`custbody_erp_signature_captured`, `_signature_image`, `_eq_signature_date`, `custbody_erp_eq_delivery_image_1..3`).
+
+### 8.2 Decisions
+
+| # | Topic | Decision |
+|---|---|---|
+| O1 | Who plans | The office keeps planning in NetSuite on the Fulfill Orders page. WW does not suggest or build trips. It reads the IFs that page creates and gives floor staff the pick, pack, load and depart tasks. This replaces D3's "WW creates the IF" and D7's trip suggestion |
+| O2 | Discovery | The D2 poll also reads IFs at Picked, with picker, truck and trip number. The Orders inbox shows SOs and TOs together, as the Fulfill Orders page does (T1) |
+| O3 | Trip key | Trip = IF date + `custbody_truck` + `custbody_simplex_trip_number` |
+| O4 | KPI times | WW stamps the real pick, pack and departure times. Whether WW writes `custbody_spx_kpi_*` directly or only moves the IF status, and lets the KPI script stamp the time, is confirmed with whoever owns that script (V19) |
+| O5 | Driver app | The ERP driver app stays. It looks up the IF and reads trip and truck from NetSuite. WW reads its signature and exception fields back |
+| O6 | Refusals | Refusals go through returns (§7, R1–R6: RMA, return receipt, credit memo), because the invoice is normally raised at Shipped. R7 (reducing the IF) applies only when the order was not yet invoiced |
+
+### 8.3 To verify
+
+- **V19** — Does the SPX Operations KPI script accept KPI times written by WW?
+- **V20** — How does the ERP app find its IFs (truck, trip or driver login)? Check in production, since the sandbox has no driver data.
+- **V21** — What does Simplex Daily Deliveries Setup Cleanup reset each day? What does the "Pending" truck mean?
+- **V22** — Who clears IFs stuck at Picked? Should WW flag them on the trip board?
