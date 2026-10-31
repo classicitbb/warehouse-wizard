@@ -494,10 +494,12 @@ export function ResourcePage({
   const netsuiteActive = useNetSuiteActive();
   const isLocations = resource.table === "locations";
   const isPackagingProfiles = resource.table === "product_packaging_profiles";
-  // Packaging Profiles uses the same compact rows as Products and Locations,
-  // sized like Locations (px-2, not the wider Products px-4).
-  const denseRows = isProducts || isLocations || isPackagingProfiles;
-  const denseCompact = isLocations || isPackagingProfiles;
+  const isWarehouses = resource.table === "warehouses";
+  const isZones = resource.table === "zones";
+  // Packaging Profiles, Warehouses and Zones use the same compact rows as
+  // Products and Locations, sized like Locations (px-2, not the wider Products px-4).
+  const denseRows = isProducts || isLocations || isPackagingProfiles || isWarehouses || isZones;
+  const denseCompact = isLocations || isPackagingProfiles || isWarehouses || isZones;
   const { data: reorderAlerts = [] } = useQuery({
     queryKey: ["reorder-alerts"],
     enabled: isProducts,
@@ -1166,7 +1168,7 @@ export function ResourcePage({
                         <TableHead key={`${field.name}-pack`} className="h-8 w-40 px-2 py-1 text-xs">Pack std</TableHead>
                       ) : null,
                   ])}
-                  {hasTrailingLabelColumn ? <TableHead className="w-28">Label</TableHead> : null}
+                  {hasTrailingLabelColumn ? <TableHead className={cn("w-12", denseCompact && "h-7 px-2 py-1 text-xs")}>Label</TableHead> : null}
                   {resource.supportsHide ? <TableHead className={cn("w-32", denseCompact && "h-7 px-2 py-1 text-xs")}>Visibility</TableHead> : null}
                   <TableHead className={cn("w-16", denseCompact && "h-7 px-2 py-1")} />
                 </TableRow>
@@ -1295,7 +1297,7 @@ export function ResourcePage({
                         return cell;
                       })}
                       {hasTrailingLabelColumn ? (
-                        <TableCell>
+                        <TableCell className={cn(denseCompact && "px-2 py-1")}>
                           <div className="flex items-center gap-1">
                             {resource.table === "warehouses" ? (
                                 <BarcodePrintDialog
@@ -1312,9 +1314,14 @@ export function ResourcePage({
                                     isDispatch={Boolean((row as Record<string, unknown>).is_dispatch)}
                                     isQuarantine={Boolean((row as Record<string, unknown>).is_quarantine)}
                                     trigger={
-                                      <Button size="sm" variant="outline">
-                                        <QrCode className="mr-2 h-4 w-4" />
-                                        Print label
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        aria-label="Print zone label"
+                                        title="Print zone label"
+                                      >
+                                        <Printer className="h-3.5 w-3.5" />
                                       </Button>
                                     }
                                   />
