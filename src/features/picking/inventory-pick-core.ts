@@ -41,7 +41,7 @@ export async function inventoryPickWork(request: InventoryPickRequest, commit?: 
 export async function inventoryPickLists(warehouseId: string, clientId: string | null) {
   return fetchAllRows<any>((from, to) => {
     let query = db("pick_lists").select("id, pick_list_number, client_id, order_id, orders:orders!pick_lists_order_id_fkey!inner(status, warehouse_id, client_id)")
-      .eq("warehouse_id", warehouseId).eq("status", "queued").is("transfer_id", null)
+      .eq("warehouse_id", warehouseId).eq("status", "queued").is("transfer_id", null).is("fulfillment_id", null)
       .in("orders.status", ["draft", "queued"]).eq("orders.warehouse_id", warehouseId).order("id");
     query = clientId ? query.eq("client_id", clientId).eq("orders.client_id", clientId)
       : query.is("client_id", null).is("orders.client_id", null);

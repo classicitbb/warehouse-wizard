@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Tags,
   Truck,
+  Route,
   Users,
   Contact,
 } from "lucide-react";
@@ -104,6 +105,7 @@ export const navIcons: Record<AppRoute, typeof LayoutDashboard> = {
   "/clients": Users,
   "/customers": Contact,
   "/orders": ClipboardList,
+  "/trips": Route,
   "/products": Package,
   "/packaging-profiles": Tags,
   "/receiving": Download,

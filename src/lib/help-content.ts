@@ -136,6 +136,15 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     permissions: "Visible while NetSuite is set up. Managers, supervisors, admins and developers can sync.",
     wikiArticleIds: ["netsuite-integration", "pick-flow"],
   },
+  trips: {
+    id: "trips",
+    title: "Trips",
+    summary: "The trips the office planned in NetSuite (date, truck and trip number), with each order on the trip and how far its pick is. Start an order here and pick it bin by bin on the handset.",
+    keyActions: ["Start or continue the pick of an order", "Scan each bin and enter what you take, in the line's unit", "Press Short when a bin runs out: WW asks for an urgent pallet for the pick face", "Switch to All open to see earlier trips that are still open"],
+    commonMistakes: ["Planning or changing trips here: the office does that in NetSuite", "Picking an order on credit hold: the office must release it first", "Picking more than the line asks for: WW refuses it"],
+    permissions: "Visible while NetSuite is set up. Operators, clerks, supervisors, managers, admins and developers can pick.",
+    wikiArticleIds: ["netsuite-integration", "pick-flow"],
+  },
   zones: {
     id: "zones",
     title: "Zones",
@@ -945,6 +954,7 @@ const routeMatchers: Array<{ match: (pathname: string) => boolean; helpId: strin
   { match: (pathname) => pathname === "/clients", helpId: "clients" },
   { match: (pathname) => pathname === "/customers", helpId: "customers" },
   { match: (pathname) => pathname === "/orders", helpId: "orders" },
+  { match: (pathname) => pathname === "/trips" || pathname.startsWith("/trips/"), helpId: "trips" },
   { match: (pathname) => pathname === "/warehouses", helpId: "warehouses" },
   { match: (pathname) => pathname === "/zones", helpId: "zones" },
   { match: (pathname) => pathname === "/locations", helpId: "locations" },

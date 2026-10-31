@@ -114,6 +114,7 @@ const UsersRolesPage = lazy(() => import("@/features/admin/users-roles-page").th
 const CycleCountsPage = lazy(() => import("@/features/cycle-counts/cycle-counts-page").then((mod) => ({ default: mod.CycleCountsPage })));
 const CustomersPage = lazy(() => import("@/features/customers/customers-page").then((mod) => ({ default: mod.CustomersPage })));
 const OrdersInboxPage = lazy(() => import("@/features/orders/orders-inbox-page").then((mod) => ({ default: mod.OrdersInboxPage })));
+const TripsPage = lazy(() => import("@/features/trips/trips-page").then((mod) => ({ default: mod.TripsPage })));
 const LocationMovesPage = lazy(() => import("@/features/moves/moves-page").then((mod) => ({ default: mod.LocationMovesPage })));
 const ReplenishmentPage = lazy(() => import("@/features/replenishment/replenishment-page").then((mod) => ({ default: mod.ReplenishmentPage })));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
@@ -127,6 +128,7 @@ const InventoryDetailPage = lazy(() =>
 const PickExecutionPage = lazy(() =>
   import("@/features/picking/pick-execution-page").then((mod) => ({ default: mod.PickExecutionPage })),
 );
+const TripPickPage = lazy(() => import("@/features/trips/trip-pick-page").then((mod) => ({ default: mod.TripPickPage })));
 // The help button carries ~67 kB of article text; keep it off the login screen's
 // critical path and let it pop in once loaded.
 const HelpSidebarLazy = lazy(() => import("@/components/help-sidebar").then((mod) => ({ default: mod.HelpSidebar })));
@@ -1236,6 +1238,7 @@ function ResourceRoutes() {
           <Route path="/clients" element={<ResourcePage resource={resources.clients as any} />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/orders" element={<OrdersInboxPage />} />
+          <Route path="/trips" element={<TripsPage />} />
           <Route path="/warehouses" element={<ResourcePage resource={resources.warehouses as any} />} />
           <Route path="/zones" element={<ResourcePage resource={resources.zones as any} />} />
           <Route path="/locations" element={<ResourcePage resource={resources.locations as any} />} />
@@ -1260,6 +1263,7 @@ function ResourceRoutes() {
         </Route>
         <Route path="/inventory/:balanceId" element={<InventoryDetailPage />} />
         <Route path="/pick-lists/:pickListId" element={<PickExecutionPage />} />
+        <Route path="/trips/pick/:pickListId" element={<TripPickPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

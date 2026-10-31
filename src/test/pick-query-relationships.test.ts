@@ -13,6 +13,7 @@ import { listPickLists } from "@/lib/wms-core";
 describe("pick-list relationship embeds", () => {
   it("selects the directed pallet relationship explicitly when pick tasks retain an original pallet", async () => {
     const query: any = {
+      is: () => query,
       order: () => query,
       then: (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
     };

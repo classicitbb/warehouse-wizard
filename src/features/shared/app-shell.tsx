@@ -217,7 +217,7 @@ const OFFLINE_ALERT_SESSION_KEY = "warehouseWizard.offlineAlert.current";
 const BREADCRUMB_SECTIONS: Array<{ label: string; routes: string[] }> = [
   {
     label: "Operations",
-    routes: ["/dashboard", "/receiving", "/putaway-tasks", "/inventory-search", "/orders", "/pick-lists", "/location-moves", "/replenishment", "/cycle-counts", "/transfers"],
+    routes: ["/dashboard", "/receiving", "/putaway-tasks", "/inventory-search", "/orders", "/trips", "/pick-lists", "/location-moves", "/replenishment", "/cycle-counts", "/transfers"],
   },
   {
     label: "Warehouse",

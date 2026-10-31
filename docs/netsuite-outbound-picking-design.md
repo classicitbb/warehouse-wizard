@@ -384,3 +384,19 @@ Learned policy, rolled back: with 40 days of shipped history and pallets of 151,
 - **V26** — Answered: 3 days is correct.
 - **V27** — Answered: no. WW learns the fast movers from 30 days of use, with the minimum until then (F7).
 - **V28** — Answered: all of the lower level (level A) for now. The 107 disabled level-A bins are pick faces (F2). The 166 active level-A bins stay bulk.
+
+## 11. Slice E build (2026-10-31)
+
+Migration `20261101090000_trip_picking.sql`. Code in `src/features/trips/`. This slice writes nothing to NetSuite.
+
+| # | Topic | Build |
+|---|---|---|
+| E1 | Trip board | The Trips page shows the open IFs (Picked or Packed), grouped by IF date + truck + trip number (O3). It shows the order number and "part n of m" (N2), the pick progress, credit hold (D8) and Aged (V22) |
+| E2 | Pick list | "Start pick" makes one pick list for each IF (`pick_lists.fulfillment_id`) and one task for each IF line (`pick_tasks.fulfillment_line_id`). Start again refreshes the list: it follows the office's line changes, and gives a bin to a line that had no stock |
+| E3 | Source | A task directs the picker to a bin, not to a pallet: first a pick face that holds the product (pick sequence), then bulk (FEFO or FIFO). Thus, many orders can pick from one face at the same time |
+| E4 | Pick | The picker scans the bin and enters the quantity in the line unit. WW posts base units (D9). WW takes the units off the smallest pallet in the bin first (F5). An empty pallet retires as `shipped`, because `inventory_status` has no picked value. WW refuses more than the line asks for |
+| E5 | Short | "Short" closes the line with what is picked. On a face, it makes an urgent replenishment (D10). A line with no stock in WW closes short with nothing |
+| E6 | Demand | `open_fulfillment_demand` now takes off the WW picks for each IF line (F9) |
+| E7 | Pick Lists | The Pick Lists page, its badge and the dashboard tile leave out trip pick lists |
+
+Not in this slice: the staging lane and load scan, ship short at trip close, and the IF status changes (slice F). Picked units stay on the open IF until then. Thus, the W14 reconciliation must count bins + picked on open IFs (C5).
