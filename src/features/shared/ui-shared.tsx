@@ -20,7 +20,6 @@ import {
   MapPinned,
   Package,
   Printer,
-  QrCode,
   Search,
   Settings,
   ShieldCheck,
@@ -164,9 +163,14 @@ export function BarcodePrintDialog({ labelType, code, title }: { labelType: "war
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
-          <QrCode data-icon="inline-start" />
-          Print
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          aria-label={`Print ${labelType} label`}
+          title={`Print ${labelType} label`}
+        >
+          <Printer className="h-3.5 w-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
