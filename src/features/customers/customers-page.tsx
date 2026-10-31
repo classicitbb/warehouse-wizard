@@ -2,8 +2,9 @@
 // design, slice B). Read-only here; rows arrive through the netsuite-customers
 // edge function. Separate from Clients, which are the stock owners.
 //
-// Layout follows Inventory Search: fixed page height, a compact filter card,
-// and a table card whose header stays put while only the rows scroll.
+// Layout follows the Products page (ResourcePage), like every Setup page:
+// title and description, settings gear, plain search with the record count,
+// quick-filter buttons, and a dense table whose header stays pinned.
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
@@ -12,24 +13,23 @@ import { useAuth } from "@/hooks/use-auth";
 import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { formatDateTime } from "@/features/shared/core-types";
 import { TableFrame } from "@/features/shared/resource-forms";
-import { HintButton } from "@/components/hint-button";
 import { RecordCount } from "@/components/record-count";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { CustomersSyncButtons } from "./customers-sync-buttons";
 
 export const CUSTOMERS_QUERY_KEY = ["customers"] as const;
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 const COLUMN_COUNT = 7;
 const ZONES = ["North", "South", "East", "West", "Central"] as const;
 type ZoneFilter = "all" | "none" | (typeof ZONES)[number];
 type CreditFilter = "all" | "hold" | "review";
-const FLAG_CLASS = "px-1.5 py-0 text-[11px] font-medium";
+// Same cell density as the Products table.
+const CELL = "px-4 py-1 text-xs leading-tight";
 
 type ShipAddress = { addr1?: string | null; addr2?: string | null; addr3?: string | null; city?: string | null; state?: string | null; zip?: string | null; country?: string | null };
 
@@ -77,9 +77,10 @@ async function fetchCustomers(opts: { search: string; zone: ZoneFilter; credit: 
   return { rows: (data ?? []) as unknown as CustomerListRow[], total: count ?? 0 };
 }
 
-function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+/** A Products-style quick filter: click to apply, click again to clear. */
+function QuickFilter({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <Button type="button" size="sm" className="h-7 px-2 text-xs" variant={active ? "default" : "outline"} onClick={onClick} aria-pressed={active}>
+    <Button size="sm" variant={active ? "default" : "outline"} className="h-7 px-2.5 text-xs" onClick={onClick} aria-pressed={active}>
       {children}
     </Button>
   );
@@ -89,33 +90,27 @@ export function CustomersPage() {
   const netsuiteActive = useNetSuiteActive();
   const { roles } = useAuth();
   const canSync = roles.some((role) => role === "admin" || role === "developer");
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [zone, setZone] = useState<ZoneFilter>("all");
   const [credit, setCredit] = useState<CreditFilter>("all");
   const [limit, setLimit] = useState(PAGE_SIZE);
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: [...CUSTOMERS_QUERY_KEY, search, zone, credit, limit],
+    queryKey: [...CUSTOMERS_QUERY_KEY, search.trim(), zone, credit, limit],
     queryFn: () => fetchCustomers({ search, zone, credit, limit }),
     enabled: netsuiteActive,
     placeholderData: keepPreviousData,
   });
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const hasFilters = search !== "" || zone !== "all" || credit !== "all";
+  const hasQuickFilters = zone !== "all" || credit !== "all";
 
   const resetAnd = (fn: () => void) => {
     fn();
     setLimit(PAGE_SIZE);
   };
-  const clearFilters = () =>
-    resetAnd(() => {
-      setSearchInput("");
-      setSearch("");
-      setZone("all");
-      setCredit("all");
-    });
+  const toggleZone = (value: ZoneFilter) => resetAnd(() => setZone((current) => (current === value ? "all" : value)));
+  const toggleCredit = (value: CreditFilter) => resetAnd(() => setCredit((current) => (current === value ? "all" : value)));
 
   if (!netsuiteActive) {
     return (
@@ -127,63 +122,46 @@ export function CustomersPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex items-start justify-between gap-3 md:items-end">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">Customers</h2>
-          <HintButton label="Customers hints">
-            Ship-to customers mirrored from NetSuite, with delivery zone and credit flags. Edit customers in NetSuite, not here.
-            Clients (stock owners) are managed separately.
-          </HintButton>
+          <p className="text-sm text-muted-foreground">Ship-to customers mirrored from NetSuite, with delivery zone and credit flags. Edit them in NetSuite. Clients (stock owners) are managed separately.</p>
         </div>
         {canSync && <CustomersSyncButtons />}
       </div>
 
-      <Card>
-        <CardContent className="flex flex-col gap-2 p-3">
-          <form
-            className="relative min-w-0"
-            onSubmit={(event) => {
-              event.preventDefault();
-              resetAnd(() => setSearch(searchInput.trim()));
-            }}
-          >
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search name or customer number"
-              className="h-11 min-w-0 pl-10 pr-20 sm:pr-48"
-              aria-label="Search customers"
-            />
-            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-2">
-              <RecordCount className="hidden sm:inline" isLoading={isLoading} isFiltering={search !== ""} visible={rows.length} total={total} />
-              <Button type="button" className="h-8 px-2 text-xs" variant="ghost" onClick={clearFilters} disabled={!hasFilters}>
-                Clear
-              </Button>
-            </div>
-          </form>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Zone</span>
-            <FilterButton active={zone === "all"} onClick={() => resetAnd(() => setZone("all"))}>All</FilterButton>
-            {ZONES.map((z) => (
-              <FilterButton key={z} active={zone === z} onClick={() => resetAnd(() => setZone(z))}>{z}</FilterButton>
-            ))}
-            <FilterButton active={zone === "none"} onClick={() => resetAnd(() => setZone("none"))}>No zone</FilterButton>
-            <span className="ml-3 mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Credit</span>
-            <FilterButton active={credit === "all"} onClick={() => resetAnd(() => setCredit("all"))}>All</FilterButton>
-            <FilterButton active={credit === "hold"} onClick={() => resetAnd(() => setCredit("hold"))}>On hold</FilterButton>
-            <FilterButton active={credit === "review"} onClick={() => resetAnd(() => setCredit("review"))}>Review</FilterButton>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-9 bg-muted pl-9 pr-20"
+          placeholder="Search customers…"
+          value={search}
+          onChange={(event) => resetAnd(() => setSearch(event.target.value))}
+          aria-label="Search customers"
+        />
+        <RecordCount className="absolute right-3 top-1/2 -translate-y-1/2" isLoading={isLoading} isFiltering={Boolean(search.trim())} visible={rows.length} total={total} />
+      </div>
 
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <CardContent className="flex min-h-0 min-w-0 flex-1 p-0">
-          <TableFrame className="h-full min-w-0 flex-1">
-            <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-              <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {ZONES.map((z) => (
+          <QuickFilter key={z} active={zone === z} onClick={() => toggleZone(z)}>{z}</QuickFilter>
+        ))}
+        <QuickFilter active={zone === "none"} onClick={() => toggleZone("none")}>No zone</QuickFilter>
+        <QuickFilter active={credit === "hold"} onClick={() => toggleCredit("hold")}>Credit hold</QuickFilter>
+        <QuickFilter active={credit === "review"} onClick={() => toggleCredit("review")}>Credit review</QuickFilter>
+        {hasQuickFilters ? (
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs text-muted-foreground" onClick={() => resetAnd(() => { setZone("all"); setCredit("all"); })}>
+            Clear all
+          </Button>
+        ) : null}
+      </div>
+
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <TableFrame className="h-full">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead>Number</TableHead>
                   <TableHead>Name</TableHead>
@@ -208,7 +186,7 @@ export function CustomersPage() {
                 ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell className="h-24 text-center text-muted-foreground" colSpan={COLUMN_COUNT}>
-                      {hasFilters ? "No customers match these filters." : "No customers yet. An admin can import them from NetSuite."}
+                      {search.trim() || hasQuickFilters ? "No customers match these filters." : "No customers yet. An admin can import them from NetSuite."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -216,41 +194,43 @@ export function CustomersPage() {
                     const address = formatAddress(row.default_ship_address);
                     const contact = [row.phone, row.email].filter(Boolean).join(" · ");
                     return (
-                      <TableRow key={row.id} className="even:bg-muted/30 hover:bg-muted/50">
-                        <TableCell className="font-mono">{row.customer_number}</TableCell>
-                        <TableCell className="max-w-[18rem] truncate font-medium" title={row.name}>
+                      <TableRow key={row.id} className="even:bg-muted/30">
+                        <TableCell className={`${CELL} font-mono`}>{row.customer_number}</TableCell>
+                        <TableCell className={CELL}>
                           {row.name}
-                          {row.ship_complete && <Badge variant="outline" className={cn(FLAG_CLASS, "ml-2")}>Ship complete</Badge>}
+                          {row.ship_complete && <Badge variant="outline" className="ml-2">Ship complete</Badge>}
                         </TableCell>
-                        <TableCell>{row.delivery_zone ?? "—"}</TableCell>
-                        <TableCell>
+                        <TableCell className={CELL}>{row.delivery_zone ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className={CELL}>
                           <div className="flex items-center gap-1">
-                            {row.on_credit_hold && <Badge variant="destructive" className={FLAG_CLASS}>Credit hold</Badge>}
-                            {row.credit_review_required && (
-                              <Badge variant="outline" className={cn(FLAG_CLASS, "border-amber-500 text-amber-700 dark:text-amber-400")}>Review</Badge>
-                            )}
+                            {row.on_credit_hold && <Badge variant="destructive">Credit hold</Badge>}
+                            {row.credit_review_required && <Badge variant="outline" className="border-amber-400 text-amber-600">Review</Badge>}
                             {!row.on_credit_hold && !row.credit_review_required && <span className="text-muted-foreground">OK</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="max-w-[22rem] truncate" title={address}>{address || "—"}</TableCell>
-                        <TableCell className="max-w-[16rem] truncate" title={contact}>{contact || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{formatDateTime(row.last_synced_at)}</TableCell>
+                        <TableCell className={`${CELL} max-w-[22rem] truncate`} title={address}>{address || <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className={`${CELL} max-w-[16rem] truncate`} title={contact}>{contact || <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className={`${CELL} text-muted-foreground`}>{formatDateTime(row.last_synced_at)}</TableCell>
                       </TableRow>
                     );
                   })
                 )}
-                {rows.length < total && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={COLUMN_COUNT} className="py-2 text-center">
-                      <Button type="button" size="sm" variant="outline" disabled={isFetching} onClick={() => setLimit((current) => current + PAGE_SIZE)}>
-                        {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Load more
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
+            {rows.length < total ? (
+              <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
+                <Button type="button" variant="secondary" className="pointer-events-auto shadow-md" onClick={() => setLimit((current) => current + PAGE_SIZE)} disabled={isFetching}>
+                  {isFetching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading more…
+                    </>
+                  ) : (
+                    "Load 50 more"
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </TableFrame>
         </CardContent>
       </Card>
