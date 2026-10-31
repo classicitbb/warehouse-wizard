@@ -251,7 +251,7 @@ If there is no Quarantine status, NetSuite counts returns on hold as available. 
 
 ### 8.1 What the sandbox showed
 
-- **The office plans each trip.** The Simplex Fulfill Orders page (`SL_Bulk_Fulfill_Orders`, `customscript1118`) shows SOs and TOs together. It makes the IF at Picked with these fields:
+- **The office plans each trip.** The Simplex Fulfill Orders page (Suitelet `script=1127`; §9 corrects the earlier id 1118) shows SOs and TOs together. It makes the IF at Picked with these fields:
   - `custbody_simplex_picked_by` (list `customlist_spx_pickers`).
   - `custbody_truck` (list `customlist_truck_fulfillment`). Each truck has the name of its driver. The list also has the placeholders "Pending" and "Pine".
   - `custbody_simplex_trip_number` (free text).
@@ -286,3 +286,39 @@ If there is no Quarantine status, NetSuite counts returns on hold as available. 
 - **V20** — How does the ERP app find its IFs: by truck, by trip or by driver login? Check this in production, because the sandbox has no driver data.
 - **V21** — What does Simplex Daily Deliveries Setup Cleanup reset each day? What does the "Pending" truck mean?
 - **V22** — Who clears the IFs that stay at Picked? Must WW show them on the trip board?
+
+## 9. NetSuite screens that floor staff replace (UI walk-through, 2026-10-30)
+
+We read these screens in the _SB1 sandbox. We did not change records.
+
+### 9.1 Findings
+
+- **Fulfill Orders page.** The id is `script=1127`, not 1118. Filters: location (Lower Estate, Pine Showroom), order type (SO, TO or both), zone, date entered, and availability (ignore, some committed, all committed, any open). The office sets date, picker, truck and trip for the selection. Each row also has a picker list. The page shows cu ft for each truck. Ship Qty comes from available stock. The office cannot change it on this page. "Submit and Print" makes the IFs and prints the pick tickets.
+- **Truck list.** Each value is a vehicle code and a driver, for example "C1490 - Stephen Baker". The list also has "Pending", "Pine" and "- New -".
+- **Item fulfillment.** The IF has Picked, Packed and Shipped dates. On IF21 the three dates are the same. Thus, the office sets the statuses at one time. The Inventory Detail column is empty. Thus, NetSuite does not use bins. The Packages tab is not used. The IF has Print Label and Print Item labels buttons.
+- **Features.** The account has Warehouse Management and Advanced Inventory turned on. Simplex does not use them.
+- **Second pick path.** The SO has a "Picking Ticket Printed" flag. The search "Simplex Sales Orders Printed but not fulfilled" (id 1693) shows 9 SOs. Some SOs are from 1 Sep.
+- **Transfer orders.** Of 19 TOs: 9 Pending Fulfillment, 1 Partially Fulfilled, 6 Pending Receipt, 3 Received. TOs use "Pine" as truck and picker. Thus, stock goes out and Pine does not receive it.
+- **Proof of delivery is on the invoice.** The search "SPX Invoice Delivery & Signature Status" (id 1702, 6,507 invoices) shows truck, trip, picker, signature image and date, three delivery images and details. The status goes from PENDING SIGNATURE to SIGNED to COMPLETED. Thus, the ERP app most likely finds the invoice, not the IF. This answers V20 for the sandbox.
+- **Manifest.** The Delivery Manifest page is `script=2207`, not 2093. It filters by date, trip number and two trucks. The "Simplex – Daily Deliveries Summary" search (id 1350) is empty. The cleanup script (V21) most likely clears it.
+- **Office views.** "Simplex Fulfillment Dashboard" (id 888) lists the 2,027 IFs by picker and truck.
+- **Returns.** There are only 2 RMAs. Both come from an invoice and have no return receipt. RMA07 has the credit before the goods return. RMA08 is refunded without a receipt.
+
+### 9.2 Decisions
+
+| # | Topic | Decision |
+|---|---|---|
+| N1 | Floor tasks | WW does pick, short pick, pack check, stage, load, TO receipt and return receipt. The office keeps the Fulfill Orders page for the plan |
+| N2 | Order name | Floor staff see the SO or TO number. When an order has more than one IF, WW shows "part n of m". The word "fulfillment" stays in the office and field views |
+| N3 | Invoice gate | WW does not release a trip to the driver until each SO on the trip has an invoice, because the ERP app reads the invoice |
+| N4 | Printed SOs | WW shows SOs with "Picking Ticket Printed" and no IF as an exception. The office must make the IF or clear the flag |
+| N5 | Bins | Bins stay in WW. WW does not write Inventory Detail. Turning on NetSuite bins is a separate decision (P4) |
+| N6 | TO in transit | WW shows TOs at Pending Receipt on the Pine receive list. Pine receives them by scan |
+| N7 | Returns | WW records the return receipt and the condition before the credit memo (R1–R6). WW shows credits without a receipt as an exception |
+| N8 | Picking area | The open IFs at Picked and their stock value make the picking-area view (Roget, whitepaper D10 and Q-R2) |
+
+### 9.3 To verify
+
+- **V23** — Confirm in production that the ERP app reads the invoice. Confirm which field it uses to find the stops.
+- **V24** — Does the office print pick tickets from the SO and from Fulfill Orders? Which path is in use now?
+- **V25** — Must WW use NetSuite WMS bins later, or do bins stay in WW only?
