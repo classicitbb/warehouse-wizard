@@ -127,6 +127,15 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     permissions: "Visible while NetSuite is set up. Admins and developers run the import and sync.",
     wikiArticleIds: ["client-ownership"],
   },
+  orders: {
+    id: "orders",
+    title: "Orders",
+    summary: "Open NetSuite sales and transfer orders for your warehouse, with the truck, trip and picker the office set on the Fulfill Orders page, and anything that stops an order from going to the floor.",
+    keyActions: ["Scan the pick-ticket QR or search by order number or customer", "Filter to orders that are not planned, planned, blocked, or printed without a fulfillment", "Open an order to see its lines in their own units and its fulfillments", "Managers: sync now from NetSuite"],
+    commonMistakes: ["Planning trucks and trips here: the office still does that in NetSuite", "Expecting orders on credit hold or with nothing committed to be picked"],
+    permissions: "Visible while NetSuite is set up. Managers, supervisors, admins and developers can sync.",
+    wikiArticleIds: ["netsuite-integration", "pick-flow"],
+  },
   zones: {
     id: "zones",
     title: "Zones",
@@ -917,6 +926,7 @@ const routeMatchers: Array<{ match: (pathname: string) => boolean; helpId: strin
   { match: (pathname) => pathname === "/dashboard", helpId: "dashboard" },
   { match: (pathname) => pathname === "/clients", helpId: "clients" },
   { match: (pathname) => pathname === "/customers", helpId: "customers" },
+  { match: (pathname) => pathname === "/orders", helpId: "orders" },
   { match: (pathname) => pathname === "/warehouses", helpId: "warehouses" },
   { match: (pathname) => pathname === "/zones", helpId: "zones" },
   { match: (pathname) => pathname === "/locations", helpId: "locations" },

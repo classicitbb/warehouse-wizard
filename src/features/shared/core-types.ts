@@ -72,6 +72,7 @@ export type AppRoute =
   | "/packaging-profiles"
   | "/clients"
   | "/customers"
+  | "/orders"
   | "/receiving"
   | "/putaway-tasks"
   | "/inventory-search"
@@ -335,6 +336,7 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Receiving", to: "/receiving", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "receiving" },
   { label: "Put-Away", to: "/putaway-tasks", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "putaway" },
   { label: "Inventory", to: "/inventory-search", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "inventory" },
+  { label: "Orders", to: "/orders", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true },
   { label: "Pick Lists", to: "/pick-lists", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "warehouse_operator"], moduleKey: "pick-lists" },
   { label: "Location Moves", to: "/location-moves", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
   { label: "Cycle Counts", to: "/cycle-counts", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "cycle-counts" },

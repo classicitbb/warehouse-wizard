@@ -102,6 +102,7 @@ export const navIcons: Record<AppRoute, typeof LayoutDashboard> = {
   "/locations": MapPinned,
   "/clients": Users,
   "/customers": Contact,
+  "/orders": ClipboardList,
   "/products": Package,
   "/packaging-profiles": Tags,
   "/receiving": Download,
