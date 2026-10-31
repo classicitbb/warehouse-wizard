@@ -169,7 +169,7 @@ export function OrdersInboxPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Order</TableHead>
-                    <TableHead>Customer / destination</TableHead>
+                    <TableHead>Ship to</TableHead>
                     <TableHead className="hidden md:table-cell">Ship date</TableHead>
                     <TableHead className="hidden md:table-cell">Committed</TableHead>
                     <TableHead>Plan</TableHead>
