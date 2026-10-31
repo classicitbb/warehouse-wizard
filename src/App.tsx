@@ -115,6 +115,7 @@ const CycleCountsPage = lazy(() => import("@/features/cycle-counts/cycle-counts-
 const CustomersPage = lazy(() => import("@/features/customers/customers-page").then((mod) => ({ default: mod.CustomersPage })));
 const OrdersInboxPage = lazy(() => import("@/features/orders/orders-inbox-page").then((mod) => ({ default: mod.OrdersInboxPage })));
 const LocationMovesPage = lazy(() => import("@/features/moves/moves-page").then((mod) => ({ default: mod.LocationMovesPage })));
+const ReplenishmentPage = lazy(() => import("@/features/replenishment/replenishment-page").then((mod) => ({ default: mod.ReplenishmentPage })));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
 const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
 const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
@@ -1246,6 +1247,7 @@ function ResourceRoutes() {
           <Route path="/pick-lists" element={<PickListsPage />} />
           <Route path="/transfers" element={<TransfersPage />} />
           <Route path="/location-moves" element={<LocationMovesPage />} />
+          <Route path="/replenishment" element={<ReplenishmentPage />} />
           <Route path="/cycle-counts" element={<CycleCountsPage />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/reports" element={<ReportsPage />} />

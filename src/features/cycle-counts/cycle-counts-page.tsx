@@ -48,7 +48,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverHeader, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -750,13 +750,15 @@ export function CycleCountsPage() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-3" align="start">
-                <div className="mb-2 flex items-center justify-between gap-2 border-b pb-2">
-                  <span className="text-sm font-medium">Zones</span>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSelectedZones([])}>Any zone</Button>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSelectedZones(availableZones.map((zone: any) => zone.id))}>Select all</Button>
-                  </div>
-                </div>
+                <PopoverHeader
+                  title="Zones"
+                  actions={
+                    <>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSelectedZones([])}>Any zone</Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSelectedZones(availableZones.map((zone: any) => zone.id))}>Select all</Button>
+                    </>
+                  }
+                />
                 <div role="group" aria-label="Zone selection" className="grid max-h-64 gap-1 overflow-y-auto">
                   {availableZones.map((zone: any) => {
                     const checked = selectedZoneIds.includes(zone.id);
@@ -931,13 +933,15 @@ function SearchableChecklist({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-3" align="start">
-        <div className="mb-2 flex items-center justify-between gap-2 border-b pb-2">
-          <span className="text-sm font-medium">{label}</span>
-          <div className="flex gap-2">
-            <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => onChange([])}>{anyLabel}</Button>
-            <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => onChange(items.map((item) => item.id))}>Select all</Button>
-          </div>
-        </div>
+        <PopoverHeader
+          title={label}
+          actions={
+            <>
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => onChange([])}>{anyLabel}</Button>
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => onChange(items.map((item) => item.id))}>Select all</Button>
+            </>
+          }
+        />
         <div className="relative mb-2">
           <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-8" placeholder={searchPlaceholder} />

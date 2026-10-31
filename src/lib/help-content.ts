@@ -242,6 +242,24 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     permissions: "Used by admins, managers, clerks, and dispatch drivers for handoff visibility.",
     wikiArticleIds: ["transfer-flow"],
   },
+  replenishment: {
+    id: "replenishment",
+    title: "Replenishment",
+    summary: "Replenishment keeps the pick faces stocked. A pick face is a bay with the status Pick face: put-away skips it and only Replenishment fills it. Its SKU comes with the pallet moved in. Every 5 minutes WW takes the stock in each face, less the open demand, and asks for full pallets from bulk when that goes down to the trigger level. WW learns the level and the pallets from 30 days of use (75% and 2 or more pallets for a product that ships a pallet a day, else 50% and 1 pallet); until then it uses the minimum.",
+    keyActions: [
+      "Start a task, then scan the bulk pallet and the pick-face bin",
+      "Do urgent tasks first: the face cannot cover the open orders, or a picker reported short",
+      "Stack a low remainder on top of the new pallet",
+      "Supervisors: Check now, or cancel a task that is not needed",
+      "Managers: Make pick face on a bay the floor picks from, or Release it to make it a normal bin again",
+    ],
+    commonMistakes: [
+      "Disabling a bay to stop put-away instead of making it a pick face",
+      "Moving a pallet into a pick face outside a Replenishment task",
+    ],
+    permissions: "Floor roles start and finish tasks. Supervisors and above run the check and cancel tasks. Managers and above set up pick faces.",
+    wikiArticleIds: ["pick-flow"],
+  },
   "location-moves": {
     id: "location-moves",
     title: "Location Moves",
@@ -938,6 +956,7 @@ const routeMatchers: Array<{ match: (pathname: string) => boolean; helpId: strin
   { match: (pathname) => pathname === "/pick-lists" || pathname.startsWith("/pick-lists/"), helpId: "pick-lists" },
   { match: (pathname) => pathname === "/transfers", helpId: "transfers" },
   { match: (pathname) => pathname === "/location-moves", helpId: "location-moves" },
+  { match: (pathname) => pathname === "/replenishment", helpId: "replenishment" },
   { match: (pathname) => pathname === "/cycle-counts", helpId: "cycle-counts" },
   { match: (pathname) => pathname === "/status", helpId: "status" },
   { match: (pathname) => pathname === "/reports", helpId: "reports" },

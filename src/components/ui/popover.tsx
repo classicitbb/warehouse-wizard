@@ -2,6 +2,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/lib/utils";
+import { CHROME_CLOSE, ChromeCloseIcon, ChromeControls } from "@/components/ui/overlay-chrome";
 
 const Popover = PopoverPrimitive.Root;
 
@@ -48,4 +49,42 @@ const PopoverContent = React.forwardRef<
 
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
-export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };
+const PopoverClose = PopoverPrimitive.Close;
+
+/**
+ * The popover version of the app's title bar (overlay-chrome): a small title on
+ * the left, optional actions, and the same close button as dialogs on the
+ * right. Use it at the top of any popover that has a heading.
+ */
+function PopoverHeader({
+  title,
+  description,
+  actions,
+  showClose = true,
+  className,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  showClose?: boolean;
+  className?: string;
+}) {
+  return (
+    <div data-overlay-header="true" className={cn("-mx-1 mb-2 flex items-start gap-2 border-b border-border/60 px-1 pb-2", className)}>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="py-1 text-sm font-semibold leading-5">{title}</span>
+        {description ? <span className="text-xs text-muted-foreground">{description}</span> : null}
+      </div>
+      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      {showClose ? (
+        <ChromeControls>
+          <PopoverPrimitive.Close className={cn(CHROME_CLOSE, "h-6 w-6")} title="Close">
+            <ChromeCloseIcon />
+          </PopoverPrimitive.Close>
+        </ChromeControls>
+      ) : null}
+    </div>
+  );
+}
+
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverClose, PopoverContent, PopoverHeader };

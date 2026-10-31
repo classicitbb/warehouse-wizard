@@ -356,6 +356,13 @@ export async function validateMoveDestination(
   if (!location) {
     return { valid: false, reason: `Location "${locationKey}" does not exist`, warnings };
   }
+  if (location.status === "pick_face") {
+    return {
+      valid: false,
+      reason: `Location ${locationCode.toUpperCase()} is a pick face — only a Replenishment task can fill it`,
+      warnings,
+    };
+  }
   if (location.status !== "active") {
     return {
       valid: false,
@@ -576,6 +583,16 @@ export async function completeMoveTask(taskId: string, scannedPalletBarcode: str
 
   const toLocation = await resolveMoveLocation(scannedLocationCode);
   if (!toLocation) throw new Error(`Location not found: ${scannedLocationCode}`);
+  // Only a replenishment fills a pick face, and only the face it was sent to.
+  if (toLocation.status === "pick_face" || String(task.reason ?? "").startsWith("Replenishment ")) {
+    const { data: replen } = await db("replenishment_tasks").select("id, to_location_id").eq("move_task_id", taskId).maybeSingle();
+    if (toLocation.status === "pick_face" && !replen) {
+      throw new Error(`Location ${scannedLocationCode.toUpperCase()} is a pick face — only a Replenishment task can fill it.`);
+    }
+    if (replen?.to_location_id && replen.to_location_id !== toLocation.id) {
+      throw new Error("Wrong bin. Scan the pick face this replenishment is for.");
+    }
+  }
   await assertNotFrozen(pallet.current_location_id, { palletId: pallet.id });
   await assertNotFrozen(toLocation.id, { palletId: pallet.id });
   const warehouseId = getMoveWarehouseId(pallet, toLocation, task.warehouse_id);

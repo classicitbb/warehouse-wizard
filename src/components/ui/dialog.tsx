@@ -1,12 +1,18 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { LifeBuoy, X } from "lucide-react";
 
-import { requestCopilotReport } from "@/features/copilot/report-request";
-import { activeReportContext } from "@/features/copilot/report-context";
 import { cn } from "@/lib/utils";
-
-
+import {
+  CHROME_BUTTON,
+  CHROME_CLOSE,
+  ChromeCloseIcon,
+  ChromeControls,
+  ChromeHelpIcon,
+  OVERLAY_TITLE,
+  OverlayChrome,
+  OverlayHeader,
+  reportOverlayProblem,
+} from "@/components/ui/overlay-chrome";
 const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -48,24 +54,7 @@ const DialogContent = React.forwardRef<
     [ref],
   );
 
-  function reportProblem() {
-    const title = contentRef.current?.querySelector("h2")?.textContent?.trim();
-    const route = typeof window === "undefined" ? "" : window.location.pathname;
-    // The dialog closes on its way to the copilot, so what was on screen —
-    // selected product, typed quantities, the session behind them — is read
-    // here, while it is still true.
-    const context = activeReportContext();
-    const screen = title || context?.screen;
-    requestCopilotReport({
-      message: screen
-        ? `I have a problem with the "${screen}" screen. Here is what happened: `
-        : "I have a problem with the screen I was on. Here is what happened: ",
-      route: route || undefined,
-      context: context
-        ? { ...context, screen: screen ?? context.screen, route: context.route ?? route ?? undefined }
-        : null,
-    });
-  }
+  const reportProblem = () => reportOverlayProblem(contentRef.current);
 
   return (
     <DialogPortal>
@@ -82,29 +71,25 @@ const DialogContent = React.forwardRef<
         )}
         {...props}
       >
-        <div
-          className="pointer-events-none fixed right-0 top-0 z-20 h-0"
-          data-dialog-controls="true"
+        {/* The content box is transformed, so "fixed" pins the floating
+            controls to its corner while the body scrolls. */}
+        <OverlayChrome
+          floatingClassName="fixed right-3 top-3"
+          controls={
+            <ChromeControls>
+              {hideReportButton ? null : (
+                <DialogPrimitive.Close onClick={reportProblem} className={CHROME_BUTTON} title="Report a problem or send feedback">
+                  <ChromeHelpIcon />
+                </DialogPrimitive.Close>
+              )}
+              <DialogPrimitive.Close className={CHROME_CLOSE} title="Close">
+                <ChromeCloseIcon />
+              </DialogPrimitive.Close>
+            </ChromeControls>
+          }
         >
-          {hideReportButton ? null : (
-            <DialogPrimitive.Close
-              onClick={reportProblem}
-              className="pointer-events-auto absolute top-0 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
-              style={{ right: "2.75rem" }}
-              title="Report a problem or send feedback"
-              aria-label="Report a problem or send feedback"
-            >
-              <LifeBuoy className="h-4 w-4" />
-            </DialogPrimitive.Close>
-          )}
-          <DialogPrimitive.Close
-            className="pointer-events-auto absolute right-0 top-0 inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground hover:bg-destructive active:bg-destructive/80 focus:outline-none focus-visible:outline-none disabled:pointer-events-none"
-          >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        </div>
-        {children}
+          {children}
+        </OverlayChrome>
       </DialogPrimitive.Content>
     </DialogPortal>
   );
@@ -112,13 +97,12 @@ const DialogContent = React.forwardRef<
 
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+// The title bar: title and description on the left, the help and close
+// buttons on the right (overlay-chrome). It stays pinned while the body scrolls.
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
+  <OverlayHeader
     data-dialog-header="true"
-    className={cn(
-      "sticky top-0 z-10 shrink-0 bg-background pb-2 flex flex-col space-y-1.5 text-center sm:text-left",
-      className,
-    )}
+    className={cn("sticky top-0 z-10 shrink-0 border-b border-border/60 bg-background pb-3", className)}
     {...props}
   />
 );
@@ -142,7 +126,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+    className={cn(OVERLAY_TITLE, className)}
     {...props}
   />
 ));

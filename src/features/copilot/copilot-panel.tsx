@@ -549,6 +549,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       </SheetTrigger>
       <SheetContent
         side="right"
+        hideReportButton
         className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md"
         {...{ [SCREENSHOT_IGNORE_ATTR]: "" }}
       >

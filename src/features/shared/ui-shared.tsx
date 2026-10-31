@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { type UseFormReturn } from "react-hook-form";
 import {
   Activity,
+  ArrowDownToLine,
   ArrowLeftRight,
   BarChart3,
   Bot,
@@ -113,6 +114,7 @@ export const navIcons: Record<AppRoute, typeof LayoutDashboard> = {
   "/pick-lists/:pickListId": ClipboardList,
   "/transfers": Truck,
   "/location-moves": ArrowLeftRight,
+  "/replenishment": ArrowDownToLine,
   "/cycle-counts": ClipboardCheck,
   "/status": ShieldCheck,
   "/reports": BarChart3,
