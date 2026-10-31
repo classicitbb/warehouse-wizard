@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -2219,94 +2219,6 @@ export type Database = {
           },
         ]
       }
-      order_lines: {
-        Row: {
-          allocated_quantity: number
-          committed_quantity: number
-          created_at: string
-          created_by: string | null
-          external_line_id: string | null
-          external_line_key: string | null
-          fulfilled_quantity: number
-          id: string
-          inventory_lot_id: string | null
-          is_closed: boolean
-          line_number: number | null
-          notes: string | null
-          ns_unit_id: string | null
-          order_id: string
-          picked_quantity: number
-          product_id: string
-          quantity: number
-          unit_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          allocated_quantity?: number
-          committed_quantity?: number
-          created_at?: string
-          created_by?: string | null
-          external_line_id?: string | null
-          external_line_key?: string | null
-          fulfilled_quantity?: number
-          id?: string
-          inventory_lot_id?: string | null
-          is_closed?: boolean
-          line_number?: number | null
-          notes?: string | null
-          ns_unit_id?: string | null
-          order_id: string
-          picked_quantity?: number
-          product_id: string
-          quantity?: number
-          unit_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          allocated_quantity?: number
-          committed_quantity?: number
-          created_at?: string
-          created_by?: string | null
-          external_line_id?: string | null
-          external_line_key?: string | null
-          fulfilled_quantity?: number
-          id?: string
-          inventory_lot_id?: string | null
-          is_closed?: boolean
-          line_number?: number | null
-          notes?: string | null
-          ns_unit_id?: string | null
-          order_id?: string
-          picked_quantity?: number
-          product_id?: string
-          quantity?: number
-          unit_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "order_lines_inventory_lot_id_fkey"
-            columns: ["inventory_lot_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_lots"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_lines_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_lines_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       order_fulfillment_lines: {
         Row: {
           created_at: string
@@ -2435,10 +2347,119 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_fulfillments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "order_fulfillments_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_lines: {
+        Row: {
+          allocated_quantity: number
+          committed_quantity: number
+          created_at: string
+          created_by: string | null
+          external_line_id: string | null
+          external_line_key: string | null
+          fulfilled_quantity: number
+          id: string
+          inventory_lot_id: string | null
+          is_closed: boolean
+          line_number: number | null
+          notes: string | null
+          ns_unit_id: string | null
+          order_id: string
+          picked_quantity: number
+          product_id: string
+          quantity: number
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          allocated_quantity?: number
+          committed_quantity?: number
+          created_at?: string
+          created_by?: string | null
+          external_line_id?: string | null
+          external_line_key?: string | null
+          fulfilled_quantity?: number
+          id?: string
+          inventory_lot_id?: string | null
+          is_closed?: boolean
+          line_number?: number | null
+          notes?: string | null
+          ns_unit_id?: string | null
+          order_id: string
+          picked_quantity?: number
+          product_id: string
+          quantity?: number
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allocated_quantity?: number
+          committed_quantity?: number
+          created_at?: string
+          created_by?: string | null
+          external_line_id?: string | null
+          external_line_key?: string | null
+          fulfilled_quantity?: number
+          id?: string
+          inventory_lot_id?: string | null
+          is_closed?: boolean
+          line_number?: number | null
+          notes?: string | null
+          ns_unit_id?: string | null
+          order_id?: string
+          picked_quantity?: number
+          product_id?: string
+          quantity?: number
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_inventory_lot_id_fkey"
+            columns: ["inventory_lot_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "uom_units"
             referencedColumns: ["id"]
           },
         ]
@@ -2468,8 +2489,8 @@ export type Database = {
           priority: number
           requested_ship_date: string | null
           ship_complete: boolean
-          source_modified_at: string | null
           source: string
+          source_modified_at: string | null
           status: Database["public"]["Enums"]["task_status"]
           trip_number: string | null
           truck_external_id: string | null
@@ -2502,8 +2523,8 @@ export type Database = {
           priority?: number
           requested_ship_date?: string | null
           ship_complete?: boolean
-          source_modified_at?: string | null
           source?: string
+          source_modified_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           trip_number?: string | null
           truck_external_id?: string | null
@@ -2536,8 +2557,8 @@ export type Database = {
           priority?: number
           requested_ship_date?: string | null
           ship_complete?: boolean
-          source_modified_at?: string | null
           source?: string
+          source_modified_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           trip_number?: string | null
           truck_external_id?: string | null
@@ -2552,6 +2573,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_destination_warehouse_id_fkey"
+            columns: ["destination_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
           {
@@ -2855,6 +2890,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_lists_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
             referencedColumns: ["id"]
           },
           {
@@ -5464,7 +5506,29 @@ export type Database = {
           warehouse_id: string | null
           warehouse_name: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_destination_warehouse_id_fkey"
+            columns: ["destination_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -5669,6 +5733,10 @@ export type Database = {
       }
       has_any_role: {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
+        Returns: boolean
+      }
+      has_feature_permission: {
+        Args: { _feature_code: string; _mode?: string; _user_id: string }
         Returns: boolean
       }
       has_min_role: {
