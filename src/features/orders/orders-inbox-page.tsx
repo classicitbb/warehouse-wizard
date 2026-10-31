@@ -3,15 +3,23 @@
 // picker) and what blocks each order from the floor. Read-only; rows arrive
 // through the netsuite-orders edge function. The office still plans trips on
 // the NetSuite Fulfill Orders page (O1).
+//
+// Layout follows Inventory Search: fixed page height, a compact filter card,
+// and a table card whose header stays put while only the rows scroll.
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Loader2, ScanLine } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
+import { normalizeScannerText } from "@/lib/scan-input";
 import { formatDate, formatDateTime, formatNumber } from "@/features/shared/core-types";
+import { TableFrame } from "@/features/shared/resource-forms";
+import { BarcodeScanButton } from "@/components/barcode-scan-button";
+import { HintButton } from "@/components/hint-button";
+import { RecordCount } from "@/components/record-count";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -30,34 +38,65 @@ import { OrderDetailSheet } from "./order-detail-sheet";
 import { OrdersSyncButton } from "./orders-sync-button";
 
 const PAGE_SIZE = 100;
+const COLUMN_COUNT = 11;
 const SYNC_ROLES = ["admin", "developer", "warehouse_manager", "warehouse_supervisor"];
+const KINDS: { value: OrderKindFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "sales", label: "Sales" },
+  { value: "transfer", label: "Transfer" },
+];
 const VIEWS: { value: OrderViewFilter; label: string }[] = [
   { value: "open", label: "All open" },
   { value: "unplanned", label: "Not planned" },
   { value: "planned", label: "Planned" },
   { value: "blocked", label: "Blocked" },
-  { value: "printed", label: "Printed, no fulfillment" },
+  { value: "printed", label: "Printed, no IF" },
 ];
+const FLAG_CLASS = "px-1.5 py-0 text-[11px] font-medium";
 
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <Button type="button" size="sm" variant={active ? "default" : "outline"} className="h-8 rounded-full" onClick={onClick} aria-pressed={active}>
+    <Button type="button" size="sm" className="h-7 px-2 text-xs" variant={active ? "default" : "outline"} onClick={onClick} aria-pressed={active}>
       {children}
     </Button>
   );
 }
 
-function PlanCell({ row }: { row: InboxRow }) {
+function OrderRow({ row, onOpen }: { row: InboxRow; onOpen: () => void }) {
+  const reasons = blockReasons(row);
+  const pct = committedPercent(row);
   const plan = orderPlan(row);
-  if (!plan.source) return <span className="text-muted-foreground">Not planned</span>;
+  // A plan that is only on the SO (no fulfillment yet) is shown muted.
+  const planClass = plan.source === "order" ? "text-muted-foreground" : undefined;
+  const planTitle = plan.source === "order" ? "On the order only. The office has not made a fulfillment yet." : undefined;
   return (
-    <div className="text-sm">
-      <div>{plan.truck ?? "No truck"}{plan.trip ? ` · Trip ${plan.trip}` : ""}</div>
-      <div className="text-xs text-muted-foreground">
-        {plan.source === "fulfillment" ? `${row.latest_fulfillment_number} · Picked` : "On the order only"}
-        {plan.picker ? ` · ${plan.picker}` : ""}
-      </div>
-    </div>
+    <TableRow className="cursor-pointer even:bg-muted/30 hover:bg-muted/50" onClick={onOpen}>
+      <TableCell className="font-mono font-medium">{row.order_number}</TableCell>
+      <TableCell>{row.order_type === "transfer" ? "Transfer" : "Sales"}</TableCell>
+      <TableCell className="max-w-[18rem] truncate" title={row.order_type === "transfer" ? undefined : row.customer_name ?? undefined}>
+        {row.order_type === "transfer" ? `To ${row.destination_location_name ?? "?"}` : row.customer_name ?? "Unknown customer"}
+      </TableCell>
+      <TableCell>{row.delivery_zone ?? "—"}</TableCell>
+      <TableCell>{formatDate(row.requested_ship_date)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatNumber(row.line_count)}</TableCell>
+      <TableCell className={cn("text-right tabular-nums", pct < 100 && "text-amber-700 dark:text-amber-400")}>{pct}%</TableCell>
+      <TableCell className={planClass} title={planTitle}>{plan.truck ?? "—"}</TableCell>
+      <TableCell className={planClass} title={planTitle}>{plan.trip ?? "—"}</TableCell>
+      <TableCell className={planClass} title={planTitle}>{plan.picker ?? "—"}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          {plan.source === "fulfillment" && (
+            <Badge variant="default" className={FLAG_CLASS}>{row.latest_fulfillment_number} Picked</Badge>
+          )}
+          {reasons.map((r) => (
+            <Badge key={r.code} variant={r.tone === "block" ? "destructive" : "outline"} className={FLAG_CLASS}>{r.label}</Badge>
+          ))}
+          {row.credit_review_required && !row.on_credit_hold && (
+            <Badge variant="outline" className={cn(FLAG_CLASS, "border-amber-500 text-amber-700 dark:text-amber-400")}>Credit review</Badge>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -86,150 +125,148 @@ export function OrdersInboxPage() {
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const lastRun = pollState?.find((p) => p.key === "orders")?.last_run_at ?? null;
+  const hasFilters = search !== "" || kind !== "all" || view !== "open";
 
   const resetAnd = (fn: () => void) => {
     fn();
     setLimit(PAGE_SIZE);
   };
+  const runSearch = (value: string) => resetAnd(() => setSearch(value.trim()));
+  const clearFilters = () =>
+    resetAnd(() => {
+      setSearchInput("");
+      setSearch("");
+      setKind("all");
+      setView("open");
+    });
 
   if (!netsuiteActive) {
     return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-2xl font-semibold">Orders</h2>
-          <p className="text-sm text-muted-foreground">Orders come from NetSuite. Set up the NetSuite connection in Settings &gt; Integrations to use this page.</p>
-        </div>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl font-semibold">Orders</h2>
+        <p className="text-sm text-muted-foreground">Orders come from NetSuite. Set up the NetSuite connection in Settings &gt; Integrations to use this page.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2">
           <h2 className="text-2xl font-semibold">Orders</h2>
-          <p className="text-sm text-muted-foreground">
-            Open sales and transfer orders from NetSuite. The office plans trucks and trips on the Fulfill Orders page.
-            {lastRun ? ` Last sync ${formatDateTime(lastRun)}.` : " Not synced yet."}
-          </p>
+          <HintButton label="Orders hints">
+            Open sales and transfer orders from NetSuite for your warehouse. The office plans trucks, trips and pickers on the
+            NetSuite Fulfill Orders page; a muted truck or trip is on the order only, with no fulfillment yet. Scan the pick-ticket
+            QR to find an order. Click a row for its lines and fulfillments.
+          </HintButton>
         </div>
-        {canSync && <OrdersSyncButton />}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{lastRun ? `Synced ${formatDateTime(lastRun)}` : "Not synced yet"}</span>
+          {canSync && <OrdersSyncButton />}
+        </div>
       </div>
 
       <Card>
-        <CardHeader className="gap-3">
-          <CardTitle className="text-base">Order inbox</CardTitle>
-          <CardDescription>
-            {isLoading ? "Loading…" : `${formatNumber(rows.length)} of ${formatNumber(total)} orders shown`}
-          </CardDescription>
+        <CardContent className="flex flex-col gap-2 p-3">
           <form
-            className="flex gap-2"
+            className="flex items-center gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              resetAnd(() => setSearch(searchInput.trim()));
+              runSearch(searchInput);
             }}
           >
-            <div className="relative flex-1">
-              <ScanLine className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="relative min-w-0 flex-1">
+              <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Order number, customer, or scan the pick-ticket QR"
-                className="pl-8"
+                className="h-11 min-w-0 pl-10 pr-20 sm:pr-48"
                 aria-label="Search orders"
               />
+              <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                <RecordCount className="hidden sm:inline" isLoading={isLoading} isFiltering={search !== ""} visible={rows.length} total={total} />
+                <Button type="button" className="h-8 px-2 text-xs" variant="ghost" onClick={clearFilters} disabled={!hasFilters}>
+                  Clear
+                </Button>
+              </div>
             </div>
-            <Button type="submit" variant="secondary">Search</Button>
+            <BarcodeScanButton
+              className="h-11 w-20 sm:w-24"
+              title="Scan the pick-ticket QR or an order number"
+              onScan={(value) => {
+                const scanned = normalizeScannerText(value);
+                setSearchInput(scanned);
+                runSearch(scanned);
+              }}
+            />
           </form>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Type</span>
-            <Chip active={kind === "all"} onClick={() => resetAnd(() => setKind("all"))}>All</Chip>
-            <Chip active={kind === "sales"} onClick={() => resetAnd(() => setKind("sales"))}>Sales</Chip>
-            <Chip active={kind === "transfer"} onClick={() => resetAnd(() => setKind("transfer"))}>Transfer</Chip>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Show</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</span>
+            {KINDS.map((k) => (
+              <FilterButton key={k.value} active={kind === k.value} onClick={() => resetAnd(() => setKind(k.value))}>{k.label}</FilterButton>
+            ))}
+            <span className="ml-3 mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Show</span>
             {VIEWS.map((v) => (
-              <Chip key={v.value} active={view === v.value} onClick={() => resetAnd(() => setView(v.value))}>{v.label}</Chip>
+              <FilterButton key={v.value} active={view === v.value} onClick={() => resetAnd(() => setView(v.value))}>{v.label}</FilterButton>
             ))}
           </div>
-        </CardHeader>
-        <CardContent>
-          {error ? (
-            <p className="text-sm text-destructive">Could not load orders: {error instanceof Error ? error.message : String(error)}</p>
-          ) : !isLoading && rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {total === 0 && !search && kind === "all" && view === "open"
-                ? "No open orders yet. A manager can sync them from NetSuite."
-                : "No orders match these filters."}
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
+        </CardContent>
+      </Card>
+
+      <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <CardContent className="flex min-h-0 min-w-0 flex-1 p-0">
+          <TableFrame className="h-full min-w-0 flex-1">
+            <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
+              <TableHeader className="sticky top-0 z-20 bg-card shadow-sm">
+                <TableRow>
+                  <TableHead>Order</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Ship to</TableHead>
+                  <TableHead>Zone</TableHead>
+                  <TableHead>Ship date</TableHead>
+                  <TableHead className="text-right">Lines</TableHead>
+                  <TableHead className="text-right">Committed</TableHead>
+                  <TableHead>Truck</TableHead>
+                  <TableHead>Trip</TableHead>
+                  <TableHead>Picker</TableHead>
+                  <TableHead>Flags</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {error ? (
                   <TableRow>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Ship to</TableHead>
-                    <TableHead className="hidden md:table-cell">Ship date</TableHead>
-                    <TableHead className="hidden md:table-cell">Committed</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Flags</TableHead>
+                    <TableCell className="h-24 text-center text-destructive" colSpan={COLUMN_COUNT}>
+                      Could not load orders: {error instanceof Error ? error.message : String(error)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => {
-                    const reasons = blockReasons(row);
-                    const pct = committedPercent(row);
-                    return (
-                      <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelected(row)}>
-                        <TableCell>
-                          <div className="font-mono">{row.order_number}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {row.order_type === "transfer" ? "Transfer" : "Sales"} · {formatNumber(row.line_count)} line{row.line_count === 1 ? "" : "s"}
-                            {row.fulfillment_count > 1 ? ` · ${row.fulfillment_count} fulfillments` : ""}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {row.order_type === "transfer" ? (
-                            <span className="font-medium">To {row.destination_location_name ?? "unknown location"}</span>
-                          ) : (
-                            <div>
-                              <div className="font-medium">{row.customer_name ?? "Unknown customer"}</div>
-                              {row.delivery_zone && <Badge variant="secondary" className="mt-1">{row.delivery_zone}</Badge>}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden whitespace-nowrap md:table-cell">{formatDate(row.requested_ship_date)}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className={cn(pct < 100 && "text-amber-700 dark:text-amber-400")}>{pct}%</span>
-                        </TableCell>
-                        <TableCell><PlanCell row={row} /></TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {reasons.map((r) => (
-                              <Badge key={r.code} variant={r.tone === "block" ? "destructive" : "outline"}>{r.label}</Badge>
-                            ))}
-                            {row.credit_review_required && !row.on_credit_hold && (
-                              <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">Credit review</Badge>
-                            )}
-                            {reasons.length === 0 && !row.credit_review_required && <span className="text-muted-foreground">OK</span>}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          {rows.length < total && (
-            <div className="mt-4 flex justify-center">
-              <Button type="button" variant="outline" disabled={isFetching} onClick={() => setLimit((current) => current + PAGE_SIZE)}>
-                {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Load more
-              </Button>
-            </div>
-          )}
+                ) : isLoading ? (
+                  <TableRow>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={COLUMN_COUNT}>Loading…</TableCell>
+                  </TableRow>
+                ) : rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell className="h-24 text-center text-muted-foreground" colSpan={COLUMN_COUNT}>
+                      {hasFilters ? "No orders match these filters." : "No open orders yet. A manager can sync them from NetSuite."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row) => <OrderRow key={row.id} row={row} onOpen={() => setSelected(row)} />)
+                )}
+                {rows.length < total && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={COLUMN_COUNT} className="py-2 text-center">
+                      <Button type="button" size="sm" variant="outline" disabled={isFetching} onClick={() => setLimit((current) => current + PAGE_SIZE)}>
+                        {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Load more
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableFrame>
         </CardContent>
       </Card>
 
