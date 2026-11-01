@@ -2,13 +2,40 @@
 
 ## Desktop header sizing and account control — 2026-10-31
 
-- Status: Complete — source change and production build verified; preview browser visual check not performed.
+- Status: Complete — source change, production build, and local dashboard browser check verified.
 - Objective: match the desktop top bar's annotated 43px height and 21px horizontal inset, remove vertical padding, and make the account control a square, full-height segment integrated with the toolbar.
 - Affected files: `src/features/shared/app-shell.tsx`.
 - Verification: `npm run build` passed (Vite reports existing chunks above 500 kB); `git diff --check` passed.
 - Responsive decision: changes apply only to the existing landscape-desktop header (`lg:landscape:flex`); mobile header retains its own sizing and padding.
 - Environment: source-only change; no services, connectors, data, environment-variable names, deployment, or production writes involved.
-- Exact next action: none for this change. If preview-level confirmation is needed, open `/dashboard` in the Lovable preview at desktop landscape and compare the header height and account segment against the saved annotations.
+- Exact next action: none for this change.
+
+### Responsive dashboard view check — 2026-10-31
+
+- Status: Mobile inspected; tablet viewport check remains pending.
+- Mobile observation: dashboard cards stack in one column, and the mobile header plus bottom navigation render. The reorder-alert prompt overlays part of the Put-Away card list at the current narrow viewport.
+- Tablet check: the in-app browser viewport controls are unavailable in this session, so no tablet-size rendering was verified.
+- Affected files: none; inspection only.
+- Exact next action: set the local dashboard browser viewport to 768 × 1024 and 1024 × 768, then inspect the dashboard header, card layout, and horizontal overflow.
+
+### Tablet header and mobile menu — 2026-10-31
+
+- Status: Source corrected; targeted shell test and production build passed. Tablet browser viewport verification remains unavailable in this session.
+- Cause: the initial tablet breakpoint hid the mobile header, which also removed its hamburger menu. Corrected by keeping the existing mobile header/menu through tablet widths and applying the desktop segmented style and desktop controls from `md` upward; the full landscape desktop toolbar/sidebar still uses `lg:landscape`.
+- Affected files: `src/features/shared/app-shell.tsx`, `src/components/help-sidebar.tsx`.
+- Verification: `npm run test -- --run src/test/app-shell.test.tsx` passed (11 tests), including opening the navigation Sheet from the mobile menu trigger; `npm run build` passed with the existing large-chunk warning; `git diff --check` passed.
+- Environment: source-only UI change; no service, connector, data, deployment, or environment-variable changes.
+- Exact next action: complete build and diff checks; when a viewport controller is available, inspect tablet at 768 × 1024 and 1024 × 768 and confirm the hamburger opens the navigation Sheet.
+
+### Desktop header action segments — 2026-10-31
+
+- Status: Complete — browser measurement confirms all five desktop controls render at 43px with square corners; build and diff checks passed.
+- Objective: extend the account control's square, edge-to-edge 43px segment style to the desktop warehouse dropdown, Copilot, Help, offline status, and notifications.
+- Affected files: `src/features/shared/app-shell.tsx`, `src/features/copilot/copilot-panel.tsx`, `src/components/help-sidebar.tsx`.
+- Responsive decision: desktop-only header triggers receive the new treatment; mobile header, in-panel Copilot controls, and standalone Help triggers keep their existing styles.
+- Environment: source-only UI change; no services, connectors, data, environment-variable names, deployment, or production writes involved.
+- Verification: `npm run build` passed; Vite reports existing chunks above 500 kB. `git diff --check` passed. In the local dashboard at desktop landscape, the header and warehouse, Copilot, Help, notification, and account controls measured 42.99px with 0px border radius.
+- Exact next action: none. The offline badge is conditional on the device being offline, so its rendered state was not present in the browser check.
 
 ## NetSuite putaway/receipt double count — 2026-10-21
 
@@ -276,3 +303,17 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Verification: focused ESLint passes with 0 errors, `npm run typecheck` passes, and `git diff --check` passes.
 - Environment state: local source cleanup only. An unrelated user migration change remains in the worktree and was preserved.
 - Exact next action: repeat the same import cleanup on `src/features/inventory/inventory-page.tsx`, then `src/features/putaway/putaway-page.tsx`.
+
+## Responsive repair follow-up
+- Status: Source updated; browser verification pending.
+- Removed duplicated tablet desktop controls to prevent header crowding; retained the navigation Sheet trigger. Bottom shortcuts now have a 4rem minimum width with horizontal scrolling and safe-area padding; content reserves the matching bottom inset.
+- Files: src/features/shared/app-shell.tsx.
+- Next action: verify /packaging-profiles at phone and tablet widths, including opening navigation and using the bottom shortcuts.
+- Checks: npm run build passed with the existing chunk-size warning; git diff --check passed after whitespace cleanup. Rendered phone/tablet verification remains pending.
+
+## Responsive browser verification — 2026-10-31
+- Verified the rendered local /packaging-profiles page at CSS widths 320, 390, 766, 767, 768, 1023, 1024, and 1280. No document or visible header horizontal overflow observed. Bottom navigation visible below the landscape desktop breakpoint and hidden at 1024/1280 landscape.
+- Hamburger opened the Navigation dialog at 320, 390, 768, and 1023 widths. Phone and tablet bottom Dashboard shortcuts navigated successfully. Returned to /packaging-profiles and reset the temporary viewport override.
+- Tablet portrait header measured approximately 43px; the packaging table retains its own horizontal scrollbar. Browser viewport capability is available; earlier notes claiming otherwise are superseded.
+- Status: Complete — no active handoff for responsive header/navigation verification. No source changes in this verification pass.
+
