@@ -343,7 +343,7 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-full items-center gap-2 self-stretch border-l border-border bg-transparent px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
@@ -1313,7 +1313,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Desktop top bar — landscape only, spans the full viewport width */}
-        <div className="col-span-full hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
+        <div className="col-span-full hidden h-[43px] items-center justify-between gap-3 border-b border-border bg-background/95 px-[21px] py-0 backdrop-blur lg:landscape:flex">
 
             <div className="flex min-w-0 items-center gap-3">
               <Link

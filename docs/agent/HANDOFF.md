@@ -1,5 +1,15 @@
 # Work Handoff
 
+## Desktop header sizing and account control — 2026-10-31
+
+- Status: Complete — source change and production build verified; preview browser visual check not performed.
+- Objective: match the desktop top bar's annotated 43px height and 21px horizontal inset, remove vertical padding, and make the account control a square, full-height segment integrated with the toolbar.
+- Affected files: `src/features/shared/app-shell.tsx`.
+- Verification: `npm run build` passed (Vite reports existing chunks above 500 kB); `git diff --check` passed.
+- Responsive decision: changes apply only to the existing landscape-desktop header (`lg:landscape:flex`); mobile header retains its own sizing and padding.
+- Environment: source-only change; no services, connectors, data, environment-variable names, deployment, or production writes involved.
+- Exact next action: none for this change. If preview-level confirmation is needed, open `/dashboard` in the Lovable preview at desktop landscape and compare the header height and account segment against the saved annotations.
+
 ## NetSuite putaway/receipt double count — 2026-10-21
 
 - Status: Complete. Merged to sandbox `main` (PR #15) and the migration is applied to the Beta Sandbox database; verified 2026-10-21. Not yet promoted to production.
