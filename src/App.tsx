@@ -121,6 +121,7 @@ const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
 const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
 const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
 const UnsubscribePage = lazy(() => import("./pages/Unsubscribe"));
+const LandingPage = lazy(() => import("@/features/landing/landing-page"));
 // Floor-task pages render their own AppShell outside the protected layout.
 const InventoryDetailPage = lazy(() =>
   import("@/features/inventory/inventory-detail-page").then((mod) => ({ default: mod.InventoryDetailPage })),
@@ -1232,6 +1233,7 @@ function ResourceRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/.lovable/oauth/consent" element={<OAuthConsentPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/landing" element={<LandingPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
