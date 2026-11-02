@@ -33,13 +33,6 @@ export const FEATURES = [
   { icon: "◫", title: "Pallet Pak Designer", desc: "Build pack standards per product — cases per pallet, height, and footprint — from a typed code like 12x7." },
 ];
 
-// Placeholder quotes from the design. Replace with real customer quotes before promoting.
-export const TESTIMONIALS = [
-  { quote: "Put-away errors dropped close to zero once pallet and location barcodes had to match before confirming.", name: "Warehouse Manager", initials: "WM", company: "[ placeholder — mid-size 3PL ]" },
-  { quote: "Counts that took a full day now flag only the exceptions. Supervisors review those and move on.", name: "Inventory Supervisor", initials: "IS", company: "[ placeholder — regional distributor ]" },
-  { quote: "Containers come straight from NetSuite onto the dock screen. Nobody re-keys a PO anymore.", name: "Receiving Lead", initials: "RL", company: "[ placeholder — fulfillment network ]" },
-];
-
 export const MOCK_NAV = [
   { icon: "▦", label: "Command Center", active: true },
   { icon: "▤", label: "Receiving" },

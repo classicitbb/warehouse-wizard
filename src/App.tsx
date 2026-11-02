@@ -122,6 +122,8 @@ const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
 const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
 const UnsubscribePage = lazy(() => import("./pages/Unsubscribe"));
 const LandingPage = lazy(() => import("@/features/landing/landing-page"));
+const LandingV2 = lazy(() => import("@/features/landing/landing-v2"));
+const LandingLegal = lazy(() => import("@/features/landing/landing-legal"));
 // Floor-task pages render their own AppShell outside the protected layout.
 const InventoryDetailPage = lazy(() =>
   import("@/features/inventory/inventory-detail-page").then((mod) => ({ default: mod.InventoryDetailPage })),
@@ -812,19 +814,19 @@ function LoginPage() {
           </p>
           <div className="grid grid-cols-2 gap-2 pt-1 xl:gap-3">
             {[
-              ["Pallet tracking", "Real-time location & status"],
-              ["Pick & putaway", "Directed task execution"],
-              ["Cycle counts", "Variance-aware counting"],
-              ["Multi-warehouse", "Unified cross-site control"],
-            ].map(([title, desc]) => (
-              <div key={title} className="rounded-lg bg-primary-foreground/10 p-2 xl:p-3">
-                <p className="text-sm font-medium">{title}</p>
-                <p className="mt-0.5 text-xs text-primary-foreground/60">{desc}</p>
-              </div>
+              ["Pallet tracking", "Real-time location & status", "pallet-tracking"],
+              ["Pick & putaway", "Directed task execution", "pick-putaway"],
+              ["Cycle counts", "Variance-aware counting", "cycle-counts"],
+              ["Multi-warehouse", "Unified cross-site control", "multi-warehouse"],
+            ].map(([title, desc, anchor]) => (
+              <NavLink key={title} to={`/landing-v2#${anchor}`} className="rounded-lg bg-primary-foreground/10 p-2 transition-colors hover:bg-primary-foreground/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-foreground xl:p-3">
+                <p className="text-sm font-medium">{title}<span aria-hidden="true"> ↗</span></p>
+                <p className="mt-0.5 text-xs text-primary-foreground/70">{desc}</p>
+              </NavLink>
             ))}
           </div>
         </div>
-        <p className="text-xs text-primary-foreground/40">Warehouse Wizard Enterprise WMS</p>
+        <NavLink to="/landing-v2" className="w-fit text-xs text-primary-foreground/80 underline underline-offset-4 hover:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-foreground">Explore Warehouse Wizard — visit the landing page →</NavLink>
       </div>
 
       {/* Right login form */}
@@ -1234,6 +1236,8 @@ function ResourceRoutes() {
       <Route path="/.lovable/oauth/consent" element={<OAuthConsentPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/landing" element={<LandingPage />} />
+      <Route path="/landing-v2" element={<LandingV2 />} />
+      <Route path="/legal/:document" element={<LandingLegal />} />
       <Route element={<RequireAuth />}>
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />

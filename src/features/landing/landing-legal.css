@@ -1,0 +1,10 @@
+.ww-legal-main { max-width:860px; padding-block:64px 110px; }
+.ww-legal .ww-legal-status { display:inline-block; color:#775012; background:#fff7e7; border:1px solid #ead6a8; border-radius:6px; padding:8px 12px; font-size:12px; margin-bottom:28px; }
+.ww-legal h1 { font-size:clamp(2.2rem,1.5rem + 2vw,3.5rem); }
+.ww-legal .ww-legal-intro { font-size:18px; margin-top:24px; }
+.ww-legal nav { display:flex; gap:18px; flex-wrap:wrap; margin:32px 0 42px; border-block:1px solid #d6e3db; padding-block:16px; font-size:13px; }
+.ww-legal nav [aria-current=page] { font-weight:600; color:#087968; text-decoration:underline; text-underline-offset:5px; }
+.ww-legal section { margin-top:30px; }
+.ww-legal section h2,.ww-legal aside h2 { font-size:22px; margin-bottom:12px; }
+.ww-legal aside { padding:24px; border:1px solid #ead6a8; background:#fffbf1; border-radius:8px; margin-top:40px; }
+.ww-legal-return { display:flex; gap:22px; flex-wrap:wrap; border-top:1px solid #d6e3db; margin-top:44px; padding-top:24px; font-size:14px; }

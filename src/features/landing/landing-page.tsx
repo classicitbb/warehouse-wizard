@@ -1,11 +1,10 @@
-import { useState, type CSSProperties, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRef, useState, type CSSProperties } from "react";
+import { Link } from "react-router-dom";
+import * as Dialog from "@radix-ui/react-dialog";
+import { DemoModal } from "./demo-request";
 import { RELEASE_HISTORY } from "@/lib/release-history";
 import { useTenantPath } from "@/hooks/use-tenant-path";
-import { FAQS, FEATURES, MOCK_NAV, MOCK_ROWS, SCREENS, TESTIMONIALS, TONES, type MockRow } from "./landing-data";
-
-/** Where "Request a demo" submissions are emailed. Leave empty until a real inbox is chosen. */
-const DEMO_REQUEST_EMAIL = "";
+import { FAQS, FEATURES, MOCK_NAV, MOCK_ROWS, SCREENS, TONES, type MockRow } from "./landing-data";
 
 const VERSION = String(__APP_VERSION__);
 
@@ -29,9 +28,38 @@ const MONO = "font-family:'IBM Plex Mono',monospace;";
 const EYEBROW = `${MONO} font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:hsl(174 62% 55%); margin-bottom:10px;`;
 const H2 = "margin:0; font-size:34px; font-weight:700; letter-spacing:-0.01em;";
 const CARD = "background:hsl(215 25% 12%); border:1px solid hsl(215 18% 32%); border-radius:12px; padding:24px; display:flex; flex-direction:column; gap:12px;";
-const MUTED = "hsl(215 12% 62%)";
+const MUTED = "hsl(215 12% 70%)";
 
 const CSS = `
+.lw { color-scheme:dark; }
+.lw a, .lw button { touch-action:manipulation; }
+.lw a[class*="h-bd"] { display:inline-flex; align-items:center; justify-content:center; }
+.lw :focus-visible, .lw-demo :focus-visible { outline:2px solid hsl(174 62% 55%); outline-offset:4px; }
+.lw-skip { position:fixed; top:8px; left:16px; z-index:90; transform:translateY(-160%); background:hsl(215 25% 12%); padding:12px; }
+.lw-skip:focus { transform:translateY(0); }
+.lw-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; padding:24px 0 0; list-style:none; counter-reset:workflow; }
+.lw-steps li { counter-increment:workflow; border-top:2px solid hsl(174 62% 47%); padding-top:20px; }
+.lw-steps li::before { content:"0" counter(workflow); color:hsl(174 62% 55%); font-family:'IBM Plex Mono',monospace; }
+.lw-steps h3 { font-size:20px; margin:12px 0 8px; }
+.lw-steps p { color:hsl(215 12% 62%); line-height:1.6; margin:0; }
+@media(max-width:1000px) {
+ .lw-hero { flex-direction:column; align-items:stretch !important; gap:36px !important; }
+ .lw main [id], .lw #landing-main { scroll-margin-top:150px; }
+}
+@media(max-width:760px) {
+ .lw main [id], .lw #landing-main { scroll-margin-top:150px; }
+ .lw > div:first-of-type { padding:12px 20px !important; gap:12px !important; }
+ .lw nav { order:3; width:100%; justify-content:space-between; gap:12px !important; }
+ .lw-hero { padding:44px 20px 48px !important; gap:32px !important; flex-direction:column; align-items:stretch !important; }
+ .lw section, .lw footer { padding-left:20px !important; padding-right:20px !important; }
+ .lw #whats-new > div { padding:48px 20px !important; }
+ .lw-steps { grid-template-columns:1fr; gap:24px; }
+ .lw h2 { font-size:28px !important; }
+ .lw-mock-sidebar { display:none !important; }
+ .lw-hero > div > a { white-space:normal !important; }
+ .lw-preview { width:100%; }
+}
+
 .lw, .lw * { box-sizing: border-box; }
 .lw a { color: hsl(174 62% 47%); text-decoration: none; }
 .lw a:hover { color: hsl(174 62% 60%); }
@@ -47,76 +75,26 @@ const CSS = `
 
 function Badge({ tone, children }: { tone: MockRow["tone"]; children: string }) {
   const [bg, fg] = TONES[tone];
-  return <span style={{ ...sx("border-radius:9999px; padding:2px 8px; font-size:9px; font-weight:600; white-space:nowrap; flex-shrink:0;"), background: bg, color: fg }}>{children}</span>;
+  return <span style={{ ...sx("border-radius:9999px; padding:2px 8px; font-size:11px; font-weight:600; white-space:nowrap; flex-shrink:0;"), background: bg, color: fg }}>{children}</span>;
 }
 
 function formatDate(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[m - 1] ?? ""} ${d}, ${y}`;
-}
-
-function DemoModal({ onClose }: { onClose: () => void }) {
-  const [state, setState] = useState<"form" | "sent" | "unavailable">("form");
-
-  const submit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!DEMO_REQUEST_EMAIL) {
-      setState("unavailable");
-      return;
-    }
-    const f = new FormData(e.currentTarget);
-    const body = `Name: ${f.get("name")}\nEmail: ${f.get("email")}\nCompany: ${f.get("company")}`;
-    window.location.href = `mailto:${DEMO_REQUEST_EMAIL}?subject=${encodeURIComponent("Warehouse Wizard demo request")}&body=${encodeURIComponent(body)}`;
-    setState("sent");
-  };
-
-  const label = sx("display:block; font-size:12px; font-weight:500; color:hsl(215 12% 66%); margin-bottom:6px;");
-  const input = sx("width:100%; height:40px; padding:0 12px; border-radius:6px; background:hsl(215 28% 19%); border:1px solid hsl(215 18% 26%); color:hsl(210 20% 90%); font-family:inherit; font-size:14px;");
-
-  return (
-    <div onClick={onClose} style={sx("position:fixed; inset:0; background:rgba(10,14,22,0.66); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;")}>
-      <div role="dialog" aria-modal="true" aria-label="Request a demo" onClick={(e) => e.stopPropagation()} style={sx("width:100%; max-width:420px; background:hsl(215 25% 12%); border:1px solid hsl(215 18% 32%); border-radius:14px; padding:32px; box-shadow:0 30px 70px -25px rgba(0,0,0,0.6); position:relative;")}>
-        <button type="button" aria-label="Close" onClick={onClose} style={sx("position:absolute; top:16px; right:16px; width:28px; height:28px; border-radius:6px; background:none; border:1px solid hsl(215 18% 32%); color:hsl(215 12% 62%); cursor:pointer; font-size:13px;")}>✕</button>
-        {state === "form" || state === "unavailable" ? (
-          <div>
-            <h3 style={sx("margin:0 0 6px; font-size:20px; font-weight:700;")}>Request a demo</h3>
-            <p style={sx(`margin:0 0 24px; font-size:13px; color:${MUTED};`)}>Tell us about your operation and we'll set up time.</p>
-            <form onSubmit={submit} style={sx("display:flex; flex-direction:column; gap:14px;")}>
-              <div><label style={label}>Full name</label><input name="name" type="text" required placeholder="Jordan Rivera" style={input} /></div>
-              <div><label style={label}>Work email</label><input name="email" type="email" required placeholder="you@company.com" style={input} /></div>
-              <div><label style={label}>Company</label><input name="company" type="text" required placeholder="Company name" style={input} /></div>
-              {state === "unavailable" && (
-                <p role="status" style={sx("margin:0; font-size:12px; color:hsl(38 92% 62%);")}>Demo requests aren't connected yet, so nothing was sent.</p>
-              )}
-              <button type="submit" className="h-teal" style={sx("width:100%; height:42px; border-radius:6px; background:hsl(174 62% 47%); color:hsl(215 28% 9%); border:none; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; margin-top:4px;")}>Request demo</button>
-            </form>
-          </div>
-        ) : (
-          <div style={sx("text-align:center; padding:12px 0;")}>
-            <div style={sx("width:44px; height:44px; border-radius:50%; background:hsl(152 60% 45% / 0.16); color:hsl(152 60% 55%); display:flex; align-items:center; justify-content:center; font-size:20px; margin:0 auto 16px;")}>✓</div>
-            <h3 style={sx("margin:0 0 6px; font-size:18px; font-weight:700;")}>Your email app is opening</h3>
-            <p style={sx(`margin:0; font-size:13px; color:${MUTED};`)}>Send the pre-filled message and we'll be in touch.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 }
 
 export function LandingPage() {
-  const navigate = useNavigate();
   const { toPath } = useTenantPath();
   const [demoOpen, setDemoOpen] = useState(false);
+  const demoInvoker = useRef<HTMLButtonElement | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  const openLogin = () => navigate(toPath("/login"));
-  const openDemo = () => setDemoOpen(true);
+  const openDemo = (event: React.MouseEvent<HTMLButtonElement>) => { demoInvoker.current = event.currentTarget; setDemoOpen(true); };
   const releases = RELEASE_HISTORY.slice(0, 3);
 
   return (
-    <div className="lw" style={sx("background:hsl(215 28% 19%); color:hsl(210 20% 90%); font-family:'IBM Plex Sans',sans-serif; min-height:100vh; overflow-x:hidden;")}>
+    <Dialog.Root open={demoOpen} onOpenChange={setDemoOpen}><div id="landing-top" className="lw" style={sx("background:hsl(215 28% 19%); color:hsl(210 20% 90%); font-family:'IBM Plex Sans',sans-serif; min-height:100vh; overflow-x:hidden;")}>
       <style>{CSS}</style>
+      <a className="lw-skip" href="#landing-main">Skip to content</a>
 
       {/* Top bar */}
       <div style={sx("position:sticky; top:0; z-index:40; background:hsl(215 28% 17% / 0.92); backdrop-filter:blur(10px); border-bottom:1px solid hsl(215 18% 32%); padding:12px 40px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;")}>
@@ -130,69 +108,70 @@ export function LandingPage() {
           ))}
         </nav>
         <div style={sx("display:flex; align-items:center; gap:10px;")}>
-          <button type="button" onClick={openLogin} className="h-bd45" style={sx("height:38px; padding:0 16px; white-space:nowrap; border-radius:8px; background:hsl(215 20% 18%); color:hsl(210 20% 90%); border:1px solid hsl(215 18% 32%); font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;")}>Sign in</button>
+          <Link to={toPath("/login")} className="h-bd45" style={sx("height:38px; padding:0 16px; white-space:nowrap; border-radius:8px; background:hsl(215 20% 18%); color:hsl(210 20% 90%); border:1px solid hsl(215 18% 32%); font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;")}>Sign in</Link>
           <button type="button" onClick={openDemo} className="h-teal" style={sx("height:38px; padding:0 18px; white-space:nowrap; border-radius:8px; background:hsl(174 62% 47%); color:hsl(215 28% 9%); border:none; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;")}>Request a demo</button>
         </div>
       </div>
 
+      <main id="landing-main" tabIndex={-1}>
       {/* Hero */}
-      <div style={sx("max-width:1280px; margin:0 auto; padding:88px 40px 80px; display:flex; gap:56px; align-items:center; flex-wrap:wrap;")}>
-        <div style={sx("flex:1; min-width:340px;")}>
-          <a href="#whats-new" style={sx(`display:inline-flex; align-items:center; gap:8px; padding:5px 12px; border-radius:9999px; background:hsl(174 62% 47% / 0.12); border:1px solid hsl(174 62% 47% / 0.35); color:hsl(174 62% 58%); ${MONO} font-size:11px; font-weight:600; letter-spacing:0.04em; white-space:nowrap; margin-bottom:22px;`)}>v1.33 · NetSuite integration now live →</a>
-          <h1 style={sx("margin:0 0 20px; font-size:52px; line-height:1.08; font-weight:700; letter-spacing:-0.02em; text-wrap:pretty;")}>Orders leave the warehouse complete and correct.</h1>
-          <p style={sx(`margin:0 0 32px; font-size:18px; line-height:1.6; color:hsl(215 12% 62%); max-width:500px; text-wrap:pretty;`)}>Scan-first operations, role-gated workflows, and a complete audit trail — from container at the dock door to verified pick, with a Copilot that investigates problems alongside your team.</p>
+      <div className="lw-hero" style={sx("max-width:1280px; margin:0 auto; padding:64px 40px 64px; display:flex; gap:56px; align-items:center; flex-wrap:wrap;")}>
+        <div style={sx("flex:1; min-width:0;")}>
+          <a href="#whats-new" style={sx(`display:inline-flex; align-items:center; gap:8px; padding:5px 12px; border-radius:9999px; background:hsl(174 62% 47% / 0.12); border:1px solid hsl(174 62% 47% / 0.35); color:hsl(174 62% 58%); ${MONO} font-size:11px; font-weight:600; letter-spacing:0.04em; white-space:nowrap; margin-bottom:22px;`)}>v{VERSION} · Explore the latest updates</a>
+          <h1 style={sx("margin:0 0 20px; font-size:clamp(2.25rem, 1.5rem + 2.5vw, 3.25rem); line-height:1.08; font-weight:700; letter-spacing:-0.02em; text-wrap:pretty;")}>Orders leave the warehouse complete and correct.</h1>
+          <p style={sx(`margin:0 0 32px; font-size:18px; line-height:1.6; color:hsl(215 12% 62%); max-width:540px; text-wrap:pretty;`)}>Scan-first operations, role-gated workflows, and a complete audit trail — from container at the dock door to verified pick, with a Copilot that investigates problems alongside your team.</p>
           <div style={sx("display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:24px;")}>
             <button type="button" onClick={openDemo} className="h-teal" style={sx("height:48px; padding:0 28px; border-radius:8px; background:hsl(174 62% 47%); color:hsl(215 28% 9%); border:none; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer;")}>Request a demo</button>
-            <button type="button" onClick={openLogin} className="h-bd48" style={sx("height:48px; padding:0 28px; border-radius:8px; background:transparent; color:hsl(210 20% 90%); border:1px solid hsl(215 18% 32%); font-family:inherit; font-size:15px; font-weight:600; cursor:pointer;")}>Sign in to your workspace</button>
+            <Link to={toPath("/login")} className="h-bd48" style={sx("height:48px; padding:0 28px; border-radius:8px; background:transparent; color:hsl(210 20% 90%); border:1px solid hsl(215 18% 32%); font-family:inherit; font-size:15px; font-weight:600; cursor:pointer;")}>Sign in to your workspace</Link>
           </div>
           <div style={sx(`${MONO} font-size:12px; color:hsl(215 12% 55%); letter-spacing:0.02em; line-height:1.7;`)}>QR + Zebra ZPL labels · ISO 6346 container scan · NetSuite · Microsoft sign-in · PWA on any tablet</div>
         </div>
 
         {/* Command Center mock */}
-        <div aria-hidden="true" style={sx("flex:1; min-width:340px; display:flex; justify-content:center;")}>
-          <div style={sx("width:100%; max-width:580px; border-radius:14px; overflow:hidden; border:1px solid hsl(215 18% 32%); background:hsl(215 25% 12%); box-shadow:0 30px 70px -25px rgba(0,0,0,0.55);")}>
+        <div className="lw-preview" role="img" aria-label="Illustrative Command Center showing pallets, counts, holds and inbound containers. Sample data." style={sx("flex:1; min-width:0; display:flex; justify-content:center;")}>
+          <div style={sx("width:100%; max-width:620px; border-radius:14px; overflow:hidden; border:1px solid hsl(215 18% 32%); background:hsl(215 25% 12%); box-shadow:0 30px 70px -25px rgba(0,0,0,0.55);")}>
             <div style={sx("height:34px; background:hsl(215 20% 18%); border-bottom:1px solid hsl(215 18% 32%); display:flex; align-items:center; gap:6px; padding:0 12px;")}>
               {[0, 1, 2].map((i) => <span key={i} style={sx("width:7px; height:7px; border-radius:50%; background:hsl(215 12% 40%);")} />)}
-              <span style={sx(`margin-left:8px; ${MONO} font-size:10px; color:hsl(215 12% 55%);`)}>acme.warehousewizard.app/dashboard</span>
+              <span style={sx(`margin-left:8px; ${MONO} font-size:12px; color:hsl(215 12% 55%);`)}>Command Center · Sample workspace</span>
             </div>
-            <div style={sx("display:flex; height:360px;")}>
-              <div style={sx("width:140px; flex-shrink:0; background:hsl(217 71% 38%); border-right:1px solid hsl(217 55% 28%); padding:10px; display:flex; flex-direction:column; gap:3px;")}>
+            <div style={sx("display:flex; min-height:360px;")}>
+              <div className="lw-mock-sidebar" style={sx("width:140px; flex-shrink:0; background:hsl(217 71% 38%); border-right:1px solid hsl(217 55% 28%); padding:10px; display:flex; flex-direction:column; gap:3px;")}>
                 <div style={sx("display:flex; align-items:center; gap:6px; padding-bottom:9px; margin-bottom:6px; border-bottom:1px solid hsl(217 55% 28%);")}>
                   <img src="/logo-mark.svg" width={18} height={18} alt="" />
-                  <span style={sx("color:hsl(210 40% 98%); font-weight:700; font-size:10px; white-space:nowrap;")}>WW Wizard</span>
+                  <span style={sx("color:hsl(210 40% 98%); font-weight:700; font-size:12px; white-space:nowrap;")}>WW Wizard</span>
                 </div>
                 {MOCK_NAV.map((n) => (
-                  <div key={n.label} style={{ ...sx("display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:5px; font-size:10px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"), color: n.active ? "hsl(217 71% 30%)" : "hsl(210 40% 98%)", background: n.active ? "hsl(0 0% 100%)" : "transparent" }}>
+                  <div key={n.label} style={{ ...sx("display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"), color: n.active ? "hsl(217 71% 30%)" : "hsl(210 40% 98%)", background: n.active ? "hsl(0 0% 100%)" : "transparent" }}>
                     <span style={sx("width:12px; text-align:center; opacity:0.9;")}>{n.icon}</span>{n.label}
                   </div>
                 ))}
-                <div style={sx(`margin-top:auto; ${MONO} font-size:9px; color:hsl(210 40% 98% / 0.75);`)}>v{VERSION} · ONLINE</div>
+                <div style={sx(`margin-top:auto; ${MONO} font-size:11px; color:hsl(210 40% 98% / 0.75);`)}>v{VERSION} · ONLINE</div>
               </div>
               <div style={sx("flex:1; min-width:0; background:hsl(215 28% 19%); padding:14px; display:flex; flex-direction:column; gap:10px; overflow:hidden;")}>
                 <div style={sx("display:flex; align-items:center; justify-content:space-between; gap:8px;")}>
                   <span style={sx("font-size:13px; font-weight:600;")}>Command Center</span>
                   <div style={sx("display:flex; gap:2px; padding:2px; border-radius:6px; background:hsl(215 25% 12%); border:1px solid hsl(215 18% 32%);")}>
-                    <span style={sx("font-size:9px; font-weight:600; padding:3px 8px; border-radius:4px; background:hsl(174 62% 47%); color:hsl(215 28% 9%);")}>Floor</span>
-                    <span style={sx("font-size:9px; font-weight:500; padding:3px 8px; color:hsl(215 12% 58%);")}>Dock</span>
-                    <span style={sx("font-size:9px; font-weight:500; padding:3px 8px; color:hsl(215 12% 58%);")}>Office</span>
+                    <span style={sx("font-size:11px; font-weight:600; padding:3px 8px; border-radius:4px; background:hsl(174 62% 47%); color:hsl(215 28% 9%);")}>Floor</span>
+                    <span style={sx("font-size:11px; font-weight:500; padding:3px 8px; color:hsl(215 12% 58%);")}>Dock</span>
+                    <span style={sx("font-size:11px; font-weight:500; padding:3px 8px; color:hsl(215 12% 58%);")}>Office</span>
                   </div>
                 </div>
                 <div style={sx("display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;")}>
                   {[["Available pallets", "1,284", ""], ["Open counts", "3", ""], ["On hold", "7", "color:hsl(38 92% 60%);"]].map(([label, value, extra]) => (
                     <div key={label} style={sx("background:hsl(215 25% 12%); border:1px solid hsl(215 18% 32%); border-radius:8px; padding:9px;")}>
-                      <div style={sx(`${MONO} font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:hsl(215 12% 55%);`)}>{label}</div>
+                      <div style={sx(`${MONO} font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:hsl(215 12% 55%);`)}>{label}</div>
                       <div style={sx(`font-size:16px; font-weight:700; margin-top:3px; ${extra}`)}>{value}</div>
                     </div>
                   ))}
                 </div>
                 <div style={sx("background:hsl(215 25% 12%); border:1px solid hsl(215 18% 32%); border-radius:8px; padding:9px 10px;")}>
-                  <div style={sx(`display:flex; justify-content:space-between; font-size:10px; color:${MUTED}; margin-bottom:6px;`)}><span>Storage capacity · pallet space</span><span>82%</span></div>
+                  <div style={sx(`display:flex; justify-content:space-between; font-size:12px; color:${MUTED}; margin-bottom:6px;`)}><span>Storage capacity · pallet space</span><span>82%</span></div>
                   <div style={sx("height:6px; border-radius:9999px; background:hsl(215 20% 18%); overflow:hidden;")}><div style={sx("height:100%; width:82%; background:hsl(174 62% 47%);")} /></div>
                 </div>
                 <div style={sx("border:1px solid hsl(215 18% 32%); border-radius:8px; background:hsl(215 25% 12%); overflow:hidden;")}>
-                  <div style={sx(`padding:6px 10px; border-bottom:1px solid hsl(215 18% 32%); ${MONO} font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:hsl(215 12% 55%);`)}>Inbound · NetSuite containers</div>
+                  <div style={sx(`padding:6px 10px; border-bottom:1px solid hsl(215 18% 32%); ${MONO} font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:hsl(215 12% 55%);`)}>Inbound · NetSuite containers</div>
                   {MOCK_ROWS.map((r) => (
-                    <div key={r.code} style={sx("display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-bottom:1px solid hsl(215 18% 32% / 0.6); font-size:10px;")}>
+                    <div key={r.code} style={sx("display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-bottom:1px solid hsl(215 18% 32% / 0.6); font-size:12px;")}>
                       <span style={sx(`${MONO} color:hsl(215 12% 66%); white-space:nowrap;`)}>{r.code}</span>
                       <span style={sx("font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;")}>{r.desc}</span>
                       <Badge tone={r.tone}>{r.status}</Badge>
@@ -212,7 +191,7 @@ export function LandingPage() {
           <h2 style={sx(`${H2} margin-bottom:12px;`)}>Every floor workflow, one system</h2>
           <p style={sx(`margin:0; font-size:16px; color:${MUTED}; line-height:1.6;`)}>Each step confirms the scan before stock moves — and every block shows a reason and a way out.</p>
         </div>
-        <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px;")}>
+        <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:20px;")}>
           {FEATURES.map((f) => (
             <div key={f.title} style={sx(CARD)}>
               <div style={sx("width:40px; height:40px; border-radius:8px; background:hsl(174 62% 47% / 0.14); color:hsl(174 62% 55%); display:flex; align-items:center; justify-content:center; font-size:18px;")}>{f.icon}</div>
@@ -229,7 +208,7 @@ export function LandingPage() {
           <div style={sx(EYEBROW)}>Product</div>
           <h2 style={sx(H2)}>See it the way your team does</h2>
         </div>
-        <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px;")}>
+        <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:24px;")}>
           {SCREENS.map((s) => (
             <div key={s.label}>
               <div style={sx("border-radius:12px; overflow:hidden; border:1px solid hsl(215 18% 32%); background:hsl(215 25% 12%); box-shadow:0 16px 40px -20px rgba(0,0,0,0.5);")}>
@@ -259,11 +238,11 @@ export function LandingPage() {
           <div style={sx("display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:36px;")}>
             <div>
               <div style={sx(`${EYEBROW} color:hsl(38 92% 58%);`)}>What's new</div>
-              <h2 style={sx(H2)}>Shipping every week</h2>
+              <h2 style={sx(H2)}>Latest product updates</h2>
             </div>
-            <span style={sx(`font-size:14px; color:${MUTED}; max-width:380px; line-height:1.55;`)}>Updates install themselves the moment a device wakes — never mid-scan.</span>
+            <span style={sx(`font-size:14px; color:${MUTED}; max-width:380px; line-height:1.55;`)}>Recent improvements from the Warehouse Wizard release history.</span>
           </div>
-          <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px;")}>
+          <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:20px;")}>
             {releases.map((rel) => (
               <div key={rel.version} style={sx("background:hsl(215 28% 19%); border:1px solid hsl(215 18% 32%); border-radius:12px; padding:22px; display:flex; flex-direction:column; gap:12px;")}>
                 <div style={sx("display:flex; align-items:center; justify-content:space-between;")}>
@@ -279,26 +258,12 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials (placeholder copy from the design) */}
-      <section id="testimonials" style={sx("max-width:1280px; margin:0 auto; padding:80px 40px 40px;")}>
-        <div style={sx("text-align:center; max-width:600px; margin:0 auto 44px;")}>
-          <div style={sx(EYEBROW)}>Trusted on the floor</div>
-          <h2 style={sx(H2)}>What warehouse teams say</h2>
-        </div>
-        <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px;")}>
-          {TESTIMONIALS.map((t) => (
-            <div key={t.initials} style={sx(`${CARD} gap:16px;`)}>
-              <div style={sx("font-size:15px; line-height:1.6;")}>“{t.quote}”</div>
-              <div style={sx("display:flex; align-items:center; gap:10px; margin-top:auto;")}>
-                <div style={sx("width:34px; height:34px; border-radius:50%; background:hsl(174 62% 47% / 0.18); color:hsl(174 62% 55%); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;")}>{t.initials}</div>
-                <div>
-                  <div style={sx("font-size:13px; font-weight:600;")}>{t.name}</div>
-                  <div style={sx(`${MONO} font-size:11px; color:hsl(215 12% 58%);`)}>{t.company}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <section id="workflow" style={sx("max-width:1280px; margin:0 auto; padding:72px 40px 24px;")}>
+        <h2 style={sx(H2)}>From dock door to verified pick</h2>
+        <p style={sx(`color:${MUTED}; line-height:1.6; max-width:620px;`)}>Keep pallet identity with the work as it moves through your warehouse.</p>
+        <ol className="lw-steps">
+          {[['Receive', 'Load inbound lines and scan each pallet into a receiving draft.'], ['Put away', 'Confirm the pallet and destination location before stock becomes available.'], ['Pick', 'Verify the pallet against the pick list and record exceptions for follow-up.']].map(([title, description]) => <li key={title}><h3>{title}</h3><p>{description}</p></li>)}
+        </ol>
       </section>
 
       {/* FAQ */}
@@ -311,11 +276,11 @@ export function LandingPage() {
           const open = openFaq === i;
           return (
             <div key={item.q} style={sx("border-bottom:1px solid hsl(215 18% 32%); padding:18px 0;")}>
-              <button type="button" aria-expanded={open} onClick={() => setOpenFaq(open ? null : i)} style={sx("width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px; background:none; border:none; color:hsl(210 20% 90%); font-family:inherit; font-size:16px; font-weight:600; text-align:left; cursor:pointer; padding:0;")}>
+              <button type="button" aria-expanded={open} aria-controls={`landing-faq-${i}`} id={`landing-question-${i}`} onClick={() => setOpenFaq(open ? null : i)} style={sx("width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px; background:none; border:none; color:hsl(210 20% 90%); font-family:inherit; font-size:16px; font-weight:600; text-align:left; cursor:pointer; padding:0;")}>
                 {item.q}
                 <span style={sx("color:hsl(215 12% 58%); font-size:14px;")}>{open ? "▴" : "▾"}</span>
               </button>
-              {open && <p style={sx(`margin:12px 0 0; font-size:14px; line-height:1.65; color:${MUTED};`)}>{item.a}</p>}
+              {open && <p id={`landing-faq-${i}`} role="region" aria-labelledby={`landing-question-${i}`} style={sx(`margin:12px 0 0; font-size:14px; line-height:1.65; color:${MUTED};`)}>{item.a}</p>}
             </div>
           );
         })}
@@ -323,12 +288,14 @@ export function LandingPage() {
 
       {/* CTA */}
       <div style={sx("background:hsl(174 62% 47%); padding:56px 40px; text-align:center;")}>
-        <h3 style={sx("margin:0 0 10px; font-size:26px; font-weight:700; color:hsl(215 28% 9%);")}>Ready to see it on your floor?</h3>
+        <h2 style={sx("margin:0 0 10px; font-size:26px; font-weight:700; color:hsl(215 28% 9%);")}>Ready to see it on your floor?</h2>
         <p style={sx("margin:0 0 24px; font-size:15px; color:hsl(215 28% 12%);")}>Walk a container from dock door to put-away with your own SKUs in a live session.</p>
         <button type="button" onClick={openDemo} className="h-dark" style={sx("height:46px; padding:0 28px; border-radius:8px; background:hsl(215 28% 9%); color:hsl(210 20% 90%); border:none; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer;")}>Request a demo</button>
       </div>
 
+      </main>
       {/* Footer */}
+      <a href="#landing-top" className="ww-back-top">↑ Back to top</a>
       <footer style={sx("max-width:1280px; margin:0 auto; padding:56px 40px 32px;")}>
         <div style={sx("display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:40px; margin-bottom:40px;")}>
           <div>
@@ -343,24 +310,21 @@ export function LandingPage() {
             {[["#features", "Features"], ["#whats-new", "What's new"], ["#faq", "FAQ"]].map(([href, text]) => <a key={href} href={href} style={sx(`color:${MUTED};`)}>{text}</a>)}
           </div>
           <div style={sx("display:flex; flex-direction:column; gap:10px; font-size:13px;")}>
-            <div style={sx("font-weight:600; margin-bottom:4px;")}>Company</div>
-            <span style={sx(`color:${MUTED};`)}>About [placeholder]</span>
-            <span style={sx(`color:${MUTED};`)}>Contact [placeholder]</span>
-          </div>
-          <div style={sx("display:flex; flex-direction:column; gap:10px; font-size:13px;")}>
-            <div style={sx("font-weight:600; margin-bottom:4px;")}>Legal</div>
-            <span style={sx(`color:${MUTED};`)}>Privacy [placeholder]</span>
-            <span style={sx(`color:${MUTED};`)}>License agreement [placeholder]</span>
+            <div style={sx("font-weight:600; margin-bottom:4px;")}>Get in touch</div>
+            <Link to="/landing-v2">Explore landing V2</Link>
+            <a href="mailto:russell@classicvisions.net">russell@classicvisions.net</a>
+            <Link to={toPath("/login")}>Sign in to your workspace</Link>
           </div>
         </div>
         <div style={sx("border-top:1px solid hsl(215 18% 32%); padding-top:22px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:12px; color:hsl(215 12% 58%);")}>
-          <span>© 2026 Warehouse Wizard Enterprise WMS</span>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}><Link to="/legal/privacy">Privacy policy</Link><Link to="/legal/terms">Terms and conditions</Link><Link to="/legal/licence">End user licence agreement</Link></div>
+          <span>© {new Date().getFullYear()} Warehouse Wizard Enterprise WMS</span>
           <span style={sx(MONO)}>warehousewizard.app · v{VERSION}</span>
         </div>
       </footer>
 
-      {demoOpen && <DemoModal onClose={() => setDemoOpen(false)} />}
-    </div>
+      <DemoModal key={demoOpen ? "open" : "closed"} returnFocus={() => demoInvoker.current?.focus()} />
+    </div></Dialog.Root>
   );
 }
 
