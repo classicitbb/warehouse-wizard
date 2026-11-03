@@ -2324,6 +2324,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_fulfillment_lines_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "trip_board"
+            referencedColumns: ["fulfillment_id"]
+          },
+          {
             foreignKeyName: "order_fulfillment_lines_order_line_id_fkey"
             columns: ["order_line_id"]
             isOneToOne: false
@@ -2963,6 +2970,7 @@ export type Database = {
           consolidated: boolean
           created_at: string
           created_by: string | null
+          fulfillment_id: string | null
           id: string
           notes: string | null
           order_id: string | null
@@ -2977,6 +2985,7 @@ export type Database = {
           consolidated?: boolean
           created_at?: string
           created_by?: string | null
+          fulfillment_id?: string | null
           id?: string
           notes?: string | null
           order_id?: string | null
@@ -2991,6 +3000,7 @@ export type Database = {
           consolidated?: boolean
           created_at?: string
           created_by?: string | null
+          fulfillment_id?: string | null
           id?: string
           notes?: string | null
           order_id?: string | null
@@ -3007,6 +3017,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_lists_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "order_fulfillments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_lists_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "trip_board"
+            referencedColumns: ["fulfillment_id"]
           },
           {
             foreignKeyName: "pick_lists_order_id_fkey"
@@ -3038,6 +3062,7 @@ export type Database = {
           confirmed_quantity: number
           created_at: string
           created_by: string | null
+          fulfillment_line_id: string | null
           id: string
           location_id: string | null
           order_line_id: string | null
@@ -3062,6 +3087,7 @@ export type Database = {
           confirmed_quantity?: number
           created_at?: string
           created_by?: string | null
+          fulfillment_line_id?: string | null
           id?: string
           location_id?: string | null
           order_line_id?: string | null
@@ -3086,6 +3112,7 @@ export type Database = {
           confirmed_quantity?: number
           created_at?: string
           created_by?: string | null
+          fulfillment_line_id?: string | null
           id?: string
           location_id?: string | null
           order_line_id?: string | null
@@ -3105,6 +3132,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pick_tasks_fulfillment_line_id_fkey"
+            columns: ["fulfillment_line_id"]
+            isOneToOne: false
+            referencedRelation: "order_fulfillment_lines"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pick_tasks_location_id_fkey"
             columns: ["location_id"]
@@ -3188,6 +3222,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pick_lists"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_tasks_pick_list_id_fkey"
+            columns: ["pick_list_id"]
+            isOneToOne: false
+            referencedRelation: "trip_board"
+            referencedColumns: ["pick_list_id"]
           },
           {
             foreignKeyName: "pick_tasks_picked_location_id_fkey"
@@ -4653,6 +4694,13 @@ export type Database = {
             referencedRelation: "pick_lists"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "staging_loads_pick_list_id_fkey"
+            columns: ["pick_list_id"]
+            isOneToOne: false
+            referencedRelation: "trip_board"
+            referencedColumns: ["pick_list_id"]
+          },
         ]
       }
       stock_adjustments: {
@@ -5806,6 +5854,61 @@ export type Database = {
           },
         ]
       }
+      trip_board: {
+        Row: {
+          customer_name: string | null
+          delivery_zone: string | null
+          document_number: string | null
+          exception_tasks: number | null
+          external_status: string | null
+          fulfillment_date: string | null
+          fulfillment_id: string | null
+          is_aged: boolean | null
+          line_count: number | null
+          on_credit_hold: boolean | null
+          open_tasks: number | null
+          order_id: string | null
+          order_number: string | null
+          order_type: string | null
+          part_count: number | null
+          part_number: number | null
+          pick_list_id: string | null
+          pick_list_status: Database["public"]["Enums"]["task_status"] | null
+          picked_quantity: number | null
+          picker_name: string | null
+          quantity: number | null
+          short_tasks: number | null
+          trip_number: string | null
+          truck_external_id: string | null
+          truck_name: string | null
+          unmapped_count: number | null
+          warehouse_code: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_fulfillments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _delete_guard_check: { Args: never; Returns: boolean }
@@ -5963,6 +6066,15 @@ export type Database = {
           putaway_task_id: string
           putaway_task_number: string
         }[]
+      }
+      confirm_trip_pick: {
+        Args: {
+          p_location_code: string
+          p_quantity: number
+          p_short?: boolean
+          p_task_id: string
+        }
+        Returns: Json
       }
       create_pick_shortfall_task: {
         Args: { in_quantity: number; in_task_id: string }
@@ -6261,7 +6373,15 @@ export type Database = {
           quantity: number
         }[]
       }
+      start_fulfillment_pick: {
+        Args: { p_fulfillment_id: string }
+        Returns: string
+      }
       start_replenishment_task: { Args: { p_task_id: string }; Returns: Json }
+      trip_pick_source: {
+        Args: { p_product_id: string; p_warehouse_id: string }
+        Returns: string
+      }
       write_system_log: {
         Args: {
           in_details?: Json
