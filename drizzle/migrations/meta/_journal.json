@@ -169,6 +169,13 @@
       "when": 1793677329669,
       "tag": "0023_netsuite_outbound_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793677351805,
+      "tag": "0024_outbound_inbox_performance",
+      "breakpoints": true
     }
   ]
 }
