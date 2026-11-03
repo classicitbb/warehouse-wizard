@@ -15,6 +15,12 @@
       "port": 8091
     },
     {
+      "name": "sandbox-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:/classicitbb/warehousewizard-sandbox", "--", "--port", "8092", "--strictPort"],
+      "port": 8092
+    },
+    {
       "name": "preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview"],
