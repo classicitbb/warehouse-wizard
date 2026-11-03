@@ -389,7 +389,7 @@ export const helpArticles: HelpArticle[] = [
     audience: "All operators",
     keywords: ["landing", "login", "demo", "privacy", "terms", "licence", "ERP", "MCP"],
     sections: [
-      { title: "Product Overview", content: ["Open /landing-v2 for the white product overview, or /landing for the original page. The desktop login branding panel has an Explore Warehouse Wizard link; its four feature tiles lead to expanded product explainers.", "Back to top controls return you to the beginning of the product pages."] },
+      { title: "Product Overview", content: ["Visit warehousewizard.app for the product overview. The desktop login branding panel has an Explore Warehouse Wizard link; its four feature tiles open the matching explainer on warehousewizard.app.", "Back to top controls return you to the beginning of the product pages."] },
       { title: "Demo Requests and Legal Drafts", content: ["Request a demo prepares a message in your email app. Review and send that email to request a session; the form does not send a request automatically.", "The footer links to privacy, terms and end-user licence documents. These are marked as review drafts and are not yet effective agreements."] },
       { title: "Connection Scope", content: ["ERP/accounting API connections require suitable APIs, mapping and testing. MCP-compatible AI clients can use the authenticated read-only warehouse, product and inventory tools within the signed-in user's access."] },
     ],
