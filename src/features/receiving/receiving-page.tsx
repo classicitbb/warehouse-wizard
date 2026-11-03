@@ -9,7 +9,7 @@ import { OFFLINE_WORK_MESSAGE, assertOnline, useNetworkStatus } from "@/hooks/us
 import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { isLikelyNetworkError } from "@/lib/offline-queue";
 import { completedFromBatchError, runBatch } from "@/lib/batch-mutation";
-import { type DraftReceipt, floorOptionsQuery, RECEIVING_OPTION_KEYS, formatDate, listDraftReceipts, saveShipmentDrafts, updateDraftReceipt, completeReceiptFromDraft, deleteDraftReceipt, writeSystemLog } from "@/lib/wms-core";
+import { type DraftReceipt, floorOptionsQuery, RECEIVING_OPTION_KEYS, formatDate, listDraftReceipts, saveShipmentDrafts, updateDraftReceiptSplit, completeReceiptFromDraft, deleteDraftReceipt, writeSystemLog } from "@/lib/wms-core";
 import { ProductSearch } from "@/components/product-search";
 import { PalletLabelPage } from "@/components/pallet-label-page";
 import { BarcodeScanButton, type ScanTelemetryEvent } from "@/components/barcode-scan-button";
@@ -577,7 +577,18 @@ export function ReceivingPage() {
       try {
         if (editingDraft) {
           const line = shipmentForm.lines[0];
-          await updateDraftReceipt(editingDraft.id, {
+          const perPallet = Number(line.quantity_per_pallet);
+          const palletCount = Math.max(1, Math.floor(Number(line.pallet_count) || 1));
+          const leftover = remainderForLine(line);
+          const splitQuantities = palletCount > 1
+            ? [
+                ...Array.from({ length: palletCount }, () => perPallet),
+                ...(leftover > 0 && line.remainder_action === "special" ? [leftover] : []),
+              ]
+            : leftover > 0 && line.remainder_action === "special"
+              ? [perPallet, leftover]
+              : [Number(line.total_quantity)];
+          const { draftIds } = await updateDraftReceiptSplit(editingDraft.id, {
             receipt_type: shipmentForm.receipt_type,
             reference_number: shipmentForm.reference_number || shipmentForm.po_number,
             container_number: shipmentForm.container_number,
@@ -594,8 +605,8 @@ export function ReceivingPage() {
             draft_group_id: editingDraft.draft_group_id ?? undefined,
             draft_sequence: editingDraft.draft_sequence ?? undefined,
             draft_count: editingDraft.draft_count ?? undefined,
-          });
-          return { mode, count: 1, edited: true, draftIds: [editingDraft.id], containerNumber: shipmentForm.container_number };
+          }, splitQuantities);
+          return { mode, count: draftIds.length, edited: true, draftIds, containerNumber: shipmentForm.container_number };
         }
         const result = await saveShipmentDrafts({
           receipt_type: shipmentForm.receipt_type,
@@ -615,7 +626,7 @@ export function ReceivingPage() {
       }
     },
     onSuccess: async (result) => {
-      toast.success(result.edited ? "Draft updated" : `${result.count} pallet draft${result.count === 1 ? "" : "s"} saved`);
+      toast.success(result.edited ? (result.count > 1 ? `Draft updated and split into ${result.count} pallets` : "Draft updated") :`${result.count} pallet draft${result.count === 1 ? "" : "s"} saved`);
       await queryClient.invalidateQueries({ queryKey: ["draft-receipts"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       setEditingDraft(null);
@@ -641,6 +652,13 @@ export function ReceivingPage() {
           reference_number: "",
           lines: [newShipmentLine()],
         }));
+      } else if (result.edited && result.count > 1) {
+        // A split edit made new drafts: select every pallet so both labels print.
+        setShipmentOpen(false);
+        setPrintContainer(result.containerNumber);
+        setSelectedDraftIds(new Set(result.draftIds));
+        setPrintAfterSaveIds(result.draftIds);
+        setPrintOpen(true);
       } else {
         setShipmentOpen(false);
       }

@@ -590,6 +590,103 @@ export async function updateDraftReceipt(draftId: string, values: z.infer<typeof
   }).catch((error) => console.error("[updateDraftReceipt] writeSystemLog failed:", error));
 }
 
+/**
+ * Saves an edited draft whose quantity was split across several pallets. The
+ * edited draft keeps its own number and takes the first quantity; each further
+ * quantity becomes a new draft with a fresh PLT number that inherits the edited
+ * draft's source/provenance, so each confirms into its own pallet + put-away task.
+ */
+export async function updateDraftReceiptSplit(
+  draftId: string,
+  values: z.infer<typeof receivingSchema>,
+  quantities: number[],
+): Promise<{ draftIds: string[] }> {
+  if (!quantities.length || quantities.some((qty) => !(qty > 0))) throw new Error("Every pallet needs a positive quantity.");
+  const { data: before, error: beforeError } = await db("receipts")
+    .select("draft_group_id, draft_sequence, draft_count, notes")
+    .eq("id", draftId)
+    .in("status", ["draft", "queued"])
+    .single();
+  if (beforeError) throw beforeError;
+  const beforeMeta = parseReceiptNotes(before?.notes);
+  const baseCount = Number(before?.draft_count ?? beforeMeta.draft_count ?? 1) || 1;
+  const baseSequence = Number(before?.draft_sequence ?? beforeMeta.draft_sequence ?? 1) || 1;
+  const groupId = values.draft_group_id || before?.draft_group_id || beforeMeta.draft_group_id || buildClientId("shipment");
+  const totalCount = baseCount + quantities.length - 1;
+
+  await updateDraftReceipt(draftId, {
+    ...values,
+    quantity: quantities[0],
+    draft_group_id: groupId,
+    draft_sequence: baseSequence,
+    draft_count: totalCount,
+  });
+  if (quantities.length === 1) return { draftIds: [draftId] };
+
+  const { data: saved, error: savedError } = await db("receipts")
+    .select("receipt_type, reference_number, container_number, po_number, warehouse_id, client_id, notes")
+    .eq("id", draftId)
+    .single();
+  if (savedError) throw savedError;
+  const savedMeta = parseReceiptNotes(saved?.notes);
+  // A reused pallet number belongs to the edited draft only.
+  // and only that draft may keep a linked physical pallet (confirm resolves
+  // returned_pallet_id to that one pallet, so sharing it would merge the split).
+  const { reuse_pallet_barcode: _reuse, returned_pallet_id: _returned, ...inheritedMeta } = savedMeta;
+  const rows = quantities.slice(1).map((quantity, index) => {
+    const receiptNumber = buildPalletCode("RCT");
+    const draftBarcode = buildPalletCode("PLT");
+    const sequence = baseCount + index + 1;
+    return {
+      receipt_number: receiptNumber,
+      receipt_type: saved.receipt_type,
+      reference_number: saved.reference_number,
+      container_number: saved.container_number,
+      po_number: saved.po_number,
+      draft_group_id: groupId,
+      draft_pallet_barcode: draftBarcode,
+      draft_sequence: sequence,
+      draft_count: totalCount,
+      warehouse_id: saved.warehouse_id,
+      client_id: saved.client_id,
+      status: "draft",
+      notes: JSON.stringify({
+        ...inheritedMeta,
+        draft_pallet_barcode: draftBarcode,
+        draft_group_id: groupId,
+        draft_sequence: sequence,
+        draft_count: totalCount,
+        quantity,
+        split_from_draft_id: draftId,
+      }),
+    };
+  });
+  let { data, error } = await db("receipts").insert(rows).select("id");
+  if (error && isMissingReceiptDraftColumn(error)) {
+    ({ data, error } = await db("receipts").insert(rows.map(withoutReceiptDraftColumns)).select("id"));
+  }
+  if (error) {
+    // The edited draft already holds only its share; put the original back so no quantity is lost.
+    await db("receipts").update({
+      notes: before.notes,
+      draft_group_id: before.draft_group_id ?? null,
+      draft_sequence: before.draft_sequence ?? null,
+      draft_count: before.draft_count ?? null,
+    }).eq("id", draftId);
+    throw error;
+  }
+  await writeSystemLog({
+    log_type: "system_change",
+    severity: "info",
+    title: "Receiving draft split into pallets",
+    message: `Draft was split into ${quantities.length} pallets.`,
+    source: "receiving",
+    table_name: "receipts",
+    details: { draftId, quantities, groupId },
+  }).catch((err) => console.error("[updateDraftReceiptSplit] writeSystemLog failed:", err));
+  return { draftIds: [draftId, ...(data ?? []).map((row: any) => row.id)] };
+}
+
 export async function createReturnedPalletDraft({
   palletId,
   warehouseId,

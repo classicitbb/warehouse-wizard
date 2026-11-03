@@ -238,8 +238,8 @@ describe("NetSuite webhook idempotency key", () => {
 
 describe("NetSuite outbound queue and the parked order rows", () => {
   it("claims only job types that have an outbound implementation", () => {
-    expect(NETSUITE_OUTBOUND_JOB_TYPES).toEqual(["inventory_adjustment"]);
-    expect(netSuiteOutboundClaimArgs("connection", 20).p_job_types).toEqual(["inventory_adjustment"]);
+    expect(NETSUITE_OUTBOUND_JOB_TYPES).toEqual(["inventory_adjustment", "receipt_purchase_order"]);
+    expect(netSuiteOutboundClaimArgs("connection", 20).p_job_types).toEqual(["inventory_adjustment", "receipt_purchase_order"]);
     expect(worker).toContain("netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE)");
   });
 

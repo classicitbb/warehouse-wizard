@@ -4,9 +4,10 @@ import {
   netsuiteGetMetadataCatalog,
   netsuiteGetRecord,
   netsuiteRestletGet,
+  netsuiteSuiteQL,
   openNetSuiteSession,
 } from '../_shared/netsuite-client.ts'
-import { DISCOVERY_RECORDS, isDiscoveryRecord, summariseSchema } from '../_shared/netsuite-discovery.ts'
+import { DISCOVERY_RECORDS, isDiscoveryRecord, isReadOnlySuiteQL, summariseSchema } from '../_shared/netsuite-discovery.ts'
 
 // Read-only discovery of the real NetSuite field and sublist ids (J10).
 // Admins and developers only. Never writes to NetSuite: it makes GET calls,
@@ -20,6 +21,9 @@ import { DISCOVERY_RECORDS, isDiscoveryRecord, summariseSchema } from '../_share
 //   { action: 'record', record: string, internalId: string }
 //       -> one record exactly as the REST API returns it (expandSubResources),
 //          to see what a field really looks like rather than what the catalog says
+//   { action: 'suiteql', q: string, limit?: number, offset?: number }
+//       -> rows from one SELECT (or WITH ... SELECT) query, up to 1000 per page.
+//          The SuiteQL endpoint cannot write; the statement is checked anyway
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,7 +71,7 @@ Deno.serve(async (req) => {
     return json({ error: 'Only admins and developers can run NetSuite discovery' }, 403)
   }
 
-  let body: { action?: string; inboundShipmentId?: unknown; records?: unknown; raw?: unknown; record?: unknown; internalId?: unknown }
+  let body: { action?: string; inboundShipmentId?: unknown; records?: unknown; raw?: unknown; record?: unknown; internalId?: unknown; q?: unknown; limit?: unknown; offset?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -119,7 +123,19 @@ Deno.serve(async (req) => {
       return json({ ok: true, record: await netsuiteGetRecord(opened.session, body.record, id) as Record<string, unknown> })
     }
 
-    return json({ error: "action must be 'restlet_get', 'catalog' or 'record'" }, 400)
+    if (body.action === 'suiteql') {
+      const q = String(body.q ?? '').trim()
+      if (!isReadOnlySuiteQL(q)) return json({ error: 'q must be a single SELECT or WITH query' }, 400)
+      const limit = Math.min(Math.max(Math.trunc(Number(body.limit) || 100), 1), 1000)
+      const offset = Math.max(Math.trunc(Number(body.offset) || 0), 0)
+
+      const opened = await openNetSuiteSession(admin)
+      if (!opened.ok) return json({ unavailable: true, reason: opened.reason, message: opened.message })
+      const items = await netsuiteSuiteQL(opened.session, q, limit, offset)
+      return json({ ok: true, count: items.length, items })
+    }
+
+    return json({ error: "action must be 'restlet_get', 'catalog', 'record' or 'suiteql'" }, 400)
   } catch (err) {
     if (err instanceof NetSuiteHttpError) {
       console.error('netsuite-discovery NetSuite error', err.status, err.message)

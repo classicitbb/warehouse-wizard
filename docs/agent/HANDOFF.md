@@ -1,5 +1,64 @@
 # Work Handoff
 
+## White landing V2, legal drafts and login links — 2026-11-02
+
+- Status: Complete — no active handoff for the landing implementation. User authorized pushing to sandbox main on 2026-11-02; legal effectiveness and production promotion remain deferred. Prior operational handoffs below remain separate.
+- Owner direction: white V2 emphasizing inventory uncertainty, ERP/accounting adaptability, stock/warehouse/layout/capacity/movement configuration, guided workflows, cloud access, security and MCP-compatible AI reporting. `/landing-v2` is separate from the original `/landing`; V2 omits release versions and micro-feature grids. Interactive stock/spaces/flow panels illustrate adaptability without pretending to be live warehouse data.
+- Navigation: both landing versions have Back to top controls and real legal-document links. Login's existing desktop footer now says `Explore Warehouse Wizard — visit the landing page`; the four feature tiles link to V2's pallet-tracking, pick/put-away, cycle-count and multi-warehouse explainers. A matching deep link opens the relevant FAQ and scrolls it below the sticky header. No authentication handlers or permissions changed.
+- Legal: owner confirmed Classic Visions, Barbados, and local jurisdiction where software is used. Added substantive privacy, terms and end-user licence review drafts at `/legal/privacy`, `/legal/terms`, `/legal/licence`, each explicitly not yet effective. Final law/forum, mandatory local protections, commercial terms, retention, processing regions and provider/analytics disclosures need review before making these effective. No agreement acceptance flow, compliance certification or fabricated commercial promises added.
+- Affected files: `src/App.tsx`; `src/features/landing/landing-page.tsx`, `demo-request.tsx`, `landing-shared.css`, `landing-v2.tsx`, `landing-v2-data.ts`, `landing-v2.css`, `landing-legal.tsx`, `landing-legal.css`; `src/test/landing-v2.test.tsx`; continuity files. Earlier landing changes are included in the same authorized sandbox release.
+- Verification: final `npm run typecheck` passed; focused ESLint including App and changed landing components passed; `npm run test -- src/test/landing-page.test.tsx src/test/landing-v2.test.tsx` passed 13 tests; `npm run build` passed including service worker, with existing >500kB chunk warnings; `git diff --check` passed. Desktop, 390px mobile, 320px narrow mobile and 768px tablet inspected; no main-content horizontal overflow at 320/390/768px. Browser verified Back to top reaches scrollY 0, tab switching, white demo dialog and Escape/focus return, all three legal routes, and Login → pallet-tracking opens the correct FAQ (scrollY >0). All four deep-link targets are covered by tests. No request email or authentication submission was made.
+- Environment: local sandbox preview at `http://127.0.0.1:8082/landing-v2`. No new dependency, environment variable, external service, connector configuration, schema/data write or deployment. Generated auth/database files untouched. Code inspected to scope MCP claims to signed-in read-only warehouse/product/inventory tools; general ERP/API connections require suitable APIs, mapping and tests.
+- Release: 1.33.1 prepared for the authorized sandbox-main push, with package/lock versions, release history and the public-product-page Help article updated together. Release verification passed typecheck, focused ESLint, the 13 landing tests plus 8 Help-content tests (21 total), the full application/PWA build and diff checks. Legal review/finalization and production promotion still require separate approval.
+- Exact next action: none for the implementation after the authorized sandbox-main push. Review the linked legal drafts before making them effective or promoting to production.
+
+## Sandbox landing page foundation — 2026-11-02
+
+- Status: Complete — no active handoff for the landing-page task. Unrelated handoffs below remain unchanged.
+- Implemented: installed and applied user-level Frontend Design and Web Design Guidelines; improved fluid hero typography, preview readability, phone/tablet layout, visible focus, skip link, semantic sign-in links and FAQ associations. Replaced placeholder endorsements with the receive/put-away/pick sequence; removed nonexistent company/legal destinations and added the approved business contact. Radix demo dialog traps focus, closes on Escape, restores focus to the invoking CTA and prepares a visitor-sent email. No email was sent during verification.
+- Affected files: `src/features/landing/landing-page.tsx`, `src/features/landing/landing-data.ts`, `src/test/landing-page.test.tsx`, `docs/agent/PROJECT_KNOWLEDGE.md`, this handoff.
+- Verification: `npm run test -- src/test/landing-page.test.tsx` passed (3 tests); focused ESLint passed; final `npm run typecheck` passed; `npm run build` passed including PWA/service worker, with existing large-chunk warnings; `git diff --check` passed. Browser inspected desktop, 390px and 320px phones and 768px tablet; no main-content overflow at 320/768px; Escape and actual-CTA focus restoration verified. The first focus test asserted before Radix cleanup; corrected to await restoration. Removed unsupported Testing Library `exact` option found by typecheck.
+- Environment: local preview remains at `http://127.0.0.1:8082/landing`. Initially typecheck failed on absent `@electric-sql/pglite`/`fake-indexeddb` packages and their downstream implicit-any errors. Restored with `npm install --no-save --package-lock=false --ignore-scripts @electric-sql/pglite@0.5.3 fake-indexeddb@6.2.5`; npm also re-resolved local node_modules (212 changed packages), leaving package manifest/lock unchanged. A build overlapping that install transiently failed with `ERR_PACKAGE_PATH_NOT_EXPORTED` for `estree-walker`; the final post-install build passed. No services, credentials, schema, auth or environment-variable names changed.
+- Delivery: local source only; no publishing, deployment, version bump or release entry. This is a foundation for further sandbox work. Public release needs separate approval and the required version/release/help updates. Legal documents and customer endorsements were not fabricated.
+- Exact next action: none for this task. To reopen the local preview, run `npm run dev -- --host 127.0.0.1 --port 8082` from the sandbox checkout if the existing server has stopped.
+
+## Desktop header sizing and account control — 2026-10-31
+
+- Status: Complete — source change, production build, and local dashboard browser check verified.
+- Objective: match the desktop top bar's annotated 43px height and 21px horizontal inset, remove vertical padding, and make the account control a square, full-height segment integrated with the toolbar.
+- Affected files: `src/features/shared/app-shell.tsx`.
+- Verification: `npm run build` passed (Vite reports existing chunks above 500 kB); `git diff --check` passed.
+- Responsive decision: changes apply only to the existing landscape-desktop header (`lg:landscape:flex`); mobile header retains its own sizing and padding.
+- Environment: source-only change; no services, connectors, data, environment-variable names, deployment, or production writes involved.
+- Exact next action: none for this change.
+
+### Responsive dashboard view check — 2026-10-31
+
+- Status: Mobile inspected; tablet viewport check remains pending.
+- Mobile observation: dashboard cards stack in one column, and the mobile header plus bottom navigation render. The reorder-alert prompt overlays part of the Put-Away card list at the current narrow viewport.
+- Tablet check: the in-app browser viewport controls are unavailable in this session, so no tablet-size rendering was verified.
+- Affected files: none; inspection only.
+- Exact next action: set the local dashboard browser viewport to 768 × 1024 and 1024 × 768, then inspect the dashboard header, card layout, and horizontal overflow.
+
+### Tablet header and mobile menu — 2026-10-31
+
+- Status: Source corrected; targeted shell test and production build passed. Tablet browser viewport verification remains unavailable in this session.
+- Cause: the initial tablet breakpoint hid the mobile header, which also removed its hamburger menu. Corrected by keeping the existing mobile header/menu through tablet widths and applying the desktop segmented style and desktop controls from `md` upward; the full landscape desktop toolbar/sidebar still uses `lg:landscape`.
+- Affected files: `src/features/shared/app-shell.tsx`, `src/components/help-sidebar.tsx`.
+- Verification: `npm run test -- --run src/test/app-shell.test.tsx` passed (11 tests), including opening the navigation Sheet from the mobile menu trigger; `npm run build` passed with the existing large-chunk warning; `git diff --check` passed.
+- Environment: source-only UI change; no service, connector, data, deployment, or environment-variable changes.
+- Exact next action: complete build and diff checks; when a viewport controller is available, inspect tablet at 768 × 1024 and 1024 × 768 and confirm the hamburger opens the navigation Sheet.
+
+### Desktop header action segments — 2026-10-31
+
+- Status: Complete — browser measurement confirms all five desktop controls render at 43px with square corners; build and diff checks passed.
+- Objective: extend the account control's square, edge-to-edge 43px segment style to the desktop warehouse dropdown, Copilot, Help, offline status, and notifications.
+- Affected files: `src/features/shared/app-shell.tsx`, `src/features/copilot/copilot-panel.tsx`, `src/components/help-sidebar.tsx`.
+- Responsive decision: desktop-only header triggers receive the new treatment; mobile header, in-panel Copilot controls, and standalone Help triggers keep their existing styles.
+- Environment: source-only UI change; no services, connectors, data, environment-variable names, deployment, or production writes involved.
+- Verification: `npm run build` passed; Vite reports existing chunks above 500 kB. `git diff --check` passed. In the local dashboard at desktop landscape, the header and warehouse, Copilot, Help, notification, and account controls measured 42.99px with 0px border radius.
+- Exact next action: none. The offline badge is conditional on the device being offline, so its rendered state was not present in the browser check.
+
 ## NetSuite putaway/receipt double count — 2026-10-21
 
 - Status: Complete. Merged to sandbox `main` (PR #15) and the migration is applied to the Beta Sandbox database; verified 2026-10-21. Not yet promoted to production.
@@ -266,3 +325,17 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Verification: focused ESLint passes with 0 errors, `npm run typecheck` passes, and `git diff --check` passes.
 - Environment state: local source cleanup only. An unrelated user migration change remains in the worktree and was preserved.
 - Exact next action: repeat the same import cleanup on `src/features/inventory/inventory-page.tsx`, then `src/features/putaway/putaway-page.tsx`.
+
+## Responsive repair follow-up
+- Status: Source updated; browser verification pending.
+- Removed duplicated tablet desktop controls to prevent header crowding; retained the navigation Sheet trigger. Bottom shortcuts now have a 4rem minimum width with horizontal scrolling and safe-area padding; content reserves the matching bottom inset.
+- Files: src/features/shared/app-shell.tsx.
+- Next action: verify /packaging-profiles at phone and tablet widths, including opening navigation and using the bottom shortcuts.
+- Checks: npm run build passed with the existing chunk-size warning; git diff --check passed after whitespace cleanup. Rendered phone/tablet verification remains pending.
+
+## Responsive browser verification — 2026-10-31
+- Verified the rendered local /packaging-profiles page at CSS widths 320, 390, 766, 767, 768, 1023, 1024, and 1280. No document or visible header horizontal overflow observed. Bottom navigation visible below the landscape desktop breakpoint and hidden at 1024/1280 landscape.
+- Hamburger opened the Navigation dialog at 320, 390, 768, and 1023 widths. Phone and tablet bottom Dashboard shortcuts navigated successfully. Returned to /packaging-profiles and reset the temporary viewport override.
+- Tablet portrait header measured approximately 43px; the packaging table retains its own horizontal scrollbar. Browser viewport capability is available; earlier notes claiming otherwise are superseded.
+- Status: Complete — no active handoff for responsive header/navigation verification. No source changes in this verification pass.
+

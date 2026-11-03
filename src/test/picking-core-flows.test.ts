@@ -312,7 +312,7 @@ describe("createPickListFlow", () => {
 });
 
 describe("listPickLists", () => {
-  it("lists newest first and scopes to the warehouse when given", async () => {
+  it("lists newest first, leaves out trip pick lists and scopes to the warehouse when given", async () => {
     supa.queue("pick_lists", { data: [{ id: "a" }] });
 
     await expect(listPickLists(WAREHOUSE)).resolves.toEqual([{ id: "a" }]);
@@ -320,8 +320,9 @@ describe("listPickLists", () => {
     const [ops] = supa.opsFor("pick_lists");
     expect(ops[0][0]).toBe("select");
     expect(String(ops[0][1])).toContain("pick_tasks(");
-    expect(ops[1]).toEqual(["order", "created_at", { ascending: false }]);
-    expect(ops[2]).toEqual(["eq", "warehouse_id", WAREHOUSE]);
+    expect(ops[1]).toEqual(["is", "fulfillment_id", null]);
+    expect(ops[2]).toEqual(["order", "created_at", { ascending: false }]);
+    expect(ops[3]).toEqual(["eq", "warehouse_id", WAREHOUSE]);
   });
 
   it("lists every warehouse when none is given and copes with no rows", async () => {

@@ -29,7 +29,7 @@ function canShowArticle(article: HelpArticle, roles: string[], isEnabled: (key: 
   return true;
 }
 
-export function HelpSidebar({ pathname }: { pathname: string }) {
+export function HelpSidebar({ pathname, toolbar }: { pathname: string; toolbar?: "desktop" | "tablet" }) {
   const [open, setOpen] = useState(false);
   const { toPath } = useTenantPath();
   const help = getRouteHelp(pathname);
@@ -43,7 +43,16 @@ export function HelpSidebar({ pathname }: { pathname: string }) {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline">
+        <Button
+          variant="outline"
+          className={
+            toolbar === "desktop"
+              ? "h-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset"
+              : toolbar === "tablet"
+                ? "h-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset"
+                : undefined
+          }
+        >
           <HelpCircle data-icon="inline-start" />
           Help
         </Button>

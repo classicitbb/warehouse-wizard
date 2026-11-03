@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { type UseFormReturn } from "react-hook-form";
 import {
   Activity,
+  ArrowDownToLine,
   ArrowLeftRight,
   BarChart3,
   Bot,
@@ -25,6 +26,7 @@ import {
   ShieldCheck,
   Tags,
   Truck,
+  Route,
   Users,
   Contact,
 } from "lucide-react";
@@ -102,6 +104,8 @@ export const navIcons: Record<AppRoute, typeof LayoutDashboard> = {
   "/locations": MapPinned,
   "/clients": Users,
   "/customers": Contact,
+  "/orders": ClipboardList,
+  "/trips": Route,
   "/products": Package,
   "/packaging-profiles": Tags,
   "/receiving": Download,
@@ -112,6 +116,7 @@ export const navIcons: Record<AppRoute, typeof LayoutDashboard> = {
   "/pick-lists/:pickListId": ClipboardList,
   "/transfers": Truck,
   "/location-moves": ArrowLeftRight,
+  "/replenishment": ArrowDownToLine,
   "/cycle-counts": ClipboardCheck,
   "/status": ShieldCheck,
   "/reports": BarChart3,

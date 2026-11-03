@@ -107,11 +107,11 @@ describe("NetSuite non-production smoke harness", () => {
     expect(webhook).toMatch(/purchase_order \| sales_order \| transfer_order \| fulfillment \| inventory[\s\S]*leave status='queued'/);
   });
 
-  it("passes only inventory_adjustment to the worker's atomic claim RPC", () => {
+  it("passes only the outbound job types the worker posts to the atomic claim RPC", () => {
     expect(netSuiteOutboundClaimArgs("sandbox-connection", 20)).toEqual({
       p_connection_id: "sandbox-connection",
       p_limit: 20,
-      p_job_types: ["inventory_adjustment"],
+      p_job_types: ["inventory_adjustment", "receipt_purchase_order"],
     });
     expect(worker).toContain("netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE)");
     expect(claimMigration).toContain("and job_type = any(p_job_types)");

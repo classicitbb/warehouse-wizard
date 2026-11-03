@@ -160,6 +160,7 @@ export function OpenWorkTile({ data }: { data: BoardData }) {
     ["putaway", "Put-away", m?.openPutawayTasks ?? 0, "/putaway-tasks"],
     ["pick-lists", "Pick lists", m?.openPickLists ?? 0, "/pick-lists"],
     ["location-moves", "Moves", m?.openMoveTasks ?? 0, "/location-moves"],
+    ["location-moves", "Replenishment", m?.openReplenishmentTasks ?? 0, "/replenishment"],
     ["cycle-counts", "Counts", m?.openCycleCounts ?? 0, "/cycle-counts"],
   ];
   return (

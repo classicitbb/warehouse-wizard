@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { HelpCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverHeader, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +49,7 @@ export function HintButton({
           align="start"
           className={cn("z-50 max-w-xs p-3 text-sm font-normal leading-5", contentClassName)}
         >
+          <PopoverHeader title={label} />
           {children}
         </PopoverContent>
       </Popover>

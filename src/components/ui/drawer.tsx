@@ -2,6 +2,7 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
+import { CHROME_CLOSE, ChromeCloseIcon, ChromeControls, OVERLAY_TITLE, OverlayChrome, OverlayHeader } from "@/components/ui/overlay-chrome";
 
 const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -37,14 +38,25 @@ const DrawerContent = React.forwardRef<
       {...props}
     >
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
+      <OverlayChrome
+        floatingClassName="absolute right-3 top-3"
+        controls={
+          <ChromeControls>
+            <DrawerPrimitive.Close className={CHROME_CLOSE} title="Close">
+              <ChromeCloseIcon />
+            </DrawerPrimitive.Close>
+          </ChromeControls>
+        }
+      >
+        {children}
+      </OverlayChrome>
     </DrawerPrimitive.Content>
   </DrawerPortal>
 ));
 DrawerContent.displayName = "DrawerContent";
 
 const DrawerHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)} {...props} />
+  <OverlayHeader className={cn("border-b border-border/60 p-4 pb-3", className)} {...props} />
 );
 DrawerHeader.displayName = "DrawerHeader";
 
@@ -59,7 +71,7 @@ const DrawerTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+    className={cn(OVERLAY_TITLE, className)}
     {...props}
   />
 ));

@@ -198,6 +198,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 import { TableFrame } from "@/features/shared/resource-forms";
 
+// Same cell density as the Products table; System Log and Email Log follow the
+// Products page layout like the other Setup pages.
+const LOG_CELL = "px-4 py-1 text-xs leading-tight";
+
 export function SystemLogPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -231,6 +235,16 @@ export function SystemLogPage() {
   });
   const visibleLogs = (logs as any[]).slice(0, paging.limit);
   const visibleArchivedLogs = (archivedLogs as any[]).slice(0, paging.limit);
+  // Client-side search over the loaded entries, like the Products search bar.
+  const [logSearch, setLogSearch] = useState("");
+  const matchesLogSearch = (log: any) => {
+    const q = logSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [log.title, log.message, log.source, log.table_name, log.log_type, log.severity]
+      .some((value) => typeof value === "string" && value.toLowerCase().includes(q));
+  };
+  const shownLogs = visibleLogs.filter(matchesLogSearch);
+  const shownArchivedLogs = visibleArchivedLogs.filter(matchesLogSearch);
   const logsFetching = view === "archived" ? archivedFetching : isFetching;
   const loadMoreLogsFooter = hasMoreLogs ? (
     <div className="pointer-events-none sticky bottom-3 left-0 flex w-full justify-center">
@@ -296,7 +310,7 @@ export function SystemLogPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-start justify-between gap-3 md:items-end">
         <div className="min-w-0">
           <h2 className="text-2xl font-semibold">System Log</h2>
@@ -326,15 +340,59 @@ export function SystemLogPage() {
           </DropdownMenu>
         ) : null}
       </div>
-      <Tabs value={view} onValueChange={(v) => setView(v as "active" | "archived")}>
-        <TabsList>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="archived">
-            <ArchiveRestore data-icon="inline-start" />
-            Archived
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-9 bg-muted pl-9 pr-20"
+          placeholder="Search system log…"
+          value={logSearch}
+          onChange={(e) => setLogSearch(e.target.value)}
+          aria-label="Search system log"
+        />
+        <RecordCount
+          className="absolute right-3 top-1/2 -translate-y-1/2"
+          isLoading={view === "archived" ? archivedLoading : isLoading}
+          isFiltering={Boolean(logSearch.trim())}
+          visible={(view === "archived" ? shownArchivedLogs : shownLogs).length}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button size="sm" variant={view === "active" ? "default" : "outline"} className="h-7 px-2.5 text-xs" onClick={() => setView("active")}>
+          Active
+        </Button>
+        <Button size="sm" variant={view === "archived" ? "default" : "outline"} className="h-7 px-2.5 text-xs" onClick={() => setView("archived")}>
+          <ArchiveRestore className="mr-1 h-3.5 w-3.5" />
+          Archived
+        </Button>
+        <Select onValueChange={setLogType} value={logType}>
+          <SelectTrigger className="h-7 w-36 text-xs" aria-label="Log type"><SelectValue placeholder="All types" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {["error", "bug", "system_change", "infrastructure", "record_count", "info"].map((t) => (
+              <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select onValueChange={setSeverity} value={severity}>
+          <SelectTrigger className="h-7 w-36 text-xs" aria-label="Severity"><SelectValue placeholder="All severities" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All severities</SelectItem>
+            {["debug", "info", "warning", "error", "critical"].map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {view === "active" ? (
+          <Button size="sm" variant={showResolved ? "default" : "outline"} className="h-7 px-2.5 text-xs" onClick={() => setShowResolved((current) => !current)}>
+            Show resolved
+          </Button>
+        ) : null}
+        {logType !== "all" || severity !== "all" || showResolved ? (
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs text-muted-foreground" onClick={() => { setLogType("all"); setSeverity("all"); setShowResolved(false); }}>
+            Clear all
+          </Button>
+        ) : null}
+      </div>
       {sourceFilter ? (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">Filtered to source</span>
@@ -353,39 +411,10 @@ export function SystemLogPage() {
           </Button>
         </div>
       ) : null}
-      <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto]">
-          <Select onValueChange={setLogType} value={logType}>
-
-            <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {["error", "bug", "system_change", "infrastructure", "record_count", "info"].map((t) => (
-                <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select onValueChange={setSeverity} value={severity}>
-            <SelectTrigger><SelectValue placeholder="All severities" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All severities</SelectItem>
-              {["debug", "info", "warning", "error", "critical"].map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {view === "active" ? (
-            <div className="flex items-center gap-2">
-              <Checkbox checked={showResolved} onCheckedChange={(v) => setShowResolved(Boolean(v))} id="show-resolved" />
-              <label htmlFor="show-resolved" className="cursor-pointer text-sm">Show resolved</label>
-            </div>
-          ) : <div />}
-        </CardContent>
-      </Card>
       {view === "active" ? (
-      <Card>
-        <CardContent className="p-0">
-          <TableFrame>
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <TableFrame className="h-full">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
@@ -413,47 +442,48 @@ export function SystemLogPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : visibleLogs.length === 0 ? (
+                ) : shownLogs.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No log entries found.</TableCell></TableRow>
-                ) : visibleLogs.map((log: any) => (
+                ) : shownLogs.map((log: any) => (
                   <TableRow key={log.id} className={cn("even:bg-muted/30", log.resolved ? "opacity-50" : "")}>
-                    <TableCell><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
-                    <TableCell><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
-                    <TableCell>
-                      <p className="font-medium leading-tight">{log.title}</p>
-                      {log.message ? <p className="text-xs text-muted-foreground">{log.message}</p> : null}
+                    <TableCell className={LOG_CELL}><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
+                    <TableCell className={LOG_CELL}><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
+                    <TableCell className={LOG_CELL}>
+                      <p className="max-w-2xl truncate font-medium" title={log.title}>{log.title}</p>
+                      {log.message ? <p className="max-w-2xl truncate text-muted-foreground" title={log.message}>{log.message}</p> : null}
                       {log.details ? (
-                        <details className="mt-2 max-w-2xl rounded border bg-muted/40 p-2 text-xs">
-                          <summary className="cursor-pointer select-none font-medium text-muted-foreground">
+                        <details className="max-w-2xl text-xs">
+                          <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
                             Developer detail
                           </summary>
-                          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-relaxed">
+                          <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded border bg-muted/40 p-2 font-mono text-[10px] leading-relaxed">
                             {formatDetails(log.details)}
                           </pre>
                         </details>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{log.source ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-sm">{log.table_name ?? "—"}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{log.record_count != null ? formatNumber(log.record_count) : "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(log.created_at)}</TableCell>
-                    <TableCell>
+                    <TableCell className={`${LOG_CELL} text-muted-foreground`}>{log.source ?? "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} font-mono`}>{log.table_name ?? "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} text-right font-mono`}>{log.record_count != null ? formatNumber(log.record_count) : "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} whitespace-nowrap text-muted-foreground`}>{formatDate(log.created_at)}</TableCell>
+                    <TableCell className={LOG_CELL}>
                       <div className="flex items-center justify-end gap-1">
                         {log.resolved ? (
-                          <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                          <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
                         ) : (
-                          <Button size="sm" variant="ghost" title="Resolve" onClick={() => resolveMutation.mutate(log.id)}>
-                            <CheckCircle2 className="h-4 w-4" />
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Resolve" onClick={() => resolveMutation.mutate(log.id)}>
+                            <CheckCircle2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="h-7 w-7 p-0"
                           title="Archive"
                           onClick={() => archiveMutation.mutate(log.id)}
                           disabled={archiveMutation.isPending}
                         >
-                          <Archive className="h-4 w-4" />
+                          <Archive className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -467,9 +497,9 @@ export function SystemLogPage() {
         </CardContent>
       </Card>
       ) : (
-      <Card>
-        <CardContent className="p-0">
-          <TableFrame>
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <TableFrame className="h-full">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
@@ -497,21 +527,21 @@ export function SystemLogPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : visibleArchivedLogs.length === 0 ? (
+                ) : shownArchivedLogs.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No archived log entries.</TableCell></TableRow>
-                ) : visibleArchivedLogs.map((log: any) => (
+                ) : shownArchivedLogs.map((log: any) => (
                   <TableRow key={log.id} className="even:bg-muted/30 opacity-80">
-                    <TableCell><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
-                    <TableCell><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
-                    <TableCell>
-                      <p className="font-medium leading-tight">{log.title}</p>
-                      {log.message ? <p className="text-xs text-muted-foreground">{log.message}</p> : null}
+                    <TableCell className={LOG_CELL}><Badge variant="outline">{log.log_type.replace("_", " ")}</Badge></TableCell>
+                    <TableCell className={LOG_CELL}><Badge variant={severityVariant(log.severity)}>{log.severity}</Badge></TableCell>
+                    <TableCell className={LOG_CELL}>
+                      <p className="font-medium">{log.title}</p>
+                      {log.message ? <p className="max-w-2xl truncate text-muted-foreground" title={log.message}>{log.message}</p> : null}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{log.source ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-sm">{log.table_name ?? "—"}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{log.record_count != null ? formatNumber(log.record_count) : "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(log.created_at)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(log.archived_at)}</TableCell>
+                    <TableCell className={`${LOG_CELL} text-muted-foreground`}>{log.source ?? "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} font-mono`}>{log.table_name ?? "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} text-right font-mono`}>{log.record_count != null ? formatNumber(log.record_count) : "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} whitespace-nowrap text-muted-foreground`}>{formatDate(log.created_at)}</TableCell>
+                    <TableCell className={`${LOG_CELL} whitespace-nowrap text-muted-foreground`}>{formatDate(log.archived_at)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -645,8 +675,10 @@ export function EmailLogPage() {
     enabled: !isFiltering,
   });
 
+  // "failed" also covers messages moved to the dead-letter queue.
+  const matchesStatus = (rowStatus: string) => status === "all" || rowStatus === status || (status === "failed" && rowStatus === "dlq");
   const filtered = (rows as any[]).filter((row) => {
-    if (status !== "all" && row.status !== status) return false;
+    if (!matchesStatus(row.status)) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       if (!row.recipient_email.toLowerCase().includes(q) && !row.template_name.toLowerCase().includes(q) && !(row.message_id ?? "").toLowerCase().includes(q) && !(row.error_message ?? "").toLowerCase().includes(q)) return false;
@@ -658,55 +690,69 @@ export function EmailLogPage() {
   const statusVariant = (s: string): "default" | "secondary" | "destructive" | "outline" =>
     s === "sent" ? "default" : s === "failed" || s === "dlq" || s === "bounced" ? "destructive" : s === "pending" || s === "rate_limited" ? "secondary" : "outline";
 
+  const statusFilters: Array<{ value: string; label: string; count: number }> = [
+    { value: "sent", label: "Sent", count: counts.sent ?? 0 },
+    { value: "pending", label: "Pending", count: counts.pending ?? 0 },
+    { value: "failed", label: "Failed", count: (counts.failed ?? 0) + (counts.dlq ?? 0) },
+    { value: "rate_limited", label: "Rate limited", count: counts.rate_limited ?? 0 },
+    { value: "suppressed", label: "Suppressed", count: counts.suppressed ?? 0 },
+    { value: "bounced", label: "Bounced", count: counts.bounced ?? 0 },
+    { value: "complained", label: "Complained", count: counts.complained ?? 0 },
+  ];
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex items-start justify-between gap-3 md:items-end">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold">Email Log</h2>
           <p className="text-sm text-muted-foreground">Recent email send attempts with statuses and error messages for troubleshooting.</p>
         </div>
-        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? <Loader2 className="animate-spin" /> : <RotateCcw data-icon="inline-start" />}
-          Refresh
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="outline" className="shrink-0" aria-label="Email Log actions">
+              {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem disabled={isFetching} onSelect={() => void refetch()}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Refresh
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {[{ label: "Total", value: counts.total ?? 0 }, { label: "Sent", value: counts.sent ?? 0 }, { label: "Pending", value: counts.pending ?? 0 }, { label: "Failed", value: (counts.failed ?? 0) + (counts.dlq ?? 0) }, { label: "Suppressed", value: counts.suppressed ?? 0 }].map((item) => (
-          <Card key={item.label}>
-            <CardContent className="p-4">
-              <p className="text-xs uppercase text-muted-foreground">{item.label}</p>
-              <p className="text-2xl font-semibold">{formatNumber(item.value)}</p>
-            </CardContent>
-          </Card>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input className="h-9 bg-muted pl-9 pr-20" placeholder="Search email log…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search email log" />
+        <RecordCount
+          className="absolute right-3 top-1/2 -translate-y-1/2"
+          isLoading={isLoading}
+          isFiltering={isFiltering}
+          visible={renderedEmails.length}
+          total={totalEmailCount ?? null}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {statusFilters.map((f) => (
+          <Button
+            key={f.value}
+            size="sm"
+            variant={status === f.value ? "default" : "outline"}
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setStatus((current) => (current === f.value ? "all" : f.value))}
+          >
+            {f.label} <span className="ml-1 tabular-nums opacity-70">{formatNumber(f.count)}</span>
+          </Button>
         ))}
+        {status !== "all" ? (
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs text-muted-foreground" onClick={() => setStatus("all")}>
+            Clear all
+          </Button>
+        ) : null}
       </div>
-      <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr]">
-          <Select onValueChange={setStatus} value={status}>
-            <SelectTrigger><SelectValue placeholder="All statuses" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {["pending", "sent", "failed", "dlq", "rate_limited", "suppressed", "bounced", "complained"].map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" className="pl-10 pr-28" placeholder="Search recipient, template, message id, error…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <RecordCount
-              className="absolute right-3 top-1/2 -translate-y-1/2"
-              isLoading={isLoading}
-              isFiltering={isFiltering}
-              visible={renderedEmails.length}
-              total={totalEmailCount ?? null}
-            />
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-0">
-          <TableFrame>
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <TableFrame className="h-full">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
@@ -724,15 +770,15 @@ export function EmailLogPage() {
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No email log entries found.</TableCell></TableRow>
                 ) : renderedEmails.map((row: any) => (
-                  <TableRow key={row.id} className="even:bg-muted/30 align-top">
-                    <TableCell><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>
-                    <TableCell className="font-mono text-xs">{row.template_name}</TableCell>
-                    <TableCell className="text-sm">{row.recipient_email}</TableCell>
-                    <TableCell className="max-w-md text-xs text-destructive">
-                      {row.error_message ? <span title={row.error_message} className="block break-words">{row.error_message}</span> : <span className="text-muted-foreground">—</span>}
+                  <TableRow key={row.id} className="even:bg-muted/30">
+                    <TableCell className={LOG_CELL}><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>
+                    <TableCell className={`${LOG_CELL} font-mono`}>{row.template_name}</TableCell>
+                    <TableCell className={LOG_CELL}>{row.recipient_email}</TableCell>
+                    <TableCell className={`${LOG_CELL} max-w-md text-destructive`}>
+                      {row.error_message ? <span title={row.error_message} className="block truncate">{row.error_message}</span> : <span className="text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{row.message_id ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(row.created_at)}</TableCell>
+                    <TableCell className={`${LOG_CELL} font-mono text-muted-foreground`}>{row.message_id ?? "—"}</TableCell>
+                    <TableCell className={`${LOG_CELL} whitespace-nowrap text-muted-foreground`}>{formatDate(row.created_at)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

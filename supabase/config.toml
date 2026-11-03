@@ -54,3 +54,9 @@ verify_jwt = true
 # verifies the caller role itself after the platform has verified the JWT.
 [functions.netsuite-units]
 verify_jwt = true
+
+# Outbound order poll (Orders inbox "Sync now", or a scheduler with the Lovable
+# cron secret, which is not a JWT). The handler verifies the user JWT and role,
+# or the cron secret, itself.
+[functions.netsuite-orders]
+verify_jwt = false

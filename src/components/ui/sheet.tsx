@@ -1,9 +1,19 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  CHROME_BUTTON,
+  CHROME_CLOSE,
+  ChromeCloseIcon,
+  ChromeControls,
+  ChromeHelpIcon,
+  OVERLAY_TITLE,
+  OverlayChrome,
+  OverlayHeader,
+  reportOverlayProblem,
+} from "@/components/ui/overlay-chrome";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -52,24 +62,52 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {}
 
-const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
+const SheetContent = React.forwardRef<
+  React.ElementRef<typeof SheetPrimitive.Content>,
+  SheetContentProps & { /** Hide the report/feedback life buoy next to the close icon. */ hideReportButton?: boolean }
+>(({ side = "right", className, children, hideReportButton, ...props }, ref) => {
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const setRefs = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      contentRef.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    },
+    [ref],
+  );
+  return (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-        {children}
-        <SheetPrimitive.Close className="absolute right-0 top-0 inline-flex h-8 w-10 items-center justify-center rounded-none bg-destructive text-destructive-foreground ring-offset-background transition-colors hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </SheetPrimitive.Close>
+      <SheetPrimitive.Content ref={setRefs} className={cn(sheetVariants({ side }), className)} {...props}>
+        <OverlayChrome
+          controls={
+            <ChromeControls>
+              {hideReportButton ? null : (
+                <SheetPrimitive.Close
+                  onClick={() => reportOverlayProblem(contentRef.current)}
+                  className={CHROME_BUTTON}
+                  title="Report a problem or send feedback"
+                >
+                  <ChromeHelpIcon />
+                </SheetPrimitive.Close>
+              )}
+              <SheetPrimitive.Close className={CHROME_CLOSE} title="Close">
+                <ChromeCloseIcon />
+              </SheetPrimitive.Close>
+            </ChromeControls>
+          }
+        >
+          {children}
+        </OverlayChrome>
       </SheetPrimitive.Content>
     </SheetPortal>
-  ),
-);
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
+// Same title bar as dialogs: title left, help and close right (overlay-chrome).
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-2 text-center sm:text-left", className)} {...props} />
+  <OverlayHeader className={cn("border-b border-border/60 pb-3", className)} {...props} />
 );
 SheetHeader.displayName = "SheetHeader";
 
@@ -82,7 +120,7 @@ const SheetTitle = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <SheetPrimitive.Title ref={ref} className={cn("text-lg font-semibold text-foreground", className)} {...props} />
+  <SheetPrimitive.Title ref={ref} className={cn(OVERLAY_TITLE, "text-foreground", className)} {...props} />
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 
