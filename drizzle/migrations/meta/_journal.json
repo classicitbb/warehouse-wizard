@@ -155,6 +155,27 @@
       "when": 1792780696344,
       "tag": "0021_20261016050000_netsuite_live_inventory_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793677291989,
+      "tag": "0022_cancel_split_draft_keeps_source_pallet",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793677329669,
+      "tag": "0023_netsuite_outbound_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793677351805,
+      "tag": "0024_outbound_inbox_performance",
+      "breakpoints": true
     }
   ]
 }
