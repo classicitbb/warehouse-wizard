@@ -176,6 +176,20 @@
       "when": 1793677351805,
       "tag": "0024_outbound_inbox_performance",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793678849617,
+      "tag": "0025_20261031150000_forward_pick_replenishment",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793678913535,
+      "tag": "0026_20261101090000_trip_picking",
+      "breakpoints": true
     }
   ]
 }
