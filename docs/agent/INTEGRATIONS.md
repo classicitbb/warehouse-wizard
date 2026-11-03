@@ -89,7 +89,11 @@ drift. The shape was checked against Oracle's REST example for the inventory adj
   pallet receipt (idempotency key `receipt:inbound_shipment:<receipt id>`, externalRef
   `ww-rcpt-ship-<receipt id>`). Pallets returned to Receiving (`superseded_pallet_id`) are skipped.
   `process-netsuite-queue` POSTs it to the inbound shipment RESTlet with a `restlets`-scope token and
-  stores `itemReceiptIds` in the job result; `alreadyProcessed` counts as success. Body shape:
+  stores `itemReceiptIds` in the job result; `alreadyProcessed` counts as success. Failures come back
+  as HTTP 200 `{ ok: false, code, retryable, error }`: `retryable: false` is dead-lettered at once, only
+  `true` waits out MAX_RETRIES. Each shipment line is sent once per call (pallets of one PO line merge
+  into one line with several `inventoryAssignment` entries), and calls for one shipment must not run in
+  parallel. Serialised items still need one `inventoryAssignment` entry per serial (qty 1), not built yet. Body shape:
   `buildInboundShipmentRestletBody` in `_shared/netsuite-receipt.ts`, taken from the Developer Brief's
   proposed contract. **Not yet run against NetSuite**: the POST field names, and whether the draft's
   PO line key equals the RESTlet's `receiveitems` `uniquekey`, are unconfirmed. Tell the NetSuite dev

@@ -96,24 +96,44 @@ export type InboundShipmentRestletBody = {
   }[]
 }
 
+/**
+ * The RESTlet takes each shipment line once per call (it answers DUPLICATE_LINE_KEY
+ * otherwise). Pallets of the same PO line are merged into one line: quantities add
+ * up and each lot becomes one `inventoryAssignment` entry.
+ */
 export function buildInboundShipmentRestletBody(job: ReceiptJobPayload): InboundShipmentRestletBody {
   if (job.documentType !== 'inbound_shipment') throw new Error('Not an inbound shipment receipt job')
   if (!job.externalRef.trim()) throw new Error('A receipt job needs its externalRef')
-  const lines = job.lines.filter((l) => l.quantity > 0).map((l) => {
+  const byKey = new Map<string, InboundShipmentRestletBody['lines'][number]>()
+  for (const l of job.lines.filter((l) => l.quantity > 0)) {
     const key = l.lineKey?.trim()
     if (!key) throw new Error('An inbound shipment receipt line needs its shipment line key')
     const lot = l.lotNumber?.trim()
-    return {
-      shipmentLineKey: key,
-      quantity: l.quantity,
-      ...(l.poId ? { poId: String(l.poId) } : {}),
-      ...(l.lineNumber != null ? { lineNumber: l.lineNumber } : {}),
-      ...(job.locationId ? { location: job.locationId } : {}),
-      ...(lot
-        ? { inventoryAssignment: [{ receiptInventoryNumber: lot, ...(l.expiryDate ? { expirationDate: l.expiryDate } : {}), quantity: l.quantity }] }
-        : {}),
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, {
+        shipmentLineKey: key,
+        quantity: l.quantity,
+        ...(l.poId ? { poId: String(l.poId) } : {}),
+        ...(l.lineNumber != null ? { lineNumber: l.lineNumber } : {}),
+        ...(job.locationId ? { location: job.locationId } : {}),
+        ...(lot
+          ? { inventoryAssignment: [{ receiptInventoryNumber: lot, ...(l.expiryDate ? { expirationDate: l.expiryDate } : {}), quantity: l.quantity }] }
+          : {}),
+      })
+      continue
     }
-  })
+    if (!!lot !== !!existing.inventoryAssignment) {
+      throw new Error(`Shipment line ${key} mixes lot-tracked and untracked pallets; the lots would not add up to the line quantity`)
+    }
+    existing.quantity += l.quantity
+    if (lot) {
+      const same = existing.inventoryAssignment!.find((a) => a.receiptInventoryNumber === lot && a.expirationDate === (l.expiryDate || undefined))
+      if (same) same.quantity += l.quantity
+      else existing.inventoryAssignment!.push({ receiptInventoryNumber: lot, ...(l.expiryDate ? { expirationDate: l.expiryDate } : {}), quantity: l.quantity })
+    }
+  }
+  const lines = [...byKey.values()]
   if (lines.length === 0) throw new Error('A receipt job needs at least one line with a quantity')
   return { inboundShipmentId: job.documentId, externalRef: job.externalRef, lines }
 }
@@ -167,11 +187,16 @@ function remainingOn(candidates: ShipmentLineCandidate[], shipmentId: string, wa
     .reduce((sum, c) => sum + c.remaining, 0)
 }
 
-export type ReceiptOutcome = { ok: true; receiptIds: string[]; alreadyProcessed: boolean } | { ok: false; reason: string }
+export type ReceiptOutcome =
+  | { ok: true; receiptIds: string[]; alreadyProcessed: boolean }
+  | { ok: false; reason: string; retryable: boolean; code?: string }
 
 /**
  * Reads a RESTlet response. `alreadyProcessed: true` is a success, and a
  * response can carry several Item Receipt ids (one per PO), all of which are kept.
+ * A failure is `{ ok: false, code, retryable, error }` with HTTP 200: only
+ * `retryable: true` is worth another attempt (an over-receipt or closed shipment
+ * never succeeds on retry). A failure in any other shape stays retryable.
  */
 export function interpretReceiptResponse(body: unknown): ReceiptOutcome {
   const b = (body ?? {}) as Record<string, unknown>
@@ -186,8 +211,15 @@ export function interpretReceiptResponse(body: unknown): ReceiptOutcome {
     }
   }
   const alreadyProcessed = b.alreadyProcessed === true
-  if (b.success === false || (ids.size === 0 && !alreadyProcessed)) {
-    return { ok: false, reason: typeof b.error === 'string' ? b.error : typeof b.message === 'string' ? b.message : 'No item receipt id returned' }
+  if (b.ok === false || b.success === false || (ids.size === 0 && !alreadyProcessed)) {
+    const code = typeof b.code === 'string' && b.code ? b.code : undefined
+    const message = typeof b.error === 'string' ? b.error : typeof b.message === 'string' ? b.message : 'No item receipt id returned'
+    return {
+      ok: false,
+      reason: code ? `${code}: ${message}` : message,
+      retryable: typeof b.retryable === 'boolean' ? b.retryable : true,
+      ...(code ? { code } : {}),
+    }
   }
   return { ok: true, receiptIds: [...ids], alreadyProcessed }
 }

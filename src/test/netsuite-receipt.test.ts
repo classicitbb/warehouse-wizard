@@ -93,6 +93,39 @@ describe("buildInboundShipmentRestletBody", () => {
     expect(buildInboundShipmentRestletBody(plain).lines).toEqual([{ shipmentLineKey: "9", quantity: 5 }]);
   });
 
+  it("sends each shipment line once: two pallets of one PO line become one line with two lots", () => {
+    const twoPallets = buildReceiptJobPayload({
+      documentType: "inbound_shipment", documentId: "52", postingKey: "r4",
+      lines: [
+        { lineKey: "4827", lineNumber: 2, itemId: "1", quantity: 40, lotNumber: "LOT-A", expiryDate: "2027-01-01" },
+        { lineKey: "4827", lineNumber: 2, itemId: "1", quantity: 55, lotNumber: "LOT-B" },
+        { lineKey: "4827", lineNumber: 2, itemId: "1", quantity: 5, lotNumber: "LOT-A", expiryDate: "2027-01-01" },
+        { lineKey: "9", lineNumber: 3, itemId: "2", quantity: 7 },
+      ],
+    });
+    expect(buildInboundShipmentRestletBody(twoPallets).lines).toEqual([
+      {
+        shipmentLineKey: "4827", quantity: 100, lineNumber: 2,
+        inventoryAssignment: [
+          { receiptInventoryNumber: "LOT-A", expirationDate: "2027-01-01", quantity: 45 },
+          { receiptInventoryNumber: "LOT-B", quantity: 55 },
+        ],
+      },
+      { shipmentLineKey: "9", quantity: 7, lineNumber: 3 },
+    ]);
+  });
+
+  it("refuses one line that mixes lot-tracked and untracked pallets", () => {
+    const mixed = buildReceiptJobPayload({
+      documentType: "inbound_shipment", documentId: "52", postingKey: "r5",
+      lines: [
+        { lineKey: "4827", lineNumber: 2, itemId: "1", quantity: 40, lotNumber: "LOT-A" },
+        { lineKey: "4827", lineNumber: 2, itemId: "1", quantity: 10 },
+      ],
+    });
+    expect(() => buildInboundShipmentRestletBody(mixed)).toThrow(/mixes lot-tracked/);
+  });
+
   it("refuses a line with no shipment line key, or another document type", () => {
     const noKey = buildReceiptJobPayload({ documentType: "inbound_shipment", documentId: "52", postingKey: "r3", lines: [{ lineKey: null, lineNumber: 1, itemId: "1", quantity: 5 }] });
     expect(() => buildInboundShipmentRestletBody(noKey)).toThrow(/line key/);
@@ -155,9 +188,17 @@ describe("interpretReceiptResponse", () => {
   });
 
   it("fails when no receipt id comes back", () => {
-    expect(interpretReceiptResponse({ error: "Invalid item" })).toEqual({ ok: false, reason: "Invalid item" });
+    expect(interpretReceiptResponse({ error: "Invalid item" })).toEqual({ ok: false, reason: "Invalid item", retryable: true });
     expect(interpretReceiptResponse(null).ok).toBe(false);
-    expect(interpretReceiptResponse({ success: false, message: "denied" })).toEqual({ ok: false, reason: "denied" });
+    expect(interpretReceiptResponse({ success: false, message: "denied" })).toEqual({ ok: false, reason: "denied", retryable: true });
+  });
+
+  it("reads the RESTlet failure shape: code and retryable decide whether to retry", () => {
+    expect(interpretReceiptResponse({ ok: false, code: "OVER_RECEIPT", retryable: false, error: "Quantity exceeds shipment" })).toEqual({
+      ok: false, reason: "OVER_RECEIPT: Quantity exceeds shipment", retryable: false, code: "OVER_RECEIPT",
+    });
+    expect(interpretReceiptResponse({ ok: false, code: "RCRD_HAS_BEEN_CHANGED", retryable: true, error: "changed" })).toMatchObject({ ok: false, retryable: true });
+    expect(interpretReceiptResponse({ ok: true, itemReceiptIds: [5], alreadyProcessed: false })).toEqual({ ok: true, receiptIds: ["5"], alreadyProcessed: false });
   });
 });
 

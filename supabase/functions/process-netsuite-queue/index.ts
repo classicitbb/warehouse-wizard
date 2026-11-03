@@ -228,13 +228,15 @@ Deno.serve(async (req) => {
     return restletToken
   }
 
-  type RestletPost = { ok: boolean; httpStatus: number | null; responsePayload: unknown; failureReason: string | null }
+  type RestletPost = { ok: boolean; httpStatus: number | null; responsePayload: unknown; failureReason: string | null; retryable: boolean }
   // POST one receipt to the inbound shipment RESTlet. It keys on externalRef, so
   // a retry after a timeout comes back `alreadyProcessed: true`, not a second receipt.
+  // A failure the RESTlet marks `retryable: false` (over-receipt, closed shipment,
+  // bad line key) is parked at once; transport errors and HTTP errors stay retryable.
   async function postInboundShipment(body: ReturnType<typeof buildInboundShipmentRestletBody>): Promise<RestletPost> {
     const tokenForRestlet = await getRestletToken()
     if (!tokenForRestlet.ok) {
-      return { ok: false, httpStatus: null, responsePayload: null, failureReason: `NetSuite RESTlet token failed: ${tokenForRestlet.error}` }
+      return { ok: false, httpStatus: null, responsePayload: null, failureReason: `NetSuite RESTlet token failed: ${tokenForRestlet.error}`, retryable: true }
     }
     try {
       const res = await fetch(buildRestletUrl(accountId, resolveRestletTarget(config)), {
@@ -245,13 +247,13 @@ Deno.serve(async (req) => {
       const text = await res.text()
       let responsePayload: unknown = null
       try { responsePayload = text ? JSON.parse(text) : null } catch { responsePayload = { raw: text.slice(0, 4000) } }
-      const outcome = res.ok ? interpretReceiptResponse(responsePayload) : { ok: false as const, reason: `NetSuite responded ${res.status}: ${text.slice(0, 300)}` }
+      const outcome = res.ok ? interpretReceiptResponse(responsePayload) : { ok: false as const, reason: `NetSuite responded ${res.status}: ${text.slice(0, 300)}`, retryable: true }
       if (outcome.ok) {
-        return { ok: true, httpStatus: res.status, responsePayload: { itemReceiptIds: outcome.receiptIds, alreadyProcessed: outcome.alreadyProcessed }, failureReason: null }
+        return { ok: true, httpStatus: res.status, responsePayload: { itemReceiptIds: outcome.receiptIds, alreadyProcessed: outcome.alreadyProcessed }, failureReason: null, retryable: false }
       }
-      return { ok: false, httpStatus: res.status, responsePayload, failureReason: outcome.reason }
+      return { ok: false, httpStatus: res.status, responsePayload, failureReason: outcome.reason, retryable: outcome.retryable }
     } catch (err) {
-      return { ok: false, httpStatus: null, responsePayload: null, failureReason: err instanceof Error ? err.message : String(err) }
+      return { ok: false, httpStatus: null, responsePayload: null, failureReason: err instanceof Error ? err.message : String(err), retryable: true }
     }
   }
 
@@ -293,6 +295,7 @@ Deno.serve(async (req) => {
     let responsePayload: unknown = null
     let ok = false
     let failureReason: string | null = null
+    let parkNow = false // a failure retrying cannot fix: dead-letter without waiting out MAX_RETRIES
 
     try {
       if (job.job_type === 'inventory_adjustment') {
@@ -390,7 +393,9 @@ Deno.serve(async (req) => {
                 })),
               })
               requestBody = shipmentBody as unknown as Record<string, unknown>
-              ;({ ok, httpStatus, responsePayload, failureReason } = await postInboundShipment(shipmentBody))
+              const posted = await postInboundShipment(shipmentBody)
+              ;({ ok, httpStatus, responsePayload, failureReason } = posted)
+              parkNow = !posted.ok && !posted.retryable
             }
           }
         }
@@ -455,11 +460,13 @@ Deno.serve(async (req) => {
           body = buildInboundShipmentRestletBody(payload)
         } catch (err) {
           failureReason = `Invalid receipt_inbound_shipment payload: ${err instanceof Error ? err.message : String(err)}`
+          parkNow = true
         }
         if (body) {
           requestBody = body as unknown as Record<string, unknown>
           const posted = await postInboundShipment(body)
           ;({ ok, httpStatus, responsePayload, failureReason } = posted)
+          parkNow = !posted.ok && !posted.retryable
         }
       } else {
         failureReason = `Unsupported job_type for outbound sync: ${job.job_type}`
@@ -495,7 +502,7 @@ Deno.serve(async (req) => {
     // Unsupported job types never retry — go straight to dead_letter.
     const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order' && job.job_type !== 'receipt_inbound_shipment'
 
-    if (isPermanent || nextAttempts >= MAX_RETRIES) {
+    if (isPermanent || parkNow || nextAttempts >= MAX_RETRIES) {
       const reason = failureReason ?? 'Unknown error'
       await supabase.from('integration_dead_letters').insert({
         sync_job_id: job.id,
