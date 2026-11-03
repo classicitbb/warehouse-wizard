@@ -2,6 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildNetSuiteInventoryAdjustment, netsuiteAdjustmentExternalId, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
 import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
 import { netSuiteOutboundClaimArgs } from '../_shared/netsuite-queue.ts'
+import { buildInboundShipmentRestletBody, interpretReceiptResponse, type ReceiptJobPayload } from '../_shared/netsuite-receipt.ts'
+import { buildRestletUrl, resolveRestletTarget } from '../_shared/netsuite-restlet.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -215,6 +217,14 @@ Deno.serve(async (req) => {
     }
   }
 
+  // A RESTlet call needs `restlets` in the token's scope; the REST token above
+  // asks for rest_webservices only. Fetched on the first inbound shipment job.
+  let restletToken: { ok: true; token: string } | { ok: false; error: string } | null = null
+  async function getRestletToken() {
+    restletToken ??= await fetchNetSuiteAccessToken({ accountId, clientId, certificateId, privateKeyPem }, ['restlets'])
+    return restletToken
+  }
+
   let succeeded = 0
   let failed = 0
   let deadLettered = 0
@@ -352,6 +362,44 @@ Deno.serve(async (req) => {
             } catch { /* keep original failure */ }
           }
         }
+      } else if (job.job_type === 'receipt_inbound_shipment') {
+        // Receive an inbound shipment through the RESTlet. NetSuite makes one item
+        // receipt per PO. The RESTlet keys on externalRef, so a retry after a
+        // timeout comes back `alreadyProcessed: true` rather than receiving twice.
+        const payload = job.payload as unknown as ReceiptJobPayload
+        let body: ReturnType<typeof buildInboundShipmentRestletBody> | null = null
+        try {
+          body = buildInboundShipmentRestletBody(payload)
+        } catch (err) {
+          failureReason = `Invalid receipt_inbound_shipment payload: ${err instanceof Error ? err.message : String(err)}`
+        }
+        if (body) {
+          requestBody = body as unknown as Record<string, unknown>
+          const tokenForRestlet = await getRestletToken()
+          if (!tokenForRestlet.ok) {
+            failureReason = `NetSuite RESTlet token failed: ${tokenForRestlet.error}`
+          } else {
+            try {
+              const res = await fetch(buildRestletUrl(accountId, resolveRestletTarget(config)), {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${tokenForRestlet.token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+              })
+              httpStatus = res.status
+              const text = await res.text()
+              try { responsePayload = text ? JSON.parse(text) : null } catch { responsePayload = { raw: text.slice(0, 4000) } }
+              const outcome = res.ok ? interpretReceiptResponse(responsePayload) : { ok: false as const, reason: `NetSuite responded ${res.status}: ${text.slice(0, 300)}` }
+              if (outcome.ok) {
+                ok = true
+                responsePayload = { itemReceiptIds: outcome.receiptIds, alreadyProcessed: outcome.alreadyProcessed }
+              } else {
+                failureReason = outcome.reason
+              }
+            } catch (err) {
+              failureReason = err instanceof Error ? err.message : String(err)
+            }
+          }
+        }
       } else {
         failureReason = `Unsupported job_type for outbound sync: ${job.job_type}`
       }
@@ -384,7 +432,7 @@ Deno.serve(async (req) => {
     }
 
     // Unsupported job types never retry — go straight to dead_letter.
-    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order'
+    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order' && job.job_type !== 'receipt_inbound_shipment'
 
     if (isPermanent || nextAttempts >= MAX_RETRIES) {
       const reason = failureReason ?? 'Unknown error'

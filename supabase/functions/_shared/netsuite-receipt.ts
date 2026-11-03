@@ -43,6 +43,10 @@ export type ReceiptLinePayload = {
   lineNumber: number | null
   itemId: string
   quantity: number
+  /** Inbound shipment lines: the PO the line belongs to, and the lot the pallet carries. */
+  poId?: string | null
+  lotNumber?: string | null
+  expiryDate?: string | null
 }
 
 export type ReceiptJobPayload = {
@@ -71,6 +75,47 @@ export function buildReceiptJobPayload(input: {
     locationId: input.locationId ?? null,
     lines,
   }
+}
+
+/**
+ * The body POSTed to the inbound shipment RESTlet (customscript_spx_ww_inb_receipt_rl).
+ * Shape follows the contract proposed in the Developer Brief; the RESTlet returns
+ * `{ ok, itemReceiptIds, alreadyProcessed }`. `shipmentLineKey` is the PO line's
+ * unique key saved with the draft (W4). Bins are not sent until W5 maps them.
+ */
+export type InboundShipmentRestletBody = {
+  inboundShipmentId: string
+  externalRef: string
+  lines: {
+    shipmentLineKey: string
+    quantity: number
+    poId?: string
+    lineNumber?: number
+    location?: string
+    inventoryAssignment?: { receiptInventoryNumber: string; expirationDate?: string; quantity: number }[]
+  }[]
+}
+
+export function buildInboundShipmentRestletBody(job: ReceiptJobPayload): InboundShipmentRestletBody {
+  if (job.documentType !== 'inbound_shipment') throw new Error('Not an inbound shipment receipt job')
+  if (!job.externalRef.trim()) throw new Error('A receipt job needs its externalRef')
+  const lines = job.lines.filter((l) => l.quantity > 0).map((l) => {
+    const key = l.lineKey?.trim()
+    if (!key) throw new Error('An inbound shipment receipt line needs its shipment line key')
+    const lot = l.lotNumber?.trim()
+    return {
+      shipmentLineKey: key,
+      quantity: l.quantity,
+      ...(l.poId ? { poId: String(l.poId) } : {}),
+      ...(l.lineNumber != null ? { lineNumber: l.lineNumber } : {}),
+      ...(job.locationId ? { location: job.locationId } : {}),
+      ...(lot
+        ? { inventoryAssignment: [{ receiptInventoryNumber: lot, ...(l.expiryDate ? { expirationDate: l.expiryDate } : {}), quantity: l.quantity }] }
+        : {}),
+    }
+  })
+  if (lines.length === 0) throw new Error('A receipt job needs at least one line with a quantity')
+  return { inboundShipmentId: job.documentId, externalRef: job.externalRef, lines }
 }
 
 export type ReceiptOutcome = { ok: true; receiptIds: string[]; alreadyProcessed: boolean } | { ok: false; reason: string }

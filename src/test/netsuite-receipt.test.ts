@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   RECEIPT_JOB_TYPES,
+  buildInboundShipmentRestletBody,
   buildReceiptJobPayload,
   interpretReceiptResponse,
   netsuiteReceiptExternalRef,
@@ -60,6 +61,41 @@ describe("buildReceiptJobPayload", () => {
   it("refuses a job with no document or no quantity", () => {
     expect(() => buildReceiptJobPayload({ documentType: "purchase_order", documentId: "", postingKey: "g", lines: [line] })).toThrow();
     expect(() => buildReceiptJobPayload({ documentType: "purchase_order", documentId: "1", postingKey: "g", lines: [{ ...line, quantity: 0 }] })).toThrow();
+  });
+});
+
+describe("buildInboundShipmentRestletBody", () => {
+  const job = buildReceiptJobPayload({
+    documentType: "inbound_shipment",
+    documentId: "52",
+    postingKey: "rcpt-1",
+    locationId: "3",
+    lines: [{ lineKey: "4827", lineNumber: 2, itemId: "2963", quantity: 95, poId: "76", lotNumber: "LOT-A1", expiryDate: "2027-09-01" }],
+  });
+
+  it("names the shipment, the line key and the externalRef", () => {
+    expect(buildInboundShipmentRestletBody(job)).toEqual({
+      inboundShipmentId: "52",
+      externalRef: "ww-rcpt-ship-rcpt-1",
+      lines: [{
+        shipmentLineKey: "4827", quantity: 95, poId: "76", lineNumber: 2, location: "3",
+        inventoryAssignment: [{ receiptInventoryNumber: "LOT-A1", expirationDate: "2027-09-01", quantity: 95 }],
+      }],
+    });
+  });
+
+  it("sends no lot, location or PO the pallet does not have", () => {
+    const plain = buildReceiptJobPayload({
+      documentType: "inbound_shipment", documentId: "52", postingKey: "r2",
+      lines: [{ lineKey: "9", lineNumber: null, itemId: "1", quantity: 5 }],
+    });
+    expect(buildInboundShipmentRestletBody(plain).lines).toEqual([{ shipmentLineKey: "9", quantity: 5 }]);
+  });
+
+  it("refuses a line with no shipment line key, or another document type", () => {
+    const noKey = buildReceiptJobPayload({ documentType: "inbound_shipment", documentId: "52", postingKey: "r3", lines: [{ lineKey: null, lineNumber: 1, itemId: "1", quantity: 5 }] });
+    expect(() => buildInboundShipmentRestletBody(noKey)).toThrow(/line key/);
+    expect(() => buildInboundShipmentRestletBody({ ...job, documentType: "purchase_order" })).toThrow();
   });
 });
 
