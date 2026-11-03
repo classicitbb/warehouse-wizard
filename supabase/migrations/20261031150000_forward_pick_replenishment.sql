@@ -847,9 +847,7 @@ grant select on public.pick_face_status to authenticated;
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    if exists (select 1 from cron.job where jobname = 'evaluate-forward-pick-replenishment') then
-      perform cron.unschedule('evaluate-forward-pick-replenishment');
-    end if;
+    -- cron.schedule(name, ...) replaces a job of the same name, so no cron.job read is needed.
     perform cron.schedule(
       'evaluate-forward-pick-replenishment',
       '*/5 * * * *',
