@@ -1,7 +1,7 @@
 // Replenishment (outbound picking design, slice D): the queue of pallet moves
 // from bulk into the pick faces, and the pick faces with what is in them. A
 // pick face is a bin with status "pick_face"; its SKU comes with the pallet.
-// The engine runs each 5 minutes; "Check now" runs it at once. A task starts
+// Events (a pick, a release, an import) check a face at once; the engine runs hourly as a safety net and "Check now" runs it on demand. A task starts
 // as a WW move (D4) and closes when the move is scanned complete here or on
 // Location Moves.
 //
@@ -483,7 +483,7 @@ export function ReplenishmentPage() {
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-semibold">Replenishment</h2>
           <HintButton label="Replenishment hints">
-            Full pallets from bulk into the pick faces. Every 5 minutes WW takes the stock in each face, less the open demand
+            Full pallets from bulk into the pick faces. As soon as stock leaves a face or orders arrive (and hourly as a safety net), WW takes the stock in each face, less the open demand
             (the office's open fulfillments that are not aged, less what is picked). When that goes down to the trigger level, a
             task asks for full pallets. WW learns the level and the pallets from 30 days of use: a product that ships a pallet
             or more a day gets 75% and 2 or more pallets; others get 50% and 1 pallet, as does every product while WW learns. Urgent tasks

@@ -254,12 +254,12 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
   replenishment: {
     id: "replenishment",
     title: "Replenishment",
-    summary: "Replenishment keeps the pick faces stocked. A pick face is a bay with the status Pick face: put-away skips it and only Replenishment fills it. Its SKU comes with the pallet moved in. Every 5 minutes WW takes the stock in each face, less the open demand, and asks for full pallets from bulk when that goes down to the trigger level. WW learns the level and the pallets from 30 days of use (75% and 2 or more pallets for a product that ships a pallet a day, else 50% and 1 pallet); until then it uses the minimum.",
+    summary: "Replenishment keeps the pick faces stocked. A pick face is a bay with the status Pick face: put-away skips it and only Replenishment fills it. Its SKU comes with the pallet moved in. As soon as a pick takes stock from a face, an order is released or imported, or stock is adjusted, counted or moved out of a face, WW takes the stock in that face, less the open demand, and asks for full pallets from bulk when that goes down to the trigger level. WW learns the level and the pallets from 30 days of use (75% and 2 or more pallets for a product that ships a pallet a day, else 50% and 1 pallet); until then it uses the minimum.",
     keyActions: [
       "Start a task, then scan the bulk pallet and the pick-face bin",
       "Do urgent tasks first: the face cannot cover the open orders, or a picker reported short",
       "Stack a low remainder on top of the new pallet",
-      "Supervisors: Check now, or cancel a task that is not needed",
+      "Supervisors: Check now (an hourly check also catches anything missed), or cancel a task that is not needed",
       "Managers: Make pick face on a bay the floor picks from, or Release it to make it a normal bin again",
     ],
     commonMistakes: [
