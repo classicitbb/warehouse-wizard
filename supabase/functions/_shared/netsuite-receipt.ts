@@ -118,6 +118,55 @@ export function buildInboundShipmentRestletBody(job: ReceiptJobPayload): Inbound
   return { inboundShipmentId: job.documentId, externalRef: job.externalRef, lines }
 }
 
+/** One PO line as it sits on an inbound shipment (SuiteQL `inboundshipmentitem`). */
+export type ShipmentLineCandidate = { shipmentId: string; lineNumber: number; lineKey: string; remaining: number }
+
+export type ShipmentReceiptPlan =
+  | { ok: true; shipmentId: string; lines: { lineNumber: number; lineKey: string; quantity: number }[] }
+  | { ok: false; reason: string }
+
+/**
+ * A PO line that is on an inbound shipment cannot be received from the PO: NetSuite's
+ * item receipt transform has nothing to receive and answers 400. Pick the one shipment
+ * that can take every line. A line on several shipments uses the one with the most left.
+ */
+export function planShipmentReceipt(
+  candidates: ShipmentLineCandidate[],
+  wanted: { lineNumber: number; quantity: number }[],
+): ShipmentReceiptPlan {
+  let shipmentIds = null as Set<string> | null
+  for (const w of wanted) {
+    const ids = new Set(candidates.filter((c) => c.lineNumber === w.lineNumber && c.remaining >= w.quantity).map((c) => c.shipmentId))
+    if (ids.size === 0) {
+      const onShipments = candidates.filter((c) => c.lineNumber === w.lineNumber)
+      return {
+        ok: false,
+        reason: onShipments.length === 0
+          ? `line ${w.lineNumber} is not on an inbound shipment`
+          : `line ${w.lineNumber}: ${w.quantity} to receive but no inbound shipment has that much left (${onShipments.map((c) => `shipment ${c.shipmentId}: ${c.remaining}`).join(', ')})`,
+      }
+    }
+    shipmentIds = shipmentIds ? new Set([...shipmentIds].filter((id) => ids.has(id))) : ids
+  }
+  if (!shipmentIds || shipmentIds.size === 0) return { ok: false, reason: 'the lines are on different inbound shipments; receive each through its shipment' }
+  const shipmentId = [...shipmentIds].sort((a, b) => remainingOn(candidates, b, wanted) - remainingOn(candidates, a, wanted))[0]
+  return {
+    ok: true,
+    shipmentId,
+    lines: wanted.map((w) => ({
+      lineNumber: w.lineNumber,
+      lineKey: candidates.find((c) => c.shipmentId === shipmentId && c.lineNumber === w.lineNumber)!.lineKey,
+      quantity: w.quantity,
+    })),
+  }
+}
+
+function remainingOn(candidates: ShipmentLineCandidate[], shipmentId: string, wanted: { lineNumber: number }[]): number {
+  return candidates
+    .filter((c) => c.shipmentId === shipmentId && wanted.some((w) => w.lineNumber === c.lineNumber))
+    .reduce((sum, c) => sum + c.remaining, 0)
+}
+
 export type ReceiptOutcome = { ok: true; receiptIds: string[]; alreadyProcessed: boolean } | { ok: false; reason: string }
 
 /**

@@ -94,6 +94,14 @@ drift. The shape was checked against Oracle's REST example for the inventory adj
   proposed contract. **Not yet run against NetSuite**: the POST field names, and whether the draft's
   PO line key equals the RESTlet's `receiveitems` `uniquekey`, are unconfirmed. Tell the NetSuite dev
   before the first post against IS052. Bins are not sent (W5).
+- PO receipts for a PO that is on an inbound shipment (found 2026-11-03 on PO53, internal id 2727,
+  lines on IS033/IS045): the PO `!transform/itemReceipt` answers 400 "invalid sublist or line item
+  operation" every time, so those jobs retried five times and dead-lettered. The worker now looks the
+  PO line up in `inboundshipmentitem` first (`findShipmentLines`) and, if it is on a shipment with
+  enough left (`planShipmentReceipt`), posts it through the inbound shipment RESTlet with the job's own
+  `externalRef`; if no shipment has enough left it fails with the shipment quantities in the message.
+  A PO not on any shipment still uses the PO transform (with `?replace=item`, whose behaviour on a
+  standalone PO is still untested).
 - Not handled yet: lot-numbered, serialized, and bin-managed items need an `inventoryDetail`
   subrecord on the line, which is not sent. `unitCost` is not sent either, so check the cost
   NetSuite applies to a positive adjustment during the first live post.

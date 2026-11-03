@@ -6,6 +6,7 @@ import {
   buildReceiptJobPayload,
   interpretReceiptResponse,
   netsuiteReceiptExternalRef,
+  planShipmentReceipt,
   receiptIdempotencyKey,
 } from "../../supabase/functions/_shared/netsuite-receipt";
 import { netsuiteRefFromDraftMeta } from "@/features/receiving/netsuite-lookup-lines";
@@ -96,6 +97,46 @@ describe("buildInboundShipmentRestletBody", () => {
     const noKey = buildReceiptJobPayload({ documentType: "inbound_shipment", documentId: "52", postingKey: "r3", lines: [{ lineKey: null, lineNumber: 1, itemId: "1", quantity: 5 }] });
     expect(() => buildInboundShipmentRestletBody(noKey)).toThrow(/line key/);
     expect(() => buildInboundShipmentRestletBody({ ...job, documentType: "purchase_order" })).toThrow();
+  });
+});
+
+describe("planShipmentReceipt: a PO that sits on an inbound shipment", () => {
+  // PO53 (internal id 2727) in the sandbox: both lines are on IS033, which is partially received, and on IS045, fully received.
+  const po53 = [
+    { shipmentId: "33", lineNumber: 1, lineKey: "12487", remaining: 759 - 695 },
+    { shipmentId: "33", lineNumber: 2, lineKey: "12488", remaining: 0 },
+    { shipmentId: "45", lineNumber: 1, lineKey: "12487", remaining: 0 },
+    { shipmentId: "45", lineNumber: 2, lineKey: "12488", remaining: 0 },
+  ];
+
+  it("routes the PO53 receipts that failed with a 400 to IS033", () => {
+    for (const quantity of [64, 36, 28]) {
+      expect(planShipmentReceipt(po53, [{ lineNumber: 1, quantity }])).toEqual({
+        ok: true, shipmentId: "33", lines: [{ lineNumber: 1, lineKey: "12487", quantity }],
+      });
+    }
+  });
+
+  it("refuses more than any shipment has left, and says where the stock is", () => {
+    const plan = planShipmentReceipt(po53, [{ lineNumber: 1, quantity: 65 }]);
+    expect(plan.ok).toBe(false);
+    expect(plan.ok === false && plan.reason).toMatch(/shipment 33: 64/);
+  });
+
+  it("needs one shipment to take every line", () => {
+    const split = [
+      { shipmentId: "1", lineNumber: 1, lineKey: "a", remaining: 10 },
+      { shipmentId: "2", lineNumber: 2, lineKey: "b", remaining: 10 },
+    ];
+    expect(planShipmentReceipt(split, [{ lineNumber: 1, quantity: 5 }, { lineNumber: 2, quantity: 5 }]).ok).toBe(false);
+  });
+
+  it("prefers the shipment with the most left when a line is on several", () => {
+    const two = [
+      { shipmentId: "7", lineNumber: 1, lineKey: "k", remaining: 5 },
+      { shipmentId: "8", lineNumber: 1, lineKey: "k", remaining: 50 },
+    ];
+    expect(planShipmentReceipt(two, [{ lineNumber: 1, quantity: 5 }])).toMatchObject({ ok: true, shipmentId: "8" });
   });
 });
 
