@@ -27,8 +27,8 @@ https://claude.ai/artifact/AFsdBAVXf44pqyQmXju3o1
 | D1 | Customers | Make a new `customers` table. Do not use `clients`, because clients own stock. Load all active customers first. Then load the changes each night. Get an unknown customer when WW needs it |
 | D2 | SO discovery | Do a SuiteQL poll each 2–5 minutes. The poll reads status B, D and E at mapped locations, and uses a `lastmodifieddate` cursor. Also, let the operator scan the QR on the picking ticket to find the SO |
 | D3 | Fulfillment owner | WW makes the IF with the SO → itemFulfillment transform at shipStatus A. WW writes the picker, truck, trip and KPI timestamps. WW changes the IF to B at pack and to C at departure. **O1 replaces this decision** |
-| D4 | Forward pick | Use `zones.is_forward_pick` and `pick_faces` (product, pick unit, and min/max in base units). Moves from bulk to forward pick stay in WW. WW does not post them to NetSuite, because the location is the same and there are no bins |
-| D5 | Replen signal | Use min/max **and** the demand from released trips. When a picker reports "short", WW makes an urgent task. WW shows the tasks in a queue, on a Command Center tile and in a push notification to the forklift role |
+| D4 | Forward pick | A pick face is a bin with the status `pick_face` (§10, changed from a zone flag and fixed min/max). Moves from bulk to forward pick stay in WW. WW does not post them to NetSuite, because the location is the same and there are no bins |
+| D5 | Replen signal | Use the fill trigger level **and** the open demand (§10). When a picker reports "short", WW makes an urgent task. WW shows the tasks in a queue, on a Command Center tile and in a push notification to the forklift role |
 | D6 | Packaging | Copy NetSuite `unitstype`/`unitstypeuom` into `uom_types`/`uom_units`. A curated `package_types` master makes the spellings the same. `product_packaging_profiles.package_type` becomes an FK |
 | D7 | Grouping | One trip or truck is one wave. Each SO has one pick list. WW stages the pick lists for each trip into a `staging_load`. WW uses the zone to suggest trips. **O1 replaces the trip suggestion** |
 | D8 | Release rules | Operators can pick only the committed quantity. WW blocks customers on credit hold |
@@ -43,10 +43,20 @@ https://claude.ai/artifact/AFsdBAVXf44pqyQmXju3o1
 | A | package_types, uom copy, product unit backfill, packaging-profile FK | none |
 | B | customers table, import and changes, Customers page | none |
 | C | SO poll and QR lookup, Orders inbox with credit gate and committed quantity | A, B |
-| D | Forward-pick zone, pick faces, min/max and demand engine, replen queue, Command Center tile | A |
+| D | Pick face bins, fill-level and demand engine, replen queue, Command Center tile | A |
 | E | Trip board, pick lists, handset, short → urgent replen, IF at Picking | C, D |
 | F | Pack scan-verify (Packed), load scan, depart (Shipped) | E |
 | G | Driver proof of delivery, and signature and exception write-back | F |
+
+**Status on 2026-10-31.** Slices A, B and C are built. Slice D is built in the sandbox (`20261031150000_forward_pick_replenishment.sql`, the Replenishment page and a Command Center tile):
+
+- A pick face is a bin with the status `pick_face`. A manager uses "Make pick face" on the Replenishment page (`make_pick_face`), or sets the status on the location. "Release" (`release_pick_face`) makes it a normal bin again.
+- `pick_face_slots` records the SKU in each face and its fill quantity. There is no fixed SKU (§10).
+- The engine `evaluate_forward_pick_replenishment` runs each 5 minutes (pg_cron). It also runs when a person clicks "Check now". The rules are in §10.
+- The source pallet is the oldest available pallet (FEFO or FIFO) in an `active` bin. It is never in a pick face, a staging, dispatch or quarantine zone, or a frozen bin (C2).
+- One task is one pallet. To start a task, WW makes a WW move (D4). When the move scan completes, a trigger closes the task and records the new fill. If the move is cancelled, the task goes back into the queue.
+- `request_urgent_replenishment` is ready for the short pick in slice E (D10) and for C6.
+- Not yet built: the push notification to the floor (D5), the TO full-pallet split (T3/T4), and the replen tasks on the Pick Lists sheet and the printable sheet (slice E).
 
 All schema changes only add to the schema. Refer to the "Data model & build" tab of the prototype. Each line that comes from NetSuite keeps `external_line_id` (orderLine) and `external_line_key` (lineuniquekey).
 
@@ -282,10 +292,10 @@ If there is no Quarantine status, NetSuite counts returns on hold as available. 
 
 ### 8.3 To verify
 
-- **V19** — Does the SPX Operations KPI script accept KPI times that WW writes?
+- **V19** — Does the SPX Operations KPI script accept KPI times that WW writes? **Answered 2026-10-31 (Russell): yes. WW writes `custbody_spx_kpi_*` with the real scan times (O4).**
 - **V20** — How does the ERP app find its IFs: by truck, by trip or by driver login? Check this in production, because the sandbox has no driver data.
 - **V21** — What does Simplex Daily Deliveries Setup Cleanup reset each day? What does the "Pending" truck mean?
-- **V22** — Who clears the IFs that stay at Picked? Must WW show them on the trip board?
+- **V22** — Who clears the IFs that stay at Picked? Must WW show them on the trip board? **Proposed 2026-10-31.** An IF at Picked is not invoiced. Simplex makes the invoice only some minutes after Shipped (§8.1). The steps after Picked are: WW floor pick and short pick (E), pack check, stage and load scan, depart (F). At depart, WW sets the IF to Shipped. The Simplex script then makes the invoice. WW releases the trip to the driver only when each SO has its invoice (N3). An IF that stays at Picked after its trip date is either stock that left without a scan, or a plan that the office did not continue. WW shows it on the trip board as **Aged** (the order sheet does this now). The office must ship it or delete it in NetSuite. WW does not clear it
 
 ## 9. NetSuite screens that floor staff replace (UI walk-through, 2026-10-30)
 
@@ -322,3 +332,71 @@ We read these screens in the _SB1 sandbox. We did not change records.
 - **V23** — Confirm in production that the ERP app reads the invoice. Confirm which field it uses to find the stops.
 - **V24** — Does the office print pick tickets from the SO and from Fulfill Orders? Which path is in use now?
 - **V25** — Must WW use NetSuite WMS bins later, or do bins stay in WW only?
+
+## 10. Pick faces on the floor (floor practice, 2026-10-31)
+
+This section changes D4 and D5. It replaces the forward-pick zone and the fixed min and max of the first slice D build.
+
+### 10.1 Findings
+
+- Managers and admins disable bulk bays to use them as pick faces. This stops put-away from filling them. The sandbox has 233 disabled bins, and all are empty. Whole upper levels are also disabled for other reasons, so WW must not convert disabled bins automatically.
+- Each bay has a barcode label. Operators scan it at put-away.
+- A full pallet of one SKU goes to the face. Pickers take pieces down to a fill level. Then operators bring full pallets from bulk. They stack a low remainder on top of the new pallet.
+- A face holds up to 5 pallets, of one SKU or of more than one SKU.
+- The SKU of a face is not fixed. It comes with the pallet that a replenishment moves in.
+- Fast movers get 2 full pallets at 75 % of the fill. Other products get 1 pallet at 50 %.
+- The velocity classes in WW do not show the fast movers. WW must learn them from use.
+
+### 10.2 Decisions
+
+| # | Topic | Decision |
+|---|---|---|
+| F1 | Pick face | A bin with the status `pick_face`. The bin keeps its code and its barcode. There are no separate pick zones |
+| F2 | Convert | A manager converts each bay ("Make pick face"). WW sets mixed SKU to allowed and the pallets per face (1 to 10). WW does not convert disabled bins in bulk. First conversion (V28): the 107 disabled level-A bins in racks F to J, on 2026-10-31 |
+| F3 | SKU | Not fixed. The replenishment that brings the first pallet sets it (`pick_face_slots`). When the face is empty and no task is open, the face is free for any SKU |
+| F4 | Put-away | Put-away, directed put-away and normal moves use only `active` bins, so they never fill a face. Only a replenishment move can fill a face, and only the face of its task. Bulk sourcing never sees face stock. A pallet goes back to bulk only by a move out of the face |
+| F5 | Pallet | The pallet keeps its identity in the face. Each pick takes units off its balance. An empty pallet retires |
+| F6 | Fill | The fill is the stock of the SKU in the face after the last replenishment. The trigger level is a % of the fill |
+| F7 | Policy | WW learns it from use (V27). Daily use = shipped fulfillment lines of the last 30 days ÷ 30. A product that uses one full pallet a day or more (its largest pallet in the warehouse) gets 75 % and 2 to 5 pallets. Other products get 50 % and 1 pallet. Until the warehouse has 30 days of shipped history, every product gets the minimum: 50 % and 1 pallet. `products.replen_trigger_pct` and `products.replen_pallets` override it |
+| F8 | Trigger | Projected = face stock − open demand. When projected ≤ trigger level, WW asks for the policy's pallets, and more while they cannot cover a shortage. Urgent when projected < 0 |
+| F9 | Open demand | A soft reservation: the lines of the office's open fulfillments (Picked or Packed), less what WW picked for the line. It does not block picking. A fulfillment older than `warehouses.replen_demand_max_age_days` (default 3) is aged and does not count |
+| F10 | New SKU | A SKU with open demand and no face gets a face when its policy asks for 2 or more pallets (a fast mover), or when the demand is not a whole number of its full bulk pallets. Whole pallets go from bulk. When no face has room, the SKU stays in bulk with no task |
+| F11 | Room | A face has room when its pallets plus the pallets on their way are fewer than its pallets per face. A remainder of 25 % of the fill or less does not take a place, because the floor stacks it. WW fills a face that holds the SKU first, then an empty face, then a face with other SKUs |
+| F12 | Exceptions | For a SKU on a face: "No bulk stock" or "No pick face has room". The task becomes queued again when stock or room comes back |
+
+### 10.3 Stock tracking to the completed fulfillment
+
+1. Receipt: a bulk pallet in base units, in an `active` bin.
+2. Replenishment: a WW move into the face. NetSuite does not change, because the location is the same (D4).
+3. Pick (slice E): units come off the face pallet against the fulfillment line. The open demand goes down by the same quantity, so the engine does not count it two times.
+4. Load and depart (slice F): WW sets the IF to Shipped. NetSuite posts the stock change.
+
+At each step, the WW total for the location (bulk + faces + staged) must be equal to the NetSuite on-hand.
+
+### 10.4 Test record
+
+Sandbox, 2026-10-31, in a transaction that was rolled back: bin G-17-A converted, a fulfillment line of 100 for a SKU with pallets of 151. Results: a task to G-17-A for one pallet (urgent, the face was empty). A second run made no new task. Start and move completion closed the task and recorded a fill of 151. A bulk check then did not return the face pallet. After a pick of 40 with 60 left on the line (111 on hand, trigger 75.5), WW asked for a pallet. When the face was full, the task showed "No pick face has room". Shipped: the task was cancelled. Aged fulfillment: demand 0. At 70 with no demand: a fill-level task. A short request: urgent. Empty face with no task: the SKU was released. Release with an open task was refused.
+
+Learned policy, rolled back: with 40 days of shipped history and pallets of 151, a use of 50 a day gave 50 % and 1 pallet. 200 a day gave 75 % and 2 pallets. 1000 a day gave 75 % and 5 pallets (the cap). With no shipped history the result was "learning": 50 % and 1 pallet.
+
+### 10.5 To verify
+
+- **V26** — Answered: 3 days is correct.
+- **V27** — Answered: no. WW learns the fast movers from 30 days of use, with the minimum until then (F7).
+- **V28** — Answered: all of the lower level (level A) for now. The 107 disabled level-A bins are pick faces (F2). The 166 active level-A bins stay bulk.
+
+## 11. Slice E build (2026-10-31)
+
+Migration `20261101090000_trip_picking.sql`. Code in `src/features/trips/`. This slice writes nothing to NetSuite.
+
+| # | Topic | Build |
+|---|---|---|
+| E1 | Trip board | The Trips page shows the open IFs (Picked or Packed), grouped by IF date + truck + trip number (O3). It shows the order number and "part n of m" (N2), the pick progress, credit hold (D8) and Aged (V22) |
+| E2 | Pick list | "Start pick" makes one pick list for each IF (`pick_lists.fulfillment_id`) and one task for each IF line (`pick_tasks.fulfillment_line_id`). Start again refreshes the list: it follows the office's line changes, and gives a bin to a line that had no stock |
+| E3 | Source | A task directs the picker to a bin, not to a pallet: first a pick face that holds the product (pick sequence), then bulk (FEFO or FIFO). Thus, many orders can pick from one face at the same time |
+| E4 | Pick | The picker scans the bin and enters the quantity in the line unit. WW posts base units (D9). WW takes the units off the smallest pallet in the bin first (F5). An empty pallet retires as `shipped`, because `inventory_status` has no picked value. WW refuses more than the line asks for |
+| E5 | Short | "Short" closes the line with what is picked. On a face, it makes an urgent replenishment (D10). A line with no stock in WW closes short with nothing |
+| E6 | Demand | `open_fulfillment_demand` now takes off the WW picks for each IF line (F9) |
+| E7 | Pick Lists | The Pick Lists page, its badge and the dashboard tile leave out trip pick lists |
+
+Not in this slice: the staging lane and load scan, ship short at trip close, and the IF status changes (slice F). Picked units stay on the open IF until then. Thus, the W14 reconciliation must count bins + picked on open IFs (C5).

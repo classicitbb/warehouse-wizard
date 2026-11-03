@@ -290,6 +290,68 @@ Deno.serve(async (req) => {
             }
           }
         }
+      } else if (job.job_type === 'receipt_purchase_order') {
+        // Post the receipt against its PO as a NetSuite Item Receipt.
+        const p = job.payload as {
+          documentId?: string
+          externalRef?: string
+          locationId?: string | null
+          lines?: { lineNumber: number | null; itemId: string | null; quantity: number }[]
+        }
+        const lines = (p.lines ?? []).filter((l) => l.lineNumber != null && l.quantity > 0)
+        if (!p.documentId || !p.externalRef || lines.length === 0) {
+          failureReason = 'Invalid receipt_purchase_order payload'
+        } else {
+          const host = netsuiteHost(accountId)
+          requestBody = {
+            externalId: p.externalRef,
+            memo: `Warehouse Wizard receipt ${p.externalRef}`,
+            item: {
+              items: lines.map((l) => ({
+                orderLine: l.lineNumber,
+                quantity: l.quantity,
+                itemReceive: true,
+                ...(p.locationId ? { location: { id: p.locationId } } : {}),
+              })),
+            },
+          }
+          try {
+            const res = await fetch(
+              `https://${host}/services/rest/record/v1/purchaseOrder/${encodeURIComponent(p.documentId)}/!transform/itemReceipt?replace=item`,
+              {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+              },
+            )
+            httpStatus = res.status
+            const text = await res.text()
+            if (res.ok) {
+              const location = res.headers.get('Location')
+              ok = true
+              responsePayload = { itemReceiptId: location?.split('/').pop() ?? null, location }
+            } else {
+              try { responsePayload = JSON.parse(text) } catch { responsePayload = { raw: text.slice(0, 4000) } }
+              failureReason = `NetSuite responded ${res.status}: ${text.slice(0, 300)}`
+            }
+          } catch (err) {
+            failureReason = err instanceof Error ? err.message : String(err)
+          }
+          if (!ok) {
+            try {
+              const res = await fetch(`https://${host}/services/rest/record/v1/itemReceipt/eid:${p.externalRef}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              })
+              if (res.ok) {
+                const rec = await res.json().catch(() => null) as { id?: string | number } | null
+                if (rec?.id != null) {
+                  ok = true
+                  responsePayload = { itemReceiptId: String(rec.id), alreadyPosted: true, postError: failureReason }
+                }
+              }
+            } catch { /* keep original failure */ }
+          }
+        }
       } else {
         failureReason = `Unsupported job_type for outbound sync: ${job.job_type}`
       }
@@ -322,7 +384,7 @@ Deno.serve(async (req) => {
     }
 
     // Unsupported job types never retry — go straight to dead_letter.
-    const isPermanent = job.job_type !== 'inventory_adjustment'
+    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order'
 
     if (isPermanent || nextAttempts >= MAX_RETRIES) {
       const reason = failureReason ?? 'Unknown error'

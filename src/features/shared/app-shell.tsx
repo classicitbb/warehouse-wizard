@@ -217,7 +217,7 @@ const OFFLINE_ALERT_SESSION_KEY = "warehouseWizard.offlineAlert.current";
 const BREADCRUMB_SECTIONS: Array<{ label: string; routes: string[] }> = [
   {
     label: "Operations",
-    routes: ["/dashboard", "/receiving", "/putaway-tasks", "/inventory-search", "/pick-lists", "/location-moves", "/cycle-counts", "/transfers"],
+    routes: ["/dashboard", "/receiving", "/putaway-tasks", "/inventory-search", "/orders", "/trips", "/pick-lists", "/location-moves", "/replenishment", "/cycle-counts", "/transfers"],
   },
   {
     label: "Warehouse",
@@ -343,12 +343,12 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-[43px] items-center gap-2 self-stretch border-l border-border bg-transparent px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
             </Avatar>
-            <span className="hidden truncate text-xs font-medium sm:block">{displayName}</span>
+            <span className="hidden max-w-[120px] truncate text-xs font-medium lg:block">{displayName}</span>
             <ChevronDown className="h-3 w-3 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
@@ -411,7 +411,7 @@ function NotificationBell({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="relative h-9 w-9"
+          className="relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-0 hover:bg-accent focus-visible:ring-inset"
           size="icon"
           variant="outline"
           aria-label={notificationCount ? `${notificationCount} notification${notificationCount === 1 ? "" : "s"}` : "Notifications"}
@@ -565,7 +565,9 @@ function OfflineFreezeBadge({ compact = false }: { compact?: boolean }) {
     <div
       className={cn(
         "inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-50 px-3 text-sm font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
-        compact && "px-2 text-[11px]",
+        compact
+          ? "px-2 text-[11px]"
+          : "h-[43px] rounded-none border-y-0 border-r-0 border-l border-amber-400/60 bg-transparent px-3 dark:bg-transparent",
       )}
       title="This device is offline. Live warehouse commits are frozen until reconnect."
     >
@@ -664,7 +666,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       // Row = 1.125rem icon + 2 x 1.25rem icon padding + 1px bottom border.
       const rowPx = 3.625 * rem + 1;
       const headerPx = mobileMenuHeaderRef.current?.offsetHeight ?? 0;
-      setMobileNavGrid(navRows.length * rowPx > window.innerHeight - 24 - headerPx);
+      // Fullscreen below md; tablet flyout hangs under the 43px header.
+      const reserved = window.matchMedia("(min-width: 768px)").matches ? 56 : 0;
+      setMobileNavGrid(navRows.length * rowPx > window.innerHeight - reserved - headerPx);
     };
     // The sheet mounts in a portal, so its header isn't measurable until the next frame.
     const frame = requestAnimationFrame(measure);
@@ -1201,7 +1205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         {/* Mobile header */}
-        <header className="col-span-full flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:landscape:hidden">
+        <header className="col-span-full flex items-center justify-between border-b border-border bg-background/95 pl-4 pr-0 py-0 h-[43px] backdrop-blur lg:landscape:hidden md:pl-[21px]">
           <div className="flex min-w-0 items-center gap-2">
             <Link
               to={toPath("/dashboard")}
@@ -1229,8 +1233,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-md border border-border bg-card/80 px-1.5 py-1">
+          <div className="flex items-center gap-0">
+            <div className="flex items-center gap-1.5 h-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3">
               <Avatar className="h-6 w-6">
                 <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">{initials}</AvatarFallback>
               </Avatar>
@@ -1246,14 +1250,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               showSetupReminder={showNotificationSetupReminder}
               onSetupReminderAction={handleNotificationSetup}
             />
-            <HelpSidebar pathname={pathname} />
+            <HelpSidebar pathname={pathname} toolbar="tablet" />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button className="h-9 w-9" size="icon" variant="outline">
+                <Button
+                  className="h-[43px] w-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent hover:bg-accent focus-visible:ring-inset"
+                  size="icon"
+                  variant="outline"
+                  aria-label="Open navigation menu"
+                  aria-expanded={mobileMenuOpen}
+                >
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="top" className="left-1/2 top-3 flex max-h-[calc(100svh-1.5rem)] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 origin-top flex-col gap-0 overflow-hidden rounded-2xl border border-border bg-card/95 p-0 shadow-2xl backdrop-blur data-[state=closed]:duration-75 data-[state=open]:duration-100 data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+              <SheetContent side="top" className="inset-0 flex h-svh w-full flex-col gap-0 overflow-hidden rounded-none border-0 bg-card p-0 data-[state=closed]:duration-150 data-[state=open]:duration-200 md:inset-auto md:right-2 md:top-[47px] md:h-auto md:max-h-[calc(100svh-3.5rem)] md:w-80 md:origin-top-right md:rounded-xl md:border md:border-border md:bg-card/95 md:shadow-2xl md:backdrop-blur md:data-[state=closed]:slide-out-to-right-4 md:data-[state=open]:slide-in-from-right-4 md:data-[state=closed]:slide-out-to-top-0 md:data-[state=open]:slide-in-from-top-0 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:zoom-in-95 md:data-[state=closed]:fade-out-0 md:data-[state=open]:fade-in-0">
                 <SheetHeader className="sr-only">
                   <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
@@ -1313,7 +1323,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Desktop top bar — landscape only, spans the full viewport width */}
-        <div className="col-span-full hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:landscape:flex">
+        <div className="col-span-full hidden h-[43px] items-center justify-between gap-3 border-b border-border bg-background/95 px-[21px] py-0 backdrop-blur lg:landscape:flex">
 
             <div className="flex min-w-0 items-center gap-3">
               <Link
@@ -1369,14 +1379,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </nav>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0">
               {canSwitchWarehouses ? (
                 <Select
                   value={profile?.default_warehouse_id ?? (canSelectAllWarehouses ? "__all__" : "")}
                   onValueChange={(value) => warehouseSwitchMutation.mutate(value === "__all__" ? null : value)}
                   disabled={warehouseSwitchMutation.isPending}
                 >
-                  <SelectTrigger className="h-9 w-[13rem]">
+                  <SelectTrigger className="h-[43px] w-[13rem] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset">
                     <SelectValue placeholder="Select warehouse" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1392,7 +1402,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Select>
               ) : null}
               <CopilotPanel />
-              <HelpSidebar pathname={pathname} />
+              <HelpSidebar pathname={pathname} toolbar="desktop" />
               <OfflineFreezeBadge />
               <NotificationBell
                 alerts={offlineSupervisorAlerts}
@@ -1415,8 +1425,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={cn(
               "flex-1 min-h-0 min-w-0",
               pathname === "/help"
-                ? "p-0 pb-14 lg:landscape:pb-0"
-                : "px-4 pt-5 pb-[4.75rem] sm:px-5 lg:px-6 lg:landscape:pb-5",
+                ? "p-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:landscape:pb-0"
+                : "px-4 pt-5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-5 lg:px-6 lg:landscape:pb-5",
               ["/inventory-search", "/warehouses", "/zones", "/locations"].includes(pathname) ? "overflow-hidden" : "overflow-y-auto",
             )}
           >
@@ -1470,10 +1480,10 @@ function MobileActionBar({
   return (
     <nav
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-40 grid h-14 items-stretch border-t bg-background/95 px-0.5 backdrop-blur lg:landscape:hidden",
+        "fixed bottom-0 left-0 right-0 z-40 grid h-[calc(3.5rem+env(safe-area-inset-bottom))] items-stretch overflow-x-auto border-t bg-background/95 px-0.5 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:landscape:hidden",
         isLocalSession ? "border-border" : "border-emerald-500",
       )}
-      style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}
+      style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(4rem, 1fr))` }}
       onContextMenu={(event) => event.preventDefault()}
       aria-label="Primary mobile navigation"
     >

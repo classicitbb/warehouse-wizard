@@ -207,7 +207,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 // removed unused dropdown-menu and drawer imports
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverHeader, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -233,7 +233,17 @@ import { ImportButton } from "@/features/shared/resource-import";
 import { NetSuiteImportDialog } from "@/features/products/netsuite-import-dialog";
 import { BarcodePrintDialog } from "@/features/shared/ui-shared";
 import { LocationWizardDialog } from "@/features/shared/location-wizard";
+import { EditLocationDialog, type EditableLocation } from "@/features/shared/edit-location-dialog";
 import { shouldRestrictToDefaultWarehouse, normalizeScannerText } from "@/lib/scan-input";
+
+/** Status chips on the Locations page. Several can be on at once. */
+const LOCATION_STATUS_FILTERS = [
+  { label: "Active", value: "active" },
+  { label: "Pick face", value: "pick_face" },
+  { label: "Disabled", value: "disabled" },
+  { label: "Blocked", value: "blocked" },
+  { label: "Maintenance", value: "maintenance" },
+] as const;
 
 /** Products table header cell: click to sort, funnel icon to filter. */
 function ProductColumnHeader({
@@ -291,7 +301,7 @@ function ProductColumnHeader({
             </button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-56 space-y-2 p-3">
-            <p className="text-xs font-medium">{label}</p>
+            <PopoverHeader title={`Filter ${label}`} />
             {kind === "text" ? (
               <Input
                 autoFocus
@@ -417,8 +427,10 @@ export function ResourcePage({
   const [filterQuery, setFilterQuery] = useState("");
   const [columnFilters, setColumnFilters] = useState<ColumnFilterMap>({});
   const [belowMinimumOnly, setBelowMinimumOnly] = useState(false);
+  // Bin status chips on Locations; empty = every status.
+  const [locationStatuses, setLocationStatuses] = useState<string[]>([]);
   const [sortState, setSortState] = useState<SortState>(null);
-  const hasColumnFilters = Object.keys(columnFilters).length > 0 || belowMinimumOnly;
+  const hasColumnFilters = Object.keys(columnFilters).length > 0 || belowMinimumOnly || locationStatuses.length > 0;
 
   
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
@@ -718,13 +730,16 @@ export function ResourcePage({
     );
   }, [filterQuery, resource.fields, tableData]);
   const filteredData = useMemo(() => {
+    if (isLocations && locationStatuses.length > 0) {
+      return searchedData.filter((row: Record<string, unknown>) => locationStatuses.includes(String(row.status ?? "active")));
+    }
     if (!isProducts) return searchedData;
     let rows = filterProductRows(searchedData as Array<Record<string, unknown>>, columnFilters, productQtyMap);
     if (belowMinimumOnly) {
       rows = rows.filter((row) => isBelowMinimumStock(row, productQtyMap));
     }
     return sortProductRows(rows, sortState, productQtyMap);
-  }, [belowMinimumOnly, columnFilters, isProducts, productQtyMap, searchedData, sortState]);
+  }, [belowMinimumOnly, columnFilters, isLocations, isProducts, locationStatuses, productQtyMap, searchedData, sortState]);
 
   const tableFields = useMemo(() => {
     if (resource.table === "products") {
@@ -1007,6 +1022,34 @@ export function ResourcePage({
         />
       </div>
 
+      {isLocations ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Status</span>
+          {LOCATION_STATUS_FILTERS.map((option) => {
+            const active = locationStatuses.includes(option.value);
+            return (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                aria-pressed={active}
+                onClick={() =>
+                  setLocationStatuses((prev) => (active ? prev.filter((value) => value !== option.value) : [...prev, option.value]))
+                }
+              >
+                {option.label}
+              </Button>
+            );
+          })}
+          {locationStatuses.length > 0 ? (
+            <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs text-muted-foreground" onClick={() => setLocationStatuses([])}>
+              All statuses
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       {isProducts ? (
         <div className="flex flex-wrap items-center gap-1.5">
           {PRODUCT_QUICK_LINKS.map((link) => {
@@ -1207,15 +1250,23 @@ export function ResourcePage({
                           const sv = String(rawValue);
                           const variant =
                             sv === "active" ? "default"
-                            : sv === "maintenance" ? "outline"
+                            : sv === "maintenance" || sv === "pick_face" ? "outline"
                             : "destructive";
                           const label =
                             sv === "active" ? "Active"
                             : sv === "maintenance" ? "Maintenance"
                             : sv === "blocked" ? "Blocked"
                             : sv === "disabled" ? "Disabled"
+                            : sv === "pick_face" ? "Pick face"
                             : sv;
-                          displayValue = <Badge variant={variant} className={sv === "maintenance" ? "border-amber-400 text-amber-600" : undefined}>{label}</Badge>;
+                          displayValue = (
+                            <Badge
+                              variant={variant}
+                              className={sv === "maintenance" ? "border-amber-400 text-amber-600" : sv === "pick_face" ? "border-sky-500 text-sky-700 dark:text-sky-400" : undefined}
+                            >
+                              {label}
+                            </Badge>
+                          );
                         } else if (field.type === "select" && field.options) {
                           displayValue = field.options.find((o) => o.value === String(rawValue))?.label ?? String(rawValue);
                         } else if (field.name === "product_id") {
@@ -1412,7 +1463,9 @@ export function ResourcePage({
         </CardContent>
       </Card>
 
-      {editRecord ? (
+      {editRecord && isLocations ? (
+        <EditLocationDialog location={editRecord as unknown as EditableLocation} onClose={() => setEditRecord(null)} />
+      ) : editRecord ? (
         <ResourceEditDialog resource={resource} editRecord={editRecord} onClose={() => setEditRecord(null)} />
       ) : null}
       <Dialog

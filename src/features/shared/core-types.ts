@@ -72,6 +72,8 @@ export type AppRoute =
   | "/packaging-profiles"
   | "/clients"
   | "/customers"
+  | "/orders"
+  | "/trips"
   | "/receiving"
   | "/putaway-tasks"
   | "/inventory-search"
@@ -80,6 +82,7 @@ export type AppRoute =
   | "/pick-lists/:pickListId"
   | "/transfers"
   | "/location-moves"
+  | "/replenishment"
   | "/cycle-counts"
   | "/status"
   | "/reports"
@@ -335,8 +338,11 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Receiving", to: "/receiving", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "receiving" },
   { label: "Put-Away", to: "/putaway-tasks", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "putaway" },
   { label: "Inventory", to: "/inventory-search", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "inventory" },
+  { label: "Orders", to: "/orders", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true },
+  { label: "Trips", to: "/trips", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], netsuite: true },
   { label: "Pick Lists", to: "/pick-lists", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "warehouse_operator"], moduleKey: "pick-lists" },
   { label: "Location Moves", to: "/location-moves", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
+  { label: "Replenishment", to: "/replenishment", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
   { label: "Cycle Counts", to: "/cycle-counts", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "cycle-counts" },
   { label: "Transfers", to: "/transfers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "dispatch_driver"], moduleKey: "transfers" },
   { label: "Statuses", to: "/status", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "status" },
@@ -436,8 +442,7 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
       { name: "temperature_class", label: "Temperature", type: "select", options: tempOptions, required: true },
       { name: "is_staging", label: "Staging zone", type: "boolean" },
       { name: "is_dispatch", label: "Dispatch zone", type: "boolean" },
-      { name: "is_quarantine", label: "Quarantine zone", type: "boolean" },
-    ],
+      { name: "is_quarantine", label: "Quarantine zone", type: "boolean" },    ],
   },
   locations: {
     table: "locations",
@@ -479,7 +484,8 @@ export const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
         { label: "Blocked", value: "blocked" },
         { label: "Maintenance", value: "maintenance" },
         { label: "Disabled", value: "disabled" },
-      ], required: true },
+        { label: "Pick face", value: "pick_face" },
+      ], required: true, description: "Pick face: a forward-pick bin. Put-away skips it; only Replenishment fills it." },
       { name: "notes", label: "Notes", type: "textarea", description: "Special constraints or beam clearance notes." },
       { name: "warehouse_id", label: "Warehouse", type: "select", required: true },
       { name: "zone_id", label: "Zone", type: "select", required: true },

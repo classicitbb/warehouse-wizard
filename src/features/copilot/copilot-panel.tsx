@@ -541,7 +541,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             <Bot className="h-3.5 w-3.5" />
           </Button>
         ) : (
-          <Button size="sm" variant="outline" className="h-9 gap-2" aria-label="Ask Copilot">
+          <Button size="sm" variant="outline" className="h-[43px] gap-2 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset" aria-label="Ask Copilot">
             <Bot className="h-4 w-4" />
             <span className="hidden xl:inline">Copilot</span>
           </Button>
@@ -549,6 +549,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
       </SheetTrigger>
       <SheetContent
         side="right"
+        hideReportButton
         className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md"
         {...{ [SCREENSHOT_IGNORE_ATTR]: "" }}
       >

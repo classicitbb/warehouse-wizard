@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -1986,6 +1986,30 @@ export type Database = {
           },
         ]
       }
+      netsuite_poll_cursors: {
+        Row: {
+          cursor: string | null
+          key: string
+          last_result: Json | null
+          last_run_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          cursor?: string | null
+          key: string
+          last_result?: Json | null
+          last_run_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cursor?: string | null
+          key?: string
+          last_result?: Json | null
+          last_run_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_events: {
         Row: {
           created_at: string
@@ -2195,44 +2219,211 @@ export type Database = {
           },
         ]
       }
-      order_lines: {
+      order_fulfillment_lines: {
         Row: {
-          allocated_quantity: number
           created_at: string
-          created_by: string | null
+          external_line_id: string
+          fulfillment_id: string
           id: string
-          inventory_lot_id: string | null
-          notes: string | null
-          order_id: string
-          picked_quantity: number
-          product_id: string
+          ns_item_id: string | null
+          ns_unit_id: string | null
+          order_external_line_id: string | null
+          order_line_id: string | null
+          product_id: string | null
           quantity: number
           updated_at: string
         }
         Insert: {
-          allocated_quantity?: number
           created_at?: string
-          created_by?: string | null
+          external_line_id: string
+          fulfillment_id: string
           id?: string
-          inventory_lot_id?: string | null
-          notes?: string | null
-          order_id: string
-          picked_quantity?: number
-          product_id: string
+          ns_item_id?: string | null
+          ns_unit_id?: string | null
+          order_external_line_id?: string | null
+          order_line_id?: string | null
+          product_id?: string | null
           quantity?: number
           updated_at?: string
         }
         Update: {
+          created_at?: string
+          external_line_id?: string
+          fulfillment_id?: string
+          id?: string
+          ns_item_id?: string | null
+          ns_unit_id?: string | null
+          order_external_line_id?: string | null
+          order_line_id?: string | null
+          product_id?: string | null
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_fulfillment_lines_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "order_fulfillments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillment_lines_order_line_id_fkey"
+            columns: ["order_line_id"]
+            isOneToOne: false
+            referencedRelation: "order_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillment_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_fulfillments: {
+        Row: {
+          created_at: string
+          document_number: string
+          external_record_id: string
+          external_status: string
+          fulfillment_date: string | null
+          id: string
+          last_synced_at: string | null
+          order_id: string
+          picker_external_id: string | null
+          picker_name: string | null
+          source_modified_at: string | null
+          trip_number: string | null
+          truck_external_id: string | null
+          truck_name: string | null
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_number: string
+          external_record_id: string
+          external_status: string
+          fulfillment_date?: string | null
+          id?: string
+          last_synced_at?: string | null
+          order_id: string
+          picker_external_id?: string | null
+          picker_name?: string | null
+          source_modified_at?: string | null
+          trip_number?: string | null
+          truck_external_id?: string | null
+          truck_name?: string | null
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          created_at?: string
+          document_number?: string
+          external_record_id?: string
+          external_status?: string
+          fulfillment_date?: string | null
+          id?: string
+          last_synced_at?: string | null
+          order_id?: string
+          picker_external_id?: string | null
+          picker_name?: string | null
+          source_modified_at?: string | null
+          trip_number?: string | null
+          truck_external_id?: string | null
+          truck_name?: string | null
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_fulfillments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_lines: {
+        Row: {
+          allocated_quantity: number
+          committed_quantity: number
+          created_at: string
+          created_by: string | null
+          external_line_id: string | null
+          external_line_key: string | null
+          fulfilled_quantity: number
+          id: string
+          inventory_lot_id: string | null
+          is_closed: boolean
+          line_number: number | null
+          notes: string | null
+          ns_unit_id: string | null
+          order_id: string
+          picked_quantity: number
+          product_id: string
+          quantity: number
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
           allocated_quantity?: number
+          committed_quantity?: number
           created_at?: string
           created_by?: string | null
+          external_line_id?: string | null
+          external_line_key?: string | null
+          fulfilled_quantity?: number
           id?: string
           inventory_lot_id?: string | null
+          is_closed?: boolean
+          line_number?: number | null
           notes?: string | null
+          ns_unit_id?: string | null
+          order_id: string
+          picked_quantity?: number
+          product_id: string
+          quantity?: number
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allocated_quantity?: number
+          committed_quantity?: number
+          created_at?: string
+          created_by?: string | null
+          external_line_id?: string | null
+          external_line_key?: string | null
+          fulfilled_quantity?: number
+          id?: string
+          inventory_lot_id?: string | null
+          is_closed?: boolean
+          line_number?: number | null
+          notes?: string | null
+          ns_unit_id?: string | null
           order_id?: string
           picked_quantity?: number
           product_id?: string
           quantity?: number
+          unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2251,10 +2442,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "order_lines_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "uom_units"
             referencedColumns: ["id"]
           },
         ]
@@ -2264,13 +2469,33 @@ export type Database = {
           client_id: string | null
           created_at: string
           created_by: string | null
+          customer_external_id: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_reference: string | null
+          destination_location_external_id: string | null
+          destination_location_name: string | null
+          destination_warehouse_id: string | null
+          external_record_id: string | null
+          external_status: string | null
           id: string
+          last_synced_at: string | null
           notes: string | null
+          order_date: string | null
           order_number: string
           order_type: string
+          picker_name: string | null
+          picking_ticket_printed: boolean
           priority: number
           requested_ship_date: string | null
+          ship_complete: boolean
+          source: string
+          source_modified_at: string | null
           status: Database["public"]["Enums"]["task_status"]
+          trip_number: string | null
+          truck_external_id: string | null
+          truck_name: string | null
+          unmapped_line_count: number
           updated_at: string
           warehouse_id: string
         }
@@ -2278,13 +2503,33 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           created_by?: string | null
+          customer_external_id?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_reference?: string | null
+          destination_location_external_id?: string | null
+          destination_location_name?: string | null
+          destination_warehouse_id?: string | null
+          external_record_id?: string | null
+          external_status?: string | null
           id?: string
+          last_synced_at?: string | null
           notes?: string | null
+          order_date?: string | null
           order_number: string
           order_type?: string
+          picker_name?: string | null
+          picking_ticket_printed?: boolean
           priority?: number
           requested_ship_date?: string | null
+          ship_complete?: boolean
+          source?: string
+          source_modified_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
+          trip_number?: string | null
+          truck_external_id?: string | null
+          truck_name?: string | null
+          unmapped_line_count?: number
           updated_at?: string
           warehouse_id: string
         }
@@ -2292,13 +2537,33 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           created_by?: string | null
+          customer_external_id?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_reference?: string | null
+          destination_location_external_id?: string | null
+          destination_location_name?: string | null
+          destination_warehouse_id?: string | null
+          external_record_id?: string | null
+          external_status?: string | null
           id?: string
+          last_synced_at?: string | null
           notes?: string | null
+          order_date?: string | null
           order_number?: string
           order_type?: string
+          picker_name?: string | null
+          picking_ticket_printed?: boolean
           priority?: number
           requested_ship_date?: string | null
+          ship_complete?: boolean
+          source?: string
+          source_modified_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
+          trip_number?: string | null
+          truck_external_id?: string | null
+          truck_name?: string | null
+          unmapped_line_count?: number
           updated_at?: string
           warehouse_id?: string
         }
@@ -2308,6 +2573,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_destination_warehouse_id_fkey"
+            columns: ["destination_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
           {
@@ -2611,6 +2890,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_lists_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_order_inbox"
             referencedColumns: ["id"]
           },
           {
@@ -5180,6 +5466,70 @@ export type Database = {
           },
         ]
       }
+      outbound_order_inbox: {
+        Row: {
+          committed_quantity: number | null
+          credit_review_required: boolean | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_number: string | null
+          customer_reference: string | null
+          delivery_zone: string | null
+          destination_location_name: string | null
+          destination_warehouse_id: string | null
+          external_record_id: string | null
+          external_status: string | null
+          fulfilled_quantity: number | null
+          fulfillment_count: number | null
+          id: string | null
+          last_synced_at: string | null
+          latest_fulfillment_date: string | null
+          latest_fulfillment_number: string | null
+          latest_fulfillment_status: string | null
+          latest_picker_name: string | null
+          latest_trip_number: string | null
+          latest_truck_name: string | null
+          line_count: number | null
+          on_credit_hold: boolean | null
+          open_fulfillment_count: number | null
+          order_date: string | null
+          order_number: string | null
+          order_type: string | null
+          ordered_quantity: number | null
+          picker_name: string | null
+          picking_ticket_printed: boolean | null
+          requested_ship_date: string | null
+          ship_complete: boolean | null
+          trip_number: string | null
+          truck_name: string | null
+          unmapped_line_count: number | null
+          warehouse_id: string | null
+          warehouse_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_destination_warehouse_id_fkey"
+            columns: ["destination_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _delete_guard_check: { Args: never; Returns: boolean }
@@ -5383,6 +5733,10 @@ export type Database = {
       }
       has_any_role: {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
+        Returns: boolean
+      }
+      has_feature_permission: {
+        Args: { _feature_code: string; _mode?: string; _user_id: string }
         Returns: boolean
       }
       has_min_role: {

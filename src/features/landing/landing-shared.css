@@ -1,0 +1,18 @@
+.ww-demo-backdrop { position:fixed; inset:0; background:rgb(13 36 31 / .55); z-index:100; }
+.ww-demo { --demo-bg:#171d26; --demo-text:#e0e6eb; --demo-muted:#b1bac7; --demo-input:#232e3e; --demo-border:#596578; box-sizing:border-box; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:calc(100% - 32px); max-width:460px; max-height:calc(100dvh - 32px); overflow:auto; overscroll-behavior:contain; z-index:101; padding:32px; border:1px solid var(--demo-border); border-radius:16px; background:var(--demo-bg); color:var(--demo-text); font-family:'IBM Plex Sans',sans-serif; box-shadow:0 24px 100px rgb(0 0 0 / .2); }
+.ww-demo-light { --demo-bg:#fff; --demo-text:#142c27; --demo-muted:#52655f; --demo-input:#f6faf8; --demo-border:#b8ccc4; color-scheme:light; }
+.ww-demo h2 { margin:0 24px 12px 0; font-size:24px; font-weight:650; }
+.ww-demo p { color:var(--demo-muted); line-height:1.6; font-size:14px; }
+.ww-demo form { display:grid; gap:16px; margin-top:22px; }
+.ww-demo label { display:grid; gap:6px; font-size:14px; font-weight:500; }
+.ww-demo label span { font-weight:400; color:var(--demo-muted); }
+.ww-demo input { box-sizing:border-box; width:100%; min-height:44px; padding:10px 12px; background:var(--demo-input); color:var(--demo-text); border:1px solid var(--demo-border); border-radius:6px; font:inherit; }
+.ww-demo a { color:inherit; text-decoration:underline; overflow-wrap:anywhere; }
+.ww-demo .ww-demo-note { margin:0; font-size:12px; }
+.ww-demo-close { position:absolute; top:12px; right:12px; width:32px; height:32px; border:1px solid var(--demo-border); border-radius:6px; background:transparent; color:inherit; font-size:22px; cursor:pointer; }
+.ww-demo-submit { min-height:46px; background:#087968; color:#fff; border:0; border-radius:7px; font:inherit; font-weight:600; cursor:pointer; }
+.ww-demo-submit:hover { background:#065e50; }
+.ww-demo :focus-visible { outline:3px solid #13a18b; outline-offset:3px; }
+.ww-back-top { position:fixed; right:max(20px,env(safe-area-inset-right)); bottom:max(20px,env(safe-area-inset-bottom)); z-index:45; display:inline-flex; align-items:center; gap:8px; padding:11px 16px; border:1px solid #8aa89d; border-radius:999px; background:#fff; color:#153c30 !important; box-shadow:0 4px 20px rgb(12 44 30 / .12); font:500 13px 'IBM Plex Sans',sans-serif; text-decoration:none; }
+.ww-back-top:hover { background:#eaf5ef; }
+.ww-back-top:focus-visible { outline:3px solid #087968; outline-offset:3px; }

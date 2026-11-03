@@ -400,6 +400,15 @@ export function buildEnterpriseDashboard(
         tasks: (metrics?.pickListRows ?? []).slice(0, 5),
       },
       {
+        label: "Replenishment",
+        count: metrics?.openReplenishmentTasks ?? 0,
+        action: "Move bulk pallets into the forward-pick faces",
+        route: "/replenishment",
+        tone: (metrics?.openReplenishmentTasks ?? 0) > 0 ? "warning" : "success",
+        // The summary RPC predates the Replenishment page and links its rows to Inventory.
+        tasks: (metrics?.replenishmentRows ?? []).slice(0, 5).map((row) => ({ ...row, route: "/replenishment" })),
+      },
+      {
         label: "Moves & Counts",
         count: (metrics?.openMoveTasks ?? 0) + (metrics?.openTransfers ?? 0) + (metrics?.openCycleCounts ?? 0),
         action: "Review active moves, transfers, and counts",

@@ -41,26 +41,23 @@ describe("dialog viewport fit", () => {
     expect(content.className).toContain("dialog-scrollbar");
   });
 
-  it("pins the title row and the close/report controls", () => {
+  it("pins the title bar, with the help and close controls in the title row", () => {
     render(<TallDialog />);
     const header = document.querySelector("[data-dialog-header='true']") as HTMLElement;
-    const controls = document.querySelector("[data-dialog-controls='true']") as HTMLElement;
     expect(header.className).toContain("sticky");
     expect(header.className).toContain("top-0");
     expect(header.className).toContain("shrink-0");
     expect(header.className).not.toContain("-mt-6");
     expect(header.className).not.toContain("-top-6");
-    expect(controls.className).toContain("fixed");
-    expect(controls.className).toContain("right-0");
-    expect(controls.className).toContain("top-0");
+    // One fixed layout: title block left, controls pill right, in the header row.
+    const controls = header.querySelector("[data-overlay-controls='true']") as HTMLElement;
+    expect(controls).toBeTruthy();
+    expect(header.lastElementChild?.contains(controls)).toBe(true);
+    expect(document.querySelector("[data-overlay-controls-floating='true']")).toBeNull();
     const close = screen.getByRole("button", { name: /^close$/i });
-    expect(close.className).toContain("right-0");
-    expect(close.className).toContain("top-0");
-    expect(close.className).toContain("rounded-none");
-    expect(close.className).toContain("hover:bg-destructive");
+    expect(controls.contains(close)).toBe(true);
+    expect(close.className).toContain("bg-destructive");
     expect(close.className).toContain("active:bg-destructive/80");
-    expect(close.className).not.toContain("focus:ring");
-    expect(close.className).not.toContain("focus-visible:ring");
     expect(screen.getByText("Create shipment")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
     expect(
@@ -81,7 +78,23 @@ describe("dialog viewport fit", () => {
     }
   });
 
-  it("keeps controls corner-anchored for every dialog layout used in the app", () => {
+  it("floats the controls in the corner when a dialog has no visible header", () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader className="sr-only"><DialogTitle>Hidden title</DialogTitle></DialogHeader>
+          <p>Body</p>
+        </DialogContent>
+      </Dialog>,
+    );
+    const floating = document.querySelector("[data-overlay-controls-floating='true']") as HTMLElement;
+    expect(floating).toBeTruthy();
+    expect(floating.className).toContain("fixed");
+    expect(floating.className).toContain("right-3");
+    expect(floating.contains(screen.getByRole("button", { name: /^close$/i }))).toBe(true);
+  });
+
+  it("puts the controls in the title row for every dialog layout used in the app", () => {
     const knownDialogLayouts = [
       "",
       "sm:max-w-xs",
@@ -114,11 +127,9 @@ describe("dialog viewport fit", () => {
         </Dialog>,
       );
       const close = screen.getByRole("button", { name: /^close$/i });
-      const controls = result.container.ownerDocument.querySelector("[data-dialog-controls='true']") as HTMLElement;
-      expect(controls.className).toContain("fixed");
-      expect(close.className).toContain("right-0");
-      expect(close.className).toContain("top-0");
-      expect(close.className).toContain("hover:bg-destructive");
+      const header = result.container.ownerDocument.querySelector("[data-dialog-header='true']") as HTMLElement;
+      expect(header.contains(close)).toBe(true);
+      expect(close.className).toContain("bg-destructive");
       expect(close.className).toContain("active:bg-destructive/80");
       cleanup();
     }

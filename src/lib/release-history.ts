@@ -9,6 +9,15 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.33.1",
+    date: "2026-11-02",
+    changes: [
+      "New white product landing page explains inventory confidence, adaptable warehouse workflows, ERP/API integration and MCP-compatible reporting",
+      "Login feature tiles open matching product explainers; product pages include Back to top and linked privacy, terms and licence review drafts",
+      "Demo requests prepare an email to Classic Visions for you to review and send",
+    ],
+  },
+  {
     version: "1.33.0",
     date: "2026-10-27",
     changes: [

@@ -84,3 +84,14 @@ export function summariseSchema(schema: unknown): SchemaSummary {
   }
   return { bodyFields, sublists }
 }
+
+// Discovery SuiteQL must be one read-only statement. The REST query endpoint
+// only runs SELECTs, so this is a second guard, not the only one.
+const WRITE_KEYWORDS = /\b(insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|exec|execute)\b/i
+
+export function isReadOnlySuiteQL(q: string): boolean {
+  if (q.length === 0 || q.length > 8000) return false
+  if (!/^(select|with)\b/i.test(q)) return false
+  if (q.includes(';')) return false
+  return !WRITE_KEYWORDS.test(q)
+}

@@ -183,6 +183,7 @@ export async function createPickListFlow(input: z.infer<typeof pickListSchema>) 
 export async function listPickLists(warehouseId?: string | null) {
   let query = db("pick_lists")
     .select("*, pick_tasks(*, pallets:pallets!pick_tasks_pallet_id_fkey(pallet_barcode, pallet_code, quantity, available_quantity, products(*, product_packaging_profiles(product_id, profile_name, packages_per_layer, layers_per_pallet, units_per_package, is_pallet_standard, is_default, is_hidden))), locations:locations!pick_tasks_location_id_fkey(code, aisle, bay, level, position))")
+    .is("fulfillment_id", null) // trip pick lists (slice E) use the trip handset
     .order("created_at", { ascending: false });
   if (warehouseId) {
     query = query.eq("warehouse_id", warehouseId);

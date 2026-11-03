@@ -14,3 +14,19 @@
 - [x] Upgrade Warehouse Copilot to rapid, natural, evidence-led conversations with complete history.
 - [x] Add broader read-only investigation tools and confirmed developer repair briefs.
 - [x] Stream Copilot responses, preserve stop behavior, and verify the end-to-end coworker flow.
+
+## Platform / multi-tenant (see docs/platform-architecture.md)
+- [ ] Get Simplex to sign the license (or a written interim agreement) before onboarding a second tenant; file copy in legal/.
+- [ ] Audit hard-coded "simplex" references in NetSuite shared code and migrations; move to tenant config.
+- [ ] Write ADRs: database-per-tenant; path routing (TWA-safe) with custom-domain add-on.
+- [ ] Control-plane Supabase project (tenants, directory, modules, ledger, heartbeats, leads).
+- [ ] Mount app under /:companySlug/* using tenantClient.ts and use-tenant-path.ts; legacy-path redirect; TWA auto-resume.
+- [ ] Root landing page + universal login + demo-request form.
+- [ ] Admin console (admin subdomain, separate project): tenants, modules, license, health.
+- [ ] platform-agent edge function in each tenant (signed commands, heartbeat).
+- [ ] Release pipeline: migration ledger, ring rollout (sandbox, canary, all), edge-function fan-out via CI.
+- [ ] Automated provisioning, Stripe billing, per-tenant branding, custom domains.
+- [ ] Create private repo classicitbb/warehousewizard-platform (control plane + admin console + release runner); separate Lovable project and Supabase.
+- [ ] Admin GUI v1 (Phase 1a): tenants, variables, secrets (Vault, write-only), notes, documents, audit log.
+- [ ] Add deployment_mode (hosted / customer_hosted / source_buyout) to tenants; define pull-based release manifest for customer-hosted installs.
+

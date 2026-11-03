@@ -113,11 +113,17 @@ const TransfersPage = lazy(() => import("@/features/transfers/transfers-page").t
 const UsersRolesPage = lazy(() => import("@/features/admin/users-roles-page").then((mod) => ({ default: mod.UsersRolesPage })));
 const CycleCountsPage = lazy(() => import("@/features/cycle-counts/cycle-counts-page").then((mod) => ({ default: mod.CycleCountsPage })));
 const CustomersPage = lazy(() => import("@/features/customers/customers-page").then((mod) => ({ default: mod.CustomersPage })));
+const OrdersInboxPage = lazy(() => import("@/features/orders/orders-inbox-page").then((mod) => ({ default: mod.OrdersInboxPage })));
+const TripsPage = lazy(() => import("@/features/trips/trips-page").then((mod) => ({ default: mod.TripsPage })));
 const LocationMovesPage = lazy(() => import("@/features/moves/moves-page").then((mod) => ({ default: mod.LocationMovesPage })));
+const ReplenishmentPage = lazy(() => import("@/features/replenishment/replenishment-page").then((mod) => ({ default: mod.ReplenishmentPage })));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenter"));
 const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
 const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
 const UnsubscribePage = lazy(() => import("./pages/Unsubscribe"));
+const LandingPage = lazy(() => import("@/features/landing/landing-page"));
+const LandingV2 = lazy(() => import("@/features/landing/landing-v2"));
+const LandingLegal = lazy(() => import("@/features/landing/landing-legal"));
 // Floor-task pages render their own AppShell outside the protected layout.
 const InventoryDetailPage = lazy(() =>
   import("@/features/inventory/inventory-detail-page").then((mod) => ({ default: mod.InventoryDetailPage })),
@@ -125,6 +131,7 @@ const InventoryDetailPage = lazy(() =>
 const PickExecutionPage = lazy(() =>
   import("@/features/picking/pick-execution-page").then((mod) => ({ default: mod.PickExecutionPage })),
 );
+const TripPickPage = lazy(() => import("@/features/trips/trip-pick-page").then((mod) => ({ default: mod.TripPickPage })));
 // The help button carries ~67 kB of article text; keep it off the login screen's
 // critical path and let it pop in once loaded.
 const HelpSidebarLazy = lazy(() => import("@/components/help-sidebar").then((mod) => ({ default: mod.HelpSidebar })));
@@ -807,19 +814,19 @@ function LoginPage() {
           </p>
           <div className="grid grid-cols-2 gap-2 pt-1 xl:gap-3">
             {[
-              ["Pallet tracking", "Real-time location & status"],
-              ["Pick & putaway", "Directed task execution"],
-              ["Cycle counts", "Variance-aware counting"],
-              ["Multi-warehouse", "Unified cross-site control"],
-            ].map(([title, desc]) => (
-              <div key={title} className="rounded-lg bg-primary-foreground/10 p-2 xl:p-3">
-                <p className="text-sm font-medium">{title}</p>
-                <p className="mt-0.5 text-xs text-primary-foreground/60">{desc}</p>
-              </div>
+              ["Pallet tracking", "Real-time location & status", "pallet-tracking"],
+              ["Pick & putaway", "Directed task execution", "pick-putaway"],
+              ["Cycle counts", "Variance-aware counting", "cycle-counts"],
+              ["Multi-warehouse", "Unified cross-site control", "multi-warehouse"],
+            ].map(([title, desc, anchor]) => (
+              <NavLink key={title} to={`/landing-v2#${anchor}`} className="rounded-lg bg-primary-foreground/10 p-2 transition-colors hover:bg-primary-foreground/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-foreground xl:p-3">
+                <p className="text-sm font-medium">{title}<span aria-hidden="true"> ↗</span></p>
+                <p className="mt-0.5 text-xs text-primary-foreground/70">{desc}</p>
+              </NavLink>
             ))}
           </div>
         </div>
-        <p className="text-xs text-primary-foreground/40">Warehouse Wizard Enterprise WMS</p>
+        <NavLink to="/landing-v2" className="w-fit text-xs text-primary-foreground/80 underline underline-offset-4 hover:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-foreground">Explore Warehouse Wizard — visit the landing page →</NavLink>
       </div>
 
       {/* Right login form */}
@@ -1228,11 +1235,16 @@ function ResourceRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/.lovable/oauth/consent" element={<OAuthConsentPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/landing" element={<LandingPage />} />
+      <Route path="/landing-v2" element={<LandingV2 />} />
+      <Route path="/legal/:document" element={<LandingLegal />} />
       <Route element={<RequireAuth />}>
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/clients" element={<ResourcePage resource={resources.clients as any} />} />
           <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/orders" element={<OrdersInboxPage />} />
+          <Route path="/trips" element={<TripsPage />} />
           <Route path="/warehouses" element={<ResourcePage resource={resources.warehouses as any} />} />
           <Route path="/zones" element={<ResourcePage resource={resources.zones as any} />} />
           <Route path="/locations" element={<ResourcePage resource={resources.locations as any} />} />
@@ -1244,6 +1256,7 @@ function ResourceRoutes() {
           <Route path="/pick-lists" element={<PickListsPage />} />
           <Route path="/transfers" element={<TransfersPage />} />
           <Route path="/location-moves" element={<LocationMovesPage />} />
+          <Route path="/replenishment" element={<ReplenishmentPage />} />
           <Route path="/cycle-counts" element={<CycleCountsPage />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/reports" element={<ReportsPage />} />
@@ -1256,6 +1269,7 @@ function ResourceRoutes() {
         </Route>
         <Route path="/inventory/:balanceId" element={<InventoryDetailPage />} />
         <Route path="/pick-lists/:pickListId" element={<PickExecutionPage />} />
+        <Route path="/trips/pick/:pickListId" element={<TripPickPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
