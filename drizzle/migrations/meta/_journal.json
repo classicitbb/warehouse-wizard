@@ -183,6 +183,20 @@
       "when": 1793677373921,
       "tag": "0025_netsuite_inbound_shipment_receipt_posting",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793678849617,
+      "tag": "0025_20261031150000_forward_pick_replenishment",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793678913535,
+      "tag": "0026_20261101090000_trip_picking",
+      "breakpoints": true
     }
   ]
 }
