@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 // Runs the real label-print function, the real `#variable_conflict` patch that
 // broke its pallet -> receipt line link, and the fix migration, in isolated
 // Postgres WASM. No network, credentials or remote writes.
-const read = (file: string) => readFileSync(`supabase/migrations/${file}`, "utf8");
+const read = (file: string) => readFileSync(`supabase/migrations/${file}`, "utf8").split("\r\n").join("\n");
 const baseline = read("20260511000000_consolidated_wms_schema.sql");
 const labelsSource = read("20260902141515_a70c708f-ed8e-441b-9f7a-0d9387da4d18.sql");
 const conflictPatch = read("20260902143104_55a4eb55-9e7e-4b6f-838b-c1a8201686d6.sql");
@@ -23,7 +23,7 @@ let pg: PGlite;
 async function draft(n: number, netsuite: boolean) {
   const notes = {
     _draft: true, product_id: product, quantity: 10, draft_pallet_barcode: `PLT-${n}`,
-    ...(netsuite ? { netsuite: { lineKey: "1", lineNumber: 1, itemName: "Test", ordered: 10, received: 0, remaining: 10, poId: "76", poNumber: "PO76" } } : {}),
+    ...(netsuite ? { netsuite: { lineKey: "1", lineNumber: 1, itemName: "Test", ordered: 10, received: 0, remaining: 10, poId: "76", poNumber: "PO76", inboundShipmentId: "52" } } : {}),
   };
   await pg.query(`insert into receipts(id, receipt_number, receipt_type, warehouse_id, status, draft_pallet_barcode, notes)
     values ($1, $2, 'po', $3, 'draft', $4, $5)`, [id(n), `RCT-${n}`, wh, `PLT-${n}`, JSON.stringify(notes)]);

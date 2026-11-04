@@ -111,7 +111,7 @@ describe("NetSuite non-production smoke harness", () => {
     expect(netSuiteOutboundClaimArgs("sandbox-connection", 20)).toEqual({
       p_connection_id: "sandbox-connection",
       p_limit: 20,
-      p_job_types: ["inventory_adjustment", "receipt_purchase_order"],
+      p_job_types: ["inventory_adjustment", "receipt_purchase_order", "receipt_inbound_shipment"],
     });
     expect(worker).toContain("netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE)");
     expect(claimMigration).toContain("and job_type = any(p_job_types)");
