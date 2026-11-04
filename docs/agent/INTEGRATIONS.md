@@ -76,13 +76,36 @@ drift. The shape was checked against Oracle's REST example for the inventory adj
   `available`, which is putaway confirmed. Label print (`confirm_receiving_draft_labels_printed`)
   completes the receipt and creates the pallet and its balance, but in `receiving` with nothing
   available, so it posts nothing.
-- Receipt-sourced pallets (`20261021200000`): once receipts post to NetSuite as item receipts
-  (whitepaper W3), set `receipts_post_to_netsuite = true` in the NetSuite connection's `config`
-  in the same step. The trigger then skips the putaway adjustment for any pallet whose receipt was
-  loaded from a NetSuite purchase order, transfer order or inbound shipment
-  (`netsuite_receipt_sourced_pallet()`: the receipt's draft notes carry a `netsuite` line ref),
-  because the item receipt already added that stock. Manual and other receipts keep the
-  adjustment. Unset (today, everywhere) means no change.
+- Receipt-sourced pallets (`20261021200000`, narrowed by `20261102120000`): setting
+  `receipts_post_to_netsuite = true` in the NetSuite connection's `config` switches on inbound
+  shipment receipt posting (W3c, below). The putaway trigger then skips the adjustment for any pallet
+  whose receipt was loaded from a NetSuite **inbound shipment**
+  (`netsuite_receipt_sourced_pallet()`: the draft notes' `netsuite` ref carries `inboundShipmentId`),
+  because the item receipt already added that stock. Purchase order, transfer order and manual
+  receipts keep the adjustment until their own posting (W3a/W3b) exists. Unset (today, everywhere)
+  means no change.
+- Inbound shipment receipt posting (W3c, `20261102120000`): when a Receiving draft completes (labels
+  confirmed), `trg_enqueue_netsuite_inbound_receipt` queues one `receipt_inbound_shipment` job per
+  pallet receipt (idempotency key `receipt:inbound_shipment:<receipt id>`, externalRef
+  `ww-rcpt-ship-<receipt id>`). Pallets returned to Receiving (`superseded_pallet_id`) are skipped.
+  `process-netsuite-queue` POSTs it to the inbound shipment RESTlet with a `restlets`-scope token and
+  stores `itemReceiptIds` in the job result; `alreadyProcessed` counts as success. Failures come back
+  as HTTP 200 `{ ok: false, code, retryable, error }`: `retryable: false` is dead-lettered at once, only
+  `true` waits out MAX_RETRIES. Each shipment line is sent once per call (pallets of one PO line merge
+  into one line with several `inventoryAssignment` entries), and calls for one shipment must not run in
+  parallel. Serialised items still need one `inventoryAssignment` entry per serial (qty 1), not built yet. Body shape:
+  `buildInboundShipmentRestletBody` in `_shared/netsuite-receipt.ts`, taken from the Developer Brief's
+  proposed contract. **Not yet run against NetSuite**: the POST field names, and whether the draft's
+  PO line key equals the RESTlet's `receiveitems` `uniquekey`, are unconfirmed. Tell the NetSuite dev
+  before the first post against IS052. Bins are not sent (W5).
+- PO receipts for a PO that is on an inbound shipment (found 2026-11-03 on PO53, internal id 2727,
+  lines on IS033/IS045): the PO `!transform/itemReceipt` answers 400 "invalid sublist or line item
+  operation" every time, so those jobs retried five times and dead-lettered. The worker now looks the
+  PO line up in `inboundshipmentitem` first (`findShipmentLines`) and, if it is on a shipment with
+  enough left (`planShipmentReceipt`), posts it through the inbound shipment RESTlet with the job's own
+  `externalRef`; if no shipment has enough left it fails with the shipment quantities in the message.
+  A PO not on any shipment still uses the PO transform (with `?replace=item`, whose behaviour on a
+  standalone PO is still untested).
 - Not handled yet: lot-numbered, serialized, and bin-managed items need an `inventoryDetail`
   subrecord on the line, which is not sent. `unitCost` is not sent either, so check the cost
   NetSuite applies to a positive adjustment during the first live post.

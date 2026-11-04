@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { marketingUrl, type MarketingAnchor } from "@/lib/marketing-links";
 import { RELEASE_HISTORY } from "@/lib/release-history";
 import { RouteErrorBoundary } from "@/components/error-boundary";
 import {
@@ -819,14 +820,14 @@ function LoginPage() {
               ["Cycle counts", "Variance-aware counting", "cycle-counts"],
               ["Multi-warehouse", "Unified cross-site control", "multi-warehouse"],
             ].map(([title, desc, anchor]) => (
-              <NavLink key={title} to={`/landing-v2#${anchor}`} className="rounded-lg bg-primary-foreground/10 p-2 transition-colors hover:bg-primary-foreground/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-foreground xl:p-3">
+              <a key={title} href={marketingUrl(anchor as MarketingAnchor)} className="rounded-lg bg-primary-foreground/10 p-2 transition-colors hover:bg-primary-foreground/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-foreground xl:p-3">
                 <p className="text-sm font-medium">{title}<span aria-hidden="true"> ↗</span></p>
                 <p className="mt-0.5 text-xs text-primary-foreground/70">{desc}</p>
-              </NavLink>
+              </a>
             ))}
           </div>
         </div>
-        <NavLink to="/landing-v2" className="w-fit text-xs text-primary-foreground/80 underline underline-offset-4 hover:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-foreground">Explore Warehouse Wizard — visit the landing page →</NavLink>
+        <a href={marketingUrl()} className="w-fit text-xs text-primary-foreground/80 underline underline-offset-4 hover:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-foreground">Explore Warehouse Wizard — visit the landing page →</a>
       </div>
 
       {/* Right login form */}

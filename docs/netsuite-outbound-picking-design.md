@@ -52,7 +52,7 @@ https://claude.ai/artifact/AFsdBAVXf44pqyQmXju3o1
 
 - A pick face is a bin with the status `pick_face`. A manager uses "Make pick face" on the Replenishment page (`make_pick_face`), or sets the status on the location. "Release" (`release_pick_face`) makes it a normal bin again.
 - `pick_face_slots` records the SKU in each face and its fill quantity. There is no fixed SKU (§10).
-- The engine `evaluate_forward_pick_replenishment` runs each 5 minutes (pg_cron). It also runs when a person clicks "Check now". The rules are in §10.
+- Event triggers (`20261103090000_event_driven_pick_face_replenishment.sql`) run `evaluate_pick_face_replenishment` for the affected product when stock leaves a pick face, a pick task completes or is shorted, a pick list is released, fulfillment lines are imported, or a slot's fill is edited. The whole-warehouse engine `evaluate_forward_pick_replenishment` runs hourly (pg_cron) as a safety net and when a person clicks "Check now". Trigger errors go to `system_logs` and never block a pick. The rules are in §10.
 - The source pallet is the oldest available pallet (FEFO or FIFO) in an `active` bin. It is never in a pick face, a staging, dispatch or quarantine zone, or a frozen bin (C2).
 - One task is one pallet. To start a task, WW makes a WW move (D4). When the move scan completes, a trigger closes the task and records the new fill. If the move is cancelled, the task goes back into the queue.
 - `request_urgent_replenishment` is ready for the short pick in slice E (D10) and for C6.

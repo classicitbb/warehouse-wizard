@@ -2,6 +2,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildNetSuiteInventoryAdjustment, netsuiteAdjustmentExternalId, netsuiteHost, timingSafeEqual } from '../_shared/netsuite.ts'
 import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
 import { netSuiteOutboundClaimArgs } from '../_shared/netsuite-queue.ts'
+import {
+  buildInboundShipmentRestletBody, interpretReceiptResponse, planShipmentReceipt,
+  type ReceiptJobPayload, type ShipmentLineCandidate,
+} from '../_shared/netsuite-receipt.ts'
+import { buildRestletUrl, resolveRestletTarget } from '../_shared/netsuite-restlet.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -215,6 +220,70 @@ Deno.serve(async (req) => {
     }
   }
 
+  // A RESTlet call needs `restlets` in the token's scope; the REST token above
+  // asks for rest_webservices only. Fetched on the first inbound shipment job.
+  let restletToken: { ok: true; token: string } | { ok: false; error: string } | null = null
+  async function getRestletToken() {
+    restletToken ??= await fetchNetSuiteAccessToken({ accountId, clientId, certificateId, privateKeyPem }, ['restlets'])
+    return restletToken
+  }
+
+  type RestletPost = { ok: boolean; httpStatus: number | null; responsePayload: unknown; failureReason: string | null; retryable: boolean }
+  // POST one receipt to the inbound shipment RESTlet. It keys on externalRef, so
+  // a retry after a timeout comes back `alreadyProcessed: true`, not a second receipt.
+  // A failure the RESTlet marks `retryable: false` (over-receipt, closed shipment,
+  // bad line key) is parked at once; transport errors and HTTP errors stay retryable.
+  async function postInboundShipment(body: ReturnType<typeof buildInboundShipmentRestletBody>): Promise<RestletPost> {
+    const tokenForRestlet = await getRestletToken()
+    if (!tokenForRestlet.ok) {
+      return { ok: false, httpStatus: null, responsePayload: null, failureReason: `NetSuite RESTlet token failed: ${tokenForRestlet.error}`, retryable: true }
+    }
+    try {
+      const res = await fetch(buildRestletUrl(accountId, resolveRestletTarget(config)), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tokenForRestlet.token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const text = await res.text()
+      let responsePayload: unknown = null
+      try { responsePayload = text ? JSON.parse(text) : null } catch { responsePayload = { raw: text.slice(0, 4000) } }
+      const outcome = res.ok ? interpretReceiptResponse(responsePayload) : { ok: false as const, reason: `NetSuite responded ${res.status}: ${text.slice(0, 300)}`, retryable: true }
+      if (outcome.ok) {
+        return { ok: true, httpStatus: res.status, responsePayload: { itemReceiptIds: outcome.receiptIds, alreadyProcessed: outcome.alreadyProcessed }, failureReason: null, retryable: false }
+      }
+      return { ok: false, httpStatus: res.status, responsePayload, failureReason: outcome.reason, retryable: outcome.retryable }
+    } catch (err) {
+      return { ok: false, httpStatus: null, responsePayload: null, failureReason: err instanceof Error ? err.message : String(err), retryable: true }
+    }
+  }
+
+  // Where each PO line sits on an inbound shipment. A PO on a shipment can only be
+  // received through the shipment (J6): the item receipt transform has no lines
+  // to receive and answers 400 "invalid sublist or line item operation".
+  async function findShipmentLines(poId: string, lineNumbers: number[]): Promise<ShipmentLineCandidate[] | null> {
+    if (!/^\d+$/.test(poId) || lineNumbers.some((n) => !Number.isInteger(n))) return null
+    const q = `SELECT i.inboundshipment AS shipmentid, pl.linesequencenumber AS linenumber, i.shipmentitemtransaction AS linekey, `
+      + `i.quantityexpected, i.quantityreceived FROM inboundshipmentitem i JOIN transactionline pl ON pl.uniquekey = i.shipmentitemtransaction `
+      + `WHERE i.purchaseordertransaction = ${poId} AND pl.linesequencenumber IN (${lineNumbers.join(',')})`
+    try {
+      const res = await fetch(`https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=100`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Prefer: 'transient' },
+        body: JSON.stringify({ q }),
+      })
+      if (!res.ok) return null
+      const body = await res.json().catch(() => null) as { items?: Record<string, unknown>[] } | null
+      return (body?.items ?? []).map((r) => ({
+        shipmentId: String(r.shipmentid),
+        lineNumber: Number(r.linenumber),
+        lineKey: String(r.linekey),
+        remaining: Number(r.quantityexpected) - Number(r.quantityreceived),
+      }))
+    } catch {
+      return null
+    }
+  }
+
   let succeeded = 0
   let failed = 0
   let deadLettered = 0
@@ -226,6 +295,7 @@ Deno.serve(async (req) => {
     let responsePayload: unknown = null
     let ok = false
     let failureReason: string | null = null
+    let parkNow = false // a failure retrying cannot fix: dead-letter without waiting out MAX_RETRIES
 
     try {
       if (job.job_type === 'inventory_adjustment') {
@@ -299,9 +369,37 @@ Deno.serve(async (req) => {
           lines?: { lineNumber: number | null; itemId: string | null; quantity: number }[]
         }
         const lines = (p.lines ?? []).filter((l) => l.lineNumber != null && l.quantity > 0)
+        let viaShipment = false
         if (!p.documentId || !p.externalRef || lines.length === 0) {
           failureReason = 'Invalid receipt_purchase_order payload'
         } else {
+          // A PO on an inbound shipment can only be received through the shipment
+          // (J6); the PO transform has nothing to receive and answers 400. Route it.
+          const onShipment = await findShipmentLines(p.documentId, lines.map((l) => Number(l.lineNumber)))
+          if (onShipment && onShipment.length > 0) {
+            viaShipment = true
+            const plan = planShipmentReceipt(onShipment, lines.map((l) => ({ lineNumber: Number(l.lineNumber), quantity: l.quantity })))
+            if (!plan.ok) {
+              failureReason = `PO ${p.documentId} is on an inbound shipment and cannot be received directly: ${plan.reason}`
+            } else {
+              const shipmentBody = buildInboundShipmentRestletBody({
+                documentType: 'inbound_shipment',
+                documentId: plan.shipmentId,
+                externalRef: p.externalRef,
+                locationId: p.locationId ?? null,
+                lines: plan.lines.map((l) => ({
+                  lineKey: l.lineKey, lineNumber: l.lineNumber, quantity: l.quantity, poId: p.documentId,
+                  itemId: lines.find((x) => Number(x.lineNumber) === l.lineNumber)?.itemId ?? '',
+                })),
+              })
+              requestBody = shipmentBody as unknown as Record<string, unknown>
+              const posted = await postInboundShipment(shipmentBody)
+              ;({ ok, httpStatus, responsePayload, failureReason } = posted)
+              parkNow = !posted.ok && !posted.retryable
+            }
+          }
+        }
+        if (!viaShipment && p.documentId && p.externalRef && lines.length > 0) {
           const host = netsuiteHost(accountId)
           requestBody = {
             externalId: p.externalRef,
@@ -352,6 +450,24 @@ Deno.serve(async (req) => {
             } catch { /* keep original failure */ }
           }
         }
+      } else if (job.job_type === 'receipt_inbound_shipment') {
+        // Receive an inbound shipment through the RESTlet. NetSuite makes one item
+        // receipt per PO. The RESTlet keys on externalRef, so a retry after a
+        // timeout comes back `alreadyProcessed: true` rather than receiving twice.
+        const payload = job.payload as unknown as ReceiptJobPayload
+        let body: ReturnType<typeof buildInboundShipmentRestletBody> | null = null
+        try {
+          body = buildInboundShipmentRestletBody(payload)
+        } catch (err) {
+          failureReason = `Invalid receipt_inbound_shipment payload: ${err instanceof Error ? err.message : String(err)}`
+          parkNow = true
+        }
+        if (body) {
+          requestBody = body as unknown as Record<string, unknown>
+          const posted = await postInboundShipment(body)
+          ;({ ok, httpStatus, responsePayload, failureReason } = posted)
+          parkNow = !posted.ok && !posted.retryable
+        }
       } else {
         failureReason = `Unsupported job_type for outbound sync: ${job.job_type}`
       }
@@ -384,9 +500,9 @@ Deno.serve(async (req) => {
     }
 
     // Unsupported job types never retry — go straight to dead_letter.
-    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order'
+    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order' && job.job_type !== 'receipt_inbound_shipment'
 
-    if (isPermanent || nextAttempts >= MAX_RETRIES) {
+    if (isPermanent || parkNow || nextAttempts >= MAX_RETRIES) {
       const reason = failureReason ?? 'Unknown error'
       await supabase.from('integration_dead_letters').insert({
         sync_job_id: job.id,

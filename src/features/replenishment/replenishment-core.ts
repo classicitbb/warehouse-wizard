@@ -2,8 +2,8 @@
 // slice D: D4, D5, D10, and the floor practice in §10). A pick face is a bin
 // with status "pick_face": same code, same barcode. It has no fixed SKU; the
 // SKU comes with the first pallet that a replenishment moves in. The
-// evaluate_forward_pick_replenishment engine (cron each 5 minutes, or the
-// "Check now" button) asks for full pallets from bulk when the face stock,
+// evaluate_forward_pick_replenishment engine (run by events as stock leaves a
+// face, hourly by cron as a safety net, or by the "Check now" button) asks for full pallets from bulk when the face stock,
 // less the open demand, goes down to the trigger level (a % of the fill). WW
 // learns the % and the pallets from 30 days of average use
 // (replenishment_policy); until then it uses the minimum: 50 % and 1 pallet.

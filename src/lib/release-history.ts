@@ -9,6 +9,18 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.34.0",
+    date: "2026-11-03",
+    changes: [
+      "Replenishment tasks now appear the moment a pick face drops below its minimum, instead of waiting for the next check",
+      "Releasing a pick list or importing a NetSuite order checks the affected pick faces right away; stock adjustments, cycle-count approvals and moves out of a pick face also re-check the face",
+      "The full replenishment check now runs hourly as a safety net",
+    ],
+    fixes: [
+      "A replenishment problem is logged to system logs and never blocks a pick confirmation",
+    ],
+  },
+  {
     version: "1.33.1",
     date: "2026-11-02",
     changes: [
