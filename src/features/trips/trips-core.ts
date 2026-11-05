@@ -42,6 +42,12 @@ export type TripBoardRow = {
   short_tasks: number;
   exception_tasks: number;
   is_aged: boolean;
+  /** Slice F floor stage after the pick. */
+  ww_stage: "packed" | "staged" | "loaded" | "departed" | null;
+  staging_lane: string | null;
+  departed_at: string | null;
+  ship_sync_status: string | null;
+  ship_sync_error: string | null;
 };
 
 export type PickState = "blocked" | "not_started" | "picking" | "exception" | "short" | "picked";

@@ -238,8 +238,8 @@ describe("NetSuite webhook idempotency key", () => {
 
 describe("NetSuite outbound queue and the parked order rows", () => {
   it("claims only job types that have an outbound implementation", () => {
-    expect(NETSUITE_OUTBOUND_JOB_TYPES).toEqual(["inventory_adjustment", "receipt_purchase_order", "receipt_inbound_shipment"]);
-    expect(netSuiteOutboundClaimArgs("connection", 20).p_job_types).toEqual(["inventory_adjustment", "receipt_purchase_order", "receipt_inbound_shipment"]);
+    expect(NETSUITE_OUTBOUND_JOB_TYPES).toEqual(["inventory_adjustment", "receipt_purchase_order", "receipt_inbound_shipment", "fulfillment_ship"]);
+    expect(netSuiteOutboundClaimArgs("connection", 20).p_job_types).toEqual(["inventory_adjustment", "receipt_purchase_order", "receipt_inbound_shipment", "fulfillment_ship"]);
     expect(worker).toContain("netSuiteOutboundClaimArgs(connection.id, BATCH_SIZE)");
   });
 
@@ -262,7 +262,7 @@ describe("NetSuite outbound queue and the parked order rows", () => {
 
   it("retries a transient inventory adjustment failure up to five attempts", () => {
     expect(worker).toContain("const MAX_RETRIES = 5");
-    expect(worker).toContain("if (isPermanent || nextAttempts >= MAX_RETRIES)");
+    expect(worker).toContain("if (isPermanent || parkNow || nextAttempts >= MAX_RETRIES)");
     expect(worker).toContain("status: 'queued'");
   });
 

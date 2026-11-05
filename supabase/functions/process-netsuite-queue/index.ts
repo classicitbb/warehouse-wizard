@@ -7,6 +7,10 @@ import {
   type ReceiptJobPayload, type ShipmentLineCandidate,
 } from '../_shared/netsuite-receipt.ts'
 import { buildRestletUrl, resolveRestletTarget } from '../_shared/netsuite-restlet.ts'
+import {
+  buildFulfillmentShipPatch, isPermanentFulfillmentFailure, resolveFulfillmentKpiFields, validateFulfillmentShipPayload,
+  type FulfillmentShipPayload,
+} from '../_shared/netsuite-fulfillment.ts'
 
 // Mirrors process-email-queue: service-role JWT gate, batch claim with a
 // visibility-timeout-style "running" flip via claim_integration_sync_jobs
@@ -468,6 +472,59 @@ Deno.serve(async (req) => {
           ;({ ok, httpStatus, responsePayload, failureReason } = posted)
           parkNow = !posted.ok && !posted.retryable
         }
+      } else if (job.job_type === 'fulfillment_ship') {
+        // Trip departure (slice F): PATCH the office's IF to Shipped with the
+        // picked quantities and the KPI times. PATCH is idempotent; an IF that
+        // is already Shipped counts as done (a retry after a timeout).
+        const p = job.payload as unknown as FulfillmentShipPayload
+        const invalid = validateFulfillmentShipPayload(p)
+        if (invalid) {
+          failureReason = `Invalid fulfillment_ship payload: ${invalid}`
+          parkNow = true
+        } else {
+          const ifUrl = `https://${netsuiteHost(accountId)}/services/rest/record/v1/itemFulfillment/${encodeURIComponent(p.fulfillmentId)}`
+          let alreadyShipped = false
+          try {
+            const cur = await fetch(`${ifUrl}?fields=shipStatus`, { headers: { Authorization: `Bearer ${accessToken}` } })
+            if (cur.status === 404) {
+              failureReason = `Item fulfillment ${p.documentNumber ?? p.fulfillmentId} no longer exists in NetSuite. The office deleted it.`
+              parkNow = true
+            } else if (cur.ok) {
+              const rec = await cur.json().catch(() => null) as { shipStatus?: { id?: string } } | null
+              alreadyShipped = rec?.shipStatus?.id === 'C'
+            }
+          } catch { /* fall through to the PATCH */ }
+
+          if (alreadyShipped) {
+            ok = true
+            responsePayload = { fulfillmentId: p.fulfillmentId, alreadyShipped: true }
+          } else if (!parkNow) {
+            requestBody = buildFulfillmentShipPatch(p, resolveFulfillmentKpiFields(config))
+            try {
+              const res = await fetch(ifUrl, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+              })
+              httpStatus = res.status
+              const text = await res.text()
+              if (res.ok) {
+                ok = true
+                responsePayload = { fulfillmentId: p.fulfillmentId, shipStatus: 'C' }
+              } else {
+                try { responsePayload = JSON.parse(text) } catch { responsePayload = { raw: text.slice(0, 4000) } }
+                failureReason = `NetSuite responded ${res.status}: ${text.slice(0, 300)}`
+                parkNow = isPermanentFulfillmentFailure(res.status)
+              }
+            } catch (err) {
+              failureReason = err instanceof Error ? err.message : String(err)
+            }
+          }
+          // The board clears the trip at once; the next poll confirms it.
+          if (ok) {
+            await supabase.from('order_fulfillments').update({ external_status: 'C' }).eq('external_record_id', p.fulfillmentId)
+          }
+        }
       } else {
         failureReason = `Unsupported job_type for outbound sync: ${job.job_type}`
       }
@@ -500,7 +557,7 @@ Deno.serve(async (req) => {
     }
 
     // Unsupported job types never retry — go straight to dead_letter.
-    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order' && job.job_type !== 'receipt_inbound_shipment'
+    const isPermanent = job.job_type !== 'inventory_adjustment' && job.job_type !== 'receipt_purchase_order' && job.job_type !== 'receipt_inbound_shipment' && job.job_type !== 'fulfillment_ship'
 
     if (isPermanent || parkNow || nextAttempts >= MAX_RETRIES) {
       const reason = failureReason ?? 'Unknown error'
