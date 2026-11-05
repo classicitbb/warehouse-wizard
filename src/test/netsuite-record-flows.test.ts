@@ -262,7 +262,7 @@ describe("NetSuite outbound queue and the parked order rows", () => {
 
   it("retries a transient inventory adjustment failure up to five attempts", () => {
     expect(worker).toContain("const MAX_RETRIES = 5");
-    expect(worker).toContain("if (isPermanent || nextAttempts >= MAX_RETRIES)");
+    expect(worker).toContain("if (isPermanent || parkNow || nextAttempts >= MAX_RETRIES)");
     expect(worker).toContain("status: 'queued'");
   });
 
