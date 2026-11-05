@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Warehouse Wizard">
-  <!-- Browsers apply their own rounded favicon mask. Keep the artwork square and enlarged so the brand fills that mask. -->
-  <rect width="512" height="512" fill="#0f171e"/>
+  <!-- Explicit transparent corners: browsers do not consistently mask favicons. -->
+  <rect width="512" height="512" rx="112" fill="#0f171e"/>
   <g transform="translate(256 256) scale(1.28) translate(-256 -256)">
     <path d="M256 112 408 200 256 288 104 200Z" fill="#3ee0c0"/>
     <path d="M104 200 256 288v152L104 352Z" fill="#1ed2b0"/>
