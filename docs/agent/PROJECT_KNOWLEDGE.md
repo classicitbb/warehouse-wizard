@@ -90,3 +90,11 @@ Update this section whenever code introduces, removes, or renames configuration.
 - Login's existing desktop branding footer now links to `/landing-v2` with explicit landing-page copy. Its four existing feature tiles are links to `#pallet-tracking`, `#pick-putaway`, `#cycle-counts`, and `#multi-warehouse`. Matching V2 FAQ explainers automatically open and scroll into view on deep-link entry; no login/authentication logic changed.
 
 - 2026-11-02 sandbox publication: owner authorized pushing the landing work to sandbox main; version 1.33.1, release notes and public-product-page Help updated together. Legal drafts remain not yet effective and production promotion is separate.
+
+## Favicon transparency — 2026-11-05
+
+- Browser favicons use an explicitly rounded transparent SVG and matching 64px PNG / multi-resolution ICO (16, 24, 32, 48, 64, 128, 256px). ICO previously had opaque white corners. Keep all formats aligned; browsers do not consistently round icon backgrounds.
+- Icon references use `?v=20261105` to invalidate old browser icon caches. Updated main tenant app, sandbox, platform console and separate platform landing app. PWA/maskable icons are separate.
+- Raster generation: render the SVG with Playwright using installed Edge (`chromium.launch({ channel: "msedge" })`) on a transparent 256px canvas; resize using Pillow LANCZOS and save RGBA ICO frames, keeping corner alpha zero. Default Playwright bundled Chromium is unavailable locally. No dependencies, environment variables, services or connector changes.
+
+- 2026-11-05 favicon release authorized for deployment. Tenant release 1.34.1 updates package metadata, release history and Notifications/Update Alerts Help together. Sandbox first fast-forwarded to existing remote main to preserve already-merged trip dispatch work; no migrations or edge functions are deployed for this asset release.

@@ -9,6 +9,12 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.34.1",
+    date: "2026-11-05",
+    changes: ["Browser tabs now use matching Warehouse Wizard icons with transparent corners"],
+    fixes: ["Removed white corners from every favicon fallback and refreshed cached icon URLs"],
+  },
+  {
     version: "1.34.0",
     date: "2026-11-03",
     changes: [
