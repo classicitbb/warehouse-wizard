@@ -400,3 +400,20 @@ Migration `20261101090000_trip_picking.sql`. Code in `src/features/trips/`. This
 | E7 | Pick Lists | The Pick Lists page, its badge and the dashboard tile leave out trip pick lists |
 
 Not in this slice: the staging lane and load scan, ship short at trip close, and the IF status changes (slice F). Picked units stay on the open IF until then. Thus, the W14 reconciliation must count bins + picked on open IFs (C5).
+
+## 12. Slice F build (2026-11-04)
+
+Migration `20261104090000_trip_dispatch.sql`. Code in `src/features/trips/` (`trip-dispatch-core.ts`, the Pack check page and the Load page). The NetSuite post is in `supabase/functions/_shared/netsuite-fulfillment.ts` and the queue worker.
+
+| # | Topic | Build |
+|---|---|---|
+| F-1 | Stage | Each fulfillment has a WW floor stage in `order_fulfillments.ww_stage`: packed, staged, loaded, departed. The poll does not change it |
+| F-2 | Pack check | When the pick is complete, the packer scans the item (SKU or barcode) of each picked line and enters the count. The count must be equal to the pick. If not, WW refuses it and records `pack_check_mismatch`. A line with nothing picked passes. The fulfillment is Packed when each picked line has a count. WW does not post Packed (§8.1: nobody uses it; roadmap 2.2) |
+| F-3 | Stage | The packer scans a staging lane (a bin in an `is_staging` zone). WW makes a `staging_loads` row for the fulfillment. If the office changed the order after the pack check, WW refuses, and the packer counts again |
+| F-4 | Load | On the Load page of the trip, the loader scans the order, IF or pick list number. WW refuses an order of a different trip. Two parts of one order on a trip load one at a time |
+| F-5 | Depart | Depart is possible when each fulfillment with picks is loaded. A fulfillment with nothing picked stays behind at Picked, and the office ships or deletes it (V22). A trip with a short line needs a supervisor, manager or admin (D10) |
+| F-6 | NetSuite | Depart queues one `fulfillment_ship` job for each fulfillment, only when the connection config has `fulfillments_post_to_netsuite = true`. The job PATCHes `itemFulfillment/{id}`: shipStatus C, each line's picked quantity in the line unit (D9), `itemReceive: false` for a line with nothing picked, and the KPI times. The KPI field ids come from `fulfillment_kpi_fields` (default: `custbody_spx_kpi_picked_at` only). An IF that is already Shipped counts as done. A 404 or other record error goes to the dead-letter queue. The trip board shows "NetSuite post failed" |
+
+Not in this slice: the N3 invoice gate and the driver release (slice G), the refused-carton check-in (G+), and the KPI field ids for packed and shipped (set them in the config when the KPI script owner confirms them).
+
+**Before turning on `fulfillments_post_to_netsuite`, verify V7 in the sandbox:** can a REST PATCH lower an IF line at Picked, and does it match lines by `line`? If not, every short trip parks in the dead-letter queue, and the office must correct the IF by hand.

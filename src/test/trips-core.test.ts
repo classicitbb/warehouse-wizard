@@ -43,6 +43,11 @@ function row(overrides: Partial<TripBoardRow>): TripBoardRow {
     short_tasks: 0,
     exception_tasks: 0,
     is_aged: false,
+    ww_stage: null,
+    staging_lane: null,
+    departed_at: null,
+    ship_sync_status: null,
+    ship_sync_error: null,
     ...overrides,
   };
 }

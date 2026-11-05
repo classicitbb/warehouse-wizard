@@ -9,6 +9,15 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.35.0",
+    date: "2026-11-04",
+    changes: [
+      "Trips: after the pick, a pack check counts each line against what was picked",
+      "Trips: stage a packed order in a staging lane, then scan each order onto the truck from Load & depart",
+      "Trips: Depart sets the trip's fulfillments to Shipped in NetSuite with the picked quantities; short lines ship short and need a supervisor",
+    ],
+  },
+  {
     version: "1.34.0",
     date: "2026-11-03",
     changes: [
