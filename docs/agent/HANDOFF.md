@@ -340,18 +340,10 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Status: Complete — no active handoff for responsive header/navigation verification. No source changes in this verification pass.
 
 
-## Favicon corner repair — 2026-11-05
+## Favicon repair and publication — 2026-11-05
 
-- Status: Complete — no active handoff for the local favicon repair. Publication intentionally deferred; production deployment requires owner approval. Unrelated handoffs remain unchanged.
-- Files: `public/favicon.svg`, `public/favicon.png`, `public/favicon.ico`; tenant `index.html`, platform `src/routes/__root.tsx`, and platform `apps/landing/index.html` plus its three public favicon assets as applicable. Context recorded in `PROJECT_KNOWLEDGE.md`.
-- Verification: all four app builds passed; built favicon bytes match source in all four outputs. All seven ICO frames have alpha-zero corners; assets are identical across apps; updated PNG visually inspected. `git diff --check` passed. Existing bundle-size warnings remain. Platform builds used `npx.cmd -y bun run build` because Bun is absent from PATH; Playwright rendering used installed Edge because bundled Chromium is absent. No deployed browser-tab verification performed.
-- Environment: local source only; no push, deployment, release bump, backend write or configuration change.
-- Exact next action: run `git diff --check` in this checkout and review the favicon diff before preparing an owner-approved release. Production publishing remains approval-gated.
-
-- Additional check: `npm run typecheck` passed.
-
-## Favicon release 1.35.1 — 2026-11-05
-
-- Status: Publishing in progress under explicit owner authorization. Existing remote main fast-forwarded before release; no promotion of sandbox business features to production.
-- Checks: `npm run typecheck` passed; `npm run test -- src/test/help-content.test.ts` passed 8 tests; `npm run build` passed with existing large-chunk warnings; `git diff --check` passed. Seven ICO frame corner-alpha checks passed previously.
-- Exact next action: run `git push origin main`, then publish the existing sandbox app after its source sync completes. Lovable connector reads failed with internal errors; use the existing authenticated browser if needed. No database migration or edge function deployment is authorized or needed for this favicon change.
+- Status: Complete — no active handoff for this task; unrelated handoffs above remain unchanged.
+- Commit `fea3616` pushed to main as version 1.35.1. Before release, local main fast-forwarded to the already-merged remote trip-dispatch work; none of that sandbox work was promoted to production. Changes cover the three favicon assets, icon references, package/lock release metadata, release history, Notifications/Update Alerts Help and continuity.
+- Checks: `npm run typecheck` passed; `npm run test -- src/test/help-content.test.ts` passed 8 tests; `npm run build` passed with existing large-chunk warnings; `git diff --check` passed. All seven ICO frames have transparent corners. Lovable reported "Your website was updated" and the browser confirmed the live SVG has `rx="112"`.
+- Lovable connector reads failed with internal errors, so the existing authenticated Edge browser published the verified project after GitHub sync. No migrations, edge functions, credentials or environment variables changed. Owner authorized deployment with "deploy".
+- Exact next action: none; no approval outstanding.
