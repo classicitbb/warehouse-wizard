@@ -6118,6 +6118,10 @@ export type Database = {
         Args: { p_warehouse_id?: string }
         Returns: Json
       }
+      evaluate_pick_face_replenishment: {
+        Args: { p_location_id: string; p_product_id: string }
+        Returns: Json
+      }
       evaluate_reorder_alert: {
         Args: { in_product_id: string; in_warehouse_id: string }
         Returns: undefined
@@ -6204,14 +6208,23 @@ export type Database = {
           p256dh: string
         }[]
       }
-      open_fulfillment_demand: {
-        Args: { p_warehouse_id?: string }
-        Returns: {
-          product_id: string
-          quantity: number
-          warehouse_id: string
-        }[]
-      }
+      open_fulfillment_demand:
+        | {
+            Args: { p_warehouse_id?: string }
+            Returns: {
+              product_id: string
+              quantity: number
+              warehouse_id: string
+            }[]
+          }
+        | {
+            Args: { p_product_id: string; p_warehouse_id: string }
+            Returns: {
+              product_id: string
+              quantity: number
+              warehouse_id: string
+            }[]
+          }
       operator_ticket_fallback_brief: {
         Args: { t: Database["public"]["Tables"]["operator_tickets"]["Row"] }
         Returns: string
@@ -6328,6 +6341,26 @@ export type Database = {
           subject: string
           text_body: string
         }[]
+      }
+      replen_evaluate_safe: {
+        Args: { p_product_id: string; p_source: string; p_warehouse_id: string }
+        Returns: undefined
+      }
+      replen_events_enabled: { Args: never; Returns: boolean }
+      replen_log_failure: {
+        Args: { p_details?: Json; p_message: string; p_source: string }
+        Returns: undefined
+      }
+      replen_pick_list_products: {
+        Args: { p_list_ids: string[] }
+        Returns: {
+          product_id: string
+          warehouse_id: string
+        }[]
+      }
+      replenish_product_in_warehouse: {
+        Args: { p_product_id: string; p_warehouse_id: string }
+        Returns: Json
       }
       replenishment_policy: {
         Args: { p_product_id: string; p_warehouse_id: string }
