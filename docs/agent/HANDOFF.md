@@ -340,19 +340,10 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Status: Complete — no active handoff for responsive header/navigation verification. No source changes in this verification pass.
 
 
-## Favicon corner repair — 2026-11-05
+## Favicon repair and publication — 2026-11-05
 
-- Status: Complete — no active handoff for the local favicon repair. Publication intentionally deferred; production deployment requires owner approval. Unrelated handoffs remain unchanged.
-- Files: `public/favicon.svg`, `public/favicon.png`, `public/favicon.ico`; tenant `index.html`, platform `src/routes/__root.tsx`, and platform `apps/landing/index.html` plus its three public favicon assets as applicable. Context recorded in `PROJECT_KNOWLEDGE.md`.
-- Verification: all four app builds passed; built favicon bytes match source in all four outputs. All seven ICO frames have alpha-zero corners; assets are identical across apps; updated PNG visually inspected. `git diff --check` passed. Existing bundle-size warnings remain. Platform builds used `npx.cmd -y bun run build` because Bun is absent from PATH; Playwright rendering used installed Edge because bundled Chromium is absent. No deployed browser-tab verification performed.
-- Environment: local source only; no push, deployment, release bump, backend write or configuration change.
-- Exact next action: run `git diff --check` in this checkout and review the favicon diff before preparing an owner-approved release. Production publishing remains approval-gated.
-
-- Additional check: `npm run typecheck` failed in unrelated `src/test/offline-queue-persistence.test.ts`: TS2307 missing `fake-indexeddb` at 1:41, TS7006 implicit-any `store`/`mode` at 267:100/107, TS7019 implicit-any rest parameter at 267:113. No source typing changed by this favicon repair. To restore that check, run `npm ci` to restore the declared dev dependencies, then `npm run typecheck`.
-
-## Favicon release 1.34.1 — 2026-11-05
-
-- Status: Publishing in progress; owner explicitly authorized deployment. This release changes favicon assets/references, release metadata and Notifications/Update Alerts Help only. Sandbox business changes are not included.
-- Final checks: `npm run typecheck` passed; `npm run test -- src/test/help-content.test.ts` passed 8 tests; `npm run build` passed with existing large-chunk warnings; diff checks passed. Earlier missing-dependency failures are superseded.
-- Environment: restored declared `fake-indexeddb` with `npm install --no-save --package-lock=false --ignore-scripts fake-indexeddb@6.2.5`; npm also re-resolved 120 local packages. An initial overlapping check observed missing packages during install; rerun after install completed passed all checks above. No manifest dependency changes.
-- Exact next action: run `git push origin main`, then inspect the existing Vercel tenant-app production build until READY. No migration or edge function deployment is needed or authorized.
+- Status: Complete — no active handoff for this task; unrelated handoffs above remain unchanged.
+- Commit `3cc18d7` pushed to main as version 1.34.1. Changes cover all three favicon assets, refreshed icon URLs, package/lock metadata, release history, Notifications/Update Alerts Help and continuity. Sandbox business features were not promoted.
+- Final checks: `npm run typecheck` passed; `npm run test -- src/test/help-content.test.ts` passed 8 tests; `npm run build` passed with existing large-chunk warnings; `git diff --check` passed. Seven ICO frame corner-alpha checks passed previously. Restored the declared missing `fake-indexeddb` through `npm install --no-save --package-lock=false --ignore-scripts fake-indexeddb@6.2.5`; npm re-resolved 120 local packages. Initial checks overlapped that install and failed on temporarily missing packages; final post-install checks passed and supersede those failures. No manifest dependency changes.
+- Existing Vercel production deployment reached READY for the exact commit. Published the same synced commit through the existing Lovable project for its live tenant custom domain; dialog reported "Your website was updated". Browser confirmed the live SVG background has `rx="112"`. No migrations, edge functions, permissions, domains/DNS or environment variables changed. Owner explicitly authorized publication with "deploy".
+- Exact next action: none; no approval outstanding.
