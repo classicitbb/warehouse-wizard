@@ -356,3 +356,10 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Final checks: `npm run typecheck` passed; `npm run test -- src/test/help-content.test.ts` passed 8 tests; `npm run build` passed with existing large-chunk warnings; diff checks passed. Earlier missing-dependency failures are superseded.
 - Environment: restored declared `fake-indexeddb` with `npm install --no-save --package-lock=false --ignore-scripts fake-indexeddb@6.2.5`; npm also re-resolved 120 local packages. An initial overlapping check observed missing packages during install; rerun after install completed passed all checks above. No manifest dependency changes.
 - Exact next action: run `git push origin main`, then inspect the existing Vercel tenant-app production build until READY. No migration or edge function deployment is needed or authorized.
+
+## Warehouse Wizard LinkedIn launch — 2026-11-08
+
+Status: Complete — no active handoff
+
+- Verified the live Page in LinkedIn member view at https://www.linkedin.com/company/warehousewizard/ with its logo, cover, tagline and Overview. The logo overlaps the left edge of the cover subtitle at the desktop viewport checked.
+- Launch posts, Facebook, Instagram, email and CRM setup remain separate follow-up work. No application code or configuration changed. No build needed.
