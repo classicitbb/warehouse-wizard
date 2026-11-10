@@ -347,3 +347,10 @@ The original Phase 1 view migration failed in the target SQL editor with `ERROR:
 - Final checks: `npm run typecheck` passed; `npm run test -- src/test/help-content.test.ts` passed 8 tests; `npm run build` passed with existing large-chunk warnings; `git diff --check` passed. Seven ICO frame corner-alpha checks passed previously. Restored the declared missing `fake-indexeddb` through `npm install --no-save --package-lock=false --ignore-scripts fake-indexeddb@6.2.5`; npm re-resolved 120 local packages. Initial checks overlapped that install and failed on temporarily missing packages; final post-install checks passed and supersede those failures. No manifest dependency changes.
 - Existing Vercel production deployment reached READY for the exact commit. Published the same synced commit through the existing Lovable project for its live tenant custom domain; dialog reported "Your website was updated". Browser confirmed the live SVG background has `rx="112"`. No migrations, edge functions, permissions, domains/DNS or environment variables changed. Owner explicitly authorized publication with "deploy".
 - Exact next action: none; no approval outstanding.
+
+## Warehouse Wizard LinkedIn launch — 2026-11-08
+
+Status: Complete — no active handoff
+
+- Verified the live Page in LinkedIn member view at https://www.linkedin.com/company/warehousewizard/ with its logo, cover, tagline and Overview. The logo overlaps the left edge of the cover subtitle at the desktop viewport checked.
+- Launch posts, Facebook, Instagram, email and CRM setup remain separate follow-up work. No application code or configuration changed. No build needed.
