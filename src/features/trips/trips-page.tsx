@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Truck } from "lucide-react";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { alertToast } from "@/lib/floor-feedback";
 import { formatDate, formatNumber, formatSupabaseError } from "@/features/shared/core-types";
@@ -36,6 +36,7 @@ import {
   type TripBoardRow,
   type TripDateFilter,
 } from "./trips-core";
+import { STAGE_LABELS, floorStage, tripDispatchState, type FloorStage } from "./trip-dispatch-core";
 
 const FLAG_CLASS = "px-1.5 py-0 text-[11px] font-medium";
 const COLUMNS = 6;
@@ -59,8 +60,12 @@ function EmptyRow({ children, tone }: { children: React.ReactNode; tone?: "error
   );
 }
 
-function FulfillmentRow({ row, busy, onPick }: { row: TripBoardRow; busy: boolean; onPick: () => void }) {
+const ACTION_LABELS: Partial<Record<FloorStage, string>> = { pack: "Pack check", stage: "Stage", load: "Load" };
+
+function FulfillmentRow({ row, busy, onPick, onNext }: { row: TripBoardRow; busy: boolean; onPick: () => void; onNext: (stage: FloorStage) => void }) {
   const state = pickState(row);
+  const stage = floorStage(row);
+  const action = ACTION_LABELS[stage];
   const progress = Number(row.quantity) > 0 ? Math.round((Number(row.picked_quantity) / Number(row.quantity)) * 100) : 0;
   return (
     <TableRow className="even:bg-muted/30">
@@ -85,7 +90,18 @@ function FulfillmentRow({ row, busy, onPick }: { row: TripBoardRow; busy: boolea
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap items-center gap-1">
-          <Badge variant="outline" className={cn(FLAG_CLASS, STATE_BADGE[state])}>{PICK_STATE_LABELS[state]}</Badge>
+          {row.ww_stage ? (
+            <Badge variant="outline" className={cn(FLAG_CLASS, STATE_BADGE.picked)}>
+              {STAGE_LABELS[row.ww_stage]}{row.staging_lane && row.ww_stage === "staged" ? ` · ${row.staging_lane}` : ""}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className={cn(FLAG_CLASS, STATE_BADGE[state])}>{PICK_STATE_LABELS[state]}</Badge>
+          )}
+          {row.ww_stage === "departed" && (
+            <Badge variant="outline" className={cn(FLAG_CLASS, row.ship_sync_status === "dead_letter" ? "border-destructive text-destructive" : "text-muted-foreground")} title={row.ship_sync_error ?? undefined}>
+              {row.ship_sync_status === "dead_letter" ? "NetSuite post failed" : row.ship_sync_status ? "Posting to NetSuite" : "Office sets Shipped"}
+            </Badge>
+          )}
           {row.exception_tasks > 0 && state !== "exception" && (
             <Badge variant="outline" className={cn(FLAG_CLASS, STATE_BADGE.exception)}>{row.exception_tasks} need stock</Badge>
           )}
@@ -93,10 +109,14 @@ function FulfillmentRow({ row, busy, onPick }: { row: TripBoardRow; busy: boolea
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex justify-end">
-          <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={onPick} disabled={busy || state === "blocked"}>
-            {state === "not_started" || state === "blocked" ? "Start pick" : state === "picked" || state === "short" ? "View" : "Continue"}
-          </Button>
+        <div className="flex justify-end gap-1">
+          {stage === "pick" || stage === "nothing_picked" ? (
+            <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={onPick} disabled={busy || state === "blocked"}>
+              {state === "not_started" || state === "blocked" ? "Start pick" : state === "picked" || state === "short" ? "View" : "Continue"}
+            </Button>
+          ) : action ? (
+            <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={() => onNext(stage)} disabled={busy}>{action}</Button>
+          ) : null}
         </div>
       </TableCell>
     </TableRow>
@@ -135,6 +155,9 @@ export function TripsPage() {
             is one fulfillment. Start the pick of an order, then walk the bins in the order shown. Scan each bin and enter what you take.
             If the bin runs out, press Short: WW closes the line with what you found and asks for an urgent pallet for the pick face.
             Orders on credit hold cannot be picked until the office releases them. An order still open after 3 days is marked Aged.
+            After the pick, Pack check counts each line against the pick, then Stage puts the order in a staging lane. At the truck,
+            Load &amp; depart scans each order on. When every picked order is on, Depart sets the fulfillments to Shipped in NetSuite.
+            A short line ships short and needs a supervisor. An order with nothing picked stays behind for the office.
           </HintButton>
         </div>
         <div className="flex items-center gap-2">
@@ -183,6 +206,11 @@ export function TripsPage() {
                           <span className="text-xs text-muted-foreground">{trip.date ? formatDate(trip.date) : "No date"} · {trip.warehouseCode}</span>
                           <span className="text-xs tabular-nums text-muted-foreground">{trip.picked} of {trip.total} picked</span>
                           {trip.isAged && <Badge variant="outline" className={cn(FLAG_CLASS, "border-destructive text-destructive")}>Aged</Badge>}
+                          {tripDispatchState(trip).loaded.length + trip.fulfillments.filter((f) => f.ww_stage === "staged").length > 0 && (
+                            <Button type="button" size="sm" variant="outline" className="ml-auto h-6 px-2 text-xs" onClick={() => navigate(toPath(`/trips/load/${trip.fulfillments[0].fulfillment_id}`))}>
+                              <Truck className="mr-1 h-3 w-3" /> Load &amp; depart
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>,
@@ -191,6 +219,7 @@ export function TripsPage() {
                         key={row.fulfillment_id}
                         row={row}
                         busy={start.isPending}
+                        onNext={(stage) => navigate(toPath(stage === "load" ? `/trips/load/${row.fulfillment_id}` : `/trips/pack/${row.fulfillment_id}`))}
                         onPick={() => (row.pick_list_status === "completed" && row.pick_list_id
                           ? navigate(toPath(`/trips/pick/${row.pick_list_id}`))
                           // Start also refreshes an open list: lines the office changed, and bins for lines that had no stock.

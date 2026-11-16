@@ -133,6 +133,8 @@ const PickExecutionPage = lazy(() =>
   import("@/features/picking/pick-execution-page").then((mod) => ({ default: mod.PickExecutionPage })),
 );
 const TripPickPage = lazy(() => import("@/features/trips/trip-pick-page").then((mod) => ({ default: mod.TripPickPage })));
+const TripPackPage = lazy(() => import("@/features/trips/trip-pack-page").then((mod) => ({ default: mod.TripPackPage })));
+const TripLoadPage = lazy(() => import("@/features/trips/trip-load-page").then((mod) => ({ default: mod.TripLoadPage })));
 // The help button carries ~67 kB of article text; keep it off the login screen's
 // critical path and let it pop in once loaded.
 const HelpSidebarLazy = lazy(() => import("@/components/help-sidebar").then((mod) => ({ default: mod.HelpSidebar })));
@@ -1271,6 +1273,8 @@ function ResourceRoutes() {
         <Route path="/inventory/:balanceId" element={<InventoryDetailPage />} />
         <Route path="/pick-lists/:pickListId" element={<PickExecutionPage />} />
         <Route path="/trips/pick/:pickListId" element={<TripPickPage />} />
+        <Route path="/trips/pack/:fulfillmentId" element={<TripPackPage />} />
+        <Route path="/trips/load/:fulfillmentId" element={<TripLoadPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Accordion } from "@/components/ui/accordion";
 import { NetSuiteSection } from "@/features/admin/netsuite-section";
 import { NetSuiteSyncJobsCard } from "@/features/admin/netsuite-sync-jobs";
+import { NetSuiteBinsCard } from "@/features/admin/netsuite-bins-card";
 import { NetSuiteUnitsCard } from "@/features/admin/netsuite-units-card";
 import { NETSUITE_ACTIVE_QUERY_KEY, useNetSuiteActive } from "@/hooks/use-netsuite-active";
 
@@ -521,6 +522,7 @@ export function NetSuiteIntegrationsTab() {
     <Accordion type="multiple" defaultValue={["connection"]} className="rounded-lg border bg-card px-4 xl:col-span-2">
       <NetSuiteIntegrationCard />
       <NetSuiteWarehouseMappingCard />
+      {netsuiteActive && <NetSuiteBinsCard />}
       {netsuiteActive && <NetSuiteUnitsCard />}
       {netsuiteActive && <NetSuiteSyncJobsCard />}
     </Accordion>

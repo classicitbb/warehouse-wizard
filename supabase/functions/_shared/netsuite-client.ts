@@ -129,6 +129,29 @@ export async function netsuiteRestletGet(
   return await readOrThrow(res)
 }
 
+/**
+ * Creates a record with POST /record/v1/{type}. NetSuite answers 204 with the
+ * new record's URL in the Location header; this returns its internal id.
+ */
+export async function netsuiteCreateRecord(
+  session: NetSuiteSession,
+  recordType: string,
+  body: Record<string, unknown>,
+): Promise<string> {
+  const res = await fetch(
+    `https://${netsuiteHost(session.accountId)}/services/rest/record/v1/${encodeURIComponent(recordType)}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+  if (!res.ok) throw new NetSuiteHttpError(res.status, await res.text())
+  const id = (res.headers.get('Location') ?? '').split('/').pop() ?? ''
+  if (!id) throw new Error(`NetSuite created a ${recordType} but returned no id`)
+  return id
+}
+
 /** Field-level schema for a REST record type, from the account's metadata catalog. */
 export async function netsuiteGetMetadataCatalog(session: NetSuiteSession, recordType: string): Promise<unknown> {
   const res = await fetch(

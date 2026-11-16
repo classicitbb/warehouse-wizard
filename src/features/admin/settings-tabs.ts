@@ -8,6 +8,7 @@ export type SettingsTabSlug =
   | "environment"
   | "support-requests"
   | "integrations"
+  | "ai-assistants"
   | "client-vars"
   | "about"
   | "license";
@@ -32,6 +33,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
   { slug: "environment", label: "Environment" },
   { slug: "support-requests", label: "Support Requests", visible: (ctx) => ctx.canViewUsersRoles },
   { slug: "integrations", label: "Integrations", visible: (ctx) => ctx.isDeveloperOrAdmin },
+  { slug: "ai-assistants", label: "AI Assistants (MCP)" },
   { slug: "client-vars", label: "Client Variables", visible: (ctx) => ctx.clientsEnabled },
   { slug: "about", label: "About" },
   { slug: "license", label: "License" },
