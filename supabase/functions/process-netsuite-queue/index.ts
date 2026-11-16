@@ -111,6 +111,10 @@ Deno.serve(async (req) => {
     })
   }
 
+  // The connection is non-null past this point. The nested helpers declared
+  // further down cannot see that narrowing, so keep the id in its own const.
+  const connectionId = connection.id
+
   if (!hasServiceRoleJwt) {
     const { data: runnerSecretRow } = await supabase
       .from('integration_secrets')
@@ -635,7 +639,7 @@ Deno.serve(async (req) => {
     const { data: pendingRows } = await supabase
       .from('integration_sync_jobs')
       .select('id, payload, result, updated_at')
-      .eq('connection_id', connection.id)
+      .eq('connection_id', connectionId)
       .eq('status', 'succeeded')
       .in('job_type', ['receipt_inbound_shipment', 'receipt_purchase_order'])
       .eq('result->>receiptPending', 'true')
@@ -673,7 +677,7 @@ Deno.serve(async (req) => {
     const { data: ownedRows } = await supabase
       .from('integration_sync_jobs')
       .select('result')
-      .eq('connection_id', connection.id)
+      .eq('connection_id', connectionId)
       .eq('status', 'succeeded')
       .in('job_type', ['receipt_inbound_shipment', 'receipt_purchase_order'])
       .gte('updated_at', new Date(Date.parse(pending[0].postedAt) - 3 * 86400000).toISOString())
