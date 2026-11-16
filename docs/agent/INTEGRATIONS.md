@@ -156,3 +156,4 @@ logs and dead letters to admin/developer roles, so the Reports page's sync-job p
 other roles. Deploy the new function with a deploy-only Lovable message after merging.
 
 - 2026-11-05: Lovable connector harmless list/get reads returned internal errors. Existing authenticated Edge browser verified the sandbox project and its configured publish domain, then published synced main. Publish dialog reported "Your website was updated". No connector settings changed.
+- 2026-11-05 favicon publication: harmless Vercel connector reads verified the existing tenant project; GitHub main push produced a READY production deployment. Also published the existing tenant Lovable project through authenticated Edge after GitHub sync; its custom-domain SVG was verified corrected. Lovable connector read calls failed with internal errors, making the browser the verified fallback. No credentials or connector settings changed.
