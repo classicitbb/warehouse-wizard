@@ -1,7 +1,7 @@
 // Settings: a tab shell. Each tab lives in its own module; the heavier tabs load on first open.
 import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Bell, FileText, Info, Loader2, MessageSquare, Network, Users } from "lucide-react";
+import { Bell, Bot, FileText, Info, Loader2, MessageSquare, Network, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useTenantPath } from "@/hooks/use-tenant-path";
@@ -28,6 +28,7 @@ const ModulesSettingsPanel = lazy(() => import("@/features/admin/modules-setting
 const SupportRequestsPanel = lazy(() => import("@/features/admin/support-requests-panel").then((mod) => ({ default: mod.SupportRequestsPanel })));
 const NetSuiteIntegrationsTab = lazy(() => import("@/features/admin/netsuite-settings").then((mod) => ({ default: mod.NetSuiteIntegrationsTab })));
 const ClientVariablesPanel = lazy(() => import("@/features/admin/client-variables-panel").then((mod) => ({ default: mod.ClientVariablesPanel })));
+const McpSettingsTab = lazy(() => import("@/features/admin/mcp-settings-tab").then((mod) => ({ default: mod.McpSettingsTab })));
 const LicenseAgreementTab = lazy(() => import("@/features/admin/license-agreement").then((mod) => ({ default: mod.LicenseAgreementTab })));
 
 function TabLoader({ children }: { children: ReactNode }) {
@@ -114,6 +115,7 @@ export function SettingsPage() {
           {isEnabled("clients") && (
             <TabsTrigger value="client-vars" className="min-h-9 flex-1 sm:flex-none">Client Variables</TabsTrigger>
           )}
+          <TabsTrigger value="ai-assistants" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Bot className="h-3.5 w-3.5" />AI Assistants</TabsTrigger>
           <TabsTrigger value="about" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Info className="h-3.5 w-3.5" />About</TabsTrigger>
           <TabsTrigger value="license" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><FileText className="h-3.5 w-3.5" />License</TabsTrigger>
 
@@ -168,6 +170,10 @@ export function SettingsPage() {
             <TabLoader><NetSuiteIntegrationsTab /></TabLoader>
           </TabsContent>
         )}
+
+        <TabsContent value="ai-assistants" className="mt-4 grid gap-6 xl:grid-cols-2">
+          <TabLoader><McpSettingsTab /></TabLoader>
+        </TabsContent>
 
         <TabsContent value="about" className="mt-4 grid gap-6 xl:grid-cols-2">
           <AboutSettingsTab />
