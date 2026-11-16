@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -2285,6 +2285,8 @@ export type Database = {
           ns_unit_id: string | null
           order_external_line_id: string | null
           order_line_id: string | null
+          packed_at: string | null
+          packed_quantity: number | null
           product_id: string | null
           quantity: number
           updated_at: string
@@ -2298,6 +2300,8 @@ export type Database = {
           ns_unit_id?: string | null
           order_external_line_id?: string | null
           order_line_id?: string | null
+          packed_at?: string | null
+          packed_quantity?: number | null
           product_id?: string | null
           quantity?: number
           updated_at?: string
@@ -2311,6 +2315,8 @@ export type Database = {
           ns_unit_id?: string | null
           order_external_line_id?: string | null
           order_line_id?: string | null
+          packed_at?: string | null
+          packed_quantity?: number | null
           product_id?: string | null
           quantity?: number
           updated_at?: string
@@ -2349,57 +2355,87 @@ export type Database = {
       order_fulfillments: {
         Row: {
           created_at: string
+          departed_at: string | null
+          departed_by: string | null
           document_number: string
           external_record_id: string
           external_status: string
           fulfillment_date: string | null
           id: string
           last_synced_at: string | null
+          loaded_at: string | null
+          loaded_by: string | null
           order_id: string
+          packed_at: string | null
+          packed_by: string | null
           picker_external_id: string | null
           picker_name: string | null
+          ship_sync_job_id: string | null
           source_modified_at: string | null
+          staged_at: string | null
+          staging_location_id: string | null
           trip_number: string | null
           truck_external_id: string | null
           truck_name: string | null
           updated_at: string
           warehouse_id: string
+          ww_stage: string | null
         }
         Insert: {
           created_at?: string
+          departed_at?: string | null
+          departed_by?: string | null
           document_number: string
           external_record_id: string
           external_status: string
           fulfillment_date?: string | null
           id?: string
           last_synced_at?: string | null
+          loaded_at?: string | null
+          loaded_by?: string | null
           order_id: string
+          packed_at?: string | null
+          packed_by?: string | null
           picker_external_id?: string | null
           picker_name?: string | null
+          ship_sync_job_id?: string | null
           source_modified_at?: string | null
+          staged_at?: string | null
+          staging_location_id?: string | null
           trip_number?: string | null
           truck_external_id?: string | null
           truck_name?: string | null
           updated_at?: string
           warehouse_id: string
+          ww_stage?: string | null
         }
         Update: {
           created_at?: string
+          departed_at?: string | null
+          departed_by?: string | null
           document_number?: string
           external_record_id?: string
           external_status?: string
           fulfillment_date?: string | null
           id?: string
           last_synced_at?: string | null
+          loaded_at?: string | null
+          loaded_by?: string | null
           order_id?: string
+          packed_at?: string | null
+          packed_by?: string | null
           picker_external_id?: string | null
           picker_name?: string | null
+          ship_sync_job_id?: string | null
           source_modified_at?: string | null
+          staged_at?: string | null
+          staging_location_id?: string | null
           trip_number?: string | null
           truck_external_id?: string | null
           truck_name?: string | null
           updated_at?: string
           warehouse_id?: string
+          ww_stage?: string | null
         }
         Relationships: [
           {
@@ -2415,6 +2451,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "outbound_order_inbox"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_ship_sync_job_id_fkey"
+            columns: ["ship_sync_job_id"]
+            isOneToOne: false
+            referencedRelation: "integration_sync_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_staging_location_id_fkey"
+            columns: ["staging_location_id"]
+            isOneToOne: false
+            referencedRelation: "location_occupancy_view"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_staging_location_id_fkey"
+            columns: ["staging_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_fulfillments_staging_location_id_fkey"
+            columns: ["staging_location_id"]
+            isOneToOne: false
+            referencedRelation: "pick_face_status"
+            referencedColumns: ["location_id"]
           },
           {
             foreignKeyName: "order_fulfillments_warehouse_id_fkey"
@@ -4650,8 +4714,10 @@ export type Database = {
           blocker: string | null
           created_at: string
           dock_appointment_id: string | null
+          fulfillment_id: string | null
           id: string
           load_sequence: number
+          location_id: string | null
           pick_list_id: string | null
           route_code: string
           status: string
@@ -4661,8 +4727,10 @@ export type Database = {
           blocker?: string | null
           created_at?: string
           dock_appointment_id?: string | null
+          fulfillment_id?: string | null
           id?: string
           load_sequence?: number
+          location_id?: string | null
           pick_list_id?: string | null
           route_code: string
           status?: string
@@ -4672,8 +4740,10 @@ export type Database = {
           blocker?: string | null
           created_at?: string
           dock_appointment_id?: string | null
+          fulfillment_id?: string | null
           id?: string
           load_sequence?: number
+          location_id?: string | null
           pick_list_id?: string | null
           route_code?: string
           status?: string
@@ -4686,6 +4756,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dock_appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staging_loads_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "order_fulfillments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staging_loads_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "trip_board"
+            referencedColumns: ["fulfillment_id"]
+          },
+          {
+            foreignKeyName: "staging_loads_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "location_occupancy_view"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "staging_loads_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staging_loads_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "pick_face_status"
+            referencedColumns: ["location_id"]
           },
           {
             foreignKeyName: "staging_loads_pick_list_id_fkey"
@@ -5858,6 +5963,7 @@ export type Database = {
         Row: {
           customer_name: string | null
           delivery_zone: string | null
+          departed_at: string | null
           document_number: string | null
           exception_tasks: number | null
           external_status: string | null
@@ -5877,13 +5983,19 @@ export type Database = {
           picked_quantity: number | null
           picker_name: string | null
           quantity: number | null
+          ship_sync_error: string | null
+          ship_sync_status:
+            | Database["public"]["Enums"]["integration_job_status"]
+            | null
           short_tasks: number | null
+          staging_lane: string | null
           trip_number: string | null
           truck_external_id: string | null
           truck_name: string | null
           unmapped_count: number | null
           warehouse_code: string | null
           warehouse_id: string | null
+          ww_stage: string | null
         }
         Relationships: [
           {
@@ -6046,6 +6158,14 @@ export type Database = {
         Args: { in_channel: string; in_error?: string; in_event_ids: string[] }
         Returns: number
       }
+      confirm_pack_line: {
+        Args: {
+          p_fulfillment_line_id: string
+          p_quantity: number
+          p_scan: string
+        }
+        Returns: Json
+      }
       confirm_pick_task: {
         Args: {
           in_allow_quantity_anomaly?: boolean
@@ -6093,6 +6213,7 @@ export type Database = {
       delete_product_cascade: { Args: { in_id: string }; Returns: Json }
       delete_warehouse_cascade: { Args: { in_id: string }; Returns: Json }
       delete_zone_cascade: { Args: { in_id: string }; Returns: Json }
+      depart_trip: { Args: { p_fulfillment_ids: string[] }; Returns: Json }
       directed_putaway_candidates: {
         Args: { in_pallet_id: string }
         Returns: {
@@ -6126,6 +6247,7 @@ export type Database = {
         Args: { in_product_id: string; in_warehouse_id: string }
         Returns: undefined
       }
+      fulfillment_line_picked: { Args: { p_line_id: string }; Returns: number }
       get_deployment_licence: { Args: never; Returns: Json }
       get_or_create_unsubscribe_token: {
         Args: { in_email: string }
@@ -6133,10 +6255,6 @@ export type Database = {
       }
       has_any_role: {
         Args: { _roles: Database["public"]["Enums"]["app_role_code"][] }
-        Returns: boolean
-      }
-      has_feature_permission: {
-        Args: { _feature_code: string; _mode?: string; _user_id: string }
         Returns: boolean
       }
       has_min_role: {
@@ -6163,6 +6281,10 @@ export type Database = {
         Returns: Json
       }
       is_approved: { Args: never; Returns: boolean }
+      load_trip_scan: {
+        Args: { p_fulfillment_ids: string[]; p_scan: string }
+        Returns: Json
+      }
       location_clearance_mm: {
         Args: {
           in_max_height: number
@@ -6410,11 +6532,52 @@ export type Database = {
           quantity: number
         }[]
       }
+      stage_fulfillment: {
+        Args: { p_fulfillment_id: string; p_location_code: string }
+        Returns: Json
+      }
       start_fulfillment_pick: {
         Args: { p_fulfillment_id: string }
         Returns: string
       }
       start_replenishment_task: { Args: { p_task_id: string }; Returns: Json }
+      trip_fulfillment_for_floor: {
+        Args: { p_fulfillment_id: string }
+        Returns: {
+          created_at: string
+          departed_at: string | null
+          departed_by: string | null
+          document_number: string
+          external_record_id: string
+          external_status: string
+          fulfillment_date: string | null
+          id: string
+          last_synced_at: string | null
+          loaded_at: string | null
+          loaded_by: string | null
+          order_id: string
+          packed_at: string | null
+          packed_by: string | null
+          picker_external_id: string | null
+          picker_name: string | null
+          ship_sync_job_id: string | null
+          source_modified_at: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          trip_number: string | null
+          truck_external_id: string | null
+          truck_name: string | null
+          updated_at: string
+          warehouse_id: string
+          ww_stage: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "order_fulfillments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       trip_pick_source: {
         Args: { p_product_id: string; p_warehouse_id: string }
         Returns: string
