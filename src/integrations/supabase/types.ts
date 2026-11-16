@@ -6583,6 +6583,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      trip_pick_reserve: {
+        Args: {
+          p_expected_pallet_id?: string
+          p_request?: boolean
+          p_task_id: string
+        }
+        Returns: Json
+      }
       trip_pick_source: {
         Args: { p_product_id: string; p_warehouse_id: string }
         Returns: string

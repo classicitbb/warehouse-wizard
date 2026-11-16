@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Show the oldest eligible reserve pallet on trip pick lines; authenticated replenishment request and close-short verified on temporary records, 20 tests passed, fixtures removed. Physical stock arrival was not simulated.
+
 - [x] Block duplicate inbound receiving during drafts and open Put-Away; verify matching, loading, and save preflights (82 tests and authenticated live fixtures).
 - [ ] Add database-atomic duplicate protection for simultaneous operators; blocked by pre-existing migration journal conflict on the packaging-profile supervisor policy.
 

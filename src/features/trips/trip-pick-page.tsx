@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Package, RefreshCw } from "lucide-react";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { alertToast, playBarcodeBeep } from "@/lib/floor-feedback";
 import { normalizeScannerText } from "@/lib/scan-input";
@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { fetchTripReserve } from "./trip-reserve-core";
 import {
   TRIPS_QUERY_KEY,
   confirmTripPick,
@@ -99,6 +100,14 @@ export function TripPickPage() {
   const [quantity, setQuantity] = useState("");
 
   const current = tasks.find((t) => t.id === selectedId && isOpenTask(t)) ?? tasks.find(isOpenTask) ?? null;
+  const reserveKey = [...TRIPS_QUERY_KEY, "reserve", current?.id];
+  const reserve = useQuery({
+    queryKey: reserveKey,
+    queryFn: () => fetchTripReserve(current?.id ?? ""),
+    enabled: Boolean(current?.fulfillment_line?.product_id),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
 
   useEffect(() => {
     setBin("");
@@ -116,7 +125,7 @@ export function TripPickPage() {
     mutationFn: ({ short }: { short: boolean }) => {
       if (!current) throw new Error("No line to pick.");
       // A no-stock line closes short with nothing picked.
-      const entered = current.status === "exception" || quantity.trim() === "" ? 0 : Number(quantity);
+      const entered = (short && current.status === "exception") || quantity.trim() === "" ? 0 : Number(quantity);
       if (!Number.isFinite(entered) || entered < 0) throw new Error("Enter the quantity you picked.");
       const base = toBaseUnits(entered, taskUnit(current));
       if (base > 0 && !bin.trim()) throw new Error("Scan the bin you picked from.");
@@ -132,6 +141,23 @@ export function TripPickPage() {
     },
     onError: (e) => alertToast.noGo(formatSupabaseError(e, "Pick failed") || "Pick failed"),
   });
+
+  const replenish = useMutation({
+    mutationFn: () => {
+      if (!current) throw new Error("No line to replenish.");
+      return fetchTripReserve(current.id, true, reserve.data?.source?.pallet_id ?? null);
+    },
+    onSuccess: async (result) => {
+      queryClient.setQueryData(reserveKey, result);
+      alertToast.success(`${result.replenishment?.task_number ?? "Replenishment"} requested. Pick line remains open.`);
+      await queryClient.invalidateQueries({ queryKey: REPLENISHMENT_QUERY_KEY });
+    },
+    onError: async (e) => {
+      alertToast.noGo(formatSupabaseError(e, "Replenishment failed") || "Replenishment failed");
+      await reserve.refetch();
+    },
+  });
+  const busy = confirm.isPending || replenish.isPending;
 
   const list = data?.list;
   const done = tasks.length > 0 && !tasks.some(isOpenTask);
@@ -189,9 +215,44 @@ export function TripPickPage() {
                     </div>
                   </div>
 
-                  {current.status === "exception" ? (
+                  {current.status === "exception" && (
                     <p className="text-sm text-amber-700 dark:text-amber-400">{current.short_reason}</p>
-                  ) : (
+                  )}
+                  {current.fulfillment_line?.product_id && (
+                    <div className="grid gap-2 border-t pt-3 text-sm" aria-live="polite">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">Oldest eligible reserve pallet</span>
+                        <Button type="button" variant="ghost" size="icon" aria-label="Refresh reserve stock" title="Refresh reserve stock" disabled={reserve.isFetching || busy} onClick={() => { void refresh(); void reserve.refetch(); }}>
+                          <RefreshCw className={cn("h-4 w-4", reserve.isFetching && "animate-spin")} />
+                        </Button>
+                      </div>
+                      {reserve.isLoading ? <p className="text-muted-foreground">Checking reserve stock…</p> : reserve.error ? (
+                        <p className="text-destructive">Could not check reserve stock. Refresh or ask a supervisor.</p>
+                      ) : reserve.data?.source ? (
+                        <div className="flex items-start gap-2">
+                          <Package className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          <div className="min-w-0">
+                            <div className="break-words font-mono">{reserve.data.source.barcode} · {reserve.data.source.bin}</div>
+                            <div>{taskQuantityLabel(current, Number(reserve.data.source.available_quantity))} available</div>
+                            {reserve.data.source.received_at && <div className="text-xs text-muted-foreground">Received {new Date(reserve.data.source.received_at).toLocaleDateString()}</div>}
+                            {reserve.data.source.expiry_date && <div className="text-xs text-muted-foreground">Expires {reserve.data.source.expiry_date}</div>}
+                          </div>
+                        </div>
+                      ) : <p className="text-muted-foreground">No eligible reserve pallet found. Ask a supervisor to check stock.</p>}
+                      {reserve.data?.replenishment ? (
+                        <p className="text-primary">{reserve.data.replenishment.task_number} · {reserve.data.replenishment.status.replaceAll("_", " ")} · to {reserve.data.destination ?? "pick face"}</p>
+                      ) : reserve.data?.source && !reserve.data.destination ? (
+                        <p className="text-muted-foreground">No pick face is available. Ask a supervisor to make room.</p>
+                      ) : null}
+                      {reserve.data?.source && (
+                        <Button type="button" variant="outline" className="h-11 w-full whitespace-normal" disabled={busy || reserve.isFetching || !reserve.data.destination || Boolean(reserve.data.replenishment)} onClick={() => replenish.mutate()}>
+                          {replenish.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          {reserve.data.replenishment ? "Replenishment requested" : "Request replenishment"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {(
                     <form
                       className="grid gap-3"
                       onSubmit={(e) => {
@@ -237,18 +298,18 @@ export function TripPickPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Button type="submit" className="h-11 flex-1" disabled={confirm.isPending}>
+                        <Button type="submit" className="h-11 flex-1" disabled={busy}>
                           {confirm.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Confirm pick
                         </Button>
-                        <Button type="button" variant="outline" className="h-11" disabled={confirm.isPending} onClick={() => confirm.mutate({ short: true })}>
+                        {current.status !== "exception" && <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => confirm.mutate({ short: true })}>
                           Short
-                        </Button>
+                        </Button>}
                       </div>
                     </form>
                   )}
                   {current.status === "exception" && (
-                    <Button type="button" variant="outline" className="h-11" disabled={confirm.isPending} onClick={() => confirm.mutate({ short: true })}>
+                    <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => confirm.mutate({ short: true })}>
                       Close line short
                     </Button>
                   )}
