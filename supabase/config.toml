@@ -50,6 +50,11 @@ verify_jwt = true
 [functions.netsuite-customers]
 verify_jwt = true
 
+# Admin/developer-only mirror of WW locations into NetSuite bins (W5); the
+# handler verifies the caller role itself.
+[functions.netsuite-bins]
+verify_jwt = true
+
 # Admin/developer-only import of NetSuite units of measure; the handler
 # verifies the caller role itself after the platform has verified the JWT.
 [functions.netsuite-units]
