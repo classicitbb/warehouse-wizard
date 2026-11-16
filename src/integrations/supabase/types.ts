@@ -6388,6 +6388,7 @@ export type Database = {
         Returns: string
       }
       reset_wms_data: { Args: never; Returns: Json }
+      reset_wms_data_for_actor: { Args: { p_actor: string }; Returns: Json }
       resolve_package_type_id: { Args: { p_text: string }; Returns: string }
       return_putaway_to_receiving_draft: {
         Args: { in_task_id: string }
