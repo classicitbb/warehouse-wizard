@@ -145,3 +145,15 @@ export function extractIso6346ContainerNumber(value: unknown): ContainerNumberSc
     message: "No ISO 6346 container number was found in the scan.",
   };
 }
+
+/**
+ * Accepts any typed container reference. Valid ISO 6346 numbers are returned
+ * normalized; anything else is kept as typed (trimmed) so non-standard
+ * references can still be saved. Callers show the validation message as a soft warning.
+ */
+export function resolveContainerNumberInput(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const validation = validateIso6346ContainerNumber(raw);
+  return validation.valid ? validation.normalized : raw;
+}
