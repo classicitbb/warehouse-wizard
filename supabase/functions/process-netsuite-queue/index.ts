@@ -3,7 +3,7 @@ import { buildNetSuiteInventoryAdjustment, netsuiteAdjustmentExternalId, netsuit
 import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
 import { netSuiteOutboundClaimArgs } from '../_shared/netsuite-queue.ts'
 import {
-  buildInboundShipmentRestletBody, interpretReceiptResponse, planShipmentReceipt, resolveShipmentLineKeys,
+  buildInboundShipmentRestletBody, interpretReceiptResponse, planShipmentReceipt, resolveShipmentLineKeys, matchPendingReceipts,
   type ReceiptJobPayload, type ShipmentLineCandidate,
 } from '../_shared/netsuite-receipt.ts'
 import { buildRestletUrl, resolveRestletTarget } from '../_shared/netsuite-restlet.ts'
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
       try { responsePayload = text ? JSON.parse(text) : null } catch { responsePayload = { raw: text.slice(0, 4000) } }
       const outcome = res.ok ? interpretReceiptResponse(responsePayload) : { ok: false as const, reason: `NetSuite responded ${res.status}: ${text.slice(0, 300)}`, retryable: true }
       if (outcome.ok) {
-        return { ok: true, httpStatus: res.status, responsePayload: { itemReceiptIds: outcome.receiptIds, alreadyProcessed: outcome.alreadyProcessed }, failureReason: null, retryable: false }
+        return { ok: true, httpStatus: res.status, responsePayload: { itemReceiptIds: outcome.receiptIds, alreadyProcessed: outcome.alreadyProcessed, receiptPending: outcome.receiptIds.length === 0 }, failureReason: null, retryable: false }
       }
       return { ok: false, httpStatus: res.status, responsePayload, failureReason: outcome.reason, retryable: outcome.retryable }
     } catch (err) {
@@ -611,8 +611,104 @@ Deno.serve(async (req) => {
     }
   }
 
+  // NetSuite creates inbound shipment item receipts in the background, after the
+  // RESTlet has answered, so their ids arrive on a later run. Name them now.
+  let receiptsLinked = 0
+  try {
+    receiptsLinked = await linkPendingReceipts()
+  } catch (err) {
+    console.error('Linking pending item receipts failed', err)
+  }
+
+  async function suiteql(q: string): Promise<Record<string, unknown>[] | null> {
+    const res = await fetch(`https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=1000`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Prefer: 'transient' },
+      body: JSON.stringify({ q }),
+    })
+    if (!res.ok) return null
+    const body = await res.json().catch(() => null) as { items?: Record<string, unknown>[] } | null
+    return body?.items ?? []
+  }
+
+  async function linkPendingReceipts(): Promise<number> {
+    const { data: pendingRows } = await supabase
+      .from('integration_sync_jobs')
+      .select('id, payload, result, updated_at')
+      .eq('connection_id', connection.id)
+      .eq('status', 'succeeded')
+      .in('job_type', ['receipt_inbound_shipment', 'receipt_purchase_order'])
+      .eq('result->>receiptPending', 'true')
+      .order('updated_at')
+      .limit(100)
+    const pending = (pendingRows ?? []).flatMap((row) => {
+      const p = row.payload as { externalRef?: string; documentId?: string; lines?: { poId?: string; itemId?: string }[] }
+      const line = p.lines?.length === 1 ? p.lines[0] : null
+      const isPo = (row.payload as { documentType?: string }).documentType === 'purchase_order'
+      const poId = String(line?.poId ?? (isPo ? p.documentId ?? '' : ''))
+      if (!p.externalRef || !line?.itemId || !/^\d+$/.test(poId) || !/^\d+$/.test(String(line.itemId))) return []
+      return [{ jobId: row.id as string, externalRef: p.externalRef, poId, itemId: String(line.itemId), postedAt: String(row.updated_at) }]
+    })
+    if (pending.length === 0) return 0
+
+    const poIds = [...new Set(pending.map((j) => j.poId))]
+    const itemIds = [...new Set(pending.map((j) => j.itemId))]
+    const since = pending[0].postedAt.slice(0, 10)
+    const rows = await suiteql(
+      `SELECT t.id, tl.createdfrom, tl.item, t.custbody_spx_ww_external_ref AS ref FROM transaction t `
+      + `JOIN transactionline tl ON tl.transaction = t.id WHERE t.type = 'ItemRcpt' AND tl.mainline = 'F' `
+      + `AND tl.createdfrom IN (${poIds.join(',')}) AND tl.item IN (${itemIds.join(',')}) `
+      + `AND t.createddate >= TO_DATE('${since}', 'YYYY-MM-DD') - 1`,
+    )
+    if (!rows) return 0
+    const seen = new Set<string>()
+    const receipts = rows.flatMap((r) => {
+      const receiptId = String(r.id)
+      if (seen.has(receiptId)) return []
+      seen.add(receiptId)
+      return [{ receiptId, poId: String(r.createdfrom), itemId: String(r.item), ref: r.ref ? String(r.ref) : null }]
+    })
+
+    // Receipts other jobs already own must not be handed out again.
+    const { data: ownedRows } = await supabase
+      .from('integration_sync_jobs')
+      .select('result')
+      .eq('connection_id', connection.id)
+      .eq('status', 'succeeded')
+      .in('job_type', ['receipt_inbound_shipment', 'receipt_purchase_order'])
+      .gte('updated_at', new Date(Date.parse(pending[0].postedAt) - 3 * 86400000).toISOString())
+    const claimed = new Set<string>()
+    for (const row of ownedRows ?? []) {
+      for (const id of ((row.result as { itemReceiptIds?: unknown[] } | null)?.itemReceiptIds ?? [])) claimed.add(String(id))
+    }
+
+    let linked = 0
+    for (const [jobId, receiptId] of matchPendingReceipts(pending, receipts, claimed)) {
+      const job = pending.find((j) => j.jobId === jobId)!
+      const receipt = receipts.find((r) => r.receiptId === receiptId)!
+      if (receipt.ref !== job.externalRef) {
+        // Stamp our ref so a retry of the same posting is recognised as already processed.
+        const res = await fetch(`https://${netsuiteHost(accountId)}/services/rest/record/v1/itemReceipt/${receiptId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ custbody_spx_ww_external_ref: job.externalRef }),
+        })
+        if (!res.ok) {
+          console.error('Stamping item receipt failed', receiptId, res.status, (await res.text()).slice(0, 300))
+          continue
+        }
+      }
+      await supabase
+        .from('integration_sync_jobs')
+        .update({ result: { itemReceiptIds: [receiptId], alreadyProcessed: false, receiptPending: false, linkedLater: true } })
+        .eq('id', jobId)
+      linked++
+    }
+    return linked
+  }
+
   return new Response(
-    JSON.stringify({ processed: jobs.length, succeeded, failed, deadLettered }),
+    JSON.stringify({ processed: jobs.length, succeeded, failed, deadLettered, receiptsLinked }),
     { headers: { 'Content-Type': 'application/json' } },
   )
 })

@@ -52,7 +52,10 @@
  * Extra fields (e.g. poId, lineNumber) are ignored.
  *
  * Response (success):
- *   { "ok": true, "itemReceiptIds": ["8841", "8842"], "alreadyProcessed": false }
+ *   { "ok": true, "itemReceiptIds": [], "alreadyProcessed": false }
+ * itemReceiptIds is empty on a new receipt: NetSuite creates the item receipts
+ * in the background after save(). Warehouse Wizard links and stamps them later.
+ * A retry whose receipts are already stamped returns alreadyProcessed: true.
  *
  * Response (failure):
  *   { "ok": false, "code": "<code>", "retryable": <bool>, "error": "<message>" }
@@ -62,8 +65,7 @@
  * another request, concurrency/usage limits, unexpected errors).
  *
  * Calls for the same shipment must be sent one at a time: each call saves
- * the whole shipment, and new receipts are identified by diffing before
- * and after the save.
+ * the whole shipment.
  *
  * @NApiVersion 2.1
  * @NScriptType Restlet
@@ -192,37 +194,6 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
     );
 
     /**
-     * Item receipts created from any of these source transactions (the
-     * shipment's POs, plus the shipment itself in case NetSuite sets
-     * createdfrom to it). Taken before and after save() so the difference
-     * is exactly the receipts this request created.
-     */
-    const findItemReceiptsCreatedFrom = (sourceIds) => collectSearchIds(
-        search.create({
-            type: ITEM_RECEIPT.TYPE,
-            filters: [
-                ['createdfrom', 'anyof', sourceIds],
-                'AND',
-                ['mainline', 'is', 'T']
-            ],
-            columns: ['internalid']
-        })
-    );
-
-    const stampExternalRef = (itemReceiptIds, externalRef) => {
-        itemReceiptIds.forEach((itemReceiptId) => {
-            record.submitFields({
-                type: ITEM_RECEIPT.TYPE,
-                id: itemReceiptId,
-                values: {
-                    [ITEM_RECEIPT.EXTERNAL_REF_FIELD]: externalRef
-                },
-                options: { enableSourcing: false, ignoreMandatoryFields: true }
-            });
-        });
-    };
-
-    /**
      * Sets the inventory detail (lot/serial/bin/status) subrecord on the
      * currently selected receiveitems line from the request's
      * inventoryAssignment array. Dynamic mode: the subrecord is edited
@@ -308,8 +279,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
     /**
      * Loads the shipment in receiving mode, applies the requested lines,
      * zeroes out every line not in the request (brief "Behaviour" step 3),
-     * saves, and returns the ids of the item receipts the save created,
-     * stamped with externalRef.
+     * and saves. Returns no ids: see the note above save().
      */
     const receiveShipment = (requestBody) => {
         const inboundShipmentId = asString(requestBody.inboundShipmentId);
@@ -409,27 +379,19 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             );
         }
 
-        const sourceIdList = [...sourceIds];
-        const receiptsBefore = new Set(findItemReceiptsCreatedFrom(sourceIdList));
-
+        // NetSuite creates the item receipts in the background, seconds after
+        // save() returns, so they cannot be found here. Diffing receipts before
+        // and after the save picked up an earlier request's receipt instead and
+        // stamped it with the wrong externalRef. Warehouse Wizard now finds the
+        // new receipts on its next queue run and stamps them itself.
         shipmentRecord.save();
 
-        const newItemReceiptIds = findItemReceiptsCreatedFrom(sourceIdList)
-            .filter((id) => !receiptsBefore.has(id));
+        log.audit({
+            title: 'WW inbound shipment receipt - saved',
+            details: { inboundShipmentId, externalRef, purchaseOrders: [...sourceIds].filter((id) => id !== inboundShipmentId) }
+        });
 
-        if (!newItemReceiptIds.length) {
-            // The receipt went through but we couldn't find what it
-            // created, so a retry would NOT be caught as alreadyProcessed.
-            // Logged loudly - check LINE_FIELD.PURCHASE_ORDER via the GET.
-            log.error({
-                title: 'WW inbound shipment receipt - saved but no new item receipts found',
-                details: { inboundShipmentId, externalRef, sourceIds: sourceIdList }
-            });
-        }
-
-        stampExternalRef(newItemReceiptIds, externalRef);
-
-        return newItemReceiptIds;
+        return [];
     };
 
     // ------------------------------------------------------------------

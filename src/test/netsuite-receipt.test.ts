@@ -241,3 +241,24 @@ describe("resolveShipmentLineKeys", () => {
     ]);
   });
 });
+
+describe("matchPendingReceipts", () => {
+  it("prefers a receipt stamped with the job's ref, then pairs the rest oldest-first by PO and item", async () => {
+    const { matchPendingReceipts } = await import("../../supabase/functions/_shared/netsuite-receipt");
+    const jobs = [
+      { jobId: "b", externalRef: "ref-b", poId: "10", itemId: "5", postedAt: "2026-11-16T19:53:20Z" },
+      { jobId: "a", externalRef: "ref-a", poId: "10", itemId: "5", postedAt: "2026-11-16T19:53:10Z" },
+      { jobId: "c", externalRef: "ref-c", poId: "11", itemId: "6", postedAt: "2026-11-16T19:53:30Z" },
+      { jobId: "d", externalRef: "ref-d", poId: "10", itemId: "5", postedAt: "2026-11-16T19:53:40Z" },
+    ];
+    const receipts = [
+      { receiptId: "102", poId: "10", itemId: "5", ref: null },
+      { receiptId: "101", poId: "10", itemId: "5", ref: null },
+      { receiptId: "103", poId: "10", itemId: "5", ref: "someone-else" },
+      { receiptId: "200", poId: "11", itemId: "6", ref: "ref-c" },
+      { receiptId: "100", poId: "10", itemId: "5", ref: null },
+    ];
+    const out = matchPendingReceipts(jobs, receipts, new Set(["100"]));
+    expect(Object.fromEntries(out)).toEqual({ c: "200", a: "101", b: "102" });
+  });
+});

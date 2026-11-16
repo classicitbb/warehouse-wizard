@@ -213,6 +213,47 @@ function remainingOn(candidates: ShipmentLineCandidate[], shipmentId: string, wa
     .reduce((sum, c) => sum + c.remaining, 0)
 }
 
+/** A succeeded inbound shipment job whose item receipt NetSuite has not named yet. */
+export type PendingReceiptJob = { jobId: string; externalRef: string; poId: string; itemId: string; postedAt: string }
+/** An item receipt line from SuiteQL: `transaction.id`, `createdfrom` PO, item, and our ref if stamped. */
+export type ItemReceiptCandidate = { receiptId: string; poId: string; itemId: string; ref: string | null }
+
+/**
+ * NetSuite creates the item receipt in the background, seconds after the RESTlet
+ * answers, so the RESTlet cannot return its id. Match each pending job to a receipt
+ * afterwards: a receipt already stamped with the job's ref wins; otherwise the oldest
+ * unclaimed receipt for the same PO and item, taking jobs in the order they were
+ * posted (NetSuite processes them in that order). A receipt stamped with another ref,
+ * or claimed by an earlier job, is never reused.
+ */
+export function matchPendingReceipts(
+  jobs: PendingReceiptJob[],
+  receipts: ItemReceiptCandidate[],
+  claimedReceiptIds: Set<string>,
+): Map<string, string> {
+  const claimed = new Set(claimedReceiptIds)
+  const out = new Map<string, string>()
+  const byId = (a: ItemReceiptCandidate, b: ItemReceiptCandidate) => Number(a.receiptId) - Number(b.receiptId)
+  const ordered = [...jobs].sort((a, b) => a.postedAt.localeCompare(b.postedAt))
+  for (const job of ordered) {
+    const stamped = receipts.find((r) => r.ref === job.externalRef)
+    if (stamped) {
+      out.set(job.jobId, stamped.receiptId)
+      claimed.add(stamped.receiptId)
+    }
+  }
+  for (const job of ordered) {
+    if (out.has(job.jobId)) continue
+    const pick = receipts
+      .filter((r) => r.poId === job.poId && r.itemId === job.itemId && !r.ref && !claimed.has(r.receiptId))
+      .sort(byId)[0]
+    if (!pick) continue
+    out.set(job.jobId, pick.receiptId)
+    claimed.add(pick.receiptId)
+  }
+  return out
+}
+
 export type ReceiptOutcome =
   | { ok: true; receiptIds: string[]; alreadyProcessed: boolean }
   | { ok: false; reason: string; retryable: boolean; code?: string }
