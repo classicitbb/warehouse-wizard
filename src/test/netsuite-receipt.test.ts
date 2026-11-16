@@ -220,3 +220,22 @@ describe("W4: NetSuite line saved with the draft", () => {
     });
   });
 });
+
+describe("resolveShipmentLineKeys", () => {
+  it("swaps PO line keys for inbound shipment line ids and keeps ids as they are", async () => {
+    const { resolveShipmentLineKeys } = await import("../../supabase/functions/_shared/netsuite-receipt");
+    const rows = [{ id: "549", poLineKey: "158175" }, { id: "550", poLineKey: "228033" }];
+    const out = resolveShipmentLineKeys({
+      inboundShipmentId: "71", externalRef: "r",
+      lines: [
+        { shipmentLineKey: "158175", quantity: 5, inventoryAssignment: [{ receiptInventoryNumber: "A", quantity: 5 }] },
+        { shipmentLineKey: "549", quantity: 3, inventoryAssignment: [{ receiptInventoryNumber: "B", quantity: 3 }] },
+        { shipmentLineKey: "550", quantity: 2 },
+      ],
+    }, rows);
+    expect(out.lines).toEqual([
+      { shipmentLineKey: "549", quantity: 8, inventoryAssignment: [{ receiptInventoryNumber: "A", quantity: 5 }, { receiptInventoryNumber: "B", quantity: 3 }] },
+      { shipmentLineKey: "550", quantity: 2 },
+    ]);
+  });
+});

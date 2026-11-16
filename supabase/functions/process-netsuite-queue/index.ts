@@ -3,7 +3,7 @@ import { buildNetSuiteInventoryAdjustment, netsuiteAdjustmentExternalId, netsuit
 import { fetchNetSuiteAccessToken } from '../_shared/netsuite-auth.ts'
 import { netSuiteOutboundClaimArgs } from '../_shared/netsuite-queue.ts'
 import {
-  buildInboundShipmentRestletBody, interpretReceiptResponse, planShipmentReceipt,
+  buildInboundShipmentRestletBody, interpretReceiptResponse, planShipmentReceipt, resolveShipmentLineKeys,
   type ReceiptJobPayload, type ShipmentLineCandidate,
 } from '../_shared/netsuite-receipt.ts'
 import { buildRestletUrl, resolveRestletTarget } from '../_shared/netsuite-restlet.ts'
@@ -233,6 +233,25 @@ Deno.serve(async (req) => {
   }
 
   type RestletPost = { ok: boolean; httpStatus: number | null; responsePayload: unknown; failureReason: string | null; retryable: boolean }
+  // Drafts and the PO route carry the PO line uniquekey; the RESTlet wants the
+  // inbound shipment line id. Look the shipment's lines up and translate.
+  async function withShipmentLineIds(body: ReturnType<typeof buildInboundShipmentRestletBody>): Promise<ReturnType<typeof buildInboundShipmentRestletBody>> {
+    if (!/^\d+$/.test(body.inboundShipmentId)) return body
+    const q = `SELECT i.id, i.shipmentitemtransaction AS polinekey FROM inboundshipmentitem i WHERE i.inboundshipment = ${body.inboundShipmentId}`
+    try {
+      const res = await fetch(`https://${netsuiteHost(accountId)}/services/rest/query/v1/suiteql?limit=1000`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Prefer: 'transient' },
+        body: JSON.stringify({ q }),
+      })
+      if (!res.ok) return body
+      const data = await res.json().catch(() => null) as { items?: Record<string, unknown>[] } | null
+      return resolveShipmentLineKeys(body, (data?.items ?? []).map((r) => ({ id: String(r.id), poLineKey: String(r.polinekey) })))
+    } catch {
+      return body
+    }
+  }
+
   // POST one receipt to the inbound shipment RESTlet. It keys on externalRef, so
   // a retry after a timeout comes back `alreadyProcessed: true`, not a second receipt.
   // A failure the RESTlet marks `retryable: false` (over-receipt, closed shipment,
@@ -386,7 +405,7 @@ Deno.serve(async (req) => {
             if (!plan.ok) {
               failureReason = `PO ${p.documentId} is on an inbound shipment and cannot be received directly: ${plan.reason}`
             } else {
-              const shipmentBody = buildInboundShipmentRestletBody({
+              const shipmentBody = await withShipmentLineIds(buildInboundShipmentRestletBody({
                 documentType: 'inbound_shipment',
                 documentId: plan.shipmentId,
                 externalRef: p.externalRef,
@@ -395,7 +414,7 @@ Deno.serve(async (req) => {
                   lineKey: l.lineKey, lineNumber: l.lineNumber, quantity: l.quantity, poId: p.documentId,
                   itemId: lines.find((x) => Number(x.lineNumber) === l.lineNumber)?.itemId ?? '',
                 })),
-              })
+              }))
               requestBody = shipmentBody as unknown as Record<string, unknown>
               const posted = await postInboundShipment(shipmentBody)
               ;({ ok, httpStatus, responsePayload, failureReason } = posted)
@@ -467,6 +486,7 @@ Deno.serve(async (req) => {
           parkNow = true
         }
         if (body) {
+          body = await withShipmentLineIds(body)
           requestBody = body as unknown as Record<string, unknown>
           const posted = await postInboundShipment(body)
           ;({ ok, httpStatus, responsePayload, failureReason } = posted)

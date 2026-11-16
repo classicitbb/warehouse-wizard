@@ -138,6 +138,32 @@ export function buildInboundShipmentRestletBody(job: ReceiptJobPayload): Inbound
   return { inboundShipmentId: job.documentId, externalRef: job.externalRef, lines }
 }
 
+/** SuiteQL `inboundshipmentitem` row: `id` is the shipment line, `shipmentitemtransaction` the PO line's uniquekey. */
+export type ShipmentLineRow = { id: string; poLineKey: string }
+
+/**
+ * The RESTlet finds lines by the inbound shipment line `id`, not by the PO line
+ * uniquekey that drafts and the PO route carry (it answers INVALID_LINE_KEY).
+ * Translate each `shipmentLineKey`; a key that already is a shipment line id is kept.
+ * Lines that end up on the same shipment line are merged.
+ */
+export function resolveShipmentLineKeys(body: InboundShipmentRestletBody, rows: ShipmentLineRow[]): InboundShipmentRestletBody {
+  const ids = new Set(rows.map((r) => r.id))
+  const byPoLine = new Map(rows.map((r) => [r.poLineKey, r.id]))
+  const merged = new Map<string, InboundShipmentRestletBody['lines'][number]>()
+  for (const line of body.lines) {
+    const key = ids.has(line.shipmentLineKey) ? line.shipmentLineKey : byPoLine.get(line.shipmentLineKey) ?? line.shipmentLineKey
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, { ...line, shipmentLineKey: key, ...(line.inventoryAssignment ? { inventoryAssignment: line.inventoryAssignment.map((a) => ({ ...a })) } : {}) })
+      continue
+    }
+    existing.quantity += line.quantity
+    if (line.inventoryAssignment) existing.inventoryAssignment = [...(existing.inventoryAssignment ?? []), ...line.inventoryAssignment.map((a) => ({ ...a }))]
+  }
+  return { ...body, lines: [...merged.values()] }
+}
+
 /** One PO line as it sits on an inbound shipment (SuiteQL `inboundshipmentitem`). */
 export type ShipmentLineCandidate = { shipmentId: string; lineNumber: number; lineKey: string; remaining: number }
 
