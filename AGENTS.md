@@ -13,6 +13,7 @@ Microsoft OAuth uses the managed Lovable helper and a public login callback, sep
 ## Data and compatibility
 - Trip picker reserve previews and requests use a task-scoped server function and existing replenishment selectors so rotation, warehouse access, and duplicate handling stay authoritative without loading warehouse inventory into the handset.
 - Duplicate inbound receiving uses paginated warehouse-scoped drafts and original-receipt Put-Away links, rechecked before load and save; database-atomic enforcement remains separate from these client preflights.
+- Inbound receiving requires an explicitly resolved warehouse before checks or loading; the browser shares the receiving form's warehouse selector so users without a default never send empty UUID filters or bypass duplicate checks.
 - `supabase/migrations/**`: additive migrations only; never edit shipped files.
 - `supabase/config.toml`: function-specific blocks only, never project-level settings.
 - Never hand-edit auto-generated `.env`, `src/integrations/supabase/client.ts`, or `types.ts`.

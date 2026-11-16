@@ -943,6 +943,7 @@ export function ReceivingPage() {
 
   /** Hands an inbound shipment from the browser to the New Shipment dialog. True when lines were loaded. */
   async function loadInboundShipment(shipment: InboundShipmentSummary, detail: InboundShipmentDetail, chosenContainer = ""): Promise<boolean> {
+    if (!currentWarehouseId) { toast.error("Select a warehouse before receiving an inbound shipment."); return false; }
     const matching = matchingReceivingWork(await listInboundReceivingWork(currentWarehouseId), chosenContainer || pickContainerNumber(shipment), shipment.id);
     if (matching.length) { toast.error(receivingWorkMessage(matching)); return false; }
     const { lines, skipped } = buildShipmentLinesFromInbound(shipment, detail, netsuiteLineHelpers());
@@ -1271,6 +1272,8 @@ export function ReceivingPage() {
         drafts={drafts}
         onReceive={loadInboundShipment}
         warehouseId={currentWarehouseId}
+        warehouses={warehouses}
+        onWarehouseChange={(warehouseId) => setShipmentForm((current) => ({ ...current, warehouse_id: warehouseId }))}
         onShowPutaway={() => { setInboundOpen(false); navigate(toPath("/putaway-tasks")); }}
         onShowDrafts={(shipment, container) => {
           setDraftSearch(container || pickContainerNumber(shipment) || shipment.number);

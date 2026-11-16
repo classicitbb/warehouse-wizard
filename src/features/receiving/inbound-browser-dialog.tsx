@@ -50,6 +50,8 @@ export function InboundBrowserDialog({
   initialSearch,
   drafts,
   warehouseId,
+  warehouses = [],
+  onWarehouseChange,
   onShowPutaway,
   onReceive,
   onShowDrafts,
@@ -61,6 +63,8 @@ export function InboundBrowserDialog({
   initialSearch: string;
   drafts: DraftLike[];
   warehouseId?: string;
+  warehouses?: { id: string; name: string }[];
+  onWarehouseChange?: (warehouseId: string) => void;
   onShowPutaway?: () => void;
   /** Loads the shipment into the New Shipment dialog. Returns true when it did, so the browser can close. */
   onReceive: (shipment: InboundShipmentSummary, detail: InboundShipmentDetail, container: string) => boolean | Promise<boolean>;
@@ -132,10 +136,9 @@ export function InboundBrowserDialog({
   async function receive(shipment: InboundShipmentSummary, container: string) {
     setReceivingId(shipment.id);
     try {
-      if (warehouseId) {
-        const matching = matchingReceivingWork(await listInboundReceivingWork(warehouseId), container, shipment.id);
-        if (matching.length) { toast.error(receivingWorkMessage(matching)); await work.refetch(); return; }
-      }
+      if (!warehouseId) { toast.error("Select a warehouse before receiving an inbound shipment."); return; }
+      const matching = matchingReceivingWork(await listInboundReceivingWork(warehouseId), container, shipment.id);
+      if (matching.length) { toast.error(receivingWorkMessage(matching)); await work.refetch(); return; }
       const detail = await queryClient.fetchQuery(inboundDetailQuery(shipment.id));
       if (detail.kind === "unavailable") {
         toast.error(detail.message);
@@ -163,6 +166,15 @@ export function InboundBrowserDialog({
         </DialogHeader>
 
         <div className="grid gap-2 border-b border-border bg-secondary/25 px-3 py-2.5 sm:px-4">
+          {onWarehouseChange && (
+            <Select value={warehouseId || ""} onValueChange={onWarehouseChange}>
+              <SelectTrigger aria-label="Receiving warehouse"><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+              <SelectContent>
+                {warehouses.map((warehouse) => <SelectItem key={warehouse.id} value={warehouse.id}>{warehouse.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {!warehouseId && <p role="status" className="text-sm text-muted-foreground">Select a warehouse before receiving an inbound shipment.</p>}
           <div className="flex min-w-0 gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -258,7 +270,7 @@ export function InboundBrowserDialog({
                   expanded={expandedId === shipment.id}
                   online={online}
                   receiving={receivingId === shipment.id}
-                  checkingWork={Boolean(warehouseId) && (!work.data || work.isError)}
+                  checkingWork={!warehouseId || !work.data || work.isError}
                   putawayCountFor={(container) => matchingReceivingWork(work.data ?? [], container, shipment.id).filter((row) => row.stage === "putaway").length}
                   onShowPutaway={onShowPutaway}
                   draftCountFor={(container) => Math.max(draftCounts.get(`${shipment.id}|${container}`) ?? 0, matchingReceivingWork(work.data ?? [], container, shipment.id).filter((row) => row.stage === "draft").length)}
