@@ -237,6 +237,9 @@ export function interpretReceiptResponse(body: unknown): ReceiptOutcome {
     }
   }
   const alreadyProcessed = b.alreadyProcessed === true
+  // `ok: true` means NetSuite saved the receipt even when the RESTlet could not
+  // find the ids it created. Retrying would receive the goods a second time.
+  if (b.ok === true) return { ok: true, receiptIds: [...ids], alreadyProcessed }
   if (b.ok === false || b.success === false || (ids.size === 0 && !alreadyProcessed)) {
     const code = typeof b.code === 'string' && b.code ? b.code : undefined
     const message = typeof b.error === 'string' ? b.error : typeof b.message === 'string' ? b.message : 'No item receipt id returned'

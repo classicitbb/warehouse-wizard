@@ -199,6 +199,8 @@ describe("interpretReceiptResponse", () => {
     });
     expect(interpretReceiptResponse({ ok: false, code: "RCRD_HAS_BEEN_CHANGED", retryable: true, error: "changed" })).toMatchObject({ ok: false, retryable: true });
     expect(interpretReceiptResponse({ ok: true, itemReceiptIds: [5], alreadyProcessed: false })).toEqual({ ok: true, receiptIds: ["5"], alreadyProcessed: false });
+    // Saved in NetSuite but the RESTlet missed the new ids: a retry would receive twice.
+    expect(interpretReceiptResponse({ ok: true, itemReceiptIds: [], alreadyProcessed: false })).toEqual({ ok: true, receiptIds: [], alreadyProcessed: false });
   });
 });
 
