@@ -9,10 +9,19 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
-    version: "1.34.1",
+    version: "1.35.1",
     date: "2026-11-05",
     changes: ["Browser tabs now use matching Warehouse Wizard icons with transparent corners"],
     fixes: ["Removed white corners from every favicon fallback and refreshed cached icon URLs"],
+  },
+  {
+    version: "1.35.0",
+    date: "2026-11-04",
+    changes: [
+      "Trips: after the pick, a pack check counts each line against what was picked",
+      "Trips: stage a packed order in a staging lane, then scan each order onto the truck from Load & depart",
+      "Trips: Depart sets the trip's fulfillments to Shipped in NetSuite with the picked quantities; short lines ship short and need a supervisor",
+    ],
   },
   {
     version: "1.34.0",
