@@ -1,13 +1,15 @@
-// Customers page: the ship-to customers mirrored from NetSuite (outbound picking
-// design, slice B). Read-only here; rows arrive through the netsuite-customers
-// edge function. Separate from Clients, which are the stock owners.
+// Customers page: the ship-to customers (outbound picking design, slice B).
+// NetSuite customers arrive through the netsuite-customers edge function and
+// are read-only here. Without NetSuite, managers add and edit customers here
+// (source 'ww', customer-form-dialog.tsx). Separate from Clients, which are
+// the stock owners.
 //
 // Layout follows the Products page (ResourcePage), like every Setup page:
 // title and description, settings gear, plain search with the record count,
 // quick-filter buttons, and a dense table whose header stays pinned.
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Pencil, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
@@ -20,11 +22,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CustomersSyncButtons } from "./customers-sync-buttons";
+import { CustomerFormDialog, type EditableCustomer } from "./customer-form-dialog";
 
 export const CUSTOMERS_QUERY_KEY = ["customers"] as const;
 
 const PAGE_SIZE = 50;
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 8;
+const EDIT_ROLES = ["admin", "developer", "warehouse_manager"];
 const ZONES = ["North", "South", "East", "West", "Central"] as const;
 type ZoneFilter = "all" | "none" | (typeof ZONES)[number];
 type CreditFilter = "all" | "hold" | "review";
@@ -45,6 +49,7 @@ type CustomerListRow = {
   credit_review_required: boolean;
   ship_complete: boolean;
   last_synced_at: string | null;
+  source: "netsuite" | "ww";
 };
 
 function formatAddress(address: ShipAddress | null): string {
@@ -62,7 +67,7 @@ function cleanSearch(value: string): string {
 async function fetchCustomers(opts: { search: string; zone: ZoneFilter; credit: CreditFilter; limit: number }) {
   let query = supabase
     .from("customers")
-    .select("id, customer_number, name, delivery_zone, default_ship_address, email, phone, on_credit_hold, credit_review_required, ship_complete, last_synced_at", { count: "exact" })
+    .select("id, customer_number, name, delivery_zone, default_ship_address, email, phone, on_credit_hold, credit_review_required, ship_complete, last_synced_at, source", { count: "exact" })
     .eq("active", true)
     .order("name", { ascending: true })
     .limit(opts.limit);
@@ -89,7 +94,14 @@ function QuickFilter({ active, onClick, children }: { active: boolean; onClick: 
 export function CustomersPage() {
   const netsuiteActive = useNetSuiteActive();
   const { roles } = useAuth();
-  const canSync = roles.some((role) => role === "admin" || role === "developer");
+  const canSync = netsuiteActive && roles.some((role) => role === "admin" || role === "developer");
+  const canEdit = roles.some((role) => EDIT_ROLES.includes(role));
+  const [editing, setEditing] = useState<EditableCustomer | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const openForm = (customer: EditableCustomer | null) => {
+    setEditing(customer);
+    setFormOpen(true);
+  };
   const [search, setSearch] = useState("");
   const [zone, setZone] = useState<ZoneFilter>("all");
   const [credit, setCredit] = useState<CreditFilter>("all");
@@ -98,7 +110,6 @@ export function CustomersPage() {
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: [...CUSTOMERS_QUERY_KEY, search.trim(), zone, credit, limit],
     queryFn: () => fetchCustomers({ search, zone, credit, limit }),
-    enabled: netsuiteActive,
     placeholderData: keepPreviousData,
   });
   const rows = data?.rows ?? [];
@@ -112,23 +123,25 @@ export function CustomersPage() {
   const toggleZone = (value: ZoneFilter) => resetAnd(() => setZone((current) => (current === value ? "all" : value)));
   const toggleCredit = (value: CreditFilter) => resetAnd(() => setCredit((current) => (current === value ? "all" : value)));
 
-  if (!netsuiteActive) {
-    return (
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold">Customers</h2>
-        <p className="text-sm text-muted-foreground">Customers come from NetSuite. Set up the NetSuite connection in Settings &gt; Integrations to use this page.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-start justify-between gap-3 md:items-end">
         <div className="min-w-0">
           <h2 className="text-2xl font-semibold">Customers</h2>
-          <p className="text-sm text-muted-foreground">Ship-to customers mirrored from NetSuite, with delivery zone and credit flags. Edit them in NetSuite. Clients (stock owners) are managed separately.</p>
+          <p className="text-sm text-muted-foreground">
+            {netsuiteActive
+              ? "Ship-to customers mirrored from NetSuite, with delivery zone and credit flags. Edit them in NetSuite. Clients (stock owners) are managed separately."
+              : "Ship-to customers for the orders you enter, with delivery zone and credit flags. Clients (stock owners) are managed separately."}
+          </p>
         </div>
-        {canSync && <CustomersSyncButtons />}
+        <div className="flex items-center gap-2">
+          {canEdit && !netsuiteActive && (
+            <Button type="button" size="sm" onClick={() => openForm(null)}>
+              <Plus className="mr-1 h-4 w-4" /> New customer
+            </Button>
+          )}
+          {canSync && <CustomersSyncButtons />}
+        </div>
       </div>
 
       <div className="relative">
@@ -169,7 +182,8 @@ export function CustomersPage() {
                   <TableHead>Credit</TableHead>
                   <TableHead>Ship-to</TableHead>
                   <TableHead>Contact</TableHead>
-                  <TableHead>Synced</TableHead>
+                  <TableHead>{netsuiteActive ? "Synced" : "Source"}</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -186,7 +200,11 @@ export function CustomersPage() {
                 ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell className="h-24 text-center text-muted-foreground" colSpan={COLUMN_COUNT}>
-                      {search.trim() || hasQuickFilters ? "No customers match these filters." : "No customers yet. An admin can import them from NetSuite."}
+                      {search.trim() || hasQuickFilters
+                        ? "No customers match these filters."
+                        : netsuiteActive
+                          ? "No customers yet. An admin can import them from NetSuite."
+                          : "No customers yet. A manager can add one with New customer."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -210,7 +228,16 @@ export function CustomersPage() {
                         </TableCell>
                         <TableCell className={`${CELL} max-w-[22rem] truncate`} title={address}>{address || <span className="text-muted-foreground">—</span>}</TableCell>
                         <TableCell className={`${CELL} max-w-[16rem] truncate`} title={contact}>{contact || <span className="text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className={`${CELL} text-muted-foreground`}>{formatDateTime(row.last_synced_at)}</TableCell>
+                        <TableCell className={`${CELL} text-muted-foreground`}>
+                          {row.source === "ww" ? "Entered in WW" : formatDateTime(row.last_synced_at)}
+                        </TableCell>
+                        <TableCell className={`${CELL} text-right`}>
+                          {canEdit && row.source === "ww" && (
+                            <Button type="button" size="icon" variant="ghost" className="h-7 w-7" aria-label={`Edit ${row.name}`} onClick={() => openForm(row)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -234,6 +261,8 @@ export function CustomersPage() {
           </TableFrame>
         </CardContent>
       </Card>
+
+      {canEdit && <CustomerFormDialog open={formOpen} customer={editing} zones={ZONES} queryKey={CUSTOMERS_QUERY_KEY} onOpenChange={setFormOpen} />}
     </div>
   );
 }

@@ -417,3 +417,20 @@ Migration `20261104090000_trip_dispatch.sql`. Code in `src/features/trips/` (`tr
 Not in this slice: the N3 invoice gate and the driver release (slice G), the refused-carton check-in (G+), and the KPI field ids for packed and shipped (set them in the config when the KPI script owner confirms them).
 
 **Before turning on `fulfillments_post_to_netsuite`, verify V7 in the sandbox:** can a REST PATCH lower an IF line at Picked, and does it match lines by `line`? If not, every short trip parks in the dead-letter queue, and the office must correct the IF by hand.
+
+## 13. Standalone outbound (2026-11-16)
+
+Migration `20261116230000_standalone_outbound.sql`. Code in `src/features/orders/` (`ww-orders-core.ts`, the New order dialog and the Plan trip panel), `src/features/customers/` (`ww-customers-core.ts`, the customer form) and `src/features/trips/`.
+
+Orders, Trips and Customers now work without NetSuite. The floor flow (slices E and F) does not change: it runs on WW trips and NetSuite fulfillments in the same way.
+
+| # | Topic | Build |
+|---|---|---|
+| S-1 | Source | `orders.source = 'ww'` is a sales order entered on the Orders page (`manual` stays the ad-hoc pick list order). `order_fulfillments.source` and `customers.source` are `netsuite` (default) or `ww`. A WW fulfillment has `external_record_id = 'ww:<uuid>'` and a `WF-` number, so the NetSuite poll never matches it |
+| S-2 | Status | WW uses the NetSuite letters, so the inbox, trip board and replenishment demand need no change: order B open, D partly shipped, H closed, C cancelled; fulfillment A on trip, C shipped. WW has no commitment step: `committed_quantity = quantity` |
+| S-3 | Customers | `save_ww_customer`: managers add and edit WW customers. A blank number gets the next `WC-` number. NetSuite customers are read-only in WW |
+| S-4 | Orders | `create_ww_order`: customer, warehouse, ship date, lines in base units. Sales orders only; moves between warehouses use the Transfers page. `cancel_ww_order` (supervisor) needs no open trip |
+| S-5 | Trips | `plan_ww_fulfillment` puts the open quantity (ordered − shipped − on an open trip) on a trip: date + truck + trip number (O3) and picker. `cancel_ww_fulfillment` takes it off while nothing is picked |
+| S-6 | Depart | `depart_trip` ships a WW fulfillment in WW: `external_status` C, the picked units go to `order_lines.fulfilled_quantity`, and the order goes to H (all shipped) or D (a short line stays open to plan again). A NetSuite fulfillment is unchanged: `fulfillment_ship` when posting is on, and it stays on the board until NetSuite shows Shipped |
+| S-7 | With NetSuite | NetSuite stays the system of record. While `netsuite_integration_active()` is true, new WW orders and customers are refused and the UI hides New order and New customer. WW records made before the switch-on still finish. When such a WW trip departs with the NetSuite connection enabled, WW queues a negative `inventory_adjustment` per picked line (item and location must be linked), so NetSuite on-hand drops with the stock that left |
+| S-8 | Queue kick | `kick_netsuite_queue()` reads only the NetSuite connection |

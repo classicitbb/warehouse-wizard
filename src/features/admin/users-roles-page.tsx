@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { type AdminInviteUserInput, adminInviteUser, adminUpdateUserPin, adminUpdateUserPassword, adminSignOutAllSessions, removeUserRoleAssignment, listUserRoleEvents, fetchOptions, formatDate, listUserActivities, setProfileActive, updateProfileDetails, updateRecord, upsertRecord, assignUserRole, writeSystemLog, buildCorrelationId, type AdminOptionKey, type AdminOptionLoadError } from "@/lib/wms-core";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -171,8 +170,8 @@ function AddUserDialog({
   );
 }
 
-export function UsersRolesPage() {
-  return UsersRolesPageImpl();
+export function UsersRolesPage({ embedded = false }: { embedded?: boolean }) {
+  return UsersRolesPageImpl(embedded);
 }
 
 const SECTION_LABELS: Partial<Record<AdminOptionKey, string>> = {
@@ -240,7 +239,7 @@ function RoleHistoryList({ profiles }: { profiles: any[] }) {
   );
 }
 
-function UsersRolesPageImpl() {
+function UsersRolesPageImpl(embedded: boolean) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { profile: viewerProfile, roles } = useAuth();
@@ -464,20 +463,19 @@ function UsersRolesPageImpl() {
   };
 
   const profiles = (options?.profiles ?? []) as ProfileRow[];
+  const visibleAssignments = (options?.userRoles ?? []).filter(
+    (userRole) => canOperateDeveloperRole || (userRole.roles as { code?: string } | null)?.code !== "developer",
+  );
+  const framedTableActive = activeTab !== "roles";
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+    <div className={framedTableActive ? "flex h-full min-h-0 flex-col gap-6" : "flex flex-col gap-6"}>
+      {!embedded && (
         <div>
           <h2 className="text-2xl font-bold tracking-tight">User Management</h2>
           <p className="text-sm text-muted-foreground">Manage warehouse users, roles, and access permissions.</p>
         </div>
-        <AddUserDialog
-          roles={(options?.roles ?? []) as Array<{ id: string; code: string; name: string }>}
-          warehouses={(options?.warehouses ?? []) as WarehouseOption[]}
-          onSuccess={invalidateOptions}
-        />
-      </div>
+      )}
 
       {loadErrors.length > 0 ? (
         <div className="flex flex-col gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -515,42 +513,51 @@ function UsersRolesPageImpl() {
 
 
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 sm:w-fit">
-          <TabsTrigger value="users" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
-            <Users className="h-3.5 w-3.5" />
-            Users ({profiles.length})
-          </TabsTrigger>
-          <TabsTrigger value="roles" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Access
-          </TabsTrigger>
-          <TabsTrigger value="role-matrix" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Role Matrix
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
-            <Activity className="h-3.5 w-3.5" />
-            Activity
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users" className="mt-4">
-          <div className="flex items-center justify-between gap-3 pb-3">
-            <p className="text-sm text-muted-foreground">{profiles.length} user{profiles.length !== 1 ? "s" : ""}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIncludeHidden((c) => !c)}
-              className="text-xs"
-            >
-              {includeHidden ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
-              {includeHidden ? "Hide inactive" : "Show inactive"}
-            </Button>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={framedTableActive ? "flex min-h-0 flex-1 flex-col" : undefined}>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 sm:w-fit">
+            <TabsTrigger value="users" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
+              <Users className="h-3.5 w-3.5" />
+              Users ({profiles.length})
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Access
+            </TabsTrigger>
+            <TabsTrigger value="role-matrix" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Role Matrix
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="min-h-9 flex-1 gap-1.5 sm:flex-none">
+              <Activity className="h-3.5 w-3.5" />
+              Activity
+            </TabsTrigger>
+          </TabsList>
+          <div className="ml-auto flex items-center gap-2">
+            {activeTab === "users" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-pressed={includeHidden}
+                onClick={() => setIncludeHidden((c) => !c)}
+                className="text-xs"
+              >
+                {includeHidden ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+                {includeHidden ? "Hide inactive" : "Show inactive"}
+              </Button>
+            ) : null}
+            <AddUserDialog
+              roles={(options?.roles ?? []) as Array<{ id: string; code: string; name: string }>}
+              warehouses={(options?.warehouses ?? []) as WarehouseOption[]}
+              onSuccess={invalidateOptions}
+            />
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <TableFrame>
+        </div>
+
+        <TabsContent value="users" className="mt-4 min-h-24 flex-1 data-[state=active]:flex">
+          <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <CardContent className="min-h-0 flex-1 p-0">
+              <TableFrame className="h-full min-h-0">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-card">
                     <TableRow>
@@ -593,16 +600,15 @@ function UsersRolesPageImpl() {
         </TabsContent>
 
         <TabsContent value="roles" className="mt-4">
-          <div className="grid gap-6 xl:grid-cols-[1fr_1.5fr]">
+          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             {canOperateRoles && (
-              <Card>
-                <CardHeader>
+              <Card className="xl:col-span-full">
+                <CardHeader className="px-4 py-3">
                   <CardTitle className="text-base">Assign Role</CardTitle>
-                  <CardDescription>Add a role to an existing user account.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-3">
+                <CardContent className="grid items-end gap-2 px-4 pb-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                   <Select value={selectedProfile} onValueChange={setSelectedProfile}>
-                    <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                    <SelectTrigger aria-label="User"><SelectValue placeholder="Select user" /></SelectTrigger>
                     <SelectContent>
                       {profiles.map((profile) => (
                         <SelectItem key={profile.id} value={profile.id}>
@@ -612,7 +618,7 @@ function UsersRolesPageImpl() {
                     </SelectContent>
                   </Select>
                   <Select value={selectedRole} onValueChange={setSelectedRole}>
-                    <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                    <SelectTrigger aria-label="Role"><SelectValue placeholder="Select role" /></SelectTrigger>
                     <SelectContent>
                       {(options?.roles ?? [])
                         .filter((role: any) => canOperateDeveloperRole || role.code !== "developer")
@@ -633,81 +639,70 @@ function UsersRolesPageImpl() {
               </Card>
             )}
 
-            <Card className={canOperateRoles ? "" : "xl:col-span-full"}>
-              <CardHeader>
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="px-4 py-3">
                 <CardTitle className="text-base">Current Access</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-2">
-                {(options?.userRoles ?? [])
-                  .filter((userRole: any) => canOperateDeveloperRole || (userRole.roles as { code?: string } | null)?.code !== "developer")
-                  .map((userRole: any) => {
-                    const profile = profiles.find((p) => p.id === userRole.user_id);
-                    const role = userRole.roles as { code?: string; name?: string } | null;
-                    const isDeveloperRole = role?.code === "developer";
-                    const canUnassignDeveloperRole = isDeveloperRole && userRole.assigned_by === viewerProfile?.id;
-                    return (
-                      <div key={userRole.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <Avatar className="h-7 w-7 shrink-0">
-                            <AvatarFallback className="bg-muted text-xs">
-                              {(profile?.full_name ?? "?").slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{profile?.full_name ?? userRole.user_id}</p>
-                            <p className="truncate text-xs text-muted-foreground">{profile?.email ?? ""}</p>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <Badge variant={userRole.is_hidden ? "secondary" : "default"} className="text-xs">
-                            {role?.name ?? "Role"}
-                          </Badge>
-                          {canOperateRoles && isDeveloperRole ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              disabled={!canUnassignDeveloperRole}
-                              title={canUnassignDeveloperRole ? "Unassign developer role" : "Only the developer who assigned this role can unassign it"}
-                              onClick={async () => {
-                                try {
-                                  await removeUserRoleAssignment(userRole.id);
-                                  toast.success("Role unassigned");
-                                  await invalidateOptions();
-                                } catch (error) {
-                                  toast.error(error instanceof Error ? error.message : "Role unassign failed");
-                                }
-                              }}
-                            >
-                              Unassign
-                            </Button>
-                          ) : canOperateRoles ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              onClick={async () => {
-                                try {
-                                  await removeUserRoleAssignment(userRole.id);
-                                  toast.success("Role unassigned");
-                                  await invalidateOptions();
-                                } catch (error) {
-                                  toast.error(error instanceof Error ? error.message : "Role unassign failed");
-                                }
-                              }}
-                            >
-                              Unassign
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
+              <CardContent className="p-0">
+                <TableFrame className="h-auto max-h-96 min-h-0 rounded-none border-t border-border">
+                  <Table>
+                    <TableHeader className="sticky top-0 z-10 bg-card">
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Role</TableHead>
+                        {canOperateRoles && <TableHead className="w-24 text-right">Action</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleAssignments.length === 0 && (
+                        <TableRow><TableCell colSpan={canOperateRoles ? 3 : 2} className="text-center text-muted-foreground">No role assignments.</TableCell></TableRow>
+                      )}
+                      {visibleAssignments.map((userRole) => {
+                        const profile = profiles.find((p) => p.id === userRole.user_id);
+                        const role = userRole.roles as { code?: string; name?: string } | null;
+                        const developerLocked = role?.code === "developer" && userRole.assigned_by !== viewerProfile?.id;
+                        return (
+                          <TableRow key={userRole.id} className="even:bg-muted/30">
+                            <TableCell className="py-1.5">
+                              <p className="font-medium">{profile?.full_name ?? profile?.email ?? userRole.user_id}</p>
+                              {profile?.full_name && profile.email && <p className="text-xs text-muted-foreground">{profile.email}</p>}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap py-1.5">
+                              <Badge variant={userRole.is_hidden ? "secondary" : "default"}>{role?.name ?? "Role"}</Badge>
+                            </TableCell>
+                            {canOperateRoles && (
+                              <TableCell className="py-1.5 text-right">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs"
+                                  disabled={developerLocked}
+                                  title={developerLocked ? "Only the developer who assigned this role can unassign it" : undefined}
+                                  onClick={async () => {
+                                    try {
+                                      await removeUserRoleAssignment(userRole.id);
+                                      toast.success("Role unassigned");
+                                      await invalidateOptions();
+                                    } catch (error) {
+                                      toast.error(error instanceof Error ? error.message : "Role unassign failed");
+                                    }
+                                  }}
+                                >
+                                  Unassign
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableFrame>
               </CardContent>
             </Card>
 
-            <Card className="xl:col-span-full">
-              <CardHeader>
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="px-4 py-3">
                 <CardTitle className="text-base">Role history</CardTitle>
                 <CardDescription>Who changed which role, and when.</CardDescription>
               </CardHeader>
@@ -718,29 +713,29 @@ function UsersRolesPageImpl() {
           </div>
         </TabsContent>
 
-        <TabsContent value="role-matrix" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Role Matrix</CardTitle>
+        <TabsContent value="role-matrix" className="mt-4 min-h-40 flex-1 data-[state=active]:flex">
+          <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <CardHeader className="shrink-0 px-4 py-3">
+              <CardTitle className="text-base">Role Matrix</CardTitle>
               <CardDescription>
                 Configure view and edit abilities by role. Users may hold any combination of roles, including no role.
                 Developer abilities are locked to protect the system administrator.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto rounded-b-lg border-t border-border">
-                <Table className="min-w-[900px]">
-                  <TableHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+              <TableFrame className="h-auto min-h-0 flex-1 rounded-none border-t border-border">
+                <Table className="min-w-[760px] text-xs [&_td]:py-1 [&_th]:px-2">
+                  <TableHeader className="sticky top-0 z-10 bg-card">
                     <TableRow>
-                      <TableHead className="sticky left-0 z-10 min-w-[220px] bg-card">Feature</TableHead>
-                      <TableHead className="min-w-[110px] text-center">
+                      <TableHead className="sticky left-0 z-10 min-w-[160px] bg-card">Feature</TableHead>
+                      <TableHead className="min-w-[90px] text-center">
                         <div className="font-semibold">Released</div>
                         <div className="mt-1 text-[11px] font-normal text-muted-foreground">Visible to non-developers</div>
                       </TableHead>
                       {((options?.roles ?? []) as any[])
                         .filter((role) => canOperateRoles || role.code !== "developer")
                         .map((role) => (
-                          <TableHead key={role.id} colSpan={2} className="min-w-[150px] text-center">
+                          <TableHead key={role.id} colSpan={2} className="min-w-[105px] text-center">
                             <div className="font-semibold">{role.name}</div>
                             <div className="mt-1 grid grid-cols-2 text-[11px] font-normal text-muted-foreground">
                               <span>View</span><span>Edit</span>
@@ -753,8 +748,8 @@ function UsersRolesPageImpl() {
                     {((options?.permissionFeatures ?? []) as any[]).map((feature) => (
                       <TableRow key={feature.id}>
                         <TableCell className="sticky left-0 z-[1] bg-card">
-                          <div className="font-medium">{feature.name}</div>
-                          <div className="text-xs text-muted-foreground">{feature.description}</div>
+                          <div className="font-medium" title={feature.description}>{feature.name}</div>
+
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch
@@ -795,9 +790,9 @@ function UsersRolesPageImpl() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </TableFrame>
               {!canOperateRoles && (
-                <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                <p className="shrink-0 border-t border-border px-4 py-3 text-xs text-muted-foreground">
                   Only Admins and Developers can edit the role matrix.
                 </p>
               )}
@@ -805,27 +800,32 @@ function UsersRolesPageImpl() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="activity" className="mt-4">
-          <Card>
-            <CardHeader>
+        <TabsContent value="activity" className="mt-4 min-h-40 flex-1 data-[state=active]:flex">
+          <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <CardHeader className="shrink-0 px-4 py-3">
               <CardTitle className="text-base">Recent Activity</CardTitle>
-              <CardDescription>Sign-ins, profile changes, and role assignments.</CardDescription>
+              <CardDescription>Sign-ins, profile changes, and role assignments. Times are local to this device.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-2">
-              {(activities as UserActivityRow[]).length === 0 && (
-                <p className="py-4 text-center text-sm text-muted-foreground">No recent activity.</p>
-              )}
-              {(activities as UserActivityRow[]).map((activity) => (
-                <div key={activity.id} className="flex items-start justify-between gap-4 rounded-lg border border-border px-3 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium capitalize">{activity.event_type.replace(/_/g, " ")}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.profiles?.full_name ?? activity.actor_user_id ?? "System"} · {activity.entity_table}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">{formatDate(activity.created_at)}</span>
-                </div>
-              ))}
+            <CardContent className="min-h-0 flex-1 p-0">
+              <TableFrame className="h-full min-h-0 rounded-none border-t border-border">
+                <Table className="text-xs">
+                  <TableHeader className="sticky top-0 z-10 bg-card"><TableRow>
+                    <TableHead>Event</TableHead><TableHead>User</TableHead><TableHead>Source</TableHead><TableHead>Date</TableHead><TableHead>Time</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {(activities as UserActivityRow[]).length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No recent activity.</TableCell></TableRow>}
+                    {(activities as UserActivityRow[]).map((activity) => (
+                      <TableRow key={activity.id} className="even:bg-muted/30">
+                        <TableCell className="py-2 font-medium capitalize">{activity.event_type.replace(/_/g, " ")}</TableCell>
+                        <TableCell>{activity.profiles?.full_name ?? activity.actor_user_id ?? "System"}</TableCell>
+                        <TableCell className="text-muted-foreground">{activity.entity_table}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(activity.created_at)}</TableCell>
+                        <TableCell className="whitespace-nowrap tabular-nums"><time dateTime={activity.created_at}>{new Date(activity.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableFrame>
             </CardContent>
           </Card>
         </TabsContent>

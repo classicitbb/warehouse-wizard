@@ -1122,7 +1122,7 @@ export function PutawayTasksPage() {
           <p className="mt-1">{resumeNotice.summary}</p>
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto pr-1 lg:max-w-3xl">
         {isLoading ? (
           <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading putaway tasks…</CardContent></Card>
         ) : openTasksExpanded && !selectedTask && normalizedTaskSearch && filteredPendingTasks.length === 0 ? (

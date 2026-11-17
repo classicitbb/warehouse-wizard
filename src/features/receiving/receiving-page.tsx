@@ -298,7 +298,9 @@ export function ReceivingPage() {
   const shipmentContainerInvalid = shipmentContainerHasValue && !shipmentContainerValidation.valid;
   const shipmentContainerValid = shipmentContainerHasValue && shipmentContainerValidation.valid;
   const shipmentContainerMessage = shipmentContainerScanWarning ?? (shipmentContainerHasValue
-    ? shipmentContainerValidation.message
+    ? shipmentContainerValidation.valid
+      ? shipmentContainerValidation.message
+      : `${shipmentContainerValidation.message} You can still save it as typed.`
     : "Enter a valid ISO 6346 container number. Example: MSKU1234565.");
 
   useEffect(() => {
@@ -537,8 +539,6 @@ export function ReceivingPage() {
         : ""
     : !shipmentForm.container_number.trim()
       ? "Enter a container number before saving."
-      : !shipmentContainerValidation.valid
-        ? shipmentContainerValidation.message
         : !shipmentForm.warehouse_id
           ? "Select a warehouse before saving."
           : incompleteLine
@@ -943,6 +943,7 @@ export function ReceivingPage() {
 
   /** Hands an inbound shipment from the browser to the New Shipment dialog. True when lines were loaded. */
   async function loadInboundShipment(shipment: InboundShipmentSummary, detail: InboundShipmentDetail, chosenContainer = ""): Promise<boolean> {
+    if (!currentWarehouseId) { toast.error("Select a warehouse before receiving an inbound shipment."); return false; }
     const matching = matchingReceivingWork(await listInboundReceivingWork(currentWarehouseId), chosenContainer || pickContainerNumber(shipment), shipment.id);
     if (matching.length) { toast.error(receivingWorkMessage(matching)); return false; }
     const { lines, skipped } = buildShipmentLinesFromInbound(shipment, detail, netsuiteLineHelpers());
@@ -1118,7 +1119,7 @@ export function ReceivingPage() {
   function setShipmentContainer(value: unknown) {
     setShipmentContainerTouched(true);
     setShipmentContainerScanWarning(null);
-    setShipmentForm((cur) => ({ ...cur, container_number: normalizeContainerNumber(value) }));
+    setShipmentForm((cur) => ({ ...cur, container_number: String(value ?? "") }));
   }
 
   function applyShipmentContainerScan(value: unknown) {
@@ -1271,6 +1272,8 @@ export function ReceivingPage() {
         drafts={drafts}
         onReceive={loadInboundShipment}
         warehouseId={currentWarehouseId}
+        warehouses={warehouses}
+        onWarehouseChange={(warehouseId) => setShipmentForm((current) => ({ ...current, warehouse_id: warehouseId }))}
         onShowPutaway={() => { setInboundOpen(false); navigate(toPath("/putaway-tasks")); }}
         onShowDrafts={(shipment, container) => {
           setDraftSearch(container || pickContainerNumber(shipment) || shipment.number);
@@ -1356,7 +1359,7 @@ export function ReceivingPage() {
                           ref={shipmentContainerInputRef}
                           className={cn(
                             "h-9 min-w-0 sm:h-10 sm:flex-1",
-                            shipmentContainerTouched && shipmentContainerInvalid && "border-destructive focus-visible:border-destructive focus-visible:shadow-[inset_0_0_0_1px_hsl(var(--destructive)),inset_0_0_0_9999px_hsl(var(--destructive)/0.08)]",
+                            shipmentContainerTouched && shipmentContainerInvalid && "border-amber-500 focus-visible:border-amber-500",
                             shipmentContainerValid && "border-green-500 focus-visible:border-green-500 focus-visible:shadow-[inset_0_0_0_1px_rgb(34_197_94),inset_0_0_0_9999px_rgb(34_197_94/0.08)]",
                           )}
                           value={shipmentForm.container_number}
@@ -1364,7 +1367,7 @@ export function ReceivingPage() {
                           onBlur={() => setShipmentContainerTouched(true)}
                           onChange={(e) => setShipmentContainer(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); shipmentPoInputRef.current?.focus(); } }}
-                          aria-invalid={shipmentContainerInvalid}
+                          aria-invalid={false}
                           aria-describedby="container-number-help"
                         />
                       </div>
@@ -1372,7 +1375,7 @@ export function ReceivingPage() {
                         id="container-number-help"
                         className={cn(
                           "text-xs leading-4 break-words",
-                          shipmentContainerTouched && shipmentContainerInvalid ? "text-destructive" : shipmentContainerValid ? "text-green-500" : "text-muted-foreground",
+                          shipmentContainerTouched && shipmentContainerInvalid ? "text-amber-600" : shipmentContainerValid ? "text-green-500" : "text-muted-foreground",
                         )}
                       >
                         {shipmentContainerMessage}

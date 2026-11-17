@@ -1,7 +1,8 @@
 // Trip board and floor picking (outbound picking design, slice E: O1, O3, N1,
-// N2, D8, D10). The office plans each trip in NetSuite on the Fulfill Orders
-// page; WW reads its item fulfillments (slice C) and groups them into trips
-// by IF date + truck + trip number (O3). Each fulfillment gets one WW pick
+// N2, D8, D10). With NetSuite the office plans each trip on the Fulfill Orders
+// page and WW reads its item fulfillments (slice C); without NetSuite the
+// office plans trips from the Orders page (source 'ww'). Both are grouped into
+// trips by date + truck + trip number (O3). Each fulfillment gets one WW pick
 // list (start_fulfillment_pick) with one task per line. A task directs the
 // picker to a bin: a pick face that holds the product, else bulk. The picker
 // scans the bin and enters what they took (confirm_trip_pick); "Short" closes
@@ -48,6 +49,8 @@ export type TripBoardRow = {
   departed_at: string | null;
   ship_sync_status: string | null;
   ship_sync_error: string | null;
+  /** netsuite = office IF from NetSuite; ww = trip planned on the Orders page. Absent on older databases. */
+  source?: "netsuite" | "ww";
 };
 
 export type PickState = "blocked" | "not_started" | "picking" | "exception" | "short" | "picked";

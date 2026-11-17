@@ -1,5 +1,6 @@
 // Orders inbox data and rules (outbound picking design, slice C). Reads the
-// NetSuite sales and transfer orders that netsuite-orders mirrors, through the
+// NetSuite sales and transfer orders that netsuite-orders mirrors, and the
+// sales orders entered in WW (source 'ww', see ww-orders-core.ts), through the
 // outbound_order_inbox view, and works out what blocks an order from release
 // (D8 credit hold and committed quantity, N4 printed without a fulfillment).
 import { supabase } from "@/integrations/supabase/client";
@@ -46,10 +47,14 @@ export type InboxRow = {
   latest_truck_name: string | null;
   latest_trip_number: string | null;
   latest_picker_name: string | null;
+  /** netsuite = mirrored from NetSuite; ww = entered on the Orders page. */
+  source: OrderSource;
 };
 
+export type OrderSource = "netsuite" | "ww";
+
 const INBOX_COLUMNS =
-  "id, order_number, order_type, warehouse_name, external_record_id, external_status, order_date, requested_ship_date, customer_name, customer_number, delivery_zone, on_credit_hold, credit_review_required, customer_reference, destination_location_name, truck_name, trip_number, picker_name, picking_ticket_printed, ship_complete, unmapped_line_count, last_synced_at, line_count, ordered_quantity, committed_quantity, fulfilled_quantity, fulfillment_count, open_fulfillment_count, latest_fulfillment_number, latest_fulfillment_status, latest_fulfillment_date, latest_truck_name, latest_trip_number, latest_picker_name";
+  "id, order_number, order_type, warehouse_name, external_record_id, external_status, order_date, requested_ship_date, customer_name, customer_number, delivery_zone, on_credit_hold, credit_review_required, customer_reference, destination_location_name, truck_name, trip_number, picker_name, picking_ticket_printed, ship_complete, unmapped_line_count, last_synced_at, line_count, ordered_quantity, committed_quantity, fulfilled_quantity, fulfillment_count, open_fulfillment_count, latest_fulfillment_number, latest_fulfillment_status, latest_fulfillment_date, latest_truck_name, latest_trip_number, latest_picker_name, source";
 
 /** PostgREST `or()` treats commas and parentheses as syntax, so they are dropped from the term. */
 export function cleanSearch(value: string): string {
@@ -121,6 +126,8 @@ export type DetailFulfillment = {
   truck_name: string | null;
   trip_number: string | null;
   picker_name: string | null;
+  source: OrderSource;
+  ww_stage: string | null;
   order_fulfillment_lines: { order_line_id: string | null; quantity: number }[];
 };
 
@@ -133,7 +140,7 @@ export async function fetchOrderDetail(orderId: string) {
       .order("line_number", { ascending: true, nullsFirst: false }),
     supabase
       .from("order_fulfillments")
-      .select("id, document_number, external_status, fulfillment_date, truck_name, trip_number, picker_name, order_fulfillment_lines(order_line_id, quantity)")
+      .select("id, document_number, external_status, fulfillment_date, truck_name, trip_number, picker_name, source, ww_stage, order_fulfillment_lines(order_line_id, quantity)")
       .eq("order_id", orderId)
       .order("fulfillment_date", { ascending: true, nullsFirst: false })
       .order("document_number", { ascending: true }),
@@ -208,7 +215,9 @@ export function orderStatusLabel(status: string | null): string {
   return (status && ORDER_STATUS_LABELS[status]) || status || "—";
 }
 
-export function fulfillmentStatusLabel(status: string | null): string {
+/** A WW fulfillment at A is a planned trip, not a NetSuite Picked IF. */
+export function fulfillmentStatusLabel(status: string | null, source: OrderSource = "netsuite"): string {
+  if (source === "ww" && status === "A") return "On trip";
   return (status && FULFILLMENT_STATUS_LABELS[status]) || status || "—";
 }
 

@@ -43,15 +43,15 @@ const AUDIO_TEST_CUES: Array<{
 
 export function AudioCuesCard() {
   return (
-    <Card>
-      <CardHeader>
+    <Card className="min-w-0 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
+      <CardHeader className="shrink-0 px-4 py-3">
         <CardTitle className="flex items-center gap-2">
           <Volume2 className="h-4 w-4" />
           Audio & Alerts
         </CardTitle>
         <CardDescription>Every sound cue used across the app, in one place — play each one to test speaker volume and confirm alerts are audible on the warehouse floor.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-2 sm:grid-cols-2">
+      <CardContent className="grid content-start gap-2 px-4 pb-4 sm:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-1 xl:overflow-y-auto xl:overscroll-contain 2xl:grid-cols-2">
         {AUDIO_TEST_CUES.map((cue) => (
           <div key={cue.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
             <div className="min-w-0">

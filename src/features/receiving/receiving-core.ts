@@ -1,7 +1,7 @@
 import { upsertRecord } from "@/features/admin/admin-core";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { validateIso6346ContainerNumber } from "@/lib/container-number";
+import { resolveContainerNumberInput } from "@/lib/container-number";
 import { recordPalletQtyObservation } from "@/lib/ai-assist";
 import { resolvePackStandard } from "@/lib/measure";
 import {
@@ -116,9 +116,7 @@ export async function createLabelRecord(label_type: string, entityId: string, la
 export async function createReceiptFlow(input: z.infer<typeof receivingSchema>) {
   let payload = receivingSchema.parse(input);
   if (payload.container_number) {
-    const containerValidation = validateIso6346ContainerNumber(payload.container_number);
-    if (!containerValidation.valid) throw new Error(containerValidation.message);
-    payload = { ...payload, container_number: containerValidation.normalized };
+    payload = { ...payload, container_number: resolveContainerNumberInput(payload.container_number) };
   }
   const lot = await resolveInventoryLot(payload);
   const receiptNumber = buildPalletCode("RCT");
@@ -357,9 +355,7 @@ export type ShipmentDraftInput = {
 
 export async function saveDraftReceipt(values: z.infer<typeof receivingSchema>): Promise<string> {
   if (values.container_number) {
-    const containerValidation = validateIso6346ContainerNumber(values.container_number);
-    if (!containerValidation.valid) throw new Error(containerValidation.message);
-    values = { ...values, container_number: containerValidation.normalized };
+    values = { ...values, container_number: resolveContainerNumberInput(values.container_number) };
   }
   const receiptNumber = buildPalletCode("RCT");
   const draftBarcode = values.pallet_barcode?.trim() || buildPalletCode("PLT");
@@ -412,9 +408,7 @@ export async function saveShipmentDrafts(input: ShipmentDraftInput): Promise<{ g
   if (input.receipt_type === "other" && !input.container_number.trim()) {
     input = { ...input, container_number: "" };
   } else {
-    const containerValidation = validateIso6346ContainerNumber(input.container_number);
-    if (!containerValidation.valid) throw new Error(containerValidation.message);
-    input = { ...input, container_number: containerValidation.normalized };
+    input = { ...input, container_number: resolveContainerNumberInput(input.container_number) };
   }
   const entryMode = input.receipt_type === "other" && !input.container_number.trim() ? "pallet" : "shipment";
   if (!input.lines.length) throw new Error("Add at least one SKU line.");
@@ -509,9 +503,7 @@ export async function saveShipmentDrafts(input: ShipmentDraftInput): Promise<{ g
 
 export async function updateDraftReceipt(draftId: string, values: z.infer<typeof receivingSchema>): Promise<void> {
   if (values.container_number) {
-    const containerValidation = validateIso6346ContainerNumber(values.container_number);
-    if (!containerValidation.valid) throw new Error(containerValidation.message);
-    values = { ...values, container_number: containerValidation.normalized };
+    values = { ...values, container_number: resolveContainerNumberInput(values.container_number) };
   }
   let { data: existing, error: existingError } = await db("receipts")
     .select("notes, draft_pallet_barcode, draft_group_id, draft_sequence, draft_count, status")
