@@ -9,13 +9,15 @@
  * underneath the chat.
  *
  * Images go to the private `ticket-screenshots` bucket under the reporter's own
- * folder. Nothing here throws into the report flow: a failed capture is logged
+ * folder, or to the control plane's private `support-screenshots` bucket when
+ * platform support is configured (platform ADR-0023). Nothing here throws into the report flow: a failed capture is logged
  * and the report continues without a picture.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 import { addEvidenceToOpenReport, makeScreenshotAttachment } from "@/features/copilot/feedback-core";
 import { logErrorTelemetry } from "@/lib/system-telemetry";
+import { callPlatformSupport, platformSupportEnabled, uploadPlatformScreenshot } from "@/lib/platform-support";
 
 export const TICKET_SCREENSHOT_BUCKET = "ticket-screenshots";
 
@@ -59,6 +61,7 @@ export async function capturePageScreenshot(): Promise<Blob | null> {
 /** Upload a capture and return its storage path, or null on failure. */
 export async function uploadTicketScreenshot(blob: Blob): Promise<string | null> {
   try {
+    if (platformSupportEnabled()) return await uploadPlatformScreenshot(blob);
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user?.id;
     if (!userId) return null;
@@ -126,6 +129,14 @@ export async function readLogFile(file: File, maxChars = 20_000): Promise<string
 
 /** A short-lived link an admin can open to view a capture. */
 export async function signedScreenshotUrl(path: string, expiresInSeconds = 3600): Promise<string | null> {
+  if (platformSupportEnabled()) {
+    try {
+      const { url } = await callPlatformSupport<{ url: string }>("screenshots.url", { path, expires_in: expiresInSeconds });
+      return url ?? null;
+    } catch {
+      return null;
+    }
+  }
   const { data, error } = await supabase.storage
     .from(TICKET_SCREENSHOT_BUCKET)
     .createSignedUrl(path, expiresInSeconds);

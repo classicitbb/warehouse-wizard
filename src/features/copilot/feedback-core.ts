@@ -26,6 +26,33 @@ import {
   type ActionEvent,
   type HabitSummary,
 } from "@/lib/habit-tracking";
+import { callPlatformSupport, platformSupportEnabled } from "@/lib/platform-support";
+
+/** Support requests live on the control plane when it is configured (platform ADR-0023). */
+const onPlatform = () => platformSupportEnabled();
+type PlatformTicket = { ticket: Record<string, unknown> | null };
+type PlatformTickets = { tickets: Record<string, unknown>[] };
+
+/**
+ * Reports filed before the move stay in this tenant's `operator_tickets`. They are
+ * listed next to platform tickets (read and status changes only, no new drafts) so
+ * the support page keeps its history; these ids route status changes locally.
+ */
+const legacyTicketIds = new Set<string>();
+
+async function withLegacyTickets(
+  remote: Record<string, unknown>[],
+  local: () => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+  limit: number,
+): Promise<StoredTicket[]> {
+  const { data } = await Promise.resolve(local()).catch(() => ({ data: null }));
+  const legacy = ((data ?? []) as Record<string, unknown>[]).filter((row) => row.status !== "draft");
+  legacy.forEach((row) => legacyTicketIds.add(String(row.id)));
+  return [...remote, ...legacy]
+    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
+    .slice(0, limit)
+    .map(rowToTicket);
+}
 
 export type TicketKind = "bug" | "feedback" | "request" | "question";
 export type TicketStatus = "draft" | "open" | "triaged" | "in_progress" | "resolved" | "wont_fix";
@@ -615,6 +642,16 @@ export async function saveTicketDraft(draft: TicketDraft): Promise<StoredTicket>
   const userId = sessionData.session?.user?.id;
   if (!userId) throw new Error("Sign in before filing a report.");
 
+  if (onPlatform()) {
+    const { status: _status, ...fields } = toRow(draft);
+    const { ticket } = await callPlatformSupport<PlatformTicket>(
+      draft.id ? "tickets.patch" : "tickets.create",
+      draft.id ? { id: draft.id, fields } : { fields },
+    );
+    if (!ticket) throw new Error("Could not save this report.");
+    return rowToTicket(ticket);
+  }
+
   const payload = { ...toRow(draft), reported_by: userId };
 
   const query = draft.id
@@ -644,6 +681,18 @@ export async function submitTicket(
   const saved = await saveTicketDraft(draft);
   const brief = buildAgentBrief({ ...draft, id: saved.id }, context);
 
+  if (onPlatform()) {
+    // The platform numbers it, records the history, emails it and opens the GitHub issue.
+    const { ticket } = await callPlatformSupport<PlatformTicket>("tickets.submit", {
+      id: saved.id,
+      agent_brief: brief,
+      fields: { warehouse_label: context.warehouseLabel ?? null },
+      via: "copilot-panel",
+    });
+    if (!ticket) throw new Error("Could not submit this report.");
+    return rowToTicket(ticket);
+  }
+
   const { data, error } = await db("operator_tickets")
     .update({ status: "open", agent_brief: brief })
     .eq("id", saved.id)
@@ -671,6 +720,7 @@ export async function submitTicket(
  * here must not fail a filed report.
  */
 export async function notifyTicketSubmitted(ticketId: string): Promise<void> {
+  if (onPlatform()) return; // the platform emails on submit
   try {
     await supabase.functions.invoke("send-notification-email", {
       body: { kind: "operator_ticket", id: ticketId },
@@ -688,6 +738,10 @@ export async function appendTicketEvent(
   detail: Record<string, unknown> = {},
   actorKind: "user" | "copilot" | "agent" | "system" = "copilot",
 ): Promise<void> {
+  if (onPlatform()) {
+    await callPlatformSupport("tickets.event", { id: ticketId, event, detail, actor_kind: actorKind });
+    return;
+  }
   const { error } = await db("operator_ticket_events").insert({
     ticket_id: ticketId,
     event,
@@ -714,6 +768,15 @@ async function latestDraftTicket(): Promise<DraftTicketRow | null> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user?.id;
   if (!userId) return null;
+  if (onPlatform()) {
+    const { ticket } = await callPlatformSupport<PlatformTicket>("tickets.latest_draft");
+    if (!ticket?.id) return null;
+    return {
+      id: String(ticket.id),
+      telemetry: ticket.telemetry && typeof ticket.telemetry === "object" ? { ...(ticket.telemetry as Record<string, unknown>) } : {},
+      screenshotPath: nullableText(ticket.screenshot_path),
+    };
+  }
   const { data, error } = await db("operator_tickets")
     .select("id, telemetry, screenshot_path")
     .eq("reported_by", userId)
@@ -759,6 +822,10 @@ export async function addEvidenceToOpenReport(input: {
   if (input.screenContext) telemetry.screenContext = input.screenContext;
   payload.telemetry = JSON.parse(JSON.stringify(telemetry));
 
+  if (onPlatform()) {
+    await callPlatformSupport("tickets.patch", { id: draft.id, fields: payload });
+    return true;
+  }
   const { error } = await db("operator_tickets").update(payload).eq("id", draft.id);
   if (error) throw new Error(formatSupabaseError(error, "Could not attach that to the report."));
   return true;
@@ -768,6 +835,19 @@ export async function listMyTickets(limit = 25): Promise<StoredTicket[]> {
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user?.id;
   if (!userId) return [];
+  if (onPlatform()) {
+    const { tickets } = await callPlatformSupport<PlatformTickets>("tickets.mine", { limit });
+    return withLegacyTickets(
+      tickets,
+      () =>
+        db("operator_tickets")
+          .select(TICKET_COLUMNS)
+          .eq("reported_by", userId)
+          .order("created_at", { ascending: false })
+          .limit(limit),
+      limit,
+    );
+  }
   const { data, error } = await db("operator_tickets")
     .select(TICKET_COLUMNS)
     .eq("reported_by", userId)
@@ -779,6 +859,10 @@ export async function listMyTickets(limit = 25): Promise<StoredTicket[]> {
 
 /** Submitted tickets waiting for an agent, most severe first. */
 export async function listTicketQueue(limit = 50): Promise<StoredTicket[]> {
+  if (onPlatform()) {
+    const { tickets } = await callPlatformSupport<PlatformTickets>("tickets.list", { queue: true, limit });
+    return withLegacyTickets(tickets, () => db("operator_ticket_queue").select("*").limit(limit), limit);
+  }
   const { data, error } = await db("operator_ticket_queue").select("*").limit(limit);
   if (error) throw new Error(formatSupabaseError(error, "Could not load the ticket queue."));
   return (data ?? []).map(rowToTicket);
@@ -786,6 +870,14 @@ export async function listTicketQueue(limit = 50): Promise<StoredTicket[]> {
 
 /** All tickets the caller is allowed to see, newest first. */
 export async function listAllTickets(limit = 200): Promise<StoredTicket[]> {
+  if (onPlatform()) {
+    const { tickets } = await callPlatformSupport<PlatformTickets>("tickets.list", { limit });
+    return withLegacyTickets(
+      tickets,
+      () => db("operator_tickets").select(TICKET_COLUMNS).order("created_at", { ascending: false }).limit(limit),
+      limit,
+    );
+  }
   const { data, error } = await db("operator_tickets")
     .select(TICKET_COLUMNS)
     .order("created_at", { ascending: false })
@@ -799,6 +891,16 @@ export async function updateTicketStatus(
   status: TicketStatus,
   context?: { assignedTo?: string | null; resolution?: string | null },
 ): Promise<StoredTicket> {
+  if (onPlatform() && !legacyTicketIds.has(ticketId)) {
+    // Assignment is a platform-side (support team) field; tenants set status and resolution.
+    const { ticket } = await callPlatformSupport<PlatformTicket>("tickets.set_status", {
+      id: ticketId,
+      status,
+      resolution: context?.resolution ?? undefined,
+    });
+    if (!ticket) throw new Error("Could not update ticket status.");
+    return rowToTicket(ticket);
+  }
   const payload: Record<string, unknown> = { status };
   if (context?.assignedTo !== undefined) payload.assigned_to = context.assignedTo;
   if (context?.resolution !== undefined) payload.resolution = context.resolution;

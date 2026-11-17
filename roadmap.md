@@ -31,4 +31,8 @@
 - [ ] Create private repo classicitbb/warehousewizard-platform (control plane + admin console + release runner); separate Lovable project and Supabase.
 - [ ] Admin GUI v1 (Phase 1a): tenants, variables, secrets (Vault, write-only), notes, documents, audit log.
 - [ ] Add deployment_mode (hosted / customer_hosted / source_buyout) to tenants; define pull-based release manifest for customer-hosted installs.
+- [x] Support requests and the system log moved to the control plane (platform ADR-0023): app uses `src/lib/platform-support.ts` when `VITE_PLATFORM_URL` is set; copilot function needs `PLATFORM_URL`.
+- [ ] Set `VITE_PLATFORM_URL` (app) and `PLATFORM_URL` (copilot function secret) in sandbox, then prod; register each tenant's anon key in the console.
+- [x] Old `operator_tickets` and trigger-written `system_logs` stay local and are listed next to platform rows (no backfill).
+- [x] GitHub issue closed/reopened syncs back to the ticket (`support-github-webhook` on the platform; needs the repo webhook + secret).
 
