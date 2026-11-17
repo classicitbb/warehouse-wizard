@@ -225,6 +225,13 @@
       "when": 1794854227354,
       "tag": "0031_trip_pick_reserve_request_readback",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794876083825,
+      "tag": "0032_standalone_outbound",
+      "breakpoints": true
     }
   ]
 }

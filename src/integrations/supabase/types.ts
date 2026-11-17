@@ -593,6 +593,7 @@ export type Database = {
           on_credit_hold: boolean
           phone: string | null
           ship_complete: boolean
+          source: string
           source_modified_at: string | null
           updated_at: string
         }
@@ -610,6 +611,7 @@ export type Database = {
           on_credit_hold?: boolean
           phone?: string | null
           ship_complete?: boolean
+          source?: string
           source_modified_at?: string | null
           updated_at?: string
         }
@@ -627,6 +629,7 @@ export type Database = {
           on_credit_hold?: boolean
           phone?: string | null
           ship_complete?: boolean
+          source?: string
           source_modified_at?: string | null
           updated_at?: string
         }
@@ -2371,6 +2374,7 @@ export type Database = {
           picker_external_id: string | null
           picker_name: string | null
           ship_sync_job_id: string | null
+          source: string
           source_modified_at: string | null
           staged_at: string | null
           staging_location_id: string | null
@@ -2399,6 +2403,7 @@ export type Database = {
           picker_external_id?: string | null
           picker_name?: string | null
           ship_sync_job_id?: string | null
+          source?: string
           source_modified_at?: string | null
           staged_at?: string | null
           staging_location_id?: string | null
@@ -2427,6 +2432,7 @@ export type Database = {
           picker_external_id?: string | null
           picker_name?: string | null
           ship_sync_job_id?: string | null
+          source?: string
           source_modified_at?: string | null
           staged_at?: string | null
           staging_location_id?: string | null
@@ -5896,6 +5902,7 @@ export type Database = {
           picking_ticket_printed: boolean | null
           requested_ship_date: string | null
           ship_complete: boolean | null
+          source: string | null
           trip_number: string | null
           truck_name: string | null
           unmapped_line_count: number | null
@@ -5988,6 +5995,7 @@ export type Database = {
             | Database["public"]["Enums"]["integration_job_status"]
             | null
           short_tasks: number | null
+          source: string | null
           staging_lane: string | null
           trip_number: string | null
           truck_external_id: string | null
@@ -6086,6 +6094,11 @@ export type Database = {
         Args: { p_task_id: string }
         Returns: undefined
       }
+      cancel_ww_fulfillment: {
+        Args: { p_fulfillment_id: string }
+        Returns: undefined
+      }
+      cancel_ww_order: { Args: { p_order_id: string }; Returns: undefined }
       claim_cycle_count_line: {
         Args: { p_line_id: string }
         Returns: undefined
@@ -6199,6 +6212,17 @@ export type Database = {
       create_pick_shortfall_task: {
         Args: { in_quantity: number; in_task_id: string }
         Returns: Json
+      }
+      create_ww_order: {
+        Args: {
+          p_customer_id: string
+          p_customer_reference: string
+          p_lines: Json
+          p_notes: string
+          p_requested_ship_date: string
+          p_warehouse_id: string
+        }
+        Returns: string
       }
       dashboard_metrics_summary: {
         Args: { p_warehouse_id?: string }
@@ -6384,6 +6408,17 @@ export type Database = {
         Args: { p_product_id: string; p_warehouse_id: string }
         Returns: string
       }
+      plan_ww_fulfillment: {
+        Args: {
+          p_fulfillment_date: string
+          p_lines?: Json
+          p_order_id: string
+          p_picker_name: string
+          p_trip_number: string
+          p_truck_name: string
+        }
+        Returns: string
+      }
       preview_pick_source_override: {
         Args: {
           in_pick_list_code: string
@@ -6537,6 +6572,10 @@ export type Database = {
           quantity: number
         }[]
       }
+      save_ww_customer: {
+        Args: { p_fields: Json; p_id: string }
+        Returns: string
+      }
       stage_fulfillment: {
         Args: { p_fulfillment_id: string; p_location_code: string }
         Returns: Json
@@ -6566,6 +6605,7 @@ export type Database = {
           picker_external_id: string | null
           picker_name: string | null
           ship_sync_job_id: string | null
+          source: string
           source_modified_at: string | null
           staged_at: string | null
           staging_location_id: string | null
