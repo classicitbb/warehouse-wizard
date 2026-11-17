@@ -47,9 +47,9 @@ export function ScannerSettingsPanel() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <Card className="border-0 shadow-none">
+      <CardHeader className="px-0 pt-0 pb-3">
+        <CardTitle className="sr-only">
           <ScanLine className="h-4 w-4" />
           Scanner timing
         </CardTitle>
@@ -58,7 +58,7 @@ export function ScannerSettingsPanel() {
           cooldown ignores the same code for a moment after a successful scan so a double trigger cannot submit twice.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent className="grid gap-3 px-0 pb-0 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="scan-dwell-ms">Scan dwell (ms)</Label>
           <Input
@@ -91,7 +91,7 @@ export function ScannerSettingsPanel() {
             The same code is ignored for this long after it is accepted. {SCAN_COOLDOWN_MIN_MS}–{SCAN_COOLDOWN_MAX_MS} ms.
           </p>
         </div>
-        <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+        <div className="sm:col-span-2 flex items-start justify-between gap-4 rounded-md border border-border p-3">
           <div className="grid gap-1">
             <Label htmlFor="pick-require-location">Require location scan when picking</Label>
             <p className="text-xs text-muted-foreground">
@@ -107,7 +107,7 @@ export function ScannerSettingsPanel() {
             }}
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="sm:col-span-2 flex flex-wrap gap-2">
           <Button type="button" onClick={save}>Save scanner timing</Button>
           <Button type="button" variant="outline" onClick={reset}>
             <RotateCcw data-icon="inline-start" />

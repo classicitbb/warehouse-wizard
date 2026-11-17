@@ -6,15 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export function AboutSettingsTab() {
   return (
     <>
-      <Card>
-        <CardHeader>
+      <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <CardHeader className="shrink-0">
           <CardTitle className="flex items-center gap-2">
             <Info className="h-4 w-4" />
             Warehouse Wizard Enterprise WMS
           </CardTitle>
           <CardDescription>Version history and feature register.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 text-sm">
+        <CardContent role="region" aria-label="Version history" tabIndex={0} className="grid min-h-0 flex-1 content-start gap-4 overflow-auto overscroll-contain text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
             <span className="font-medium">Current version</span>
             <span className="font-mono text-xs font-semibold text-primary">v{__APP_VERSION__}</span>
@@ -50,12 +50,12 @@ export function AboutSettingsTab() {
           ))}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
+      <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <CardHeader className="shrink-0">
           <CardTitle>Feature Register</CardTitle>
           <CardDescription>All active feature areas in this deployment.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2 text-sm">
+        <CardContent role="region" aria-label="Feature register" tabIndex={0} className="grid min-h-0 flex-1 content-start gap-2 overflow-auto overscroll-contain text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
           {[
             ["Warehouses", "Multi-facility master data with cool zone flags"],
             ["Zones", "Temperature-classed storage and workflow zones per warehouse"],

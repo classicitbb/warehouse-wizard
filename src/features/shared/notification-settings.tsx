@@ -121,8 +121,8 @@ export function NotificationSettingsPanel() {
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="min-w-0 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
+      <CardHeader className="shrink-0 px-4 py-3">
         <CardTitle className="flex items-center gap-2">
           <Bell className="h-4 w-4" />
           Notifications
@@ -132,7 +132,7 @@ export function NotificationSettingsPanel() {
           follow your account to every device you sign in on.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent className="grid content-start gap-2 px-4 pb-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain">
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
           {!supported ? (
             <>

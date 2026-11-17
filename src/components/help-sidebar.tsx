@@ -44,12 +44,12 @@ export function HelpSidebar({ pathname, toolbar }: { pathname: string; toolbar?:
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button
-          variant="outline"
+          variant={toolbar === "desktop" ? "ghost" : "outline"}
           className={
             toolbar === "desktop"
-              ? "h-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset"
+              ? "h-full rounded-none border-l border-border px-2.5 text-sm focus-visible:ring-inset data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
               : toolbar === "tablet"
-                ? "h-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset"
+                ? "h-[43px] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 text-sm leading-5 hover:bg-accent focus-visible:ring-inset"
                 : undefined
           }
         >
