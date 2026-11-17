@@ -1,7 +1,7 @@
-// Trip board (outbound picking design, slice E): the office's open item
-// fulfillments, grouped into trips by IF date + truck + trip number (O3). The
-// office plans trips in NetSuite (O1); here the floor starts or continues the
-// pick of each order. Credit hold blocks a sales order (D8). An order still
+// Trip board (outbound picking design, slice E): the office's open
+// fulfillments, grouped into trips by date + truck + trip number (O3). The
+// office plans trips in NetSuite (O1) or, without NetSuite, from the Orders
+// page; here the floor starts or continues the pick of each order. Credit hold blocks a sales order (D8). An order still
 // open after the warehouse's demand age is flagged (V22).
 //
 // Layout follows Replenishment: fixed page height, a compact header, and a
@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Truck } from "lucide-react";
+import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { useTenantPath } from "@/hooks/use-tenant-path";
 import { alertToast } from "@/lib/floor-feedback";
 import { formatDate, formatNumber, formatSupabaseError } from "@/features/shared/core-types";
@@ -97,7 +98,7 @@ function FulfillmentRow({ row, busy, onPick, onNext }: { row: TripBoardRow; busy
           ) : (
             <Badge variant="outline" className={cn(FLAG_CLASS, STATE_BADGE[state])}>{PICK_STATE_LABELS[state]}</Badge>
           )}
-          {row.ww_stage === "departed" && (
+          {row.ww_stage === "departed" && row.source !== "ww" && (
             <Badge variant="outline" className={cn(FLAG_CLASS, row.ship_sync_status === "dead_letter" ? "border-destructive text-destructive" : "text-muted-foreground")} title={row.ship_sync_error ?? undefined}>
               {row.ship_sync_status === "dead_letter" ? "NetSuite post failed" : row.ship_sync_status ? "Posting to NetSuite" : "Office sets Shipped"}
             </Badge>
@@ -127,6 +128,8 @@ export function TripsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toPath } = useTenantPath();
+  const netsuiteActive = useNetSuiteActive();
+  const planWhere = netsuiteActive ? "in NetSuite on the Fulfill Orders page" : "on the Orders page (open an order, then Plan trip)";
   const [filter, setFilter] = useState<TripDateFilter>("today");
   const { data: rows = [], isLoading, error, isFetching, refetch } = useQuery({
     queryKey: [...TRIPS_QUERY_KEY, "board"],
@@ -151,12 +154,13 @@ export function TripsPage() {
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-semibold">Trips</h2>
           <HintButton label="Trip hints">
-            The office plans each trip in NetSuite on the Fulfill Orders page: date, truck, trip number and picker. Each order on a trip
+            The office plans each trip {planWhere}: date, truck, trip number and picker. Each order on a trip
             is one fulfillment. Start the pick of an order, then walk the bins in the order shown. Scan each bin and enter what you take.
             If the bin runs out, press Short: WW closes the line with what you found and asks for an urgent pallet for the pick face.
             Orders on credit hold cannot be picked until the office releases them. An order still open after 3 days is marked Aged.
             After the pick, Pack check counts each line against the pick, then Stage puts the order in a staging lane. At the truck,
-            Load &amp; depart scans each order on. When every picked order is on, Depart sets the fulfillments to Shipped in NetSuite.
+            Load &amp; depart scans each order on. When every picked order is on, Depart ships them
+            {netsuiteActive ? " and sets the fulfillments to Shipped in NetSuite" : ""}.
             A short line ships short and needs a supervisor. An order with nothing picked stays behind for the office.
           </HintButton>
         </div>
@@ -195,7 +199,7 @@ export function TripsPage() {
                   <EmptyRow>Loading…</EmptyRow>
                 ) : trips.length === 0 ? (
                   <EmptyRow>
-                    {filter === "today" ? "No trips for today. The office plans trips in NetSuite; check All open for earlier trips." : "No open fulfillments."}
+                    {filter === "today" ? `No trips for today. The office plans trips ${planWhere}; check All open for earlier trips.` : "No open fulfillments."}
                   </EmptyRow>
                 ) : (
                   trips.flatMap((trip) => [

@@ -191,7 +191,9 @@ export function TripPackPage() {
                 </CardContent>
               </Card>
             ) : (
-              <p className="text-sm text-amber-700 dark:text-amber-400">Nothing was picked for this order. The office must ship or delete it in NetSuite.</p>
+              <p className="text-sm text-amber-700 dark:text-amber-400">{ful.source === "ww"
+                  ? "Nothing was picked for this order. The office can take it off the trip from the Orders page."
+                  : "Nothing was picked for this order. The office must ship or delete it in NetSuite."}</p>
             )}
 
             <div className="grid gap-2">

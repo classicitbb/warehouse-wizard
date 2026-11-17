@@ -1,14 +1,16 @@
-// Orders inbox (outbound picking design, slice C): open NetSuite sales and
-// transfer orders at mapped warehouses, with the office's plan (truck, trip,
-// picker) and what blocks each order from the floor. Read-only; rows arrive
-// through the netsuite-orders edge function. The office still plans trips on
-// the NetSuite Fulfill Orders page (O1).
+// Orders inbox (outbound picking design, slice C): open sales and transfer
+// orders with the office's plan (truck, trip, picker) and what blocks each
+// order from the floor.
+// - NetSuite connected: rows arrive through the netsuite-orders edge function
+//   and the office plans trips on the NetSuite Fulfill Orders page (O1).
+// - Standalone: the office enters sales orders here (New order) and plans each
+//   trip from the order sheet (ww-orders-core.ts).
 //
 // Layout follows Inventory Search: fixed page height, a compact filter card,
 // and a table card whose header stays put while only the rows scroll.
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Loader2, ScanLine } from "lucide-react";
+import { Loader2, Plus, ScanLine } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useNetSuiteActive } from "@/hooks/use-netsuite-active";
 import { normalizeScannerText } from "@/lib/scan-input";
@@ -36,21 +38,23 @@ import {
 } from "./orders-inbox-core";
 import { OrderDetailSheet } from "./order-detail-sheet";
 import { OrdersSyncButton } from "./orders-sync-button";
+import { WwOrderDialog } from "./ww-order-dialog";
 
 const PAGE_SIZE = 100;
 const COLUMN_COUNT = 11;
 const SYNC_ROLES = ["admin", "developer", "warehouse_manager", "warehouse_supervisor"];
+const ENTRY_ROLES = [...SYNC_ROLES, "inventory_clerk"];
 const KINDS: { value: OrderKindFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "sales", label: "Sales" },
   { value: "transfer", label: "Transfer" },
 ];
-const VIEWS: { value: OrderViewFilter; label: string }[] = [
+const VIEWS: { value: OrderViewFilter; label: string; netsuite?: boolean }[] = [
   { value: "open", label: "All open" },
   { value: "unplanned", label: "Not planned" },
   { value: "planned", label: "Planned" },
   { value: "blocked", label: "Blocked" },
-  { value: "printed", label: "Printed, no IF" },
+  { value: "printed", label: "Printed, no IF", netsuite: true },
 ];
 const FLAG_CLASS = "px-1.5 py-0 text-[11px] font-medium";
 
@@ -86,7 +90,7 @@ function OrderRow({ row, onOpen }: { row: InboxRow; onOpen: () => void }) {
       <TableCell>
         <div className="flex items-center gap-1">
           {plan.source === "fulfillment" && (
-            <Badge variant="default" className={FLAG_CLASS}>{row.latest_fulfillment_number} Picked</Badge>
+            <Badge variant="default" className={FLAG_CLASS}>{row.latest_fulfillment_number} {row.source === "ww" ? "On trip" : "Picked"}</Badge>
           )}
           {reasons.map((r) => (
             <Badge key={r.code} variant={r.tone === "block" ? "destructive" : "outline"} className={FLAG_CLASS}>{r.label}</Badge>
@@ -104,6 +108,8 @@ export function OrdersInboxPage() {
   const netsuiteActive = useNetSuiteActive();
   const { roles } = useAuth();
   const canSync = roles.some((role) => SYNC_ROLES.includes(role));
+  const canEnter = !netsuiteActive && roles.some((role) => ENTRY_ROLES.includes(role));
+  const [entryOpen, setEntryOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<OrderKindFilter>("all");
@@ -114,7 +120,6 @@ export function OrdersInboxPage() {
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: [...ORDERS_INBOX_QUERY_KEY, search, kind, view, limit],
     queryFn: () => fetchInbox({ search, kind, view, limit }),
-    enabled: netsuiteActive,
     placeholderData: keepPreviousData,
   });
   const { data: pollState } = useQuery({
@@ -140,29 +145,35 @@ export function OrdersInboxPage() {
       setView("open");
     });
 
-  if (!netsuiteActive) {
-    return (
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold">Orders</h2>
-        <p className="text-sm text-muted-foreground">Orders come from NetSuite. Set up the NetSuite connection in Settings &gt; Integrations to use this page.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-semibold">Orders</h2>
           <HintButton label="Orders hints">
-            Open sales and transfer orders from NetSuite for your warehouse. The office plans trucks, trips and pickers on the
-            NetSuite Fulfill Orders page; a muted truck or trip is on the order only, with no fulfillment yet. Scan the pick-ticket
-            QR to find an order. Click a row for its lines and fulfillments.
+            {netsuiteActive ? (
+              <>
+                Open sales and transfer orders from NetSuite for your warehouse. The office plans trucks, trips and pickers on the
+                NetSuite Fulfill Orders page; a muted truck or trip is on the order only, with no fulfillment yet. Scan the pick-ticket
+                QR to find an order. Click a row for its lines and fulfillments.
+              </>
+            ) : (
+              <>
+                Open sales orders for your warehouse. New order enters one: customer, ship date and lines. Click a row, then Plan trip
+                to put it on a truck: orders with the same date, truck and trip number are one trip on the Trips board, where the floor
+                picks, packs, stages, loads and departs them. Departing ships the order; a short line stays open to plan again.
+              </>
+            )}
           </HintButton>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">{lastRun ? `Synced ${formatDateTime(lastRun)}` : "Not synced yet"}</span>
-          {canSync && <OrdersSyncButton />}
+          {netsuiteActive && <span className="text-xs text-muted-foreground">{lastRun ? `Synced ${formatDateTime(lastRun)}` : "Not synced yet"}</span>}
+          {netsuiteActive && canSync && <OrdersSyncButton />}
+          {canEnter && (
+            <Button type="button" size="sm" onClick={() => setEntryOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" /> New order
+            </Button>
+          )}
         </div>
       </div>
 
@@ -181,7 +192,7 @@ export function OrdersInboxPage() {
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Order number, customer, or scan the pick-ticket QR"
+                placeholder={netsuiteActive ? "Order number, customer, or scan the pick-ticket QR" : "Order number or customer"}
                 className="h-11 min-w-0 pl-10 pr-20 sm:pr-48"
                 aria-label="Search orders"
               />
@@ -203,12 +214,17 @@ export function OrdersInboxPage() {
             />
           </form>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</span>
-            {KINDS.map((k) => (
-              <FilterButton key={k.value} active={kind === k.value} onClick={() => resetAnd(() => setKind(k.value))}>{k.label}</FilterButton>
-            ))}
-            <span className="ml-3 mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Show</span>
-            {VIEWS.map((v) => (
+            {/* WW enters sales orders only; transfers between warehouses use the Transfers page. */}
+            {netsuiteActive && (
+              <>
+                <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</span>
+                {KINDS.map((k) => (
+                  <FilterButton key={k.value} active={kind === k.value} onClick={() => resetAnd(() => setKind(k.value))}>{k.label}</FilterButton>
+                ))}
+              </>
+            )}
+            <span className={cn(netsuiteActive && "ml-3", "mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground")}>Show</span>
+            {VIEWS.filter((v) => netsuiteActive || !v.netsuite).map((v) => (
               <FilterButton key={v.value} active={view === v.value} onClick={() => resetAnd(() => setView(v.value))}>{v.label}</FilterButton>
             ))}
           </div>
@@ -248,7 +264,11 @@ export function OrdersInboxPage() {
                 ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell className="h-24 text-center text-muted-foreground" colSpan={COLUMN_COUNT}>
-                      {hasFilters ? "No orders match these filters." : "No open orders yet. A manager can sync them from NetSuite."}
+                      {hasFilters
+                        ? "No orders match these filters."
+                        : netsuiteActive
+                          ? "No open orders yet. A manager can sync them from NetSuite."
+                          : "No open orders yet. Press New order to enter one."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -271,6 +291,7 @@ export function OrdersInboxPage() {
       </Card>
 
       <OrderDetailSheet row={selected} onClose={() => setSelected(null)} />
+      {canEnter && <WwOrderDialog open={entryOpen} onOpenChange={setEntryOpen} />}
     </div>
   );
 }

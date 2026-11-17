@@ -1,5 +1,6 @@
 // Orders inbox detail: one order's lines (in the line's own unit) and the
-// fulfillments the office made for it, numbered "part n of m" (N2).
+// fulfillments the office made for it, numbered "part n of m" (N2). A WW order
+// (no NetSuite) also gets the trip planning panel.
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/features/shared/core-types";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
   orderStatusLabel,
   type InboxRow,
 } from "./orders-inbox-core";
+import { WwTripPlanPanel } from "./ww-trip-plan-panel";
 
 export function OrderDetailSheet({ row, onClose }: { row: InboxRow | null; onClose: () => void }) {
   const { data, isLoading, error } = useQuery({
@@ -35,6 +37,7 @@ export function OrderDetailSheet({ row, onClose }: { row: InboxRow | null; onClo
               <SheetTitle className="flex flex-wrap items-center gap-2">
                 <span className="font-mono">{row.order_number}</span>
                 <Badge variant="secondary">{row.order_type === "transfer" ? "Transfer" : "Sales"}</Badge>
+                {row.source === "ww" && <Badge variant="outline">Entered in WW</Badge>}
               </SheetTitle>
               <SheetDescription>
                 {row.order_type === "transfer"
@@ -42,6 +45,7 @@ export function OrderDetailSheet({ row, onClose }: { row: InboxRow | null; onClo
                   : `${row.customer_name ?? "Unknown customer"}${row.customer_number ? ` (${row.customer_number})` : ""}`}
                 {" · "}
                 {orderStatusLabel(row.external_status)}
+                {row.customer_reference ? ` · ref ${row.customer_reference}` : ""}
                 {row.requested_ship_date ? ` · ship ${formatDate(row.requested_ship_date)}` : ""}
               </SheetDescription>
             </SheetHeader>
@@ -60,6 +64,7 @@ export function OrderDetailSheet({ row, onClose }: { row: InboxRow | null; onClo
               <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
             ) : (
               <div className="mt-6 flex flex-col gap-6">
+                {row.source === "ww" && <WwTripPlanPanel row={row} lines={data.lines} fulfillments={data.fulfillments} onClosed={onClose} />}
                 <section>
                   <h3 className="mb-2 text-sm font-semibold">Lines</h3>
                   {data.lines.length === 0 ? (
@@ -103,7 +108,9 @@ export function OrderDetailSheet({ row, onClose }: { row: InboxRow | null; onClo
                 <section>
                   <h3 className="mb-2 text-sm font-semibold">Fulfillments</h3>
                   {data.fulfillments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">The office has not planned this order yet (Fulfill Orders in NetSuite).</p>
+                    <p className="text-sm text-muted-foreground">
+                      {row.source === "ww" ? "Not on a trip yet. Plan it above." : "The office has not planned this order yet (Fulfill Orders in NetSuite)."}
+                    </p>
                   ) : (
                     <ul className="flex flex-col gap-2">
                       {data.fulfillments.map((f) => (
@@ -111,7 +118,8 @@ export function OrderDetailSheet({ row, onClose }: { row: InboxRow | null; onClo
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono">{f.document_number}</span>
                             {parts.get(f.id) && <span className="text-muted-foreground">{parts.get(f.id)}</span>}
-                            <Badge variant={f.external_status === "C" ? "secondary" : "default"}>{fulfillmentStatusLabel(f.external_status)}</Badge>
+                            <Badge variant={f.external_status === "C" ? "secondary" : "default"}>{fulfillmentStatusLabel(f.external_status, f.source)}</Badge>
+                            {f.source === "ww" && f.ww_stage && f.external_status !== "C" && <Badge variant="outline">{f.ww_stage}</Badge>}
                             {isAgedFulfillment(f.external_status, f.fulfillment_date) && (
                               <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">Aged</Badge>
                             )}

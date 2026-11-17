@@ -9,6 +9,16 @@ export type ReleaseNote = {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: "1.36.0",
+    date: "2026-11-16",
+    changes: [
+      "Orders, Trips and Customers now work without NetSuite: enter sales orders with New order and add customers on the Customers page",
+      "Plan a trip from an order (date, truck, trip number and picker); the floor picks, packs, stages, loads and departs it on Trips as before",
+      "Departing a trip planned in Warehouse Wizard ships the order; a short line stays open to plan on another trip",
+    ],
+    fixes: ["The NetSuite queue trigger now reads only the NetSuite connection"],
+  },
+  {
     version: "1.35.1",
     date: "2026-11-05",
     changes: ["Browser tabs now use matching Warehouse Wizard icons with transparent corners"],

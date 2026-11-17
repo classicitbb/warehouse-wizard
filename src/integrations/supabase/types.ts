@@ -593,6 +593,7 @@ export type Database = {
           on_credit_hold: boolean
           phone: string | null
           ship_complete: boolean
+          source: string
           source_modified_at: string | null
           updated_at: string
         }
@@ -610,6 +611,7 @@ export type Database = {
           on_credit_hold?: boolean
           phone?: string | null
           ship_complete?: boolean
+          source?: string
           source_modified_at?: string | null
           updated_at?: string
         }
@@ -627,6 +629,7 @@ export type Database = {
           on_credit_hold?: boolean
           phone?: string | null
           ship_complete?: boolean
+          source?: string
           source_modified_at?: string | null
           updated_at?: string
         }
@@ -2371,6 +2374,7 @@ export type Database = {
           picker_external_id: string | null
           picker_name: string | null
           ship_sync_job_id: string | null
+          source: string
           source_modified_at: string | null
           staged_at: string | null
           staging_location_id: string | null
@@ -2399,6 +2403,7 @@ export type Database = {
           picker_external_id?: string | null
           picker_name?: string | null
           ship_sync_job_id?: string | null
+          source?: string
           source_modified_at?: string | null
           staged_at?: string | null
           staging_location_id?: string | null
@@ -2427,6 +2432,7 @@ export type Database = {
           picker_external_id?: string | null
           picker_name?: string | null
           ship_sync_job_id?: string | null
+          source?: string
           source_modified_at?: string | null
           staged_at?: string | null
           staging_location_id?: string | null
@@ -5896,6 +5902,7 @@ export type Database = {
           picking_ticket_printed: boolean | null
           requested_ship_date: string | null
           ship_complete: boolean | null
+          source: string | null
           trip_number: string | null
           truck_name: string | null
           unmapped_line_count: number | null
@@ -5988,6 +5995,7 @@ export type Database = {
             | Database["public"]["Enums"]["integration_job_status"]
             | null
           short_tasks: number | null
+          source: string | null
           staging_lane: string | null
           trip_number: string | null
           truck_external_id: string | null
