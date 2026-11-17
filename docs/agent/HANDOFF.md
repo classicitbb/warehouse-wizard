@@ -368,3 +368,13 @@ Status: Complete — no active handoff
 - Environment: sandbox checkout only; no commit, push, publication, database, authentication, or permission changes. Release metadata remains unchanged pending publication.
 - Approval required: public publication per repository instructions.
 - Exact next action: `npm run dev -- --host 127.0.0.1 --port 8082` from the sandbox checkout, then visually verify header edge alignment and hover/menu behavior in a signed-in local browser before release preparation and publication approval.
+
+## Alert badge and layout follow-up - 2026-11-16
+
+Status: Complete - no active handoff for this local UI task.
+
+- Files: src/features/shared/app-shell.tsx; src/features/putaway/putaway-page.tsx; src/features/receiving/inbound-browser-dialog.tsx; src/features/receiving/inbound-shipment-card.tsx; continuity documents.
+- Alert counts are inset; alert trigger uses accent colors while notifications exist. Desktop Put-Away is capped at 48rem without changing mobile breakpoint. Shipment rows are flush, separated by borders and alternating background bands.
+- Checks: npm run typecheck passed; npm run test -- src/test/app-shell.test.tsx src/test/inbound-browser-dialog.test.tsx src/test/putaway-page.test.tsx passed 50 tests; npm run build passed (existing chunk-size warnings); git diff --check passed. Browser visually checked local desktop Put-Away cards, mobile layout, alert state, and inbound bands. Temporary viewport reset and verification tab closed.
+- Editing encountered Python codec errors on mixed-encoding files; retried with explicit UTF-8 for source and byte-preserving append for continuity. No unresolved build/test failures.
+- Environment: existing sandbox Vite server on localhost:8080. Local changes only; no data writes or publication. Public deployment requires approval under repository instructions if requested. Exact next action: none for local implementation.

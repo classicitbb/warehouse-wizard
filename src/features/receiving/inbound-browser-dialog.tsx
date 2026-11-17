@@ -237,7 +237,7 @@ export function InboundBrowserDialog({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {!online && (
             <p role="status" className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               Connect to the network to browse NetSuite.
@@ -262,7 +262,7 @@ export function InboundBrowserDialog({
             </div>
           )}
           {shipments.length > 0 && (
-            <ul className={cn("grid gap-2", fetching && "opacity-70")} aria-busy={fetching}>
+            <ul className={cn("grid gap-0", fetching && "opacity-70")} aria-busy={fetching}>
               {shipments.map((shipment) => (
                 <InboundShipmentCard
                   key={shipment.id}

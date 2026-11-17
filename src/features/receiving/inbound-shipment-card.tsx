@@ -73,8 +73,8 @@ export function InboundShipmentCard({
   return (
     <li
       className={cn(
-        "group overflow-hidden rounded-lg border bg-card transition-colors",
-        expanded ? "border-primary/50" : "border-border hover:border-primary/40 hover:bg-secondary/20",
+        "group overflow-hidden border-b border-border odd:bg-card even:bg-secondary/40 transition-colors",
+        expanded ? "ring-1 ring-inset ring-primary/50" : "hover:ring-1 hover:ring-inset hover:ring-primary/40",
       )}
     >
       <div className="flex items-start gap-2 p-3">

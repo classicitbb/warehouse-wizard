@@ -426,7 +426,10 @@ function NotificationBell({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-0 hover:bg-accent focus-visible:ring-inset"
+          className={cn(
+            "relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border px-0 hover:bg-accent hover:text-accent-foreground focus-visible:ring-inset",
+            notificationCount ? "bg-accent text-accent-foreground" : "bg-transparent",
+          )}
           size="icon"
           variant="outline"
           aria-label={notificationCount ? `${notificationCount} notification${notificationCount === 1 ? "" : "s"}` : "Notifications"}
@@ -436,10 +439,10 @@ function NotificationBell({
           {notificationCount ? (
             <span
               className={cn(
-                "absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
+                "absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
                 connectivityCount
                   ? "bg-destructive text-destructive-foreground"
-                  : "bg-amber-500 text-white",
+                  : "bg-foreground text-background",
               )}
             >
               {notificationCount > 9 ? "9+" : notificationCount}
