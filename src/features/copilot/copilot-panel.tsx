@@ -541,7 +541,7 @@ export function CopilotPanel({ variant = "desktop" }: { variant?: "desktop" | "m
             <Bot className="h-3.5 w-3.5" />
           </Button>
         ) : (
-          <Button size="sm" variant="outline" className="h-[43px] gap-2 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset" aria-label="Ask Copilot">
+          <Button size="sm" variant="ghost" className="h-full gap-1.5 rounded-none border-l border-border px-2.5 text-sm focus-visible:ring-inset data-[state=open]:bg-accent data-[state=open]:text-accent-foreground" aria-label="Ask Copilot" title="Ask Copilot">
             <Bot className="h-4 w-4" />
             <span className="hidden xl:inline">Copilot</span>
           </Button>

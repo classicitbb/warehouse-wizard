@@ -71,10 +71,11 @@ export function SettingsPage() {
 
   const tabAllowed = availableSettingsTabs.includes(activeSettingsTab);
   const warehouseStructureActive = tabAllowed && activeSettingsTab === "warehouse-structure";
+  const framedSettingsTab = tabAllowed && ["users-roles", "modules", "client-vars", "about", "notifications"].includes(activeSettingsTab);
 
   return (
-    <div className={cn("flex flex-col gap-6", warehouseStructureActive && "h-full min-h-0 overflow-hidden")}>
-      <div className="flex items-center gap-2">
+    <div className={cn("flex flex-col gap-6", (warehouseStructureActive || framedSettingsTab) && "h-full min-h-0", warehouseStructureActive && "overflow-hidden")}>
+      <div className="flex shrink-0 items-center gap-2">
         <h2 className="text-2xl font-semibold">Settings</h2>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -96,9 +97,9 @@ export function SettingsPage() {
       <Tabs
         value={tabAllowed ? activeSettingsTab : ""}
         onValueChange={(slug) => navigate(toPath(settingsTabPath(slug as SettingsTabSlug)))}
-        className={cn(warehouseStructureActive && "flex min-h-0 flex-1 flex-col")}
+        className={cn((warehouseStructureActive || framedSettingsTab) && "flex min-h-0 flex-1 flex-col")}
       >
-        <TabsList className="flex h-auto w-full flex-wrap items-stretch justify-start gap-1 sm:w-fit">
+        <TabsList className="flex h-auto w-full shrink-0 flex-wrap items-stretch justify-start gap-1 sm:w-fit">
           <TabsTrigger value="warehouse-structure" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Network className="h-3.5 w-3.5" />Warehouse Structure</TabsTrigger>
           {canViewUsersRoles && (
             <TabsTrigger value="users-roles" className="min-h-9 flex-1 gap-1.5 sm:flex-none"><Users className="h-3.5 w-3.5" />Users & Roles</TabsTrigger>
@@ -127,21 +128,21 @@ export function SettingsPage() {
           </div>
         )}
 
-        <TabsContent value="modules" className="mt-4">
+        <TabsContent value="modules" className="mt-4 min-h-40 flex-1">
           <TabLoader><ModulesSettingsPanel isAdmin={isDeveloperOrAdmin} /></TabLoader>
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-4 grid max-w-3xl gap-6">
+        <TabsContent value="notifications" className="mt-4 grid min-h-32 flex-1 content-start gap-4 overflow-y-auto overscroll-contain xl:min-h-56 xl:auto-rows-fr xl:grid-cols-2 xl:content-stretch xl:overflow-hidden">
           <NotificationSettingsPanel />
           <AudioCuesCard />
         </TabsContent>
 
-        <TabsContent value="environment" className="mt-4 grid gap-6 xl:grid-cols-2">
+        <TabsContent value="environment" className="mt-4">
           <EnvironmentSettingsTab isDeveloperOrAdmin={isDeveloperOrAdmin} />
         </TabsContent>
 
         {isEnabled("clients") && (
-          <TabsContent value="client-vars" className="mt-4">
+          <TabsContent value="client-vars" className="mt-4 min-h-40 flex-1">
             <TabLoader><ClientVariablesPanel /></TabLoader>
           </TabsContent>
         )}
@@ -153,8 +154,8 @@ export function SettingsPage() {
         )}
 
         {canViewUsersRoles && (
-          <TabsContent value="users-roles" className="mt-4">
-            <TabLoader><UsersRolesPage /></TabLoader>
+          <TabsContent value="users-roles" className="mt-4 min-h-0 flex-1">
+            <TabLoader><UsersRolesPage embedded /></TabLoader>
           </TabsContent>
         )}
 
@@ -175,7 +176,7 @@ export function SettingsPage() {
           <TabLoader><McpSettingsTab /></TabLoader>
         </TabsContent>
 
-        <TabsContent value="about" className="mt-4 grid gap-6 xl:grid-cols-2">
+        <TabsContent value="about" className="mt-4 grid min-h-[28rem] flex-1 auto-rows-fr gap-4 xl:min-h-56 xl:grid-cols-2">
           <AboutSettingsTab />
         </TabsContent>
 
