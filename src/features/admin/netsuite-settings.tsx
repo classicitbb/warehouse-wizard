@@ -519,7 +519,7 @@ function NetSuiteWarehouseMappingCard() {
 export function NetSuiteIntegrationsTab() {
   const netsuiteActive = useNetSuiteActive();
   return (
-    <Accordion type="multiple" defaultValue={["connection"]} className="rounded-lg border bg-card px-4 xl:col-span-2">
+    <Accordion type="multiple" defaultValue={[]} className="rounded-lg border bg-card px-4 xl:col-span-2">
       <NetSuiteIntegrationCard />
       <NetSuiteWarehouseMappingCard />
       {netsuiteActive && <NetSuiteBinsCard />}

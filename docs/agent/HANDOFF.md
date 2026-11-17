@@ -358,3 +358,23 @@ Status: Complete â€” no active handoff
 
 - Verified the live Page in LinkedIn member view at https://www.linkedin.com/company/warehousewizard/ with its logo, cover, tagline and Overview. The logo overlaps the left edge of the cover subtitle at the desktop viewport checked.
 - Launch posts, Facebook, Instagram, email and CRM setup remain separate follow-up work. No application code or configuration changed. No build needed.
+
+## Sandbox header and profile menu — 2026-11-16
+
+- Status: Local implementation complete; rendered browser verification and publication deferred.
+- Changes: removed desktop header right inset; paired profile/warehouse hover colors including profile initials and chevron; moved existing Lovable link from version badge into developer-only profile menu; added owner-supplied Warehouse Wizard platform link opening in a new tab.
+- Affected files: `src/features/shared/app-shell.tsx`, `docs/agent/PROJECT_KNOWLEDGE.md`, `docs/agent/HANDOFF.md`. Pre-existing changes in `bay-occupancy.tsx` and `core-types.ts` were preserved.
+- Verification: `npm run typecheck` passed; `npm run test -- src/test/app-shell.test.tsx` passed all 11 tests; final `npm run build` passed with existing large-chunk warning; `git diff --check` passed with an existing core-types line-ending warning. No check failures. Authenticated browser rendering was not tested.
+- Environment: sandbox checkout only; no commit, push, publication, database, authentication, or permission changes. Release metadata remains unchanged pending publication.
+- Approval required: public publication per repository instructions.
+- Exact next action: `npm run dev -- --host 127.0.0.1 --port 8082` from the sandbox checkout, then visually verify header edge alignment and hover/menu behavior in a signed-in local browser before release preparation and publication approval.
+
+## Alert badge and layout follow-up - 2026-11-16
+
+Status: Complete - no active handoff for this local UI task.
+
+- Files: src/features/shared/app-shell.tsx; src/features/putaway/putaway-page.tsx; src/features/receiving/inbound-browser-dialog.tsx; src/features/receiving/inbound-shipment-card.tsx; continuity documents.
+- Alert counts are inset; alert trigger uses accent colors while notifications exist. Desktop Put-Away is capped at 48rem without changing mobile breakpoint. Shipment rows are flush, separated by borders and alternating background bands.
+- Checks: npm run typecheck passed; npm run test -- src/test/app-shell.test.tsx src/test/inbound-browser-dialog.test.tsx src/test/putaway-page.test.tsx passed 50 tests; npm run build passed (existing chunk-size warnings); git diff --check passed. Browser visually checked local desktop Put-Away cards, mobile layout, alert state, and inbound bands. Temporary viewport reset and verification tab closed.
+- Editing encountered Python codec errors on mixed-encoding files; retried with explicit UTF-8 for source and byte-preserving append for continuity. No unresolved build/test failures.
+- Environment: existing sandbox Vite server on localhost:8080. Local changes only; no data writes or publication. Public deployment requires approval under repository instructions if requested. Exact next action: none for local implementation.

@@ -337,22 +337,23 @@ function OfflineSupervisorAlertToastCard({
 
 function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials: string; displayName: string; onSignOut: () => void; onRefresh: () => void }) {
   const [pwOpen, setPwOpen] = useState(false);
+  const { roles } = useAuth();
   return (
     <div className="contents">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex h-[43px] items-center gap-2 self-stretch border-l border-border bg-transparent px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="group flex h-[43px] items-center gap-2 self-stretch border-l border-border bg-transparent px-2.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <Avatar className="h-6 w-6">
-              <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary group-hover:text-accent-foreground">{initials}</AvatarFallback>
             </Avatar>
             <span className="hidden max-w-[120px] truncate text-xs font-medium lg:block">{displayName}</span>
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <ChevronDown className="h-3 w-3 opacity-70" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuItem onSelect={onRefresh}>
             <RefreshCw className="mr-2 h-3.5 w-3.5" />
             Refresh
@@ -361,6 +362,20 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
             <KeyRound className="mr-2 h-3.5 w-3.5" />
             Change password
           </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href="https://admin.warehousewizard.app/" target="_blank" rel="noopener noreferrer">
+              <Building2 className="mr-2 h-3.5 w-3.5" />
+              Warehouse Wizard platform
+            </a>
+          </DropdownMenuItem>
+          {roles.includes("developer") ? (
+            <DropdownMenuItem asChild>
+              <a href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf" target="_blank" rel="noopener noreferrer">
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Edit in Lovable
+              </a>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => onSignOut()}>
             <LogOut className="mr-2 h-3.5 w-3.5" />
@@ -411,7 +426,10 @@ function NotificationBell({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-0 hover:bg-accent focus-visible:ring-inset"
+          className={cn(
+            "relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border px-0 hover:bg-accent hover:text-accent-foreground focus-visible:ring-inset",
+            notificationCount ? "bg-accent text-accent-foreground" : "bg-transparent",
+          )}
           size="icon"
           variant="outline"
           aria-label={notificationCount ? `${notificationCount} notification${notificationCount === 1 ? "" : "s"}` : "Notifications"}
@@ -421,10 +439,10 @@ function NotificationBell({
           {notificationCount ? (
             <span
               className={cn(
-                "absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
+                "absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
                 connectivityCount
                   ? "bg-destructive text-destructive-foreground"
-                  : "bg-amber-500 text-white",
+                  : "bg-foreground text-background",
               )}
             >
               {notificationCount > 9 ? "9+" : notificationCount}
@@ -1323,7 +1341,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Desktop top bar — landscape only, spans the full viewport width */}
-        <div className="col-span-full hidden h-[43px] items-center justify-between gap-3 border-b border-border bg-background/95 px-[21px] py-0 backdrop-blur lg:landscape:flex">
+        <div className="col-span-full hidden h-[43px] items-center justify-between gap-3 border-b border-border bg-background/95 pl-[21px] pr-0 py-0 backdrop-blur lg:landscape:flex">
 
             <div className="flex min-w-0 items-center gap-3">
               <Link
@@ -1336,25 +1354,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </span>
                 <span className="text-sm font-semibold">Warehouse Wizard</span>
               </Link>
-              {roles.includes("developer") ? (
-                <a
-                  href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf"
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Edit with Lovable"
-                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
-                >
-                  {__APP_VERSION__}
-                </a>
-              ) : (
-                <Link
-                  to={toPath("/settings/about")}
-                  title="Version details"
-                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
-                >
-                  {__APP_VERSION__}
-                </Link>
-              )}
+              <Link
+                to={toPath("/settings/about")}
+                title="Version details"
+                className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+              >
+                {__APP_VERSION__}
+              </Link>
               {reconnectRefreshing ? (
                 <Loader2
                   role="status"
@@ -1386,7 +1392,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onValueChange={(value) => warehouseSwitchMutation.mutate(value === "__all__" ? null : value)}
                   disabled={warehouseSwitchMutation.isPending}
                 >
-                  <SelectTrigger className="h-[43px] w-[13rem] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset">
+                  <SelectTrigger className="h-[43px] w-[13rem] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent hover:text-accent-foreground focus-visible:ring-inset">
                     <SelectValue placeholder="Select warehouse" />
                   </SelectTrigger>
                   <SelectContent>
