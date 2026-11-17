@@ -924,17 +924,22 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
     .map((row: { id?: string }) => row.id)
     .filter((id): id is string => Boolean(id));
   const recordedPalletIds = new Set<string>(palletIds);
+  const palletBatches: string[][] = [];
   for (let index = 0; index < palletIds.length; index += LOCATION_OCCUPANCY_BATCH_SIZE) {
-    const batch = palletIds.slice(index, index + LOCATION_OCCUPANCY_BATCH_SIZE);
+    palletBatches.push(palletIds.slice(index, index + LOCATION_OCCUPANCY_BATCH_SIZE));
+  }
+  // Batches run in parallel: a whole-warehouse bay view used to wait on each
+  // one in turn.
+  await Promise.all(palletBatches.map(async (batch) => {
     const { data, error } = await db("inventory_balances")
       .select("pallet_id")
       .in("pallet_id", batch)
       .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER);
     // Fail open on a read error: never drop real stock out of the count.
-    if (error) continue;
+    if (error) return;
     const found = new Set((data ?? []).map((row: { pallet_id?: string }) => row.pallet_id));
     for (const id of batch) if (!found.has(id)) recordedPalletIds.delete(id);
-  }
+  }));
 
   // Superseded correction rows and zeroed-out stock keep a location_id in the
   // database but no longer represent a physical pallet in the bay — counting
