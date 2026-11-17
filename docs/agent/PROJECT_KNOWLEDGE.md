@@ -99,3 +99,8 @@ Update this section whenever code introduces, removes, or renames configuration.
 
 - 2026-11-05 favicon release authorized for deployment. Tenant release 1.35.1 updates package metadata, release history and Notifications/Update Alerts Help together. Sandbox first fast-forwarded to existing remote main to preserve already-merged trip dispatch work; no migrations or edge functions are deployed for this asset release.
 - 2026-11-05 favicon release authorized for deployment. Tenant release 1.34.1 updates package metadata, release history and Notifications/Update Alerts Help together. Sandbox first fast-forwarded to existing remote main to preserve already-merged trip dispatch work; no migrations or edge functions are deployed for this asset release.
+
+## Sandbox header controls — 2026-11-16
+
+- Desktop header right padding is zero; existing left spacing is retained. Profile and warehouse triggers pair accent hover backgrounds with accent foreground text. Shared Button-based header controls already use that pair.
+- Version links open Settings/About for all roles. The existing Lovable editor link is in the profile dropdown and retains the developer-role visibility check. Warehouse Wizard platform opens the owner-supplied https://admin.warehousewizard.app/ in a new tab. No authentication, permissions, environment-variable names, or services changed.

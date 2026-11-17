@@ -358,3 +358,13 @@ Status: Complete â€” no active handoff
 
 - Verified the live Page in LinkedIn member view at https://www.linkedin.com/company/warehousewizard/ with its logo, cover, tagline and Overview. The logo overlaps the left edge of the cover subtitle at the desktop viewport checked.
 - Launch posts, Facebook, Instagram, email and CRM setup remain separate follow-up work. No application code or configuration changed. No build needed.
+
+## Sandbox header and profile menu — 2026-11-16
+
+- Status: Local implementation complete; rendered browser verification and publication deferred.
+- Changes: removed desktop header right inset; paired profile/warehouse hover colors including profile initials and chevron; moved existing Lovable link from version badge into developer-only profile menu; added owner-supplied Warehouse Wizard platform link opening in a new tab.
+- Affected files: `src/features/shared/app-shell.tsx`, `docs/agent/PROJECT_KNOWLEDGE.md`, `docs/agent/HANDOFF.md`. Pre-existing changes in `bay-occupancy.tsx` and `core-types.ts` were preserved.
+- Verification: `npm run typecheck` passed; `npm run test -- src/test/app-shell.test.tsx` passed all 11 tests; final `npm run build` passed with existing large-chunk warning; `git diff --check` passed with an existing core-types line-ending warning. No check failures. Authenticated browser rendering was not tested.
+- Environment: sandbox checkout only; no commit, push, publication, database, authentication, or permission changes. Release metadata remains unchanged pending publication.
+- Approval required: public publication per repository instructions.
+- Exact next action: `npm run dev -- --host 127.0.0.1 --port 8082` from the sandbox checkout, then visually verify header edge alignment and hover/menu behavior in a signed-in local browser before release preparation and publication approval.
