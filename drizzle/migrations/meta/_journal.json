@@ -201,36 +201,71 @@
     {
       "idx": 28,
       "version": "7",
-      "when": 1794847417423,
-      "tag": "0028_trip_dispatch",
+      "when": 1794847015026,
+      "tag": "0028_20261104090000_trip_dispatch",
       "breakpoints": true
     },
     {
       "idx": 29,
+      "version": "7",
+      "when": 1794847029786,
+      "tag": "0029_20261116150000_restrict_reset_wms_data_execute",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
       "version": "7",
       "when": 1794854012320,
       "tag": "0029_trip_pick_reserve_replenishment",
       "breakpoints": true
     },
     {
-      "idx": 30,
+      "idx": 31,
       "version": "7",
       "when": 1794854141733,
       "tag": "0030_trip_pick_reserve_balance_dates",
       "breakpoints": true
     },
     {
-      "idx": 31,
+      "idx": 32,
       "version": "7",
       "when": 1794854227354,
       "tag": "0031_trip_pick_reserve_request_readback",
       "breakpoints": true
     },
     {
-      "idx": 32,
+      "idx": 33,
       "version": "7",
       "when": 1794876083825,
       "tag": "0032_standalone_outbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794974675724,
+      "tag": "0034_20261116161500_reset_wms_data_server_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794974702047,
+      "tag": "0035_20261116200000_netsuite_po_receipt_skip_inbound_shipment",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794974718577,
+      "tag": "0036_20261116210000_netsuite_live_push_all_outbound_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794974829322,
+      "tag": "0037_fix_open_fulfillment_demand_trip_picks",
       "breakpoints": true
     }
   ]

@@ -749,7 +749,7 @@ function UsersRolesPageImpl(embedded: boolean) {
                       <TableRow key={feature.id}>
                         <TableCell className="sticky left-0 z-[1] bg-card">
                           <div className="font-medium" title={feature.description}>{feature.name}</div>
-                          
+
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch

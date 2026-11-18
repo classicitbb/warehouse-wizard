@@ -68,7 +68,7 @@ export function EnvironmentSettingsTab({ isDeveloperOrAdmin }: { isDeveloperOrAd
           <AccordionContent>
       <Card className="border-0 shadow-none">
         <CardHeader className="px-0 pt-0 pb-3">
-          
+
           <CardDescription>Use the setup wizard to build the warehouse structure. Forms start blank; nothing is seeded automatically.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 px-0 pb-0 text-sm text-muted-foreground">

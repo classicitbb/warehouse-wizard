@@ -347,6 +347,8 @@ const routeHelpDefinitions: Record<string, RouteHelpDefinition> = {
     summary: "Settings houses environment guidance, the Warehouse Structure tool, user management, the setup wizard, and reset controls.",
     keyActions: [
       "Manage users, roles, badges, PINs, and the Role Matrix in the Users & Roles tab",
+      "Use the Modules table to manage visibility and personal toolbar shortcuts",
+      "Open Notifications to configure device alerts and preview audio cues",
       "Open the Warehouse Structure tab for a live tree view of warehouses, zones, aisles, bays, and locations",
       "Launch the warehouse setup wizard or rebuild after a Reset All",
       "Run Reset All with the typed challenge when the environment must be rebuilt",
