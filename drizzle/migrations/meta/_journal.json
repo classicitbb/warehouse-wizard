@@ -239,6 +239,27 @@
       "when": 1794876083825,
       "tag": "0032_standalone_outbound",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794974675724,
+      "tag": "0034_20261116161500_reset_wms_data_server_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794974702047,
+      "tag": "0035_20261116200000_netsuite_po_receipt_skip_inbound_shipment",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794974718577,
+      "tag": "0036_20261116210000_netsuite_live_push_all_outbound_jobs",
+      "breakpoints": true
     }
   ]
 }
