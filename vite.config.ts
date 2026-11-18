@@ -6,6 +6,41 @@ import { componentTagger } from "lovable-tagger";
 import pkg from "./package.json" with { type: "json" };
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 
+// Copilot-only rendering libraries: Shiki grammars/themes, Mermaid and its graph
+// layout stack, and the screenshot capturer. They were ~14 MB of the ~17 MB
+// precache, so every install and every deploy re-downloaded them onto handsets
+// that never open the Copilot. Copilot needs the network anyway, so its lazy
+// chunks are left out of the precache and fetched on demand like any asset.
+const COPILOT_ONLY_PACKAGE =
+  /^(shiki|@shikijs\/[^/]+|mermaid|@mermaid-js\/[^/]+|cytoscape[^/]*|layout-base|cose-base|dagre[^/]*|@upsetjs\/[^/]+|katex|html2canvas-pro)$/;
+const copilotOnlyChunks = new Set<string>();
+
+function packageOf(id: string) {
+  const p = id.split(path.sep).join("/").split("?")[0];
+  const i = p.lastIndexOf("node_modules/");
+  if (i < 0) return null;
+  const parts = p.slice(i + "node_modules/".length).split("/");
+  return parts.slice(0, parts[0].startsWith("@") ? 2 : 1).join("/");
+}
+
+/** Records lazy chunks whose code is mostly a Copilot-only package; the precache manifest drops them. */
+const copilotChunkCollector = {
+  name: "ww-copilot-chunk-collector",
+  generateBundle(_options, bundle) {
+    copilotOnlyChunks.clear();
+    for (const chunk of Object.values(bundle)) {
+      if (chunk.type !== "chunk" || chunk.isEntry) continue;
+      const bytesByPackage = new Map<string | null, number>();
+      for (const [id, mod] of Object.entries(chunk.modules)) {
+        const pkg = packageOf(id);
+        bytesByPackage.set(pkg, (bytesByPackage.get(pkg) ?? 0) + mod.renderedLength);
+      }
+      const [dominant] = [...bytesByPackage].sort((a, b) => b[1] - a[1])[0] ?? [null];
+      if (dominant && COPILOT_ONLY_PACKAGE.test(dominant)) copilotOnlyChunks.add(chunk.fileName);
+    }
+  },
+} satisfies Plugin;
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   cacheDir: "/tmp/vite-cache",
@@ -29,6 +64,7 @@ export default defineConfig(({ mode }) => ({
         this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version: pkg.version }) });
       },
     } satisfies Plugin,
+    copilotChunkCollector,
     // The code generator currently emits non-portable absolute imports on Windows.
     process.platform !== "win32" && mcpPlugin(),
     VitePWA({
@@ -47,6 +83,9 @@ export default defineConfig(({ mode }) => ({
         // today, but a file above the limit is dropped from the precache with
         // only a build warning — a silent offline regression.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        manifestTransforms: [
+          (entries) => ({ manifest: entries.filter((entry) => !copilotOnlyChunks.has(entry.url)), warnings: [] }),
+        ],
       },
       // `workbox.navigateFallbackDenylist` has no injectManifest equivalent —
       // InjectManifestOptions omits every generateSW-only key — so that

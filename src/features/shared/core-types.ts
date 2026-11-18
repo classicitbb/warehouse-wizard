@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
 import { validateIso6346ContainerNumber } from "@/lib/container-number";
@@ -676,18 +675,30 @@ export const statusChangeSchema = z.object({
   reason: z.string().min(3),
 });
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// Local-time "dd MMM yyyy" / "dd MMM yyyy, HH:mm". Matches date-fns `format` for these patterns
+// (including its RangeError on an invalid date) without bundling date-fns into the entry chunk.
+function formatDayMonthYear(date: Date, withTime: boolean) {
+  if (Number.isNaN(date.getTime())) throw new RangeError("Invalid time value");
+  const year = date.getFullYear();
+  const day = `${pad2(date.getDate())} ${MONTH_ABBR[date.getMonth()]} ${String(year > 0 ? year : 1 - year).padStart(4, "0")}`;
+  return withTime ? `${day}, ${pad2(date.getHours())}:${pad2(date.getMinutes())}` : day;
+}
+
 export function formatDate(value: string | null | undefined) {
   if (!value) return "—";
   // A date-only value (expiry, due date) has no time zone; `new Date("2026-10-01")`
   // reads it as UTC midnight, which displays as the previous day west of UTC.
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   const date = dateOnly ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])) : new Date(value);
-  return format(date, "dd MMM yyyy");
+  return formatDayMonthYear(date, false);
 }
 
 export function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy, HH:mm");
+  return formatDayMonthYear(new Date(value), true);
 }
 
 export function formatNumber(value: number | null | undefined) {

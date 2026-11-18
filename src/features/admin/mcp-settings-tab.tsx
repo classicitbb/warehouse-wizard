@@ -20,6 +20,7 @@ const MCP_TOOLS = [
   { name: "list_warehouses", what: "Lists warehouses you can see (optionally hidden ones).", reads: "warehouses" },
   { name: "search_products", what: "Finds active products by SKU, barcode or name.", reads: "products" },
   { name: "inventory_summary", what: "On-hand, available and reserved quantities for a SKU per warehouse and location.", reads: "products, inventory balances, locations" },
+  { name: "stock_report", what: "Bulk stock by warehouse, location, aisle, status, expiry or SKU list, as rows or per-SKU totals.", reads: "inventory balances, products, warehouses, locations" },
 ];
 
 function CopyField({ value }: { value: string }) {
