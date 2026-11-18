@@ -432,3 +432,15 @@ Status: Complete — no active handoff
 Status: Complete — no active handoff
 
 - Updated admin-page.tsx, client-variables-panel.tsx, about-settings-tab.tsx, notification-settings.tsx and audio-cues-card.tsx. Typecheck passed. Browser confirmed Client Variables and both About cards end 24px above the bottom of the desktop viewport, both About bodies scroll independently, and both Notifications cards stay in frame at 1280x720 with overflow inside the card. Client Variables had no rows to scroll in the preview. Local sandbox only.
+
+## Sandbox 1.36.0 production promotion — 2026-11-17
+
+Status: Promotion candidate validated. Production migration and deployment pending.
+
+- Candidate merges sandbox main at 7d9f004 into production main at 89334d5. Kept production environment and applied SQL. Reconciled the Drizzle journal and snapshots, carried forward the generated database type additions, and updated the Settings Help and release notes.
+- Affected paths include Settings, shell, outbound orders and trips, NetSuite receipts and queue, platform support, Drizzle metadata, and five new Supabase migrations and related Edge Functions.
+- Passed npm ci --no-audit --no-fund, npm run typecheck, npm run build, and 76 tests covering outbound SQL, trip reserve SQL, NetSuite receipts, shell, and Help. The build retains its chunk-size warning. Git whitespace check flags one existing final blank line in the incoming NetSuite receipt migration. Preserved its sandbox bytes.
+- Production Supabase connector list_migrations failed with MCP -32600 (You do not have permission to perform this action). The local Supabase CLI checkout is unlinked. No production migration, Edge Function deploy, merge or publication has occurred.
+- Exact next action after production Supabase access is available: run `supabase migration list --linked` from the verified production-linked checkout and compare its remote ledger with the candidate before sequencing any schema, function, or app deployment. Confirm the production permission changes for Reset WMS and outbound RPCs before applying them.
+
+- Draft PR #42 is open. Lovable MCP get_project and list_workspaces returned MCP -32603 Internal error; list_messages also returned an error. No Lovable write was attempted. When the connector is available, read the production Lovable project with get_project, then verify its migration ledger before applying or deploying anything.

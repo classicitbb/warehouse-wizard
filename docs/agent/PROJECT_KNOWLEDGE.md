@@ -129,3 +129,5 @@ Update this section whenever code introduces, removes, or renames configuration.
 - AppShell bottom padding matches its responsive side inset, plus the dock height and safe area when the dock is visible. Hidden TabsContent panels are display:none even when their active layout uses grid or flex.
 
 - Client Variables uses the Settings height and sticky TableFrame header. About bounds its two scrollable cards within the panel, and Notifications uses a compact responsive grid with panel scrolling when necessary.
+
+- Production promotion of 1.36.0 keeps production Drizzle snapshots and journal entries through index 29. Sandbox trip dispatch is SQL-identical to the applied production entry, and the four subsequent sandbox entries extend the production journal with their existing SQL tags. The production environment files stay at the production baseline. Platform support uses optional VITE_PLATFORM_URL.
