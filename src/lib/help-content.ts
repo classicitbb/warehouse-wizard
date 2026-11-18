@@ -1071,7 +1071,7 @@ const routeMatchers: Array<{ match: (pathname: string) => boolean; helpId: strin
   { match: (pathname) => pathname === "/system-log", helpId: "system-log" },
   { match: (pathname) => pathname === "/email-log", helpId: "email-log" },
   { match: (pathname) => pathname === "/settings", helpId: "settings" },
-  { match: (pathname) => pathname === "/help", helpId: "help" },
+  { match: (pathname) => pathname === "/help" || pathname.startsWith("/help/"), helpId: "help" },
   { match: (pathname) => pathname === "/setup-wizard", helpId: "setup-wizard" },
 ];
 
