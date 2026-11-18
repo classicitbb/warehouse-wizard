@@ -101,6 +101,100 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "stock_report",
+        "title": "Bulk stock report",
+        "description": "Stock across many SKUs in one call. Filter by warehouse, location/aisle, status, expiry window or a list of SKUs. group_by='none' returns balance rows with paging (offset/limit, has_more); 'sku' or 'sku_warehouse' returns totals (quantity, available, reserved, held, damaged) aggregated over every matching row. Excludes shipped stock unless statuses includes 'shipped'.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "warehouse": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Warehouse code, e.g. 'WH1'."
+            },
+            "location_prefix": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Location code prefix, e.g. 'A-01'."
+            },
+            "aisle": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact aisle, e.g. 'A'."
+            },
+            "statuses": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "receiving",
+                  "available",
+                  "reserved",
+                  "picked",
+                  "staged",
+                  "in_transit",
+                  "hold",
+                  "quarantine",
+                  "damaged",
+                  "missing",
+                  "shipped"
+                ]
+              },
+              "minItems": 1,
+              "description": "Only these inventory statuses."
+            },
+            "skus": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1,
+              "maxItems": 500,
+              "description": "Exact SKUs (up to 500)."
+            },
+            "expiring_within_days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650,
+              "description": "Only stock expiring within N days (includes already expired)."
+            },
+            "only_with_issues": {
+              "type": "boolean",
+              "description": "Only rows with held or damaged quantity > 0, or status hold/quarantine/damaged/missing."
+            },
+            "group_by": {
+              "type": "string",
+              "enum": [
+                "none",
+                "sku",
+                "sku_warehouse"
+              ],
+              "description": "Default 'none'."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Row/group offset for paging (default 0)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "description": "Rows/groups per page (default 200, max 1000)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
