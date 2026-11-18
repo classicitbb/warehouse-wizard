@@ -99,3 +99,35 @@ Update this section whenever code introduces, removes, or renames configuration.
 
 - 2026-11-05 favicon release authorized for deployment. Tenant release 1.35.1 updates package metadata, release history and Notifications/Update Alerts Help together. Sandbox first fast-forwarded to existing remote main to preserve already-merged trip dispatch work; no migrations or edge functions are deployed for this asset release.
 - 2026-11-05 favicon release authorized for deployment. Tenant release 1.34.1 updates package metadata, release history and Notifications/Update Alerts Help together. Sandbox first fast-forwarded to existing remote main to preserve already-merged trip dispatch work; no migrations or edge functions are deployed for this asset release.
+
+## Sandbox header controls — 2026-11-16
+
+- Desktop header right padding is zero; existing left spacing is retained. Profile and warehouse triggers pair accent hover backgrounds with accent foreground text. Shared Button-based header controls already use that pair.
+- Version links open Settings/About for all roles. The existing Lovable editor link is in the profile dropdown and retains the developer-role visibility check. Warehouse Wizard platform opens the owner-supplied https://admin.warehousewizard.app/ in a new tab. No authentication, permissions, environment-variable names, or services changed.
+
+## Local UI density follow-up - 2026-11-16
+
+- Notification count stays inside its 43px trigger; notifications use the accent background/foreground pair persistently. Put-Away list is capped at 48rem at the existing lg breakpoint; smaller screens retain full available width. Inbound rows have no outer padding or gaps, use border separators and alternating card/secondary bands, and retain internal control padding. No services, environment variables, data flows, or permissions changed.
+
+
+## Sandbox desktop toolbar - 2026-11-16
+
+- Local preview on localhost:8080 is served by warehousewizard-sandbox. The landscape desktop header uses a 56px row, a warehouse selector, grouped utility actions and a separate account trigger. It uses existing theme tokens and the existing lg landscape breakpoint. Phone and tablet controls retain their existing layout. No dependencies, environment variables, services or connector changes.
+
+- Follow-up: desktop header returns to 43px with flush, square right-side controls and a borderless logo. The left-side wordmark, version badge and breadcrumb layout are retained.
+
+- User Management places Add User and the Users-only inactive toggle beside the inner tabs where space allows. The Users tab is the sole list-count display.
+
+- The Users table takes the remaining Settings panel height. TableFrame owns both scroll axes and the column header sticks inside it. Short viewports can still scroll the surrounding page to reach the table.
+
+- Settings uses the Users & Roles tab as the panel label. The standalone Users route retains its heading.
+
+- Role Matrix and Activity also use the remaining panel height and scroll rows inside TableFrame under sticky column headers. The Role Matrix Feature column stays pinned horizontally.
+
+- Settings Modules uses a grouped, compact table with separate personal shortcut and visibility columns. Access places the role assignment controls above Current Access and Role history, which sit side by side on wide screens. Both layouts reuse existing handlers and permissions.
+
+- AppShell bottom padding matches its responsive side inset, plus the dock height and safe area when the dock is visible. Hidden TabsContent panels are display:none even when their active layout uses grid or flex.
+
+- Client Variables uses the Settings height and sticky TableFrame header. About bounds its two scrollable cards within the panel, and Notifications uses a compact responsive grid with panel scrolling when necessary.
+
+- Production promotion of 1.36.0 keeps production Drizzle snapshots and journal entries through index 29. Sandbox trip dispatch is SQL-identical to the applied production entry, and the four subsequent sandbox entries extend the production journal with their existing SQL tags. The production environment files stay at the production baseline. Platform support uses optional VITE_PLATFORM_URL.

@@ -62,8 +62,8 @@ export function ClientVariablesPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
         <div>
           <p className="font-medium">Client Variables</p>
           <p className="text-sm text-muted-foreground">Per-client configuration values such as rates, thresholds, and operational flags.</p>
@@ -74,9 +74,9 @@ export function ClientVariablesPanel() {
         </Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <TableFrame>
+      <Card className="flex min-h-24 min-w-0 flex-1 flex-col overflow-hidden">
+        <CardContent className="min-h-0 flex-1 p-0">
+          <TableFrame className="h-full min-h-0">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>

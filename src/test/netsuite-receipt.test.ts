@@ -199,6 +199,8 @@ describe("interpretReceiptResponse", () => {
     });
     expect(interpretReceiptResponse({ ok: false, code: "RCRD_HAS_BEEN_CHANGED", retryable: true, error: "changed" })).toMatchObject({ ok: false, retryable: true });
     expect(interpretReceiptResponse({ ok: true, itemReceiptIds: [5], alreadyProcessed: false })).toEqual({ ok: true, receiptIds: ["5"], alreadyProcessed: false });
+    // Saved in NetSuite but the RESTlet missed the new ids: a retry would receive twice.
+    expect(interpretReceiptResponse({ ok: true, itemReceiptIds: [], alreadyProcessed: false })).toEqual({ ok: true, receiptIds: [], alreadyProcessed: false });
   });
 });
 
@@ -218,5 +220,45 @@ describe("W4: NetSuite line saved with the draft", () => {
     expect(netsuiteRefFromDraftMeta({ netsuite: { lineKey: "9" } })).toEqual({
       lineKey: "9", lineNumber: null, itemName: "", ordered: 0, received: 0, remaining: 0,
     });
+  });
+});
+
+describe("resolveShipmentLineKeys", () => {
+  it("swaps PO line keys for inbound shipment line ids and keeps ids as they are", async () => {
+    const { resolveShipmentLineKeys } = await import("../../supabase/functions/_shared/netsuite-receipt");
+    const rows = [{ id: "549", poLineKey: "158175" }, { id: "550", poLineKey: "228033" }];
+    const out = resolveShipmentLineKeys({
+      inboundShipmentId: "71", externalRef: "r",
+      lines: [
+        { shipmentLineKey: "158175", quantity: 5, inventoryAssignment: [{ receiptInventoryNumber: "A", quantity: 5 }] },
+        { shipmentLineKey: "549", quantity: 3, inventoryAssignment: [{ receiptInventoryNumber: "B", quantity: 3 }] },
+        { shipmentLineKey: "550", quantity: 2 },
+      ],
+    }, rows);
+    expect(out.lines).toEqual([
+      { shipmentLineKey: "549", quantity: 8, inventoryAssignment: [{ receiptInventoryNumber: "A", quantity: 5 }, { receiptInventoryNumber: "B", quantity: 3 }] },
+      { shipmentLineKey: "550", quantity: 2 },
+    ]);
+  });
+});
+
+describe("matchPendingReceipts", () => {
+  it("prefers a receipt stamped with the job's ref, then pairs the rest oldest-first by PO and item", async () => {
+    const { matchPendingReceipts } = await import("../../supabase/functions/_shared/netsuite-receipt");
+    const jobs = [
+      { jobId: "b", externalRef: "ref-b", poId: "10", itemId: "5", postedAt: "2026-11-16T19:53:20Z" },
+      { jobId: "a", externalRef: "ref-a", poId: "10", itemId: "5", postedAt: "2026-11-16T19:53:10Z" },
+      { jobId: "c", externalRef: "ref-c", poId: "11", itemId: "6", postedAt: "2026-11-16T19:53:30Z" },
+      { jobId: "d", externalRef: "ref-d", poId: "10", itemId: "5", postedAt: "2026-11-16T19:53:40Z" },
+    ];
+    const receipts = [
+      { receiptId: "102", poId: "10", itemId: "5", ref: null },
+      { receiptId: "101", poId: "10", itemId: "5", ref: null },
+      { receiptId: "103", poId: "10", itemId: "5", ref: "someone-else" },
+      { receiptId: "200", poId: "11", itemId: "6", ref: "ref-c" },
+      { receiptId: "100", poId: "10", itemId: "5", ref: null },
+    ];
+    const out = matchPendingReceipts(jobs, receipts, new Set(["100"]));
+    expect(Object.fromEntries(out)).toEqual({ c: "200", a: "101", b: "102" });
   });
 });

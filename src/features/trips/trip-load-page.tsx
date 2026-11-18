@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { TRIPS_QUERY_KEY, fetchTripBoard, groupTrips, orderLabel, tripTitle, type TripBoardRow } from "./trips-core";
-import { STAGE_LABELS, departTrip, loadTripScan, tripDispatchState } from "./trip-dispatch-core";
+import { STAGE_LABELS, departMessage, departTrip, loadTripScan, tripDispatchState } from "./trip-dispatch-core";
 
 const FLAG_CLASS = "px-1.5 py-0 text-[11px] font-medium";
 
@@ -71,9 +71,9 @@ export function TripLoadPage() {
   const depart = useMutation({
     mutationFn: () => departTrip(ids),
     onSuccess: async (result) => {
-      const short = result.ship_short ? " Short lines ship short; the orders stay open for the rest." : "";
-      if (result.posting_enabled) alertToast.success(`Trip departed. ${result.queued} fulfillment(s) queued to NetSuite as Shipped.${short}`);
-      else alertToast.attention(`Trip departed in WW. NetSuite posting is off, so the office must set the fulfillments to Shipped.${short}`);
+      const message = departMessage(result);
+      if (message.tone === "success") alertToast.success(message.text);
+      else alertToast.attention(message.text);
       await refresh();
       navigate(toPath("/trips"));
     },

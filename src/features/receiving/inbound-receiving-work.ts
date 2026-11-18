@@ -14,6 +14,7 @@ const db = supabase.from.bind(supabase) as (table: string) => any;
 
 /** Paginate every active row; the visible draft list is intentionally limited. */
 export async function listInboundReceivingWork(warehouseId: string): Promise<InboundReceivingWork[]> {
+  if (!warehouseId.trim()) throw new Error("Select a warehouse before receiving an inbound shipment.");
   async function pages(query: () => any): Promise<any[]> {
     const rows: any[] = [];
     for (let start = 0; ; start += 500) {

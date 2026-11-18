@@ -338,8 +338,8 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Receiving", to: "/receiving", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "receiving" },
   { label: "Put-Away", to: "/putaway-tasks", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "putaway" },
   { label: "Inventory", to: "/inventory-search", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "inventory" },
-  { label: "Orders", to: "/orders", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true },
-  { label: "Trips", to: "/trips", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], netsuite: true },
+  { label: "Orders", to: "/orders", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"] },
+  { label: "Trips", to: "/trips", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"] },
   { label: "Pick Lists", to: "/pick-lists", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "warehouse_operator"], moduleKey: "pick-lists" },
   { label: "Location Moves", to: "/location-moves", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
   { label: "Replenishment", to: "/replenishment", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk", "warehouse_operator"], moduleKey: "location-moves" },
@@ -352,7 +352,7 @@ export const NAVIGATION: Array<{ label: string; to: AppRoute; roles: RoleCode[];
   { label: "Bin Locations", to: "/locations", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "locations", group: "setup" },
   { label: "Products", to: "/products", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], moduleKey: "products", group: "setup" },
   { label: "Clients", to: "/clients", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "clients", group: "setup" },
-  { label: "Customers", to: "/customers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], netsuite: true, group: "setup" },
+  { label: "Customers", to: "/customers", roles: ["developer", "admin", "warehouse_manager", "warehouse_supervisor", "inventory_clerk"], group: "setup" },
   { label: "Packaging", to: "/packaging-profiles", roles: ["developer", "admin", "warehouse_manager", "inventory_clerk"], moduleKey: "packaging", group: "setup" },
   { label: "System Log", to: "/system-log", roles: ["developer", "admin", "warehouse_manager"], moduleKey: "system-log", group: "setup" },
   { label: "Email Log", to: "/email-log", roles: ["developer", "admin"], moduleKey: "email-log", group: "setup" },
@@ -924,17 +924,22 @@ export async function getStoredPalletCounts(locationIds: string[]): Promise<Map<
     .map((row: { id?: string }) => row.id)
     .filter((id): id is string => Boolean(id));
   const recordedPalletIds = new Set<string>(palletIds);
+  const palletBatches: string[][] = [];
   for (let index = 0; index < palletIds.length; index += LOCATION_OCCUPANCY_BATCH_SIZE) {
-    const batch = palletIds.slice(index, index + LOCATION_OCCUPANCY_BATCH_SIZE);
+    palletBatches.push(palletIds.slice(index, index + LOCATION_OCCUPANCY_BATCH_SIZE));
+  }
+  // Batches run in parallel: a whole-warehouse bay view used to wait on each
+  // one in turn.
+  await Promise.all(palletBatches.map(async (batch) => {
     const { data, error } = await db("inventory_balances")
       .select("pallet_id")
       .in("pallet_id", batch)
       .not("status", "in", DB_RETIRED_INVENTORY_STATUS_FILTER);
     // Fail open on a read error: never drop real stock out of the count.
-    if (error) continue;
+    if (error) return;
     const found = new Set((data ?? []).map((row: { pallet_id?: string }) => row.pallet_id));
     for (const id of batch) if (!found.has(id)) recordedPalletIds.delete(id);
-  }
+  }));
 
   // Superseded correction rows and zeroed-out stock keep a location_id in the
   // database but no longer represent a physical pallet in the bay — counting

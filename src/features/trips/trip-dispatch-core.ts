@@ -3,7 +3,8 @@
 //   packed (every picked line counted) -> staged (in a staging lane)
 //   -> loaded (scanned onto the truck) -> departed (the trip left)
 // Depart queues the NetSuite IF change to Shipped with the picked quantities
-// (ship short when a line is short, D10) and the real scan times (O4).
+// (ship short when a line is short, D10) and the real scan times (O4). A trip
+// planned in WW (source 'ww', no NetSuite) ships in WW at depart instead.
 // Quantities are base units (D9); the screen shows them in the line unit.
 import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/features/shared/core-types";
@@ -82,13 +83,14 @@ export type PackFulfillment = {
   ww_stage: TripBoardRow["ww_stage"];
   truck_name: string | null;
   trip_number: string | null;
+  source: TripBoardRow["source"];
   order: { order_number: string; customer_name: string | null } | null;
 };
 
 export async function fetchPackCheck(fulfillmentId: string): Promise<{ fulfillment: PackFulfillment; lines: PackLine[] }> {
   const [ful, lines, tasks] = await Promise.all([
     db("order_fulfillments")
-      .select("id, document_number, ww_stage, truck_name, trip_number, order:orders(order_number, customer_name)")
+      .select("id, document_number, ww_stage, truck_name, trip_number, source, order:orders(order_number, customer_name)")
       .eq("id", fulfillmentId)
       .single(),
     db("order_fulfillment_lines")
@@ -154,7 +156,31 @@ export async function loadTripScan(fulfillmentIds: string[], scan: string): Prom
   return data as { fulfillment_id: string; document_number: string };
 }
 
-export type DepartResult = { departed: number; queued: number; posting_enabled: boolean; ship_short: boolean };
+export type DepartResult = {
+  departed: number;
+  queued: number;
+  posting_enabled: boolean;
+  ship_short: boolean;
+  /** WW-planned fulfillments shipped in WW (no NetSuite record). */
+  shipped_in_ww?: number;
+  /** NetSuite fulfillments on the trip. */
+  netsuite_count?: number;
+};
+
+/** The message after a depart, for WW, NetSuite or mixed trips. */
+export function departMessage(result: DepartResult): { tone: "success" | "attention"; text: string } {
+  const short = result.ship_short ? " Short lines ship short; the orders stay open for the rest." : "";
+  const ww = result.shipped_in_ww ?? 0;
+  // Older databases return no counts: every fulfillment was a NetSuite one.
+  const netsuite = result.netsuite_count ?? result.departed - ww;
+  const parts: string[] = [];
+  if (ww > 0) parts.push(`${ww} order(s) shipped.`);
+  if (netsuite > 0 && result.posting_enabled) parts.push(`${result.queued} fulfillment(s) queued to NetSuite as Shipped.`);
+  if (netsuite > 0 && !result.posting_enabled) {
+    return { tone: "attention", text: `Trip departed in WW. ${parts.join(" ")}${parts.length ? " " : ""}NetSuite posting is off, so the office must set ${netsuite} fulfillment(s) to Shipped.${short}` };
+  }
+  return { tone: "success", text: `Trip departed. ${parts.join(" ")}${short}` };
+}
 
 export async function departTrip(fulfillmentIds: string[]): Promise<DepartResult> {
   const { data, error } = await (supabase.rpc as any)("depart_trip", { p_fulfillment_ids: fulfillmentIds });

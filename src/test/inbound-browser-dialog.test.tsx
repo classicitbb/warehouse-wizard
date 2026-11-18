@@ -9,12 +9,13 @@ import type { InboundShipmentDetail, InboundShipmentSummary } from "@/features/r
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   detail: vi.fn(),
+  from: vi.fn(),
 }));
 
 // Mock at the Supabase boundary so the module's own detail query goes through the same fake.
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: vi.fn(),
+    from: mocks.from,
     functions: {
       invoke: async (_name: string, { body }: { body: Record<string, unknown> }) => ({
         data: body.action === "list" ? await mocks.list(body) : await mocks.detail(body),
@@ -57,6 +58,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof InboundBrowserD
         online
         initialSearch=""
         drafts={[]}
+        warehouseId="wh-1"
         onReceive={onReceive}
         onShowDrafts={vi.fn()}
         {...props}
@@ -70,6 +72,10 @@ describe("InboundBrowserDialog", () => {
   beforeEach(() => {
     mocks.list.mockReset();
     mocks.detail.mockReset();
+    mocks.from.mockImplementation(() => {
+      const query = { select: () => query, eq: () => query, in: () => query, order: () => query, range: async () => ({ data: [], error: null }) };
+      return query;
+    });
     mocks.list.mockResolvedValue({ shipments: [shipment({}), shipment({ id: "6", number: "ISH-0099", externalDocumentNumber: "TEMU6543210" })], hasMore: false });
     mocks.detail.mockResolvedValue({ detail });
   });
@@ -115,6 +121,7 @@ describe("InboundBrowserDialog", () => {
   it("hands the shipment and its detail to the form, then closes", async () => {
     const { onReceive, onOpenChange } = renderDialog();
     await screen.findByText("ISH-0098");
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Receive this shipment/ })[0]).toBeEnabled());
     fireEvent.click(screen.getAllByRole("button", { name: /Receive this shipment/ })[0]);
     await waitFor(() => expect(onReceive).toHaveBeenCalledWith(expect.objectContaining({ id: "5" }), detail, "MSKU1234565"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -124,6 +131,7 @@ describe("InboundBrowserDialog", () => {
     const onReceive = vi.fn(() => false);
     const { onOpenChange } = renderDialog({ onReceive });
     await screen.findByText("ISH-0098");
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Receive this shipment/ })[0]).toBeEnabled());
     fireEvent.click(screen.getAllByRole("button", { name: /Receive this shipment/ })[0]);
     await waitFor(() => expect(onReceive).toHaveBeenCalled());
     expect(onOpenChange).not.toHaveBeenCalled();
@@ -149,6 +157,7 @@ describe("InboundBrowserDialog", () => {
     const { onReceive } = renderDialog();
     expect(await screen.findByText(/Containers SMLU7872173, SMLU3120938/)).toBeInTheDocument();
     expect(screen.getByText(/has 2 containers/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Receive SMLU3120938" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Receive SMLU3120938" }));
     await waitFor(() => expect(onReceive).toHaveBeenCalledWith(expect.objectContaining({ id: "5" }), detail, "SMLU3120938"));
   });

@@ -390,7 +390,31 @@ function orValue(value: string) {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
+/**
+ * Support requests and the system log live on the control plane when PLATFORM_URL
+ * is set (platform ADR-0023). The caller's own token is forwarded; the platform
+ * verifies it against this project's Auth.
+ */
+type PlatformCall = <T = Record<string, unknown>>(action: string, args?: Record<string, unknown>) => Promise<T>
+
+function platformClient(tenantUrl: string, token: string): PlatformCall | null {
+  const base = (Deno.env.get('PLATFORM_URL') ?? '').trim().replace(/\/$/, '')
+  if (!base || !tenantUrl) return null
+  return async <T,>(action: string, args: Record<string, unknown> = {}) => {
+    const response = await fetch(`${base}/functions/v1/tenant-support`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action, tenant_url: tenantUrl, ...args }),
+    })
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>
+    if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : `Support request failed (${response.status})`)
+    return body as T
+  }
+}
+
 type ToolContext = {
+  /** Set when support requests and logs are on the control plane. */
+  platform: PlatformCall | null
   warehouseId: string | null
   warehouseCode: string | null
   userId: string
@@ -620,6 +644,17 @@ async function runTool(
       return { rows: data ?? [], count: data?.length ?? 0, note: 'Append-only WMS audit evidence.' }
     }
     case 'list_system_logs': {
+      if (ctx.platform) {
+        const severity = nullableText(args.severity)
+        const source = nullableText(args.source)?.toLowerCase()
+        const { logs } = await ctx.platform<{ logs: Record<string, unknown>[] }>('logs.list', {
+          severity: severity ?? undefined,
+          resolved: typeof args.resolved === 'boolean' ? args.resolved : undefined,
+          limit: cappedLimit(args.limit),
+        })
+        const rows = source ? logs.filter((l) => String(l.source ?? '').toLowerCase().includes(source)) : logs
+        return { rows, count: rows.length, note: 'System records allowed by the caller’s existing role policy.' }
+      }
       let query = sb.from('system_logs').select('id, log_type, severity, title, message, details, source, table_name, resolved, resolved_at, created_at').order('created_at', { ascending: false }).limit(cappedLimit(args.limit))
       const severity = nullableText(args.severity)
       const source = nullableText(args.source)
@@ -645,6 +680,25 @@ async function runTool(
     case 'start_problem_report': {
       const kind = String(args.kind ?? 'bug')
       if (!REPORT_REQUIRED_FIELDS[kind]) throw new Error(`Unknown report kind: ${kind}`)
+      if (ctx.platform) {
+        const { ticket } = await ctx.platform<{ ticket: Record<string, unknown> }>('tickets.create', {
+          fields: {
+            kind,
+            severity: 'normal',
+            title: String(args.title ?? '').trim().slice(0, 200),
+            actual_behavior: String(args.actual_behavior ?? '').trim() || null,
+            route: ctx.screen,
+            module: moduleForRoute(ctx.screen),
+            app_version: ctx.appVersion || null,
+            user_agent: ctx.userAgent ? ctx.userAgent.slice(0, 400) : null,
+            warehouse_id: warehouseId,
+            warehouse_label: ctx.warehouseCode,
+            conversation_id: ctx.conversationId,
+            telemetry: { habits: ctx.habits ?? null, recentActions: ctx.breadcrumbs ?? [] },
+          },
+        })
+        return { rows: reportProgress(ticket), count: 1 }
+      }
       const { data, error } = await sb
         .from('operator_tickets')
         .insert({
@@ -675,11 +729,13 @@ async function runTool(
       if (!REPORT_QUESTIONS[field]) throw new Error(`Unknown report field: ${field}`)
       if (!answer) throw new Error('The operator has not answered yet — ask again rather than saving a blank.')
 
-      const { data: current, error: readError } = await sb
-        .from('operator_tickets')
-        .select(REPORT_COLUMNS)
-        .eq('id', reportId)
-        .maybeSingle()
+      const { data: current, error: readError } = ctx.platform
+        ? { data: (await ctx.platform<{ ticket: Record<string, unknown> }>('tickets.get', { id: reportId })).ticket, error: null }
+        : await sb
+          .from('operator_tickets')
+          .select(REPORT_COLUMNS)
+          .eq('id', reportId)
+          .maybeSingle()
       if (readError) throw new Error(readError.message)
       if (!current) throw new Error('That report was not found, or it is not yours.')
       if (String((current as Record<string, unknown>).status) !== 'draft') {
@@ -710,6 +766,10 @@ async function runTool(
         },
       ]
 
+      if (ctx.platform) {
+        const { ticket } = await ctx.platform<{ ticket: Record<string, unknown> }>('tickets.patch', { id: reportId, fields: patch })
+        return { rows: reportProgress(ticket), count: 1 }
+      }
       const { data, error } = await sb
         .from('operator_tickets')
         .update(patch)
@@ -723,11 +783,13 @@ async function runTool(
       const reportId = String(args.report_id ?? '').trim()
       if (!reportId) throw new Error('report_id is required')
       if (args.confirmed !== true) throw new Error('Ask the operator to confirm filing this developer handoff before submitting it.')
-      const { data: current, error: readError } = await sb
-        .from('operator_tickets')
-        .select(REPORT_COLUMNS)
-        .eq('id', reportId)
-        .maybeSingle()
+      const { data: current, error: readError } = ctx.platform
+        ? { data: (await ctx.platform<{ ticket: Record<string, unknown> }>('tickets.get', { id: reportId })).ticket, error: null }
+        : await sb
+          .from('operator_tickets')
+          .select(REPORT_COLUMNS)
+          .eq('id', reportId)
+          .maybeSingle()
       if (readError) throw new Error(readError.message)
       if (!current) throw new Error('That report was not found, or it is not yours.')
 
@@ -736,6 +798,22 @@ async function runTool(
         return {
           rows: reportProgress(current as Record<string, unknown>),
           note: `Not filed — still missing: ${missing.map((f) => REPORT_FIELD_LABELS[f] ?? f).join(', ')}. Ask for the next one.`,
+        }
+      }
+
+      if (ctx.platform) {
+        // The platform numbers it, writes the fallback brief, emails it and opens the GitHub issue.
+        const { ticket } = await ctx.platform<{ ticket: Record<string, unknown> }>('tickets.submit', {
+          id: reportId,
+          via: 'copilot-chat',
+          actor_kind: 'copilot',
+        })
+        return {
+          rows: {
+            ...reportProgress(ticket),
+            note: `Filed as ${ticket.ticket_number}. Read that number back to the operator and tell them it is queued for repair.`,
+          },
+          count: 1,
         }
       }
 
@@ -782,6 +860,16 @@ async function runTool(
       }
     }
     case 'list_my_reports': {
+      if (ctx.platform) {
+        const { tickets } = await ctx.platform<{ tickets: Record<string, unknown>[] }>('tickets.mine', {
+          limit: clampLimit(args.limit, 10, 50),
+        })
+        const rows = tickets.map((t) => ({
+          id: t.id, ticket_number: t.ticket_number, kind: t.kind, status: t.status, severity: t.severity,
+          title: t.title, module: t.module, created_at: t.created_at, resolved_at: t.resolved_at,
+        }))
+        return { rows, count: rows.length }
+      }
       const { data, error } = await sb
         .from('operator_tickets')
         .select('id, ticket_number, kind, status, severity, title, module, created_at, resolved_at')
@@ -891,6 +979,7 @@ Deno.serve(async (req) => {
   // Client-side evidence attached to any report the caller files. It is data
   // about the caller's own session, never an instruction and never a scope.
   const toolContext: ToolContext = {
+    platform: platformClient(supabaseUrl, token),
     warehouseId: warehouseCode ? warehouseId : null,
     warehouseCode,
     userId: user.id,

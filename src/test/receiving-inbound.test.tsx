@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
   invoke: vi.fn(),
   netsuiteActive: true,
+  defaultWarehouseId: "wh-1" as string | null,
+  warehouses: [{ id: "wh-1", name: "NEW - New Warehouse" }],
   work: vi.fn(async (): Promise<any[]> => []),
 }));
 
@@ -56,7 +58,7 @@ vi.mock("@/components/barcode-scan-button", () => ({
 }));
 
 vi.mock("@/hooks/use-auth", () => ({
-  useAuth: () => ({ profile: { id: "user-1", default_warehouse_id: "wh-1" }, roles: ["warehouse_manager"] }),
+  useAuth: () => ({ profile: { id: "user-1", default_warehouse_id: mocks.defaultWarehouseId }, roles: ["warehouse_manager"] }),
 }));
 
 vi.mock("@/hooks/use-netsuite-active", () => ({
@@ -77,7 +79,7 @@ vi.mock("@/lib/ai-assist", async (importOriginal) => {
 vi.mock("@/lib/wms-core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/wms-core")>();
   const fetchOptions = vi.fn(async () => ({
-    warehouses: [{ id: "wh-1", name: "NEW - New Warehouse" }],
+    warehouses: mocks.warehouses,
     clients: [{ id: "client-1", code: "RH", name: "Russell Hunte" }],
     products: [{ id: "prod-1", sku: "FLOUR", name: "Flour", barcode: "FLOUR" }],
     packagingProfiles: [],
@@ -143,6 +145,8 @@ describe("Receiving > View inbound", () => {
     mocks.toast.error.mockClear();
     mocks.toast.warning.mockClear();
     mocks.netsuiteActive = true;
+    mocks.defaultWarehouseId = "wh-1";
+    mocks.warehouses = [{ id: "wh-1", name: "NEW - New Warehouse" }];
     mocks.work.mockReset();
     mocks.work.mockResolvedValue([]);
     window.localStorage.clear();
@@ -156,6 +160,26 @@ describe("Receiving > View inbound", () => {
     expect(await screen.findByRole("button", { name: /print drafts/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /view inbound/i })).not.toBeInTheDocument();
     expect(mocks.invoke).not.toHaveBeenCalledWith("netsuite-inbound", expect.anything());
+  });
+
+  it("requires warehouse selection for a user with no default, then rechecks before loading", async () => {
+    mocks.defaultWarehouseId = null;
+    mocks.warehouses = [{ id: "wh-1", name: "NEW - New Warehouse" }, { id: "wh-2", name: "Second Warehouse" }];
+    mockNetSuite();
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /view inbound/i }));
+    const browser = await screen.findByRole("dialog", { name: /inbound shipments/i });
+    const receive = await within(browser).findByRole("button", { name: /receive this shipment/i });
+    expect(receive).toBeDisabled();
+    expect(mocks.work).not.toHaveBeenCalled();
+    fireEvent.keyDown(within(browser).getByRole("combobox", { name: "Receiving warehouse" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name: "Second Warehouse" }));
+    await waitFor(() => expect(receive).toBeEnabled());
+    fireEvent.click(receive);
+    await screen.findByRole("dialog", { name: /new shipment/i });
+    expect(mocks.work).toHaveBeenCalledWith("wh-2");
+    expect(mocks.work.mock.calls.every((args) => (args as unknown[])[0] === "wh-2")).toBe(true);
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("loads every PO's lines into the New Shipment dialog with the container, and saves each line under its own PO", async () => {

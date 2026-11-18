@@ -1,5 +1,5 @@
 // Warehouse structure tree: shared context, row action flyout and fill bar.
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type Context } from "react";
 import { useNavigate } from "react-router-dom";
 import { Ban } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -44,7 +44,25 @@ export interface TreeCtxValue {
   };
 }
 
-export const TreeCtx = createContext<TreeCtxValue | null>(null);
+// Preserve the context identity when only part of the tree refreshes in Vite.
+export const TreeCtx: Context<TreeCtxValue | null> =
+  import.meta.hot?.data?.treeContext ?? createContext<TreeCtxValue | null>(null);
+if (import.meta.hot) {
+  import.meta.hot.dispose((data) => { data.treeContext = TreeCtx; });
+}
+
+const unavailableTreeContext: TreeCtxValue = {
+  expandedNodes: new Set(),
+  toggleNode: () => {},
+  activeTreeNodeKey: null,
+  selectTreeNode: () => {},
+  setDialog: () => {},
+  warehouses: [],
+  zones: [],
+  navigate: () => {},
+  viewContents: () => {},
+  fillStats: { byWarehouse: new Map(), byZone: new Map(), byLocation: new Map() },
+};
 
 export const TREE_CONTEXT_HINT = "Right-click or press and hold for row actions.";
 
@@ -57,11 +75,16 @@ export function TreeRowFlyout({
   children: React.ReactNode;
   menu: (close: () => void) => React.ReactNode;
 }) {
-  const { selectTreeNode } = useTCtx();
+  const context = useContext(TreeCtx);
   const [open, setOpen] = useState(false);
   const [anchorPosition, setAnchorPosition] = useState({ x: 0, y: 0 });
   const holdTimerRef = useRef<number | null>(null);
   const openFrameRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
+    if (openFrameRef.current !== null) window.cancelAnimationFrame(openFrameRef.current);
+  }, []);
 
   const clearHoldTimer = () => {
     if (holdTimerRef.current !== null) {
@@ -80,14 +103,18 @@ export function TreeRowFlyout({
   const openForRow = (x: number, y: number) => {
     clearHoldTimer();
     clearOpenFrame();
+    if (!context) return;
     setOpen(false);
     setAnchorPosition({ x, y });
-    selectTreeNode(nodeKey);
+    context.selectTreeNode(nodeKey);
     openFrameRef.current = window.requestAnimationFrame(() => {
       openFrameRef.current = null;
       setOpen(true);
     });
   };
+
+  // A detached row stays visible, but cannot offer actions without its provider.
+  if (!context) return <>{children}</>;
 
   return (
     <Popover
@@ -164,9 +191,7 @@ export function TreeRowFlyoutItem({
 }
 
 export function useTCtx() {
-  const c = useContext(TreeCtx);
-  if (!c) throw new Error("TreeCtx missing");
-  return c;
+  return useContext(TreeCtx) ?? unavailableTreeContext;
 }
 
 export function FillBar({ stats, disabled = false }: { stats?: FillStats; disabled?: boolean }) {

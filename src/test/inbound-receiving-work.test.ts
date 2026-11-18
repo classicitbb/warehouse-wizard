@@ -6,6 +6,11 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from 
 const draft: InboundReceivingWork = { id: "d1", container_number: "SMLU7872173", notes: JSON.stringify({ netsuite: { inboundShipmentId: "5", poId: "10" } }), stage: "draft" };
 
 describe("inbound receiving active work", () => {
+  it("refuses an empty warehouse without sending UUID filters to the database", async () => {
+    mocks.from.mockClear();
+    await expect(listInboundReceivingWork("")).rejects.toThrow("Select a warehouse");
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
   it("blocks a matching container in Receiving drafts", () => {
     expect(matchingReceivingWork([draft], "smlu 787217-3", "5")).toEqual([draft]);
   });

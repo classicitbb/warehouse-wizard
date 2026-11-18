@@ -358,3 +358,89 @@ Status: Complete — no active handoff
 
 - Verified the live Page in LinkedIn member view at https://www.linkedin.com/company/warehousewizard/ with its logo, cover, tagline and Overview. The logo overlaps the left edge of the cover subtitle at the desktop viewport checked.
 - Launch posts, Facebook, Instagram, email and CRM setup remain separate follow-up work. No application code or configuration changed. No build needed.
+
+## Sandbox header and profile menu � 2026-11-16
+
+- Status: Local implementation complete; rendered browser verification and publication deferred.
+- Changes: removed desktop header right inset; paired profile/warehouse hover colors including profile initials and chevron; moved existing Lovable link from version badge into developer-only profile menu; added owner-supplied Warehouse Wizard platform link opening in a new tab.
+- Affected files: `src/features/shared/app-shell.tsx`, `docs/agent/PROJECT_KNOWLEDGE.md`, `docs/agent/HANDOFF.md`. Pre-existing changes in `bay-occupancy.tsx` and `core-types.ts` were preserved.
+- Verification: `npm run typecheck` passed; `npm run test -- src/test/app-shell.test.tsx` passed all 11 tests; final `npm run build` passed with existing large-chunk warning; `git diff --check` passed with an existing core-types line-ending warning. No check failures. Authenticated browser rendering was not tested.
+- Environment: sandbox checkout only; no commit, push, publication, database, authentication, or permission changes. Release metadata remains unchanged pending publication.
+- Approval required: public publication per repository instructions.
+- Exact next action: `npm run dev -- --host 127.0.0.1 --port 8082` from the sandbox checkout, then visually verify header edge alignment and hover/menu behavior in a signed-in local browser before release preparation and publication approval.
+
+## Alert badge and layout follow-up - 2026-11-16
+
+Status: Complete - no active handoff for this local UI task.
+
+- Files: src/features/shared/app-shell.tsx; src/features/putaway/putaway-page.tsx; src/features/receiving/inbound-browser-dialog.tsx; src/features/receiving/inbound-shipment-card.tsx; continuity documents.
+- Alert counts are inset; alert trigger uses accent colors while notifications exist. Desktop Put-Away is capped at 48rem without changing mobile breakpoint. Shipment rows are flush, separated by borders and alternating background bands.
+- Checks: npm run typecheck passed; npm run test -- src/test/app-shell.test.tsx src/test/inbound-browser-dialog.test.tsx src/test/putaway-page.test.tsx passed 50 tests; npm run build passed (existing chunk-size warnings); git diff --check passed. Browser visually checked local desktop Put-Away cards, mobile layout, alert state, and inbound bands. Temporary viewport reset and verification tab closed.
+- Editing encountered Python codec errors on mixed-encoding files; retried with explicit UTF-8 for source and byte-preserving append for continuity. No unresolved build/test failures.
+- Environment: existing sandbox Vite server on localhost:8080. Local changes only; no data writes or publication. Public deployment requires approval under repository instructions if requested. Exact next action: none for local implementation.
+
+
+## Sandbox desktop toolbar redesign - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Supersedes earlier desktop-header visual verification follow-up for the local preview. Files: src/features/shared/app-shell.tsx, src/components/help-sidebar.tsx, src/features/copilot/copilot-panel.tsx and continuity docs.
+- Verified signed-in /settings/license on the existing localhost:8080 sandbox server. Opened the warehouse selector, Copilot, Help, notifications and account menu. Checked the header for overflow at 1757 and 1025 desktop CSS pixels and at 853, 640 and 325 CSS pixels on the tablet/phone shell. Reset the viewport.
+- Passed npm run typecheck, npm run test -- src/test/app-shell.test.tsx src/test/copilot-panel.test.tsx (29 tests), npm run build (large-chunk warning), and scoped git diff --check. Full git diff --check flags pre-existing trailing whitespace in environment-settings-tab.tsx:71 and users-roles-page.tsx:757.
+- Local sandbox change only. Existing working edits were preserved. No outstanding local action or approval. Publishing would require separate authorization.
+
+## Flat desktop toolbar follow-up - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Updated app-shell.tsx, help-sidebar.tsx and copilot-panel.tsx for a 43px desktop header with flush square controls and a borderless logo. Verified zero corner radius, no gaps between controls, and right-edge alignment on signed-in localhost:8080/settings/license.
+- Typecheck, build (existing chunk-size warning), and 29 targeted tests passed. Local sandbox only.
+
+## User Management tab actions - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Updated src/features/admin/users-roles-page.tsx to align both actions with the inner tabs and remove the repeated count. Typecheck passed. On localhost:8080/settings/users-roles, both actions shared the tab centerline, the repeated count was absent, the inactive filter toggled both ways, and Add User opened without submission. Local sandbox only.
+
+## Users table frame - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Updated src/features/admin/admin-page.tsx and src/features/admin/users-roles-page.tsx. The Users table fits inside the content panel and scrolls beneath its sticky header. Typecheck passed. On localhost:8080/settings/users-roles, verified the desktop frame bottom and scrolled the rows by 102px in a short viewport while the column header stayed fixed. Viewport reset. Local sandbox only. Scoped git diff --check still flags pre-existing trailing whitespace in users-roles-page.tsx:759.
+
+## Settings Users & Roles heading - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Removed the duplicate heading and subtitle in the Settings tab through admin-page.tsx and users-roles-page.tsx. The standalone Users route retains its heading. Corrected a transient preview ReferenceError by passing the embedded flag to the implementation. Final npm run typecheck passed, and the local browser displayed Role Matrix without the duplicate heading or subtitle.
+
+## Role Matrix and Activity table frames - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Updated src/features/admin/users-roles-page.tsx. Verified both panel borders fit in the local Settings preview and headers stayed fixed while Role Matrix scrolled 149px and Activity scrolled 231px. Typecheck passed. Local sandbox only.
+
+## Modules, Access and shared table spacing - 2026-11-16
+
+Status: Complete — no active handoff
+
+- Updated admin-page.tsx, modules-settings-panel.tsx and users-roles-page.tsx for compact Modules rows and a role assignment toolbar above Current Access and Role history. Updated shared tabs.tsx and app-shell.tsx to remove layout space from hidden panels and match the bottom inset to the responsive side inset above the mobile dock.
+- Typecheck passed. Browser verified Modules, Role Matrix and Activity at 24px side and bottom desktop insets and confirmed the Access controls and panels rendered. No configuration or role changes were submitted. Local sandbox only.
+
+## Client Variables, About and Notifications frames - 2026-11-17
+
+Status: Complete — no active handoff
+
+- Updated admin-page.tsx, client-variables-panel.tsx, about-settings-tab.tsx, notification-settings.tsx and audio-cues-card.tsx. Typecheck passed. Browser confirmed Client Variables and both About cards end 24px above the bottom of the desktop viewport, both About bodies scroll independently, and both Notifications cards stay in frame at 1280x720 with overflow inside the card. Client Variables had no rows to scroll in the preview. Local sandbox only.
+
+## Sandbox 1.36.0 production promotion — 2026-11-17
+
+Status: Promotion candidate validated. Production migration and deployment pending.
+
+- Candidate merges sandbox main at 7d9f004 into production main at 89334d5. Kept production environment and applied SQL. Reconciled the Drizzle journal and snapshots, carried forward the generated database type additions, and updated the Settings Help and release notes.
+- Affected paths include Settings, shell, outbound orders and trips, NetSuite receipts and queue, platform support, Drizzle metadata, and five new Supabase migrations and related Edge Functions.
+- Passed npm ci --no-audit --no-fund, npm run typecheck, npm run build, and 76 tests covering outbound SQL, trip reserve SQL, NetSuite receipts, shell, and Help. The build retains its chunk-size warning. Git whitespace check flags one existing final blank line in the incoming NetSuite receipt migration. Preserved its sandbox bytes.
+- Production Supabase connector list_migrations failed with MCP -32600 (You do not have permission to perform this action). The local Supabase CLI checkout is unlinked. No production migration, Edge Function deploy, merge or publication has occurred.
+- Exact next action after production Supabase access is available: run `supabase migration list --linked` from the verified production-linked checkout and compare its remote ledger with the candidate before sequencing any schema, function, or app deployment. Confirm the production permission changes for Reset WMS and outbound RPCs before applying them.
+
+- Draft PR #42 is open. Lovable MCP get_project and list_workspaces returned MCP -32603 Internal error; list_messages also returned an error. No Lovable write was attempted. When the connector is available, read the production Lovable project with get_project, then verify its migration ledger before applying or deploying anything.

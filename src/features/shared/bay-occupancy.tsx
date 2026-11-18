@@ -109,10 +109,21 @@ export function WarehouseBayBrowserDialog({
   onScanInstead?: () => void;
   onClose: () => void;
 }) {
-  const { data: bays = [], isLoading, error } = useQuery<WarehouseBayGroup[]>({
+  const queryClient = useQueryClient();
+  const bayQuery = {
     queryKey: ["warehouse-bay-occupancy", warehouseId],
     queryFn: () => getWarehouseBayOccupancy(warehouseId),
     staleTime: 30_000,
+  };
+  // Warm the cache as soon as the screen knows its warehouse so the dialog
+  // opens on data instead of a spinner. A prefetch is not an active observer,
+  // so background invalidations do not refetch while the dialog is closed.
+  useEffect(() => {
+    if (warehouseId) void queryClient.prefetchQuery(bayQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient, warehouseId]);
+  const { data: bays = [], isLoading, error } = useQuery<WarehouseBayGroup[]>({
+    ...bayQuery,
     enabled: open && Boolean(warehouseId),
   });
 
@@ -166,8 +177,10 @@ export function WarehouseBayBrowserDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
+      {/* The frame itself does not scroll: only the bay list below the header
+          does, so nothing slides through the frame's top padding above the title. */}
+      <DialogContent className="flex max-h-[min(85svh,calc(100svh-2rem))] max-w-2xl flex-col gap-0 overflow-hidden">
+        <DialogHeader className="static">
           <div className="flex items-start justify-between gap-3 pr-6">
             <div>
               <DialogTitle>Select a bay</DialogTitle>
@@ -181,6 +194,7 @@ export function WarehouseBayBrowserDialog({
             ) : null}
           </div>
         </DialogHeader>
+        <div className="dialog-scrollbar -mx-6 -mb-6 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 pt-3">
         {isLoading && (
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -274,6 +288,7 @@ export function WarehouseBayBrowserDialog({
               </div>
             );
           })}
+        </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -173,8 +173,9 @@ export async function deleteAllProducts(): Promise<{ deleted: number }> {
 }
 
 export async function resetWmsData() {
-  const { data, error } = await (supabase.rpc as any)("reset_wms_data");
+  const { data, error } = await supabase.functions.invoke("reset-wms-data", { body: {} });
   if (error) throw error;
+  if (data?.error) throw new Error(data.error);
   return data as {
     status?: string;
     deleted_users?: number;

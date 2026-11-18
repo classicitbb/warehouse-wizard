@@ -337,22 +337,23 @@ function OfflineSupervisorAlertToastCard({
 
 function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials: string; displayName: string; onSignOut: () => void; onRefresh: () => void }) {
   const [pwOpen, setPwOpen] = useState(false);
+  const { roles } = useAuth();
   return (
     <div className="contents">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex h-[43px] items-center gap-2 self-stretch border-l border-border bg-transparent px-2.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="group flex h-full shrink-0 items-center gap-2 border-l border-border bg-transparent px-2.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
           >
-            <Avatar className="h-6 w-6">
-              <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials}</AvatarFallback>
+            <Avatar className="h-6 w-6 shrink-0 rounded-none">
+              <AvatarFallback className="rounded-none bg-primary/10 text-xs font-semibold text-primary group-hover:text-accent-foreground group-data-[state=open]:text-accent-foreground">{initials}</AvatarFallback>
             </Avatar>
-            <span className="hidden max-w-[120px] truncate text-xs font-medium lg:block">{displayName}</span>
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <span className="hidden max-w-[120px] truncate text-sm leading-5 font-medium lg:block">{displayName}</span>
+            <ChevronDown className="h-3 w-3 opacity-70" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuItem onSelect={onRefresh}>
             <RefreshCw className="mr-2 h-3.5 w-3.5" />
             Refresh
@@ -361,6 +362,22 @@ function ProfileMenu({ initials, displayName, onSignOut, onRefresh }: { initials
             <KeyRound className="mr-2 h-3.5 w-3.5" />
             Change password
           </DropdownMenuItem>
+          {roles.includes("developer") ? (
+            <>
+          <DropdownMenuItem asChild>
+            <a href="https://admin.warehousewizard.app/" target="_blank" rel="noopener noreferrer">
+              <Building2 className="mr-2 h-3.5 w-3.5" />
+              Warehouse Wizard platform
+            </a>
+          </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf" target="_blank" rel="noopener noreferrer">
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Edit in Lovable
+              </a>
+            </DropdownMenuItem>
+            </>
+          ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => onSignOut()}>
             <LogOut className="mr-2 h-3.5 w-3.5" />
@@ -381,7 +398,9 @@ function NotificationBell({
   warehouseEvents,
   showSetupReminder,
   onSetupReminderAction,
+  desktop = false,
 }: {
+  desktop?: boolean;
   alerts: OfflineSupervisorAlert[];
   offline: boolean;
   reorderAlerts: ReorderAlertBellRow[];
@@ -411,7 +430,11 @@ function NotificationBell({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          className="relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-0 hover:bg-accent focus-visible:ring-inset"
+          className={cn(
+            "relative h-[43px] w-[43px] shrink-0 rounded-none border-y-0 border-r-0 border-l border-border px-0 hover:bg-accent hover:text-accent-foreground focus-visible:ring-inset",
+            notificationCount ? "bg-accent text-accent-foreground" : "bg-transparent",
+            desktop && "h-full bg-transparent pr-1.5 text-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+          )}
           size="icon"
           variant="outline"
           aria-label={notificationCount ? `${notificationCount} notification${notificationCount === 1 ? "" : "s"}` : "Notifications"}
@@ -421,10 +444,10 @@ function NotificationBell({
           {notificationCount ? (
             <span
               className={cn(
-                "absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
+                "absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none",
                 connectivityCount
                   ? "bg-destructive text-destructive-foreground"
-                  : "bg-amber-500 text-white",
+                  : desktop ? "bg-primary text-primary-foreground" : "bg-foreground text-background",
               )}
             >
               {notificationCount > 9 ? "9+" : notificationCount}
@@ -567,13 +590,13 @@ function OfflineFreezeBadge({ compact = false }: { compact?: boolean }) {
         "inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-50 px-3 text-sm font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
         compact
           ? "px-2 text-[11px]"
-          : "h-[43px] rounded-none border-y-0 border-r-0 border-l border-amber-400/60 bg-transparent px-3 dark:bg-transparent",
+          : "h-full whitespace-nowrap rounded-none border-y-0 border-r-0 px-2.5 text-xs",
       )}
       title="This device is offline. Live warehouse commits are frozen until reconnect."
     >
       <CloudOff className="h-3.5 w-3.5" />
       <span className={cn(compact && "hidden sm:inline")}>Offline</span>
-      {!compact ? <span className="text-xs opacity-80">commits frozen</span> : null}
+      {!compact ? <span className="hidden text-xs opacity-80 xl:inline">commits frozen</span> : null}
     </div>
   );
 }
@@ -1323,88 +1346,78 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Desktop top bar — landscape only, spans the full viewport width */}
-        <div className="col-span-full hidden h-[43px] items-center justify-between gap-3 border-b border-border bg-background/95 px-[21px] py-0 backdrop-blur lg:landscape:flex">
-
-            <div className="flex min-w-0 items-center gap-3">
-              <Link
-                to={toPath("/dashboard")}
-                className="flex shrink-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                aria-label="Go to dashboard"
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md">
-                  <img src="/logo.png" alt="Warehouse Wizard" className="h-full w-full object-contain" />
+        <header className="col-span-full hidden h-[43px] items-center justify-between border-b border-border bg-gradient-to-r from-primary/10 via-card to-card pl-4 xl:pl-5 lg:landscape:flex">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link
+              to={toPath("/dashboard")}
+              className="flex shrink-0 items-center gap-2 rounded-md outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="Go to dashboard"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+                <img src="/logo.png" alt="" className="h-6 w-6 object-contain" />
+              </span>
+              <span className="whitespace-nowrap text-sm font-semibold tracking-tight">Warehouse Wizard</span>
+            </Link>
+            <Link
+              to={toPath("/settings/about")}
+              title="Version details"
+              className="shrink-0 rounded-full border border-border bg-background/60 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {__APP_VERSION__}
+            </Link>
+            {reconnectRefreshing ? (
+              <Loader2
+                role="status"
+                aria-label="Refreshing live warehouse state"
+                className="h-3.5 w-3.5 shrink-0 animate-themed-loader"
+              />
+            ) : null}
+            <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 truncate text-sm leading-5 text-muted-foreground">
+              {buildBreadcrumbTrail(pathname).map((crumb, index, all) => (
+                <span key={`${crumb.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
+                  {index > 0 ? <ChevronRight aria-hidden="true" className="h-3 w-3 shrink-0 opacity-70" /> : null}
+                  {crumb.to && index < all.length - 1 ? (
+                    <Link to={toPath(crumb.to)} className="truncate hover:text-foreground">
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span aria-current={index === all.length - 1 ? "page" : undefined} className={cn("truncate", index === all.length - 1 && "font-semibold text-foreground")}>{crumb.label}</span>
+                  )}
                 </span>
-                <span className="text-sm font-semibold">Warehouse Wizard</span>
-              </Link>
-              {roles.includes("developer") ? (
-                <a
-                  href="https://lovable.dev/projects/b1278655-12aa-44aa-a245-7d311e40dddf"
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Edit with Lovable"
-                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
-                >
-                  {__APP_VERSION__}
-                </a>
-              ) : (
-                <Link
-                  to={toPath("/settings/about")}
-                  title="Version details"
-                  className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
-                >
-                  {__APP_VERSION__}
-                </Link>
-              )}
-              {reconnectRefreshing ? (
-                <Loader2
-                  role="status"
-                  aria-label="Refreshing live warehouse state"
-                  className="h-3.5 w-3.5 shrink-0 animate-themed-loader"
-                />
-              ) : null}
-              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
-                {buildBreadcrumbTrail(pathname).map((crumb, index, all) => (
-                  <span key={`${crumb.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
-                    {index > 0 ? <span aria-hidden>/</span> : null}
-                    {crumb.to && index < all.length - 1 ? (
-                      <Link to={toPath(crumb.to)} className="truncate hover:text-foreground">
-                        {crumb.label}
-                      </Link>
-                    ) : (
-                      <span className={cn("truncate", index === all.length - 1 && "font-medium text-foreground")}>{crumb.label}</span>
-                    )}
-                  </span>
-                ))}
-              </nav>
-            </div>
+              ))}
+            </nav>
+          </div>
 
-            <div className="flex items-center gap-0">
-              {canSwitchWarehouses ? (
-                <Select
-                  value={profile?.default_warehouse_id ?? (canSelectAllWarehouses ? "__all__" : "")}
-                  onValueChange={(value) => warehouseSwitchMutation.mutate(value === "__all__" ? null : value)}
-                  disabled={warehouseSwitchMutation.isPending}
-                >
-                  <SelectTrigger className="h-[43px] w-[13rem] rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-3 hover:bg-accent focus-visible:ring-inset">
-                    <SelectValue placeholder="Select warehouse" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {canSelectAllWarehouses ? (
-                      <SelectItem value="__all__">All warehouses</SelectItem>
-                    ) : null}
-                    {headerWarehouses.map((warehouse: any) => (
-                      <SelectItem key={warehouse.id} value={warehouse.id}>
-                        {warehouse.code ? `${warehouse.code} - ${warehouse.name}` : warehouse.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
+          <div className="flex h-full shrink-0 items-stretch">
+            {canSwitchWarehouses ? (
+              <Select
+                value={profile?.default_warehouse_id ?? (canSelectAllWarehouses ? "__all__" : "")}
+                onValueChange={(value) => warehouseSwitchMutation.mutate(value === "__all__" ? null : value)}
+                disabled={warehouseSwitchMutation.isPending}
+              >
+                <SelectTrigger aria-label="Warehouse" className="h-full w-44 gap-2 rounded-none border-y-0 border-r-0 border-l border-border bg-transparent px-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground xl:w-52 [&>span]:flex-1 [&>span]:text-left">
+                  <Building2 aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+                  <SelectValue placeholder="Select warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  {canSelectAllWarehouses ? (
+                    <SelectItem value="__all__">All warehouses</SelectItem>
+                  ) : null}
+                  {headerWarehouses.map((warehouse: any) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.code ? `${warehouse.code} - ${warehouse.name}` : warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <OfflineFreezeBadge />
+            <div className="flex items-stretch">
               <CopilotPanel />
               <HelpSidebar pathname={pathname} toolbar="desktop" />
-              <OfflineFreezeBadge />
               <NotificationBell
+                desktop
                 alerts={offlineSupervisorAlerts}
                 offline={connectionConfirmed && !online}
                 reorderAlerts={reorderAlertsForBell}
@@ -1413,9 +1426,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 showSetupReminder={showNotificationSetupReminder}
                 onSetupReminderAction={handleNotificationSetup}
               />
-              <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => requestAppRefresh()} />
             </div>
-        </div>
+            <ProfileMenu initials={initials} displayName={displayName} onSignOut={() => void signOut()} onRefresh={() => requestAppRefresh()} />
+          </div>
+        </header>
 
         <aside className="hidden h-full overflow-hidden border-r border-border lg:landscape:block">{renderNavigation()}</aside>
 
@@ -1426,7 +1440,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               "flex-1 min-h-0 min-w-0",
               pathname === "/help"
                 ? "p-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:landscape:pb-0"
-                : "px-4 pt-5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-5 lg:px-6 lg:landscape:pb-5",
+                : "px-4 pt-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:px-6 lg:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:landscape:pb-6",
               ["/inventory-search", "/warehouses", "/zones", "/locations"].includes(pathname) ? "overflow-hidden" : "overflow-y-auto",
             )}
           >

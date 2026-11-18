@@ -13,6 +13,7 @@ import { invalidateWarehouseData } from "@/lib/query-invalidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 
 export function EnvironmentSettingsTab({ isDeveloperOrAdmin }: { isDeveloperOrAdmin: boolean }) {
@@ -51,14 +52,26 @@ export function EnvironmentSettingsTab({ isDeveloperOrAdmin }: { isDeveloperOrAd
 
   return (
     <>
-      <ScannerSettingsPanel />
-      {isDeveloperOrAdmin ? <ReleaseControlPanel /> : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>Environment & Setup</CardTitle>
+      <Accordion type="multiple" defaultValue={["scanner"]} className="rounded-lg border bg-card px-4">
+        <AccordionItem value="scanner">
+          <AccordionTrigger className="text-sm">Scanner timing</AccordionTrigger>
+          <AccordionContent><ScannerSettingsPanel /></AccordionContent>
+        </AccordionItem>
+        {isDeveloperOrAdmin ? (
+          <AccordionItem value="releases">
+            <AccordionTrigger className="text-sm">Release control</AccordionTrigger>
+            <AccordionContent><ReleaseControlPanel /></AccordionContent>
+          </AccordionItem>
+        ) : null}
+        <AccordionItem value="setup" className="border-b-0">
+          <AccordionTrigger className="text-sm">Environment &amp; Setup</AccordionTrigger>
+          <AccordionContent>
+      <Card className="border-0 shadow-none">
+        <CardHeader className="px-0 pt-0 pb-3">
+
           <CardDescription>Use the setup wizard to build the warehouse structure. Forms start blank; nothing is seeded automatically.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm text-muted-foreground">
+        <CardContent className="grid gap-3 px-0 pb-0 text-sm text-muted-foreground">
           <p>1. Keep users and role assignments in place.</p>
           <p>2. Launch the warehouse setup wizard to define warehouses, zones, and location rules.</p>
           <p>3. Demo operational data (clients, products, pallets, receipts) is opt-in for developers only on the final step.</p>
@@ -84,6 +97,9 @@ export function EnvironmentSettingsTab({ isDeveloperOrAdmin }: { isDeveloperOrAd
           {isDeveloper && <p className="text-xs text-muted-foreground">Delete products is dev-only — removes all products and inventory, preserves warehouse structure.</p>}
         </CardContent>
       </Card>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
       <Dialog open={resetOpen} onOpenChange={(o) => { if (!resetMutation.isPending) setResetOpen(o); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

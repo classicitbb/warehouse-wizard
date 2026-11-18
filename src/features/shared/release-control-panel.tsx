@@ -86,9 +86,9 @@ export function ReleaseControlPanel() {
     persist({ minRequiredVersion: null, forceAfter: null, message: null }, "Version requirement cleared");
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <Card className="border-0 shadow-none">
+      <CardHeader className="px-0 pt-0 pb-3">
+        <CardTitle className="sr-only">
           <Rocket className="h-4 w-4" />
           Release control
         </CardTitle>
@@ -97,7 +97,7 @@ export function ReleaseControlPanel() {
           is on, and reloads onto the new build.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid gap-3 px-0 pb-0">
         <div className="grid gap-2 rounded-lg border border-border bg-muted/40 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
