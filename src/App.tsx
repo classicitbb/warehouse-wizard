@@ -37,13 +37,8 @@ import { useTenantPath } from "@/hooks/use-tenant-path";
 import { supabase } from "@/integrations/supabase/client";
 import { createAppQueryClient } from "@/lib/query-client";
 
-import {
-  loginSchema,
-  recordUserSignIn,
-  refreshUserDeviceTrust,
-  signUpSchema,
-  RESOURCE_DEFINITIONS,
-} from "@/lib/wms-core";
+import { loginSchema, signUpSchema, RESOURCE_DEFINITIONS } from "@/features/shared/core-types";
+import { recordUserSignIn, refreshUserDeviceTrust } from "@/features/admin/admin-core";
 import { getOrCreateDeviceId, hasTrustedDeviceShortcut, isDesktopClient } from "@/lib/device-identity";
 import { cn } from "@/lib/utils";
 import { playBarcodeBeep } from "@/lib/floor-feedback";
