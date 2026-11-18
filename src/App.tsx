@@ -537,7 +537,7 @@ function PendingAccessShell() {
           <div className="hidden items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-2.5 backdrop-blur lg:flex">
             <div className="min-w-0">
               <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-                <span className="truncate">{pathname === "/help" ? "Help Center" : "Pending Authorization"}</span>
+                <span className="truncate">{(pathname === "/help" || pathname.startsWith("/help/")) ? "Help Center" : "Pending Authorization"}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">v{__APP_VERSION__}</span>
               </p>
             </div>
@@ -576,7 +576,7 @@ function PendingAccessShell() {
               </Button>
             </div>
 
-            {pathname === "/help" ? (
+            {(pathname === "/help" || pathname.startsWith("/help/")) ? (
               <HelpCenterPage />
             ) : (
               <Card className="mx-auto max-w-2xl text-center">
@@ -1268,6 +1268,7 @@ function ResourceRoutes() {
           <Route path="/system-log" element={<SystemLogPage />} />
           <Route path="/email-log" element={<EmailLogPage />} />
           <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/help/:articleId" element={<HelpCenterPage />} />
           <Route path="/setup-wizard" element={<SetupWizardPage />} />
         </Route>
         <Route path="/inventory/:balanceId" element={<InventoryDetailPage />} />

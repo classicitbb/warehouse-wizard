@@ -988,7 +988,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const renderNavItem = (item: (typeof items)[number], collapsed: boolean, grid: boolean, child = false, fill = false) => {
     const Icon = navIcons[item.to] ?? LayoutDashboard;
-    const isActive = pathname === item.to;
+    const isActive = pathname === item.to || (item.to === "/help" && pathname.startsWith("/help/"));
     const badgeCount = getNavBadgeCount(item.to);
     const icon = (
       <Icon
@@ -1438,7 +1438,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             className={cn(
               "flex-1 min-h-0 min-w-0",
-              pathname === "/help"
+              pathname === "/help" || pathname.startsWith("/help/")
                 ? "p-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:landscape:pb-0"
                 : "px-4 pt-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:px-6 lg:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:landscape:pb-6",
               ["/inventory-search", "/warehouses", "/zones", "/locations"].includes(pathname) ? "overflow-hidden" : "overflow-y-auto",
@@ -1507,7 +1507,7 @@ function MobileActionBar({
         }
         const { item } = entry;
         const Icon = navIcons[item.to] ?? LayoutDashboard;
-        const isActive = pathname === item.to;
+        const isActive = pathname === item.to || (item.to === "/help" && pathname.startsWith("/help/"));
         const badgeCount = getNavBadgeCount(item.to);
         return (
           <NavLink
