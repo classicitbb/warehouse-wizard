@@ -260,6 +260,13 @@
       "when": 1794974718577,
       "tag": "0036_20261116210000_netsuite_live_push_all_outbound_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794974829322,
+      "tag": "0037_fix_open_fulfillment_demand_trip_picks",
+      "breakpoints": true
     }
   ]
 }
